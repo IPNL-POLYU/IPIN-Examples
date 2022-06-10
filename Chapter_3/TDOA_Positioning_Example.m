@@ -1,6 +1,6 @@
 % ------------------------------------------------------------------------
-% Example for indoor positioning by time-of-arrival (TOA) measurements
-% Estimated by iterative least-squares and weighted least-squares
+% Example for indoor positioning by time-difference-of-arrival (TDOA) measurements
+% Estimated by iterative least-squares
 %
 % by GH.Zhang 2022/05/26
 % guo-hao.zhang@connect.polyu.hk
