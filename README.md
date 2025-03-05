@@ -1,5 +1,5 @@
 # IPIN-Examples
-Example code library for the book "Indoor Positioning and Indoor Navigation" - Li-Ta Hsu and Guohao Zhang, published by Artech House. 
+Example code library for the book "Indoor Positioning and Indoor Navigation" - Li-Ta Hsu, Guohao Zhang and Weisong Wen, published by Artech House. 
 
 ## Getting Started
 IPIN example codes are written in MATLAB R2021b. 
