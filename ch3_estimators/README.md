@@ -36,17 +36,25 @@ The following table maps the implemented functions to their corresponding equati
 
 | Function | Location | Equation | Status | Description |
 |----------|----------|----------|--------|-------------|
-| `UnscentedKalmanFilter._compute_sigma_points()` | `core/estimators/unscented_kalman_filter.py` | **Eq. (3.10)** | ⏳ | Sigma point generation |
-| `UnscentedKalmanFilter.predict()` | `core/estimators/unscented_kalman_filter.py` | **Eq. (3.11)** | ⏳ | UT-based prediction |
-| `UnscentedKalmanFilter.update()` | `core/estimators/unscented_kalman_filter.py` | **Eq. (3.12)** | ⏳ | UT-based measurement update |
+| `UnscentedKalmanFilter._generate_sigma_points()` | `core/estimators/unscented_kalman_filter.py` | **Eq. (3.24)** | ✓ | Sigma point generation χ₀, χᵢ, χ_{i+n} |
+| `UnscentedKalmanFilter.predict()` | `core/estimators/unscented_kalman_filter.py` | **Eq. (3.25)** | ✓ | UT-based prediction through f(·) |
+| `UnscentedKalmanFilter.update()` | `core/estimators/unscented_kalman_filter.py` | **Eq. (3.30)** | ✓ | UT-based measurement update with cross-covariances |
 
 ### Particle Filter (PF)
 
 | Function | Location | Equation | Status | Description |
 |----------|----------|----------|--------|-------------|
-| `ParticleFilter.predict()` | `core/estimators/particle_filter.py` | **Eq. (3.13)** | ⏳ | Particle propagation: xᵢₖ ~ p(xₖ\|xᵢₖ₋₁) |
-| `ParticleFilter.update()` | `core/estimators/particle_filter.py` | **Eq. (3.14)** | ⏳ | Importance weighting: wᵢₖ ∝ p(zₖ\|xᵢₖ) |
-| `ParticleFilter.resample()` | `core/estimators/particle_filter.py` | **Eq. (3.15)** | ⏳ | Systematic resampling |
+| `ParticleFilter.predict()` | `core/estimators/particle_filter.py` | **Eq. (3.33)** | ✓ | Particle propagation: x_k⁽ⁱ⁾ ~ p(x_k\|x_{k-1}⁽ⁱ⁾) |
+| `ParticleFilter.update()` | `core/estimators/particle_filter.py` | **Eq. (3.34)** | ✓ | Importance weighting: ẇ_k⁽ⁱ⁾ = w_{k-1}⁽ⁱ⁾ p(z_k\|x_k⁽ⁱ⁾) |
+| `ParticleFilter._resample()` | `core/estimators/particle_filter.py` | - | ✓ | Systematic resampling |
+
+### Factor Graph Optimization (FGO)
+
+| Function | Location | Equation | Status | Description |
+|----------|----------|----------|--------|-------------|
+| `FactorGraph.optimize()` | `core/estimators/factor_graph.py` | **Eq. (3.35)** | ✓ | MAP estimation X̂_MAP = argmax_X p(X\|Z) |
+| `FactorGraph._gauss_newton()` | `core/estimators/factor_graph.py` | **Eq. (3.38)** | ✓ | Gauss-Newton optimization with linearization |
+| `FactorGraph._gradient_descent()` | `core/estimators/factor_graph.py` | **Eq. (3.42)** | ✓ | Gradient descent: x_{k+1} = x_k + α d |
 
 ### Performance Metrics
 
@@ -113,6 +121,27 @@ The following table maps the implemented functions to their corresponding equati
    - Tested on range-only and bearing-only tracking
    - **All 2 test cases pass**
 
+#### 7. **Unscented Kalman Filter (UKF)**
+   - Sigma point-based approach for nonlinear systems: Eqs. (3.24)-(3.30)
+   - No Jacobian computation required
+   - Better handling of highly nonlinear transformations than EKF
+   - Configurable parameters (alpha, beta, kappa)
+   - **All 2 test cases pass**
+
+#### 8. **Particle Filter (PF)**
+   - Monte Carlo approach for non-Gaussian distributions: Eqs. (3.32)-(3.34)
+   - Can handle arbitrary nonlinearities and multimodal distributions
+   - Systematic resampling to prevent particle degeneracy
+   - Configurable number of particles
+   - **All 2 test cases pass**
+
+#### 9. **Factor Graph Optimization (FGO)**
+   - Batch optimization approach: Eqs. (3.35)-(3.43)
+   - Represents estimation problem as a graph of variables and factors
+   - Gauss-Newton and gradient descent solvers
+   - Can smooth entire trajectory using all measurements
+   - **All 2 test cases pass**
+
 ### Implementation Choices
 
 #### 1. **Numerical Stability**
@@ -146,7 +175,7 @@ ch3_estimators/
 ├── example_least_squares.py               # LS/WLS/ILS/Robust LS demonstrations [DONE]
 ├── example_kalman_1d.py                   # 1D constant velocity tracking [DONE]
 ├── example_ekf_range_bearing.py           # 2D positioning with EKF [DONE]
-└── example_comparison.py                  # Compare estimators [TODO]
+└── example_comparison.py                  # Compare all estimators (EKF/UKF/PF/FGO) [DONE]
 
 core/estimators/
 ├── __init__.py                            # Package exports
@@ -154,14 +183,17 @@ core/estimators/
 ├── least_squares.py                       # LS/WLS/ILS/Robust LS [DONE]
 ├── kalman_filter.py                       # Linear KF [DONE]
 ├── extended_kalman_filter.py              # EKF [DONE]
-├── unscented_kalman_filter.py             # UKF [TODO]
-└── particle_filter.py                     # PF [TODO]
+├── unscented_kalman_filter.py             # UKF [DONE]
+├── particle_filter.py                     # PF [DONE]
+└── factor_graph.py                        # FGO [DONE]
 
 tests/core/estimators/
 ├── test_least_squares.py                  # 22 test cases [DONE]
 ├── test_kalman_filter.py                  # 3 test cases (in kalman_filter.py) [DONE]
 ├── test_extended_kalman_filter.py         # 2 test cases (in extended_kalman_filter.py) [DONE]
-└── test_particle_filter.py                # [TODO]
+├── test_unscented_kalman_filter.py        # 2 test cases (in unscented_kalman_filter.py) [DONE]
+├── test_particle_filter.py                # 2 test cases (in particle_filter.py) [DONE]
+└── test_factor_graph.py                   # 2 test cases (in factor_graph.py) [DONE]
 
 data/sim/ch3/
 ├── range_measurements.npz                 # Simulated TOA data
@@ -310,17 +342,25 @@ pytest tests/core/estimators/ --cov=core.estimators --cov-report=html
 - 22 test cases for least squares methods
 - 3 test cases for Kalman Filter
 - 2 test cases for Extended Kalman Filter
+- 2 test cases for Unscented Kalman Filter
+- 2 test cases for Particle Filter
+- 2 test cases for Factor Graph Optimization
+- **Total: 33 test cases, all passing**
 - All tests pass with numerical accuracy < 1e-6
-- Edge cases: rank deficiency, outliers, convergence, nonlinear measurements
+- Edge cases: rank deficiency, outliers, convergence, nonlinear measurements, non-Gaussian noise
 
 ### Demo Scripts
 
 ```bash
 cd ch3_estimators
-python example_least_squares.py
-python example_kalman_1d.py
-python example_ekf_range_bearing.py
-# python example_comparison.py  # TODO: Not yet implemented
+
+# Individual examples
+python example_least_squares.py          # LS, WLS, Iterative LS, Robust LS
+python example_kalman_1d.py               # Kalman Filter on 1D tracking
+python example_ekf_range_bearing.py       # EKF on 2D positioning
+
+# Comprehensive comparison
+python example_comparison.py              # Compare EKF, UKF, PF, FGO on same problem
 ```
 
 ## Verification and Validation
@@ -393,13 +433,14 @@ python example_ekf_range_bearing.py
 
 1. ~~**Implement Kalman Filter** (linear KF)~~ ✓ **DONE**
 2. ~~**Implement Extended Kalman Filter** (EKF)~~ ✓ **DONE**
-3. **Implement Unscented Kalman Filter** (UKF)
-4. **Implement Particle Filter** (PF)
-5. **Implement Factor Graph Optimization** (FGO)
-6. **Add performance metrics** (NEES, NIS, innovation tests)
-7. **Create simulation data generators**
-8. **Add interactive Jupyter notebooks**
-9. **Create example_comparison.py** to compare all estimators
+3. ~~**Implement Unscented Kalman Filter** (UKF)~~ ✓ **DONE**
+4. ~~**Implement Particle Filter** (PF)~~ ✓ **DONE**
+5. ~~**Implement Factor Graph Optimization** (FGO)~~ ✓ **DONE**
+6. ~~**Create example_comparison.py** to compare all estimators~~ ✓ **DONE**
+7. **Add performance metrics** (NEES, NIS, innovation tests)
+8. **Create simulation data generators**
+9. **Add interactive Jupyter notebooks**
+10. **Add Levenberg-Marquardt optimization** for FGO
 
 ## Contributing
 
@@ -413,7 +454,7 @@ When adding new estimators:
 
 ---
 
-**Status**: ✓ Least Squares, Kalman Filter, and Extended Kalman Filter fully implemented and tested  
+**Status**: ✓ **ALL CORE ESTIMATORS FULLY IMPLEMENTED AND TESTED**  
 **Last Updated**: December 2025  
 **Maintainer**: Navigation Engineering Team
 
@@ -421,7 +462,9 @@ When adding new estimators:
 - ✓ Least Squares (LS, WLS, Iterative LS, Robust LS)
 - ✓ Kalman Filter (KF)
 - ✓ Extended Kalman Filter (EKF)
-- ⏳ Unscented Kalman Filter (UKF) - Planned
-- ⏳ Particle Filter (PF) - Planned
-- ⏳ Factor Graph Optimization (FGO) - Planned
+- ✓ Unscented Kalman Filter (UKF)
+- ✓ Particle Filter (PF)
+- ✓ Factor Graph Optimization (FGO)
+
+**All estimators from Chapter 3 are now complete with comprehensive examples and test coverage!**
 

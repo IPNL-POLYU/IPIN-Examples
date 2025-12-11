@@ -10,6 +10,7 @@ Available estimators:
     - Extended Kalman Filter (EKF)
     - Unscented Kalman Filter (UKF)
     - Particle Filter (PF)
+    - Factor Graph Optimization (FGO)
 """
 
 from core.estimators.least_squares import (
@@ -20,6 +21,9 @@ from core.estimators.least_squares import (
 )
 from core.estimators.kalman_filter import KalmanFilter
 from core.estimators.extended_kalman_filter import ExtendedKalmanFilter
+from core.estimators.unscented_kalman_filter import UnscentedKalmanFilter
+from core.estimators.particle_filter import ParticleFilter
+from core.estimators.factor_graph import Factor, FactorGraph
 
 __all__ = [
     "linear_least_squares",
@@ -28,5 +32,9 @@ __all__ = [
     "robust_least_squares",
     "KalmanFilter",
     "ExtendedKalmanFilter",
+    "UnscentedKalmanFilter",
+    "ParticleFilter",
+    "Factor",
+    "FactorGraph",
 ]
 
