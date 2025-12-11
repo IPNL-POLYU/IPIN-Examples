@@ -156,9 +156,203 @@
 # To be added when Chapter 3 estimators are implemented
 
 # ==============================================================================
-# Chapter 4: RF Positioning (Placeholder)
+# Chapter 4: RF Point Positioning by Radio Signals
 # ==============================================================================
-# To be added when Chapter 4 RF positioning is implemented
+
+# TOA (Time of Arrival) Ranging
+- eq: "Eq. (4.1)"
+  chapter: 4
+  description: "Basic TOA range measurement"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "toa_range"
+    - path: "ch4_rf_point_positioning/example_toa_positioning.py"
+      object: "demo_toa_basic"
+  tests:
+    - "tests/core/rf/test_measurement_models.py::TestTOA::test_toa_range_2d"
+    - "tests/core/rf/test_measurement_models.py::TestTOA::test_toa_range_3d"
+  notes: "Distance = c * time_of_flight, where c is speed of light"
+
+- eq: "Eq. (4.6)"
+  chapter: 4
+  description: "Two-way TOA (RTT) range measurement"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "two_way_toa_range"
+    - path: "ch4_rf_point_positioning/example_toa_positioning.py"
+      object: "demo_two_way_toa"
+  tests:
+    - "tests/core/rf/test_measurement_models.py::TestTOA::test_two_way_toa"
+  notes: "Round-trip time distance with optional processing delay correction"
+
+# RSS (Received Signal Strength) Ranging
+- eq: "Eq. (4.11)"
+  chapter: 4
+  description: "Path-loss model for RSS measurements"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "rss_pathloss"
+    - path: "ch4_rf_point_positioning/example_comparison.py"
+      object: "rss_positioning_test"
+  tests:
+    - "tests/core/rf/test_measurement_models.py::TestRSS::test_rss_pathloss"
+  notes: "RSS = Ptx - 10*n*log10(d/d0) - X_sigma, where n is path-loss exponent"
+
+- eq: "Eq. (4.13)"
+  chapter: 4
+  description: "RSS to distance conversion"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "rss_to_distance"
+    - path: "ch4_rf_point_positioning/example_comparison.py"
+      object: "rss_positioning_test"
+  tests:
+    - "tests/core/rf/test_measurement_models.py::TestRSS::test_rss_to_distance"
+  notes: "Inverts path-loss model to estimate distance from RSS"
+
+# TOA Positioning Algorithms
+- eq: "Eqs. (4.14)-(4.23)"
+  chapter: 4
+  description: "Nonlinear TOA I-WLS (Iterative Weighted Least Squares)"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "TOAPositioner"
+    - path: "ch4_rf_point_positioning/example_toa_positioning.py"
+      object: "demo_toa_basic"
+  tests:
+    - "tests/core/rf/test_positioning.py::TestTOAPositioner"
+  notes: "Iterative Gauss-Newton with weighting. Requires initial guess."
+
+- eq: "Eqs. (4.24)-(4.26)"
+  chapter: 4
+  description: "TOA positioning with joint clock bias estimation"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "toa_solve_with_clock_bias"
+    - path: "ch4_rf_point_positioning/example_toa_positioning.py"
+      object: "demo_toa_with_clock_bias"
+  tests:
+    - "tests/core/rf/test_positioning.py::TestTOAPositioner::test_with_clock_bias"
+  notes: "Extended state vector [x, y, clock_bias] for joint estimation"
+
+# TDOA (Time Difference of Arrival)
+- eq: "Eqs. (4.27)-(4.33)"
+  chapter: 4
+  description: "TDOA range difference measurements"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "tdoa_range_difference"
+    - path: "core/rf/measurement_models.py"
+      object: "tdoa_measurement_vector"
+    - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
+      object: "demo_tdoa_basic"
+  tests:
+    - "tests/core/rf/test_measurement_models.py::TestTDOA"
+  notes: "TDOA = range_i - range_ref eliminates receiver clock bias"
+
+- eq: "Eqs. (4.34)-(4.42)"
+  chapter: 4
+  description: "TDOA I-WLS positioning algorithm"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "TDOAPositioner"
+    - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
+      object: "demo_tdoa_basic"
+  tests:
+    - "tests/core/rf/test_positioning.py::TestTDOAPositioner"
+  notes: "Linearized TDOA with iterative weighted least squares"
+
+- eq: "Eqs. (4.43)-(4.48)"
+  chapter: 4
+  description: "Fang's closed-form TDOA algorithm"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "tdoa_fang_solver"
+    - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
+      object: "demo_closed_form_algorithms"
+  tests:
+    - "tests/core/rf/test_positioning.py::TestTDOAPositioner::test_fang_solver"
+  notes: "Closed-form hyperbolic TDOA solution (4 anchors minimum)"
+
+- eq: "Eq. (4.58)"
+  chapter: 4
+  description: "Chan's two-step TDOA algorithm"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "tdoa_chan_solver"
+    - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
+      object: "demo_closed_form_algorithms"
+  tests:
+    - "tests/core/rf/test_positioning.py::TestTDOAPositioner::test_chan_solver"
+  notes: "Two-step WLS refinement with covariance weighting"
+
+# AOA (Angle of Arrival)
+- eq: "Eqs. (4.63)-(4.67)"
+  chapter: 4
+  description: "AOA azimuth and elevation measurements"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "aoa_azimuth"
+    - path: "core/rf/measurement_models.py"
+      object: "aoa_elevation"
+    - path: "core/rf/measurement_models.py"
+      object: "aoa_measurement_vector"
+    - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
+      object: "demo_aoa_basic"
+  tests:
+    - "tests/core/rf/test_measurement_models.py::TestAOA"
+  notes: "Azimuth = atan2(dy, dx), Elevation = atan2(dz, sqrt(dx^2+dy^2))"
+
+- eq: "Eqs. (4.63)-(4.67)"
+  chapter: 4
+  description: "AOA I-WLS positioning algorithm"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "AOAPositioner"
+    - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
+      object: "demo_aoa_basic"
+  tests:
+    - "tests/core/rf/test_positioning.py::TestAOAPositioner"
+  notes: "Iterative weighted least squares for AOA positioning"
+
+- eq: "Eq. (4.68)"
+  chapter: 4
+  description: "OVE (Optimal Velocity Estimator) for AOA"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "aoa_ove_solver"
+    - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
+      object: "demo_closed_form_algorithms"
+  tests:
+    - "tests/core/rf/test_positioning.py::TestAOAPositioner::test_ove_solver"
+  notes: "Closed-form AOA positioning algorithm (minimum 3 anchors)"
+
+- eq: "Eq. (4.69)"
+  chapter: 4
+  description: "3D PLE (Position Line Estimation) for AOA"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "aoa_3dple_solver"
+    - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
+      object: "demo_closed_form_algorithms"
+  tests:
+    - "tests/core/rf/test_positioning.py::TestAOAPositioner::test_3dple_solver"
+  notes: "3D position line estimation for AOA (minimum 3 anchors)"
+
+# DOP (Dilution of Precision)
+- eq: "Section 4.5"
+  chapter: 4
+  description: "DOP computation (GDOP, PDOP, HDOP, VDOP)"
+  files:
+    - path: "core/rf/dop.py"
+      object: "compute_dop"
+    - path: "core/rf/dop.py"
+      object: "compute_geometry_matrix"
+    - path: "core/rf/dop.py"
+      object: "compute_dop_map"
+  tests:
+    - "tests/core/rf/test_dop.py"
+  notes: "Geometry matrix and DOP metrics for evaluating positioning quality"
 
 # ==============================================================================
 # Chapter 5: Fingerprinting (Placeholder)
