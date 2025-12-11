@@ -1,0 +1,182 @@
+# Equation Index: Book Equations → Code Mapping
+#
+# This file maps equations from "Principles of Indoor Positioning and Indoor Navigation"
+# to their implementations in the codebase.
+#
+# Format:
+#   - eq: "Eq. (C.NN)"          # Equation identifier from book
+#     chapter: N                 # Chapter number
+#     description: "..."         # Brief description
+#     files:                     # List of implementing files
+#       - path: "..."            # File path
+#         object: "..."          # Function/class name
+#     tests:                     # List of test files (optional)
+#       - "..."
+#     notebooks:                 # List of notebooks (optional)
+#       - "..."
+#     notes: "..."               # Additional notes (optional)
+
+# ==============================================================================
+# Chapter 2: Coordinate Systems and Attitude Representations
+# ==============================================================================
+
+- eq: "Eq. (2.1)"
+  chapter: 2
+  description: "LLH to ECEF coordinate transformation"
+  files:
+    - path: "core/coords/transforms.py"
+      object: "llh_to_ecef"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_transforms.py::TestLLHtoECEF"
+    - "tests/core/coords/test_transforms.py::TestRoundTripLLHECEF"
+  notes: "Uses WGS84 ellipsoid parameters. Closed-form solution."
+
+- eq: "Eq. (2.2)"
+  chapter: 2
+  description: "ECEF to LLH coordinate transformation (iterative)"
+  files:
+    - path: "core/coords/transforms.py"
+      object: "ecef_to_llh"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_transforms.py::TestECEFtoLLH"
+    - "tests/core/coords/test_transforms.py::TestRoundTripLLHECEF"
+  notes: "Iterative algorithm with configurable tolerance (default 1e-12 m). Handles poles as special case."
+
+- eq: "Eq. (2.3)"
+  chapter: 2
+  description: "ECEF to ENU (East-North-Up) local frame transformation"
+  files:
+    - path: "core/coords/transforms.py"
+      object: "ecef_to_enu"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_transforms.py::TestECEFtoENU"
+    - "tests/core/coords/test_transforms.py::TestRoundTripECEFENU"
+  notes: "Rotation matrix from ECEF to local tangent plane at reference point."
+
+- eq: "Eq. (2.4)"
+  chapter: 2
+  description: "ENU to ECEF coordinate transformation"
+  files:
+    - path: "core/coords/transforms.py"
+      object: "enu_to_ecef"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_transforms.py::TestENUtoECEF"
+    - "tests/core/coords/test_transforms.py::TestRoundTripECEFENU"
+  notes: "Inverse of ECEF to ENU transformation."
+
+- eq: "Eq. (2.5)"
+  chapter: 2
+  description: "Euler angles to rotation matrix (ZYX convention)"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "euler_to_rotation_matrix"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix"
+    - "tests/core/coords/test_rotations.py::TestRoundTripEulerRotationMatrix"
+  notes: "ZYX (yaw-pitch-roll) Euler angle convention. Returns proper orthogonal matrix in SO(3)."
+
+- eq: "Eq. (2.6)"
+  chapter: 2
+  description: "Rotation matrix to Euler angles"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "rotation_matrix_to_euler"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestRotationMatrixToEuler"
+    - "tests/core/coords/test_rotations.py::TestRoundTripEulerRotationMatrix"
+  notes: "Handles gimbal lock at pitch = ±90° by setting roll = 0 by convention."
+
+- eq: "Eq. (2.7)"
+  chapter: 2
+  description: "Euler angles to quaternion"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "euler_to_quat"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestEulerToQuaternion"
+    - "tests/core/coords/test_rotations.py::TestRoundTripEulerQuaternion"
+  notes: "Returns unit quaternion [qw, qx, qy, qz] with scalar-first convention."
+
+- eq: "Eq. (2.8)"
+  chapter: 2
+  description: "Quaternion to Euler angles"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "quat_to_euler"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestQuaternionToEuler"
+    - "tests/core/coords/test_rotations.py::TestRoundTripEulerQuaternion"
+  notes: "Expects unit quaternion [qw, qx, qy, qz]. Clamps arcsin argument to [-1, 1]."
+
+- eq: "Eq. (2.9)"
+  chapter: 2
+  description: "Quaternion to rotation matrix"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "quat_to_rotation_matrix"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestQuaternionToRotationMatrix"
+    - "tests/core/coords/test_rotations.py::TestRoundTripQuaternionRotationMatrix"
+  notes: "Returns proper orthogonal matrix. Assumes input quaternion is normalized."
+
+- eq: "Eq. (2.10)"
+  chapter: 2
+  description: "Rotation matrix to quaternion (Shepperd's method)"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "rotation_matrix_to_quat"
+    - path: "ch2_coords/example_coordinate_transforms.py"
+      object: "main"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestRotationMatrixToQuaternion"
+    - "tests/core/coords/test_rotations.py::TestRoundTripQuaternionRotationMatrix"
+  notes: "Uses Shepperd's method for numerical stability. Chooses largest diagonal element. Normalizes output."
+
+# ==============================================================================
+# Chapter 3: Estimation and Filtering (Placeholder)
+# ==============================================================================
+# To be added when Chapter 3 estimators are implemented
+
+# ==============================================================================
+# Chapter 4: RF Positioning (Placeholder)
+# ==============================================================================
+# To be added when Chapter 4 RF positioning is implemented
+
+# ==============================================================================
+# Chapter 5: Fingerprinting (Placeholder)
+# ==============================================================================
+# To be added when Chapter 5 fingerprinting is implemented
+
+# ==============================================================================
+# Chapter 6: Dead Reckoning (Placeholder)
+# ==============================================================================
+# To be added when Chapter 6 PDR/sensors are implemented
+
+# ==============================================================================
+# Chapter 7: SLAM (Placeholder)
+# ==============================================================================
+# To be added when Chapter 7 SLAM is implemented
+
+# ==============================================================================
+# Chapter 8: Sensor Fusion (Placeholder)
+# ==============================================================================
+# To be added when Chapter 8 sensor fusion is implemented
+

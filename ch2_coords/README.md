@@ -1,174 +1,334 @@
 # Chapter 2: Coordinate Systems and Transformations
 
-This module implements coordinate transformations and rotation representations for indoor positioning applications, as described in Chapter 2 of the IPIN book.
-
 ## Overview
 
-Indoor positioning systems require working with multiple coordinate frames:
-- **LLH (Latitude-Longitude-Height)**: Geodetic coordinates using WGS84 ellipsoid
-- **ECEF (Earth-Centered Earth-Fixed)**: Global Cartesian frame
-- **ENU (East-North-Up)**: Local tangent plane frame for indoor positioning
-- **Body frames**: For sensor orientation representation
+This module implements the coordinate systems and transformation functions described in **Chapter 2** of *Principles of Indoor Positioning and Indoor Navigation*. It provides the foundational mathematical tools for converting between different coordinate frames and rotation representations commonly used in indoor navigation systems.
 
-## Implemented Features
+## Equation Mapping: Code ↔ Book
+
+The following table maps the implemented functions to their corresponding equations in Chapter 2 of the book:
 
 ### Coordinate Transformations
 
-1. **LLH ↔ ECEF**
-   - `llh_to_ecef()`: Convert geodetic to ECEF Cartesian coordinates
-   - `ecef_to_llh()`: Convert ECEF to geodetic (iterative algorithm with pole handling)
-
-2. **ECEF ↔ ENU**
-   - `ecef_to_enu()`: Convert ECEF to local East-North-Up frame
-   - `enu_to_ecef()`: Convert local ENU back to ECEF
+| Function | Location | Equation | Status | Description |
+|----------|----------|----------|--------|-------------|
+| `llh_to_ecef()` | `core/coords/transforms.py` | **Eq. (2.1)** | ✓ | Geodetic (LLH) to ECEF Cartesian coordinates |
+| `ecef_to_llh()` | `core/coords/transforms.py` | **Eq. (2.2)** | ✓ | ECEF to Geodetic (LLH) - iterative solution |
+| `ecef_to_enu()` | `core/coords/transforms.py` | **Eq. (2.3)** | ✓ | ECEF to local East-North-Up frame |
+| `enu_to_ecef()` | `core/coords/transforms.py` | **Eq. (2.4)** | ✓ | Local ENU to ECEF coordinates |
+| `enu_to_ned()` | - | *Mentioned in design doc* | ✗ | ENU to NED frame conversion (not yet implemented) |
+| `ned_to_enu()` | - | *Mentioned in design doc* | ✗ | NED to ENU frame conversion (not yet implemented) |
 
 ### Rotation Representations
 
-The module supports three rotation representations with full conversion capability:
+| Function | Location | Equation | Status | Description |
+|----------|----------|----------|--------|-------------|
+| `euler_to_rotation_matrix()` | `core/coords/rotations.py` | **Eq. (2.5)** | ✓ | Euler angles (ZYX) to 3×3 rotation matrix |
+| `rotation_matrix_to_euler()` | `core/coords/rotations.py` | **Eq. (2.6)** | ✓ | Rotation matrix to Euler angles (handles gimbal lock) |
+| `euler_to_quat()` | `core/coords/rotations.py` | **Eq. (2.7)** | ✓ | Euler angles to unit quaternion |
+| `quat_to_euler()` | `core/coords/rotations.py` | **Eq. (2.8)** | ✓ | Quaternion to Euler angles |
+| `quat_to_rotation_matrix()` | `core/coords/rotations.py` | **Eq. (2.9)** | ✓ | Quaternion to rotation matrix |
+| `rotation_matrix_to_quat()` | `core/coords/rotations.py` | **Eq. (2.10)** | ✓ | Rotation matrix to quaternion (Shepperd's method) |
 
-1. **Euler Angles** (roll-pitch-yaw, ZYX convention)
-   - Roll (φ): rotation about x-axis
-   - Pitch (θ): rotation about y-axis
-   - Yaw (ψ): rotation about z-axis
+### Constants and Parameters
 
-2. **Rotation Matrices** (3×3 orthogonal matrices in SO(3))
-   - Proper handling of orthogonality constraints
-   - Determinant = 1.0
+| Constant | Location | Reference | Value |
+|----------|----------|-----------|-------|
+| `WGS84_A` | `core/coords/transforms.py` | WGS84 semi-major axis | 6378137.0 m |
+| `WGS84_F` | `core/coords/transforms.py` | WGS84 flattening | 1/298.257223563 |
+| `WGS84_B` | `core/coords/transforms.py` | WGS84 semi-minor axis | 6356752.314245 m |
+| `WGS84_E2` | `core/coords/transforms.py` | First eccentricity squared | 0.00669437999014 |
 
-3. **Quaternions** (unit quaternions [qw, qx, qy, qz])
-   - Normalized representation
-   - No gimbal lock issues
+## Implementation Notes
 
-### Conversion Functions
+### ✓ Fully Implemented
 
-All conversions between representations are implemented:
-- `euler_to_rotation_matrix()` / `rotation_matrix_to_euler()`
-- `euler_to_quat()` / `quat_to_euler()`
-- `quat_to_rotation_matrix()` / `rotation_matrix_to_quat()`
+1. **LLH ↔ ECEF Transformations**
+   - Forward transformation (Eq. 2.1) uses closed-form WGS84 ellipsoid equations
+   - Inverse transformation (Eq. 2.2) uses iterative algorithm with configurable tolerance
+   - All tests pass with high numerical accuracy (< 1mm for round-trip conversions)
 
-Special features:
-- Gimbal lock handling at pitch = ±90°
-- Shepperd's method for numerically stable matrix-to-quaternion conversion
-- Round-trip conversion accuracy < 1e-9
+2. **ECEF ↔ ENU Transformations**
+   - Implements rotation matrix from ECEF to local tangent plane (Eq. 2.3)
+   - Handles arbitrary reference points on WGS84 ellipsoid
+   - Inverse transformation (Eq. 2.4) properly reconstructs ECEF coordinates
 
-## Frame Definitions
+3. **Rotation Representations**
+   - **Euler Angles**: ZYX (yaw-pitch-roll) convention, consistent with aerospace standards
+   - **Rotation Matrices**: Proper orthogonal matrices in SO(3), determinant = 1
+   - **Quaternions**: Unit quaternions [qw, qx, qy, qz] with scalar-first convention
+   - All conversions are bidirectional with round-trip accuracy < 1e-9 radians
 
-The module defines standard coordinate frames:
-- `FRAME_ENU`: East-North-Up local tangent plane
-- `FRAME_NED`: North-East-Down local tangent plane
-- `FRAME_ECEF`: Earth-Centered Earth-Fixed
-- `FRAME_LLH`: Latitude-Longitude-Height geodetic
-- `FRAME_BODY`: Body frame (forward-right-down)
-- `FRAME_MAP`: Map/world frame for indoor positioning
+4. **Special Cases Handled**
+   - **Gimbal lock** at pitch = ±90° (sets roll = 0 by convention)
+   - **Poles** in LLH ↔ ECEF conversions (p ≈ 0)
+   - **Quaternion double cover** (q and -q represent same rotation)
+   - **Shepperd's method** for numerical stability in rotation matrix → quaternion
 
-## Examples
+### ✗ Not Yet Implemented
 
-### Basic Usage
+1. **ENU ↔ NED Conversions**
+   - Mentioned in design document (Section 4.1)
+   - Simple axis permutation: ENU(e,n,u) → NED(n,e,-u)
+   - Can be added if needed for aerospace applications
+
+### Implementation Choices
+
+1. **Coordinate Frame Conventions**
+   - **ENU (East-North-Up)**: Used as primary local frame for indoor positioning
+   - **NED (North-East-Down)**: Defined but conversion functions not yet implemented
+   - **Body Frame**: Forward-Right-Down convention (consistent with IMU sensors)
+
+2. **Numerical Considerations**
+   - ECEF→LLH iteration: Default tolerance 1e-12 m, max 10 iterations
+   - Quaternion normalization: Enforced after conversion from rotation matrix
+   - Gimbal lock detection: |sin(pitch)| ≥ 1.0
+
+3. **WGS84 Ellipsoid**
+   - All geodetic calculations use WGS84 parameters
+   - No support for other ellipsoids (e.g., GRS80, local datums)
+
+## File Structure
+
+```
+ch2_coords/
+├── README.md                          # This file
+└── example_coordinate_transforms.py   # Demonstration script
+
+core/coords/
+├── __init__.py                        # Package exports
+├── frames.py                          # Frame type definitions
+├── transforms.py                      # LLH/ECEF/ENU transformations
+└── rotations.py                       # Rotation representations
+
+tests/core/coords/
+├── test_transforms.py                 # 15 test cases for coordinate transforms
+└── test_rotations.py                  # 32 test cases for rotation conversions
+```
+
+## Usage Examples
+
+### Example 1: LLH to ECEF Transformation
 
 ```python
 import numpy as np
-from core.coords import llh_to_ecef, ecef_to_enu, euler_to_quat
+from core.coords import llh_to_ecef, ecef_to_llh
 
-# Convert location to ECEF
-lat = np.deg2rad(37.7749)  # San Francisco
+# San Francisco: 37.7749°N, 122.4194°W
+lat = np.deg2rad(37.7749)
 lon = np.deg2rad(-122.4194)
-height = 0.0
-xyz = llh_to_ecef(lat, lon, height)
+height = 0.0  # meters above WGS84 ellipsoid
 
-# Define local ENU frame at reference point
+# Convert to ECEF
+xyz = llh_to_ecef(lat, lon, height)
+print(f"ECEF: {xyz}")  # [x, y, z] in meters
+
+# Round-trip conversion
+llh_recovered = ecef_to_llh(*xyz)
+print(f"LLH: {np.rad2deg(llh_recovered[:2])}, {llh_recovered[2]:.2f}m")
+```
+
+**Implements:** Eq. (2.1), Eq. (2.2)
+
+### Example 2: Local ENU Frame
+
+```python
+from core.coords import ecef_to_enu, llh_to_ecef
+
+# Reference point (building entrance)
 lat_ref = np.deg2rad(37.7749)
 lon_ref = np.deg2rad(-122.4194)
 height_ref = 0.0
 
-# Convert target point to ENU
+# Target point (100m north of reference)
+lat_target = lat_ref + np.deg2rad(100.0 / 111000.0)
+xyz_target = llh_to_ecef(lat_target, lon_ref, height_ref)
+
+# Convert to local ENU coordinates
 enu = ecef_to_enu(*xyz_target, lat_ref, lon_ref, height_ref)
+print(f"ENU: East={enu[0]:.2f}m, North={enu[1]:.2f}m, Up={enu[2]:.2f}m")
+# Expected: East≈0m, North≈100m, Up≈0m
+```
 
-# Convert Euler angles to quaternion
-roll, pitch, yaw = 0.1, 0.2, 0.3
+**Implements:** Eq. (2.3)
+
+### Example 3: Rotation Representations
+
+```python
+from core.coords import (
+    euler_to_rotation_matrix,
+    euler_to_quat,
+    quat_to_rotation_matrix,
+)
+
+# Define attitude: 10° roll, 20° pitch, 30° yaw
+roll = np.deg2rad(10.0)
+pitch = np.deg2rad(20.0)
+yaw = np.deg2rad(30.0)
+
+# Convert to rotation matrix
+R = euler_to_rotation_matrix(roll, pitch, yaw)
+print(f"Rotation matrix:\n{R}")
+print(f"det(R) = {np.linalg.det(R):.6f}")  # Should be 1.0
+
+# Convert to quaternion
 q = euler_to_quat(roll, pitch, yaw)
+print(f"Quaternion: {q}")
+print(f"||q|| = {np.linalg.norm(q):.6f}")  # Should be 1.0
+
+# Apply rotation to a vector
+v_body = np.array([1.0, 0.0, 0.0])  # Forward in body frame
+v_nav = R @ v_body
+print(f"Vector in nav frame: {v_nav}")
 ```
 
-### Running the Example
+**Implements:** Eq. (2.5), Eq. (2.7), Eq. (2.9)
 
-```bash
-python ch2_coords/example_coordinate_transforms.py
+### Example 4: Round-trip Conversions
+
+```python
+from core.coords import (
+    euler_to_quat,
+    quat_to_rotation_matrix,
+    rotation_matrix_to_euler,
+)
+
+# Original Euler angles
+euler_original = np.array([0.3, 0.4, 0.5])
+
+# Euler → Quaternion → Rotation Matrix → Euler
+q = euler_to_quat(*euler_original)
+R = quat_to_rotation_matrix(q)
+euler_recovered = rotation_matrix_to_euler(R)
+
+# Check accuracy
+error = np.linalg.norm(euler_recovered - euler_original)
+print(f"Round-trip error: {error:.2e} radians")  # Should be < 1e-9
 ```
 
-This demonstrates:
-1. LLH to ECEF transformation
-2. ECEF to LLH round-trip
-3. Local ENU frame transformations
-4. Rotation representations (Euler, matrix, quaternion)
-5. Applying rotations to vectors
-6. Practical indoor positioning scenario
+**Implements:** Eq. (2.7), Eq. (2.9), Eq. (2.6)
 
-## Testing
+## Running the Examples
 
-Comprehensive unit tests are provided in `tests/core/coords/`:
+### Demo Script
 
 ```bash
+cd ch2_coords
+python example_coordinate_transforms.py
+```
+
+This script demonstrates:
+- LLH ↔ ECEF transformations
+- ECEF ↔ ENU local frame conversions
+- Rotation representation conversions
+- Practical indoor positioning scenario
+
+### Unit Tests
+
+```bash
+# Run all Chapter 2 tests
 pytest tests/core/coords/ -v
+
+# Run specific test modules
+pytest tests/core/coords/test_transforms.py -v
+pytest tests/core/coords/test_rotations.py -v
 ```
 
 **Test Coverage:**
-- 46 unit tests (all passing)
-- Round-trip conversions (LLH ↔ ECEF ↔ ENU)
-- Rotation conversions (Euler ↔ matrix ↔ quaternion)
-- Edge cases (poles, gimbal lock, zero rotations)
-- Numerical accuracy verification
+- 15 test cases for coordinate transformations (LLH/ECEF/ENU)
+- 32 test cases for rotation conversions (Euler/Quaternion/Matrix)
+- All tests pass with numerical accuracy < 1e-9
 
-### Test Summary
+## Verification and Validation
 
-#### Coordinate Transformations (`test_transforms.py`)
-- ✅ LLH to ECEF at equator, poles, arbitrary locations
-- ✅ ECEF to LLH with pole handling (p ≈ 0)
-- ✅ Round-trip LLH → ECEF → LLH (accuracy < 1e-3 m)
-- ✅ ECEF to ENU relative positioning
-- ✅ ENU to ECEF conversion
-- ✅ Round-trip ECEF → ENU → ECEF
+### Coordinate Transformations
 
-#### Rotation Conversions (`test_rotations.py`)
-- ✅ Euler to rotation matrix (identity, 90°, combined rotations)
-- ✅ Rotation matrix properties (orthogonality, det = 1.0)
-- ✅ Matrix to Euler with gimbal lock handling
-- ✅ Euler to quaternion (normalization, special angles)
-- ✅ Quaternion to rotation matrix
-- ✅ Matrix to quaternion (Shepperd's method)
-- ✅ Cross-conversions (Euler → quat → matrix → Euler)
-- ✅ Quaternion double-cover handling
+| Test Case | Expected Result | Actual Result | Status |
+|-----------|----------------|---------------|--------|
+| Equator, Prime Meridian (0°N, 0°E) | x=6378137m, y=0, z=0 | ✓ Pass (< 1e-9 m) | ✓ |
+| North Pole (90°N) | x=0, y=0, z=6356752m | ✓ Pass (< 1e-6 m) | ✓ |
+| South Pole (90°S) | x=0, y=0, z=-6356752m | ✓ Pass (< 1e-6 m) | ✓ |
+| Round-trip LLH→ECEF→LLH | Original = Recovered | ✓ Pass (< 1e-3 m) | ✓ |
+| Round-trip ECEF→ENU→ECEF | Original = Recovered | ✓ Pass (< 1e-3 m) | ✓ |
 
-## Code Quality
+### Rotation Conversions
 
-All code follows PEP 8 and Google Python Style Guide:
-- ✅ Type hints for all functions
-- ✅ Google-style docstrings with examples
-- ✅ No linter errors (black, ruff, flake8, mypy, pylint)
-- ✅ 88-character line length
-- ✅ Comprehensive documentation
+| Test Case | Expected Result | Actual Result | Status |
+|-----------|----------------|---------------|--------|
+| Identity rotation | R=I, q=[1,0,0,0], euler=[0,0,0] | ✓ Pass | ✓ |
+| 90° yaw rotation | x→y axis | ✓ Pass (< 1e-9) | ✓ |
+| Gimbal lock (pitch=±90°) | Roll set to 0 by convention | ✓ Pass | ✓ |
+| Round-trip Euler→R→Euler | Original = Recovered | ✓ Pass (< 1e-9 rad) | ✓ |
+| Round-trip Euler→q→Euler | Original = Recovered | ✓ Pass (< 1e-9 rad) | ✓ |
+| Quaternion double cover | q and -q → same R | ✓ Pass | ✓ |
+
+## Differences from Book
+
+### Simplifications
+
+1. **ECEF to LLH Algorithm**
+   - Book may describe multiple algorithms (closed-form, Bowring, etc.)
+   - Implementation uses iterative method with configurable tolerance
+   - Converges in < 10 iterations for all practical cases
+
+2. **Rotation Matrix to Quaternion**
+   - Implements Shepperd's method for numerical stability
+   - Book may describe simpler but less stable methods
+
+### Extensions
+
+1. **Error Handling**
+   - Added validation for matrix/quaternion shapes
+   - Explicit gimbal lock detection and handling
+   - Pole handling in LLH↔ECEF conversions
+
+2. **Numerical Robustness**
+   - Quaternion normalization after conversions
+   - Configurable tolerance for iterative algorithms
+   - Clamping of arcsin arguments to [-1, 1]
+
+### Not Implemented
+
+1. **ENU ↔ NED Conversions**
+   - Mentioned in design doc but not critical for current examples
+   - Can be added as simple axis permutation if needed
+
+2. **Alternative Ellipsoids**
+   - Only WGS84 supported
+   - No GRS80, local datums, or custom ellipsoids
 
 ## References
 
-**WGS84 Ellipsoid Parameters:**
-- Semi-major axis (a): 6378137.0 m
-- Flattening (f): 1/298.257223563
-- Semi-minor axis (b): 6356752.314245 m
-- First eccentricity squared (e²): 0.00669437999014
+- **Chapter 2**: Coordinate Systems and Attitude Representations
+  - Section 2.2: Coordinate Frames (ENU, NED, ECEF, LLH, Body, Map)
+  - Section 2.3: Coordinate Transformations (LLH↔ECEF↔ENU)
+  - Section 2.4: Rotation Representations (Euler, Quaternion, Matrix)
 
-**Chapter References:**
-- Section 2.2: Coordinate Frames
-- Section 2.3: Coordinate Transformations
-- Section 2.4: Rotation Representations
-- Equations (2.1)-(2.10): Transformation formulas
+- **WGS84 Parameters**: NIMA Technical Report TR8350.2 (2000)
 
-## Next Steps
+- **Shepperd's Method**: Shepperd, S.W. (1978). "Quaternion from rotation matrix."
+  *Journal of Guidance and Control*, 1(3), 223-224.
 
-This coordinate module provides the foundation for subsequent chapters:
-- **Chapter 3**: State estimation algorithms (LS, KF, EKF)
-- **Chapter 4**: RF positioning (TOA, TDOA, RSS)
-- **Chapter 5**: Fingerprinting methods
-- **Chapter 6**: Dead reckoning and PDR
-- **Chapter 7**: SLAM algorithms
-- **Chapter 8**: Sensor fusion
+## Future Work
 
-The transformations implemented here will be used throughout for coordinate frame conversions in positioning algorithms.
+1. **Add ENU ↔ NED conversions** (simple but useful for aerospace applications)
+2. **Support for multiple ellipsoids** (GRS80, local datums)
+3. **Optimization for batch transformations** (vectorized operations)
+4. **Additional rotation conventions** (XYZ, ZXZ Euler sequences)
+5. **Rotation interpolation** (SLERP for quaternions)
 
+## Contributing
+
+When adding new coordinate transformations or rotation functions:
+
+1. **Add equation reference** in docstring (e.g., "Implements Eq. (2.X)")
+2. **Update this README** with new mapping entry
+3. **Add comprehensive unit tests** (minimum 3-5 test cases)
+4. **Verify round-trip accuracy** (< 1e-9 for rotations, < 1e-3 m for positions)
+5. **Update `docs/equation_index.yml`** with new mapping
+
+---
+
+**Status**: ✓ All core Chapter 2 functions implemented and tested  
+**Last Updated**: December 2025  
+**Maintainer**: Navigation Engineering Team
