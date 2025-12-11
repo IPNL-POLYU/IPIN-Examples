@@ -1,0 +1,74 @@
+---
+alwaysApply: true
+---
+
+Python Style Guide (PEP 8 + Google Python Style Guide)
+
+For all Python code in this workspace, follow PEP 8 and Google Python Style Guide: https://google.github.io/styleguide/pyguide.html
+
+Treat these guides as authoritative for:
+
+**Naming Conventions:**
+- Module names: `lowercase_with_underscores` (e.g., `kalman_filter.py`)
+- Class names: `PascalCase` (e.g., `KalmanFilter`)
+- Function/method names: `lowercase_with_underscores` (e.g., `estimate_position`)
+- Constants: `UPPER_SNAKE_CASE` (e.g., `MAX_ITERATIONS`)
+- Private attributes/methods: leading underscore `_private_method`
+- Type variables: `PascalCase` (e.g., `TypeVar('T')`)
+
+**Imports:**
+- Use absolute imports
+- Group imports: standard library, third-party, local (separated by blank lines)
+- Order alphabetically within each group
+- Avoid wildcard imports (`from module import *`)
+
+**Type Hints:**
+- Always use type hints for function parameters and return types
+- Use `typing` module for complex types (List, Dict, Optional, Union, etc.)
+- Prefer `Optional[T]` over `Union[T, None]`
+- Use `Any` only when absolutely necessary
+
+**Code Structure:**
+- Maximum line length: 88 characters (Black default) or 100 (PEP 8)
+- Use 4 spaces for indentation (no tabs)
+- Use blank lines to separate top-level definitions, classes, and functions
+- Maximum function length: ~50 lines (prefer smaller, focused functions)
+
+**Documentation:**
+- Use Google-style docstrings for all modules, classes, and functions
+- Include type information in docstrings when type hints aren't sufficient
+- Document complex algorithms with references to book sections/equations
+
+**Code Quality:**
+- Use `is`/`is not` for `None` comparisons, not `==`/`!=`
+- Use f-strings for string formatting (Python 3.6+)
+- Prefer list comprehensions over map/filter when readable
+- Use context managers (`with` statements) for resource management
+
+**Error Handling:**
+- Use specific exception types, not bare `except:`
+- Document exceptions that functions may raise
+- Use custom exceptions when appropriate
+
+**Testing:**
+- Use pytest for testing
+- Test file naming: `test_*.py` or `*_test.py`
+- Use descriptive test function names: `test_kalman_filter_converges_to_true_state`
+
+When generating or editing Python code, Cursor must:
+
+1. Check each file for PEP 8 compliance
+2. Ensure type hints are present and correct
+3. Add Google-style docstrings with parameter/return descriptions
+4. Format code according to Black formatter (88 char line length)
+5. Use meaningful variable names that reflect their purpose
+6. Keep functions focused and small
+7. Reference book sections/equations in docstrings where applicable
+
+Prefer patterns that would pass:
+- `black --check`
+- `flake8` or `ruff check`
+- `mypy` type checking
+- `pylint` or `pydocstyle` for docstrings
+
+If existing code violates the style guide, propose refactoring to make it compliant.

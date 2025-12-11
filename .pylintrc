@@ -1,0 +1,44 @@
+[MASTER]
+ignore-patterns=test_.*\.py
+jobs=0
+suggestion-mode=yes
+
+[MESSAGES CONTROL]
+disable=
+    missing-module-docstring,
+    missing-class-docstring,
+    missing-function-docstring,
+    too-few-public-methods,
+    too-many-arguments,
+    too-many-instance-attributes,
+    too-many-locals,
+    too-many-branches,
+    too-many-statements
+
+[FORMAT]
+max-line-length=88
+indent-string='    '
+indent-after-paren=4
+expected-line-ending-format=LF
+
+[BASIC]
+good-names=i,j,k,ex,Run,_,x,y,z,dx,dy,dz
+bad-names=foo,bar,baz,toto,tutu,tata
+
+[DESIGN]
+max-args=7
+max-attributes=12
+max-locals=20
+max-branches=15
+max-statements=60
+max-parents=7
+max-public-methods=25
+max-returns=8
+max-bool-expr=5
+
+[TYPECHECK]
+ignored-modules=
+    numpy,
+    scipy,
+    matplotlib
+
