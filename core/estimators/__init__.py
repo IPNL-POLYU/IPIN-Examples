@@ -18,11 +18,15 @@ from core.estimators.least_squares import (
     iterative_least_squares,
     robust_least_squares,
 )
+from core.estimators.kalman_filter import KalmanFilter
+from core.estimators.extended_kalman_filter import ExtendedKalmanFilter
 
 __all__ = [
     "linear_least_squares",
     "weighted_least_squares",
     "iterative_least_squares",
     "robust_least_squares",
+    "KalmanFilter",
+    "ExtendedKalmanFilter",
 ]
 

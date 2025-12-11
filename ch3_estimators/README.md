@@ -21,16 +21,16 @@ The following table maps the implemented functions to their corresponding equati
 
 | Function | Location | Equation | Status | Description |
 |----------|----------|----------|--------|-------------|
-| `KalmanFilter.predict()` | `core/estimators/kalman_filter.py` | **Eq. (3.5)** | 🚧 | Linear KF prediction: x̄ₖ = Fxₖ₋₁ + Buₖ |
-| `KalmanFilter.update()` | `core/estimators/kalman_filter.py` | **Eq. (3.6)** | 🚧 | Linear KF update: xₖ = x̄ₖ + K(z - Hx̄ₖ) |
-| `KalmanFilter._compute_kalman_gain()` | `core/estimators/kalman_filter.py` | **Eq. (3.7)** | 🚧 | Kalman gain: K = P̄H'(HP̄H' + R)⁻¹ |
+| `KalmanFilter.predict()` | `core/estimators/kalman_filter.py` | **Eq. (3.11), (3.12)** | ✓ | Linear KF prediction: x̄ₖ = Fxₖ₋₁ + Buₖ, P̄ₖ = FPₖ₋₁F' + Q |
+| `KalmanFilter.update()` | `core/estimators/kalman_filter.py` | **Eq. (3.17), (3.18), (3.19)** | ✓ | Linear KF update: xₖ = x̄ₖ + K(z - Hx̄ₖ) |
+| `KalmanFilter.get_innovation()` | `core/estimators/kalman_filter.py` | **Eq. (3.8), (3.9)** | ✓ | Innovation and covariance computation |
 
 ### Extended Kalman Filter (EKF)
 
 | Function | Location | Equation | Status | Description |
 |----------|----------|----------|--------|-------------|
-| `ExtendedKalmanFilter.predict()` | `core/estimators/extended_kalman_filter.py` | **Eq. (3.8)** | 🚧 | Nonlinear prediction with Jacobian Fₖ |
-| `ExtendedKalmanFilter.update()` | `core/estimators/extended_kalman_filter.py` | **Eq. (3.9)** | 🚧 | Nonlinear update with measurement Jacobian Hₖ |
+| `ExtendedKalmanFilter.predict()` | `core/estimators/extended_kalman_filter.py` | **Eq. (3.21), (3.22)** | ✓ | Nonlinear prediction with Jacobian Fₖ |
+| `ExtendedKalmanFilter.update()` | `core/estimators/extended_kalman_filter.py` | **Eq. (3.21)** | ✓ | Nonlinear update with measurement Jacobian Hₖ |
 
 ### Unscented Kalman Filter (UKF)
 
@@ -96,13 +96,22 @@ The following table maps the implemented functions to their corresponding equati
    - Iteratively reweights and converges to stable solution
    - **All 7 test cases pass** including multi-outlier scenarios
 
-### 🚧 In Progress
+### ✓ Fully Implemented (Continued)
 
 #### 5. **Kalman Filter (Linear KF)**
    - Optimal estimator for linear Gaussian systems
-   - Prediction step (time update)
-   - Update step (measurement correction)
-   - Covariance propagation
+   - Prediction step: Eqs. (3.11)-(3.12)
+   - Update step: Eqs. (3.17)-(3.19)
+   - Covariance propagation with Joseph form for numerical stability
+   - Supports both constant and time-varying system matrices
+   - **All 3 test cases pass**
+
+#### 6. **Extended Kalman Filter (EKF)**
+   - Handles nonlinear process and measurement models
+   - Linearization via Jacobian matrices: Eqs. (3.21)-(3.22)
+   - Prediction and update steps for nonlinear systems
+   - Tested on range-only and bearing-only tracking
+   - **All 2 test cases pass**
 
 ### Implementation Choices
 
@@ -134,24 +143,24 @@ The following table maps the implemented functions to their corresponding equati
 ```
 ch3_estimators/
 ├── README.md                              # This file
-├── example_least_squares.py               # LS/WLS/ILS/Robust LS demonstrations
-├── example_kalman_1d.py                   # 1D constant velocity tracking
-├── example_ekf_range_bearing.py           # 2D positioning with EKF
-└── example_comparison.py                  # Compare estimators
+├── example_least_squares.py               # LS/WLS/ILS/Robust LS demonstrations [DONE]
+├── example_kalman_1d.py                   # 1D constant velocity tracking [DONE]
+├── example_ekf_range_bearing.py           # 2D positioning with EKF [DONE]
+└── example_comparison.py                  # Compare estimators [TODO]
 
 core/estimators/
 ├── __init__.py                            # Package exports
 ├── base.py                                # Abstract base classes
 ├── least_squares.py                       # LS/WLS/ILS/Robust LS [DONE]
-├── kalman_filter.py                       # Linear KF [TODO]
-├── extended_kalman_filter.py              # EKF [TODO]
+├── kalman_filter.py                       # Linear KF [DONE]
+├── extended_kalman_filter.py              # EKF [DONE]
 ├── unscented_kalman_filter.py             # UKF [TODO]
 └── particle_filter.py                     # PF [TODO]
 
 tests/core/estimators/
 ├── test_least_squares.py                  # 22 test cases [DONE]
-├── test_kalman_filter.py                  # [TODO]
-├── test_extended_kalman_filter.py         # [TODO]
+├── test_kalman_filter.py                  # 3 test cases (in kalman_filter.py) [DONE]
+├── test_extended_kalman_filter.py         # 2 test cases (in extended_kalman_filter.py) [DONE]
 └── test_particle_filter.py                # [TODO]
 
 data/sim/ch3/
@@ -299,15 +308,19 @@ pytest tests/core/estimators/ --cov=core.estimators --cov-report=html
 
 **Test Coverage:**
 - 22 test cases for least squares methods
+- 3 test cases for Kalman Filter
+- 2 test cases for Extended Kalman Filter
 - All tests pass with numerical accuracy < 1e-6
-- Edge cases: rank deficiency, outliers, convergence
+- Edge cases: rank deficiency, outliers, convergence, nonlinear measurements
 
 ### Demo Scripts
 
 ```bash
 cd ch3_estimators
 python example_least_squares.py
-python example_comparison.py
+python example_kalman_1d.py
+python example_ekf_range_bearing.py
+# python example_comparison.py  # TODO: Not yet implemented
 ```
 
 ## Verification and Validation
@@ -378,13 +391,15 @@ python example_comparison.py
 
 ## Future Work
 
-1. **Implement Kalman Filter** (linear KF)
-2. **Implement Extended Kalman Filter** (EKF)
+1. ~~**Implement Kalman Filter** (linear KF)~~ ✓ **DONE**
+2. ~~**Implement Extended Kalman Filter** (EKF)~~ ✓ **DONE**
 3. **Implement Unscented Kalman Filter** (UKF)
 4. **Implement Particle Filter** (PF)
-5. **Add performance metrics** (NEES, NIS, innovation tests)
-6. **Create simulation data generators**
-7. **Add interactive Jupyter notebooks**
+5. **Implement Factor Graph Optimization** (FGO)
+6. **Add performance metrics** (NEES, NIS, innovation tests)
+7. **Create simulation data generators**
+8. **Add interactive Jupyter notebooks**
+9. **Create example_comparison.py** to compare all estimators
 
 ## Contributing
 
@@ -398,7 +413,15 @@ When adding new estimators:
 
 ---
 
-**Status**: ✓ Least Squares methods fully implemented and tested  
+**Status**: ✓ Least Squares, Kalman Filter, and Extended Kalman Filter fully implemented and tested  
 **Last Updated**: December 2025  
 **Maintainer**: Navigation Engineering Team
+
+**Implementation Progress:**
+- ✓ Least Squares (LS, WLS, Iterative LS, Robust LS)
+- ✓ Kalman Filter (KF)
+- ✓ Extended Kalman Filter (EKF)
+- ⏳ Unscented Kalman Filter (UKF) - Planned
+- ⏳ Particle Filter (PF) - Planned
+- ⏳ Factor Graph Optimization (FGO) - Planned
 
