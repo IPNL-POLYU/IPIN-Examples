@@ -16,6 +16,7 @@ Demonstrates the relative performance, accuracy, and characteristics of each met
 import time
 import numpy as np
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 from core.estimators import (
     ExtendedKalmanFilter,
     UnscentedKalmanFilter,
@@ -44,7 +45,7 @@ def setup_scenario():
     ])
 
     # Generate true trajectory (circular motion)
-    print("Generating true trajectory...")
+    print("\n--- Setting up scenario ---")
     true_x0 = np.array([10.0, 10.0, 1.0, 0.5])
 
     def process_model_true(x, u, dt):
@@ -68,17 +69,16 @@ def setup_scenario():
     true_state = true_x0.copy()
 
     np.random.seed(42)
-    for _ in range(n_steps):
+    for _ in tqdm(range(n_steps), desc="Generating trajectory", unit="step"):
         process_noise = np.random.multivariate_normal(np.zeros(4), Q)
         true_state = process_model_true(true_state, None, dt) + process_noise
         true_states.append(true_state.copy())
 
     # Generate range measurements from all anchors
-    print("Generating measurements...")
     measurements = []
     range_std = 0.5
 
-    for state in true_states[1:]:
+    for state in tqdm(true_states[1:], desc="Generating measurements", unit="meas"):
         ranges = []
         for anchor in anchors:
             true_range = np.linalg.norm(state[:2] - anchor)
@@ -147,13 +147,14 @@ def run_ekf(dt, n_steps, anchors, measurements, Q, range_std):
     estimates = [x0.copy()]
     start_time = time.time()
 
-    for z in measurements:
+    for z in tqdm(measurements, desc="EKF filtering", unit="step"):
         ekf.predict(dt=dt)
         ekf.update(z)
         x_est, _ = ekf.get_state()
         estimates.append(x_est.copy())
 
     elapsed_time = time.time() - start_time
+    print(f"  ✓ EKF completed in {elapsed_time:.4f}s")
 
     return np.array(estimates), elapsed_time
 
@@ -195,13 +196,14 @@ def run_ukf(dt, n_steps, anchors, measurements, Q, range_std):
     estimates = [x0.copy()]
     start_time = time.time()
 
-    for z in measurements:
+    for z in tqdm(measurements, desc="UKF filtering", unit="step"):
         ukf.predict(dt=dt)
         ukf.update(z)
         x_est, _ = ukf.get_state()
         estimates.append(x_est.copy())
 
     elapsed_time = time.time() - start_time
+    print(f"  ✓ UKF completed in {elapsed_time:.4f}s")
 
     return np.array(estimates), elapsed_time
 
@@ -246,13 +248,14 @@ def run_pf(dt, n_steps, anchors, measurements, Q, range_std):
     estimates = [x0.copy()]
     start_time = time.time()
 
-    for z in measurements:
+    for z in tqdm(measurements, desc=f"PF filtering ({n_particles} particles)", unit="step"):
         pf.predict(dt=dt)
         pf.update(z)
         x_est, _ = pf.get_state()
         estimates.append(x_est.copy())
 
     elapsed_time = time.time() - start_time
+    print(f"  ✓ PF completed in {elapsed_time:.4f}s")
 
     return np.array(estimates), elapsed_time
 
@@ -283,7 +286,7 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
     # Add process model factors
     Q_inv = np.linalg.inv(Q)
 
-    for i in range(n_steps):
+    for i in tqdm(range(n_steps), desc="Adding process factors", unit="factor"):
         def process_residual(x_vars, i=i, dt=dt):
             F = np.array([
                 [1, 0, dt, 0],
@@ -308,7 +311,7 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
     # Add measurement factors
     R_inv = np.linalg.inv(np.diag([range_std**2] * len(anchors)))
 
-    for i, z in enumerate(measurements):
+    for i, z in tqdm(enumerate(measurements), desc="Adding measurement factors", unit="factor", total=len(measurements)):
         def meas_residual(x_vars, z=z):
             x = x_vars[0]
             predicted_ranges = []
@@ -334,9 +337,11 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
         graph.add_factor(meas_factor)
 
     # Optimize
+    print(f"  Optimizing factor graph (10 Gauss-Newton iterations)...")
     start_time = time.time()
     optimized_vars, _ = graph.optimize(method="gauss_newton", max_iterations=10)
     elapsed_time = time.time() - start_time
+    print(f"  ✓ FGO completed in {elapsed_time:.4f}s")
 
     # Extract estimates
     estimates = []
@@ -348,6 +353,8 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
 
 def main():
     """Run comparison of all estimators."""
+    overall_start = time.time()
+    
     print("=" * 70)
     print("CHAPTER 3: COMPARISON OF STATE ESTIMATORS")
     print("=" * 70)
@@ -364,13 +371,21 @@ def main():
 
     # Run all estimators
     print("\n" + "=" * 70)
-    print("RUNNING ESTIMATORS")
+    print("RUNNING ESTIMATORS (1/4 → 4/4)")
     print("=" * 70)
 
     results = {}
+    
+    print("\n[1/4] Extended Kalman Filter (EKF)")
     results['EKF'], results['EKF_time'] = run_ekf(dt, n_steps, anchors, measurements, Q, range_std)
+    
+    print("\n[2/4] Unscented Kalman Filter (UKF)")
     results['UKF'], results['UKF_time'] = run_ukf(dt, n_steps, anchors, measurements, Q, range_std)
+    
+    print("\n[3/4] Particle Filter (PF)")
     results['PF'], results['PF_time'] = run_pf(dt, n_steps, anchors, measurements, Q, range_std)
+    
+    print("\n[4/4] Factor Graph Optimization (FGO)")
     results['FGO'], results['FGO_time'] = run_fgo(dt, n_steps, anchors, measurements, Q, range_std)
 
     # Compute errors
@@ -396,6 +411,7 @@ def main():
     print("\n" + "=" * 70)
     print("CREATING VISUALIZATION")
     print("=" * 70)
+    print("Generating plots (this may take a moment)...")
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 12))
 
@@ -418,11 +434,11 @@ def main():
 
     # Plot 2: Position Errors vs Time
     ax = axes[0, 1]
-    time = np.arange(n_steps + 1) * dt
+    time_steps = np.arange(n_steps + 1) * dt
     for method, color, style in [('EKF', 'b', '-'), ('UKF', 'g', '--'), ('PF', 'm', '-.'), ('FGO', 'r', ':')]:
         estimates = results[method]
         position_errors = np.linalg.norm(estimates[:, :2] - true_states[:, :2], axis=1)
-        ax.plot(time, position_errors, color + style, linewidth=2, label=method)
+        ax.plot(time_steps, position_errors, color + style, linewidth=2, label=method)
 
     ax.set_xlabel("Time [s]", fontsize=12)
     ax.set_ylabel("Position Error [m]", fontsize=12)
@@ -464,11 +480,14 @@ def main():
 
     plt.tight_layout()
     plt.savefig("ch3_estimator_comparison.png", dpi=150, bbox_inches="tight")
-    print("Plot saved as: ch3_estimator_comparison.png")
+    print("✓ Plot saved as: ch3_estimator_comparison.png")
     plt.show()
 
+    overall_time = time.time() - overall_start
     print("\n" + "=" * 70)
     print("COMPARISON COMPLETED")
+    print("=" * 70)
+    print(f"Total execution time: {overall_time:.2f} seconds ({overall_time/60:.1f} minutes)")
     print("=" * 70)
 
 
