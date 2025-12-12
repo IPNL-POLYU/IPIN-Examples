@@ -14,8 +14,10 @@ Author: Navigation Engineering Team
 Date: December 2025
 """
 
+import time
 import matplotlib.pyplot as plt
 import numpy as np
+from tqdm import tqdm
 
 from core.rf import (
     AOAPositioner,
@@ -48,7 +50,7 @@ def toa_positioning_test(anchors, true_positions, noise_std=0.0):
     """Test TOA positioning."""
     errors = []
 
-    for true_pos in true_positions:
+    for true_pos in tqdm(true_positions, desc="  TOA", leave=False, unit="pt"):
         # Generate TOA measurements
         ranges = np.array([toa_range(anchor, true_pos) for anchor in anchors])
 
@@ -76,7 +78,7 @@ def tdoa_positioning_test(anchors, true_positions, noise_std=0.0):
     """Test TDOA positioning."""
     errors = []
 
-    for true_pos in true_positions:
+    for true_pos in tqdm(true_positions, desc="  TDOA", leave=False, unit="pt"):
         # Generate TDOA measurements
         dist_ref = np.linalg.norm(true_pos - anchors[0])
         tdoa = []
@@ -109,7 +111,7 @@ def aoa_positioning_test(anchors, true_positions, noise_std=0.0):
     """Test AOA positioning."""
     errors = []
 
-    for true_pos in true_positions:
+    for true_pos in tqdm(true_positions, desc="  AOA", leave=False, unit="pt"):
         # Generate AOA measurements
         aoa = np.array([aoa_azimuth(anchor, true_pos) for anchor in anchors])
 
@@ -140,7 +142,7 @@ def rss_positioning_test(
     errors = []
     tx_power_dbm = 0.0
 
-    for true_pos in true_positions:
+    for true_pos in tqdm(true_positions, desc="  RSS", leave=False, unit="pt"):
         # Generate RSS measurements
         rss = []
         for anchor in anchors:
@@ -184,8 +186,9 @@ def compare_methods():
     print("=" * 70)
 
     # Generate scenario
+    print("\n--- Setting up test scenario ---")
     anchors, true_positions = generate_scenario(seed=42)
-    print(f"\nTest scenario:")
+    print(f"✓ Test scenario created:")
     print(f"  Anchors: {len(anchors)}")
     print(f"  Test points: {len(true_positions)}")
     print(f"  Area: 10m x 10m")
@@ -200,8 +203,10 @@ def compare_methods():
     }
 
     print("\nTesting noise levels...")
-    for noise in noise_levels:
-        print(f"  Noise: {noise:.2f} m (TOA/TDOA), {np.rad2deg(noise):.2f}° (AOA), {noise*30:.1f} dB (RSS)")
+    start_time = time.time()
+    
+    for i, noise in enumerate(tqdm(noise_levels, desc="Overall progress", unit="level")):
+        print(f"\n[{i+1}/{len(noise_levels)}] Noise: {noise:.2f} m (TOA/TDOA), {np.rad2deg(noise):.2f}° (AOA), {noise*30:.1f} dB (RSS)")
 
         # TOA
         toa_errors = toa_positioning_test(anchors, true_positions, noise)
@@ -224,6 +229,9 @@ def compare_methods():
             anchors, true_positions, rss_noise
         )
         results["RSS"].append(rss_errors)
+    
+    elapsed_time = time.time() - start_time
+    print(f"\n✓ All tests completed in {elapsed_time:.2f}s")
 
     # Print statistics
     print("\n" + "=" * 70)
@@ -375,6 +383,8 @@ def plot_comparison(noise_levels, results):
 
 def main():
     """Run RF positioning comparison."""
+    overall_start = time.time()
+    
     print("\n" + "=" * 70)
     print("Chapter 4: RF Positioning Methods Comparison")
     print("=" * 70)
@@ -387,17 +397,22 @@ def main():
     print("Generating plots...")
     print("=" * 70)
 
+    plot_start = time.time()
     fig = plot_comparison(noise_levels, results)
 
     # Save figure
     output_file = "ch4_rf_comparison.png"
     plt.savefig(output_file, dpi=150, bbox_inches="tight")
-    print(f"\nFigure saved: {output_file}")
+    plot_time = time.time() - plot_start
+    print(f"✓ Figure saved: {output_file} (plotting took {plot_time:.2f}s)")
 
     plt.show()
 
+    overall_time = time.time() - overall_start
     print("\n" + "=" * 70)
     print("Comparison completed successfully!")
+    print("=" * 70)
+    print(f"Total execution time: {overall_time:.2f} seconds ({overall_time/60:.1f} minutes)")
     print("=" * 70)
 
 
