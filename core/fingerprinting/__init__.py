@@ -8,15 +8,18 @@ Main components:
     - FingerprintDatabase: Core data structure for radio maps
     - load/save functions: I/O utilities for databases
     - validate_database: Data quality checks
+    - nn_localize, knn_localize: Deterministic fingerprinting (Eqs. 5.1-5.2)
 
 Example usage:
     >>> from core.fingerprinting import (
     ...     FingerprintDatabase,
     ...     load_fingerprint_database,
-    ...     save_fingerprint_database
+    ...     nn_localize,
+    ...     knn_localize
     ... )
     >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
-    >>> print(db)
+    >>> z_query = np.array([-50, -60, -70])
+    >>> x_hat = nn_localize(z_query, db, floor_id=0)
 
 Author: Navigation Engineer
 Date: 2024
@@ -28,6 +31,7 @@ from .dataset import (
     save_fingerprint_database,
     validate_database,
 )
+from .deterministic import distance, knn_localize, nn_localize, pairwise_distances
 from .types import Fingerprint, FingerprintDatabase, Location
 
 __all__ = [
@@ -40,6 +44,11 @@ __all__ = [
     "save_fingerprint_database",
     "validate_database",
     "print_database_summary",
+    # Deterministic methods
+    "distance",
+    "pairwise_distances",
+    "nn_localize",
+    "knn_localize",
 ]
 
 __version__ = "0.1.0"
