@@ -17,8 +17,10 @@ Main components:
     - se2_compose, se2_inverse, se2_apply: SE(2) operations
     - icp_point_to_point: ICP scan matching (Section 7.2.1)
     - ndt_align: NDT alignment (Section 7.2.2)
+    - create_pose_graph: Pose graph optimization (Section 7.3)
+    - create_odometry_factor, create_loop_closure_factor, create_prior_factor: Factor constructors
     - (Additional modules will be added in later phases:
-       loam, camera, factors)
+       loam, camera)
 
 Example usage:
     >>> from core.slam import Pose2, se2_compose, se2_inverse, se2_apply
@@ -44,6 +46,13 @@ Author: Navigation Engineer
 Date: 2024
 """
 
+from .factors import (
+    create_landmark_factor,
+    create_loop_closure_factor,
+    create_odometry_factor,
+    create_pose_graph,
+    create_prior_factor,
+)
 from .ndt import (
     build_ndt_map,
     ndt_align,
@@ -96,6 +105,12 @@ __all__ = [
     "ndt_gradient",
     "ndt_align",
     "ndt_covariance",
+    # Pose graph factors
+    "create_odometry_factor",
+    "create_loop_closure_factor",
+    "create_prior_factor",
+    "create_landmark_factor",
+    "create_pose_graph",
 ]
 
 __version__ = "0.1.0"
