@@ -41,6 +41,7 @@ from .dataset import (
     validate_database,
 )
 from .deterministic import distance, knn_localize, nn_localize, pairwise_distances
+from .pattern_recognition import LinearRegressionLocalizer
 from .probabilistic import (
     NaiveBayesFingerprintModel,
     fit_gaussian_naive_bayes,
@@ -73,6 +74,8 @@ __all__ = [
     "log_posterior",
     "map_localize",
     "posterior_mean_localize",
+    # Pattern recognition methods
+    "LinearRegressionLocalizer",
 ]
 
 __version__ = "0.1.0"
