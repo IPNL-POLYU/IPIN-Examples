@@ -110,6 +110,7 @@ def generate_building_walk(duration=180.0, dt=0.1):
 def add_env_sensor_noise(mag_true, pressure_true, t, dt):
     """Add realistic environmental sensor noise + disturbances."""
     N = len(mag_true)
+    duration = t[-1]
     
     # Magnetometer noise
     mag_noise = np.random.randn(N, 3) * 0.05  # Gaussian noise

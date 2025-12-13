@@ -162,11 +162,13 @@ def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75):
     step_count = 0
     
     last_step_time = 0
+    last_a_mag = 10.0
     
     for k in range(1, N):
-        # Step detection (Eq. 6.46)
+        # Step detection (Eq. 6.46) - simple peak crossing
         a_mag = total_accel_magnitude(accel_meas[k])
-        is_step = detect_step_simple(a_mag, threshold=11.0)
+        is_step = (last_a_mag < 11.0 and a_mag >= 11.0)
+        last_a_mag = a_mag
         
         if is_step and (t[k] - last_step_time) > 0.3:  # Minimum 0.3s between steps
             # Step detected!
@@ -202,11 +204,13 @@ def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75):
     step_count = 0
     
     last_step_time = 0
+    last_a_mag = 10.0
     
     for k in range(1, N):
-        # Step detection
+        # Step detection - simple peak crossing
         a_mag = total_accel_magnitude(accel_meas[k])
-        is_step = detect_step_simple(a_mag, threshold=11.0)
+        is_step = (last_a_mag < 11.0 and a_mag >= 11.0)
+        last_a_mag = a_mag
         
         if is_step and (t[k] - last_step_time) > 0.3:
             step_count += 1
@@ -361,7 +365,7 @@ def main():
     print()
     print("="*70)
     print("KEY INSIGHT: Heading errors DOMINATE PDR accuracy!")
-    print("             Gyro drifts unbounded → unusable alone.")
+    print("             Gyro drifts unbounded -> unusable alone.")
     print("             Magnetometer provides absolute reference (with noise).")
     print("             Best practice: Complementary filter (gyro + mag).")
     print("="*70)

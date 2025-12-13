@@ -123,21 +123,35 @@ def run_wheel_odometry(t, wheel_speed, gyro, initial_state, lever_arm):
     N = len(t)
     dt = t[1] - t[0]
     
-    state = initial_state
+    p = initial_state.p.copy()
+    q = initial_state.q.copy()
     
     pos_est = np.zeros((N, 3))
-    pos_est[0] = state.p
+    pos_est[0] = p
     
     for k in range(1, N):
         # Wheel odometry update (Eqs. 6.11-6.15)
-        state = wheel_odom_update(
-            state=state,
+        p = wheel_odom_update(
+            p=p,
+            q=q,
             v_s=wheel_speed[k-1],
             omega_b=gyro[k-1],
             lever_arm_b=lever_arm,
             dt=dt
         )
-        pos_est[k] = state.p
+        
+        # Update quaternion
+        q_new = q.copy()
+        dq = 0.5 * dt * np.array([
+            -q[1]*gyro[k-1,0] - q[2]*gyro[k-1,1] - q[3]*gyro[k-1,2],
+            q[0]*gyro[k-1,0] + q[2]*gyro[k-1,2] - q[3]*gyro[k-1,1],
+            q[0]*gyro[k-1,1] - q[1]*gyro[k-1,2] + q[3]*gyro[k-1,0],
+            q[0]*gyro[k-1,2] + q[1]*gyro[k-1,1] - q[2]*gyro[k-1,0]
+        ])
+        q = q_new + dq
+        q = q / np.linalg.norm(q)
+        
+        pos_est[k] = p
     
     return pos_est
 
