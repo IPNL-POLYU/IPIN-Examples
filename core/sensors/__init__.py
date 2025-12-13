@@ -10,8 +10,8 @@ Modules:
     strapdown: Quaternion/velocity/position propagation
     wheel_odometry: Wheel speed DR and lever-arm compensation
     constraints: ZUPT/ZARU/NHC detectors and pseudo-measurements
+    pdr: Step detection, step length, PDR propagation
     ins_ekf_models: ProcessModel/MeasurementModel for IMU+wheel EKF (future)
-    pdr: Step detection, step length, PDR propagation (future)
     environment: Magnetometer heading and barometer altitude (future)
     calibration: Allan variance and IMU scale/misalignment model (future)
 
@@ -49,6 +49,16 @@ Drift correction constraints (from constraints module):
     ZuptMeasurementModel: Zero velocity update (Eq. 6.45)
     ZaruMeasurementModel: Zero angular rate update (Eq. 6.60)
     NhcMeasurementModel: Nonholonomic constraint (Eq. 6.61)
+
+Pedestrian Dead Reckoning functions (from pdr module):
+    total_accel_magnitude: Acceleration magnitude (Eq. 6.46)
+    remove_gravity_from_magnitude: Gravity removal (Eq. 6.47)
+    step_frequency: Step frequency from inter-step time (Eq. 6.48)
+    step_length: Weinberg step length model (Eq. 6.49)
+    pdr_step_update: 2D position update from step (Eq. 6.50)
+    detect_step_simple: Simple peak-based step detector
+    integrate_gyro_heading: Gyro-based heading integration
+    wrap_heading: Wrap heading to [-π, π]
 
 Design principles:
     - All sensor models reference Chapter 6 equations in docstrings
@@ -127,6 +137,17 @@ from core.sensors.constraints import (
     NhcMeasurementModel,
 )
 
+from core.sensors.pdr import (
+    total_accel_magnitude,
+    remove_gravity_from_magnitude,
+    step_frequency,
+    step_length,
+    pdr_step_update,
+    detect_step_simple,
+    integrate_gyro_heading,
+    wrap_heading,
+)
+
 __all__ = [
     # Data types
     "ImuSeries",
@@ -159,7 +180,16 @@ __all__ = [
     "ZuptMeasurementModel",
     "ZaruMeasurementModel",
     "NhcMeasurementModel",
+    # Pedestrian Dead Reckoning (PDR)
+    "total_accel_magnitude",
+    "remove_gravity_from_magnitude",
+    "step_frequency",
+    "step_length",
+    "pdr_step_update",
+    "detect_step_simple",
+    "integrate_gyro_heading",
+    "wrap_heading",
 ]
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 
