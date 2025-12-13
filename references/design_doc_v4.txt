@@ -3,8 +3,6 @@
 
 This repository provides open-source, simulation-based examples of the algorithms in Principles of Indoor Positioning and Indoor Navigation (Chapters 2–8).
 
- 
-
 The repo is intended as a companion to the book: readers can read the equations and derivations in the text and then run concrete, minimal code examples that directly implement those equations on simulated datasets.
 
 1.2 Target Users
@@ -59,7 +57,7 @@ Design constraints:
 
 Mapping must be:
 
-Searchable via plain text (e.g. searching "Eq. (3.12)" in the repo).
+Searchable via plain text (e.g. searching Eq. (3.12) in the repo).
 
 Maintainable when new code is added.
 
@@ -114,6 +112,7 @@ ipin-examples/
     sensors/
     sim/
     eval/
+    fingerprinting/
   ch2_coords/
   ch3_estimators/
   ch4_rf_point_positioning/
@@ -146,6 +145,8 @@ sensors/ – IMU, wheel odom, PDR, mag, barometer models.
 sim/ – trajectory generators, scenario definitions, noise injection.
 
 eval/ – error metrics, CDFs, NEES/NIS, DOP.
+
+fingerprinting/ – deterministic (NN / k-NN) and probabilistic (Bayesian) fingerprinting algorithms reused across Chapter 5 and fusion examples.
 
 chX_.../
 Thin chapter-specific examples:
@@ -236,8 +237,6 @@ Enforce consistent frame naming/metadata used by RF, PDR, SLAM.
 
 This module implements the core estimation and filtering algorithms from Chapter 3 and exposes them through reusable APIs that other modules (core/rf, core/sensors, chX_...) can call.
 
- 
-
 Goals:
 
 Provide reference implementations of:
@@ -305,51 +304,36 @@ All estimators share these abstractions so that changing the estimator does not 
 Relevant equations (Chapter 3)
 
 Cost function:
-
 J(x) = Σ (yᵢ − hᵢ(x))² → Eq. (3.1).
 
 Linear model normal equations:
-
 HᵀH x̂ = Hᵀ y → Eq. (3.2).
-
 x̂ = (HᵀH)⁻¹ Hᵀ y → Eq. (3.3).
 
 Nonlinear LS optimality condition:
-
 Σ (yᵢ − hᵢ(x)) ∇hᵢ(x) = 0 → Eq. (3.4).
 
 Weighted LS cost (no explicit equation number, defined in the text in 3.1.1):
-
 J(x) = Σ wᵢ (yᵢ − hᵢ(x))².
 
 Planned API (in core/estimators/least_squares.py)
 
 def linear_least_squares(H: np.ndarray, y: np.ndarray) -> np.ndarray:
-
 Implements Eq. (3.2)–(3.3).
-
 Docstring must include:
-
 “Implements Eqs. (3.2)–(3.3) (normal equations and closed form LS solution).”
 
 def weighted_least_squares(H: np.ndarray, y: np.ndarray, W: np.ndarray) -> np.ndarray:
-
 W is diagonal or full weight (inverse covariance).
-
 Generalizes Eq. (3.2)–(3.3) to WLS.
-
 Docstring: “Implements weighted least squares as defined in Section 3.1.1.”
 
 def gauss_newton_solve(h_fun, jac_fun, y, x0, max_iters, tol) -> np.ndarray:
-
 Implements iterative solution of Eq. (3.4): residual gradient = 0 via Gauss–Newton.
-
 Used for nonlinear LS in RF / SLAM.
 
 def robust_least_squares(...) -> np.ndarray:
-
 Wraps LS with robust loss functions (Huber, Cauchy, etc.) as described in Section 3.1.1.
-
 Docstring references Table 3.1 + robust LS text, even if no explicit equation number.
 
 Equation mapping requirements
@@ -365,48 +349,37 @@ equation_index.yml must map:
 "Eq. (3.4)" → core/estimators/least_squares.py::gauss_newton_solve.
 
 4.2.4 Kalman Filter Family (KF / EKF / UKF)
+
 (a) Linear Kalman Filter
 
 Relevant equations (Chapter 3)
 
 Linear measurement model:
-
 z_k = H_k x_k + w_{z,k} → Eq. (3.8).
 
 Likelihood mean/covariance:
-
 E[z_k | x_k] = H_k x_k, Cov[z_k | x_k] = Σ_{w,z,k} → Eq. (3.9).
 
 Propagation model and prior mean/cov:
-
 xₖ,ₖ₋₁ = F_k x_{k−1} + u_k + w_{x,k−1} → Eq. (3.11).
-
 P_{k,k−1} = F_k Σ_{x,k−1} F_kᵀ + Σ_{w,u,k} → Eq. (3.12).
 
 MAP derivation and posterior:
-
 Posterior density (3.13), MAP via derivative (3.15), closed form (3.16).
 
 KF update form:
-
 x̂_{k,MAP} = x_{k,k−1} + K_k (z_k − H_k x_{k,k−1}) → Eq. (3.17).
-
 K_k = P_{k,k−1} H_kᵀ (H_k P_{k,k−1} H_kᵀ + Σ_{w,z,k})⁻¹ → Eq. (3.18).
-
 Covariance: Σ_{x,k} = P_{k,k−1} − F_k K_k H_k P_{k,k−1} → Eq. (3.19).
-
 Summary of “five equations” → grouped as Eq. (3.20).
 
 Planned API (in core/estimators/kalman.py)
 
 class KalmanFilter:
-
 __init__(self, F, Q, H, R) – constant matrices or callables.
-
 predict(self, u: np.ndarray = None)
 
 Implements propagation from Eqs. (3.11), (3.12) and the first two lines of (3.20).
-
 update(self, z: np.ndarray)
 
 Implements Eqs. (3.17)–(3.19) and full set in (3.20).
@@ -426,13 +399,10 @@ equation_index.yml:
 Relevant equations (Chapter 3)
 
 Nonlinear state & measurement model:
-
 x_k = f(x_{k−1}, u_k) + w_k, z_k = h(x_k) + v_k → Eq. (3.21).
 
 EKF prediction:
-
 x̂_k⁻ = f(x̂_{k−1}, u_k),
-
 P_k⁻ = F_{k−1} P_{k−1} F_{k−1}ᵀ + Q → Eq. (3.22).
 
 EKF update (on the next page, same section; equation number continues, but we primarily tie to Eq. (3.21)–(3.23)).
@@ -440,13 +410,10 @@ EKF update (on the next page, same section; equation number continues, but we pr
 Planned API
 
 class ExtendedKalmanFilter(KalmanFilter):
-
 Accepts ProcessModel and MeasurementModel objects instead of fixed matrices.
-
 predict(self, u, dt):
 
 Uses f, F, and Q → Eq. (3.21) and (3.22).
-
 update(self, z):
 
 Uses h, H, R and standard KF structure, referencing EKF update equations in the EKF subsection.
@@ -464,27 +431,21 @@ equation_index.yml: map "Eq. (3.21)", "Eq. (3.22)" to ExtendedKalmanFilter.predi
 Relevant equations (Chapter 3)
 
 Sigma point generation:
-
 χ₀ = x̂_{k−1}, χᵢ = x̂_{k−1} + δᵢ, χ_{i+n} = x̂_{k−1} − δᵢ, i=1..n → Eq. (3.24).
 
 Sigma point propagation through f (process) and h (measurement):
-
 χᵢ⁻ = f(χᵢ, u_k) → Eq. (3.25).
 
 UKF update and gain:
-
 K_k, x̂_k, P_k defined via cross covariances and measurement covariances → Eq. (3.30).
 
 Planned API
 
 class UnscentedKalmanFilter:
-
 __init__(self, process_model, measurement_model, alpha, beta, kappa)
-
 predict(self, u, dt)
 
 Generates sigma points (Eq. (3.24)), propagates via f (Eq. (3.25)), computes predicted mean/cov.
-
 update(self, z)
 
 Computes predicted measurement, cross covariance, Kalman gain, and posterior state following Eq. (3.30).
@@ -500,31 +461,24 @@ equation_index.yml maps these equations to the UKF methods.
 Relevant equations (Chapter 3)
 
 Recursive Bayes update:
-
 p(x_k | z₁:k) ∝ p(z_k | x_k) p(x_k | z₁:k−1) → Eq. (3.32).
 
 Sampling step:
-
 x_k⁽ⁱ⁾ ∼ p(x_k | x_{k−1}⁽ⁱ⁾) → Eq. (3.33).
 
 Weight update:
-
 ẇ_k⁽ⁱ⁾ = w_{k−1}⁽ⁱ⁾ p(z_k | x_k⁽ⁱ⁾) → Eq. (3.34).
 
 Planned API (in core/estimators/particle.py)
 
 class ParticleFilter:
-
 Attributes: particles (N×n), weights (N,), process_model, measurement_model.
-
 predict(self, u, dt):
 
 Sample new particles using the process model (Eq. (3.33)).
-
 update(self, z):
 
 Update weights via likelihood (Eq. (3.34)), normalize, resample.
-
 estimate(self) -> np.ndarray:
 
 Return weighted mean or best weight particle.
@@ -542,51 +496,39 @@ equation_index.yml: "Eq. (3.32)", "Eq. (3.33)", "Eq. (3.34)" → ParticleFilter.
 Relevant equations (Chapter 3)
 
 MAP for full trajectory:
-
 X̂_{MAP} = argmax_X p(X | Z) = argmax_X p(Z | X) p(X) / p(Z) → Eq. (3.35).
 
 Simplified MAP form:
-
 X̂_{MAP} = argmax_X ℓ(X; Z) p(X) with ℓ(X; Z) ∝ p(Z | X) → Eqs. (3.36)–(3.37).
 
 Conversion from product of Gaussians to sum of squared residuals (negative log posterior) → Eq. (3.38) and following.
 
 Gradient descent update:
-
 x_{k+1} = x_k + α d → Eq. (3.42).
 
 Descent condition:
-
 f(x_{k+1}) = f(x_k + α d) < f(x_k) → Eq. (3.43).
 
 Planned API (in core/estimators/fgo.py and core/estimators/optim.py)
 
 class Factor:
-
 def residual(self, x: np.ndarray) -> np.ndarray:
-
 def jacobian(self, x: np.ndarray) -> np.ndarray:
 
 class FactorGraph:
-
 Stores variable ordering, list of factors.
-
 def evaluate(self, x: np.ndarray) -> Tuple[r, J]: returns stacked residuals and Jacobian.
 
 def gradient_descent_step(x, grad, alpha) -> np.ndarray:
-
 Encodes Eq. (3.42) and Eq. (3.43) logic.
 
 def gauss_newton_step(x, J, r) -> np.ndarray:
-
 Equivalent to LS step on residuals derived from Eq. (3.38).
 
 def levenberg_marquardt_step(...) -> np.ndarray:
-
 LM step bridging gradient descent and Gauss–Newton, consistent with 3.4.1 discussion.
 
 def solve_fgo(graph: FactorGraph, x0, method='gn', max_iters=..., tol=...) -> np.ndarray:
-
 High-level solver that iteratively applies GN/LM using the factor graph.
 
 Equation mapping
@@ -602,35 +544,28 @@ equation_index.yml ties these equations to the corresponding functions.
 Although most estimators are exercised through chapter specific scenarios, core/estimators also needs simple synthetic datasets for unit tests and minimal examples:
 
 toy_ls_linear/
-
 Small linear regression / linear system:
 
 H (m×n), y (m), known true x_true, noise variance.
-
 Used to test:
 
 linear_least_squares, weighted_least_squares, robust_least_squares.
-
 Must be documented in Section 5.2 as one of the dataset families.
 
 toy_kf_1d_cv/
-
 1D constant velocity (CV) model:
 
 State: [position, velocity].
 
 Measurements: noisy position only.
-
 Used to test:
 
 KalmanFilter convergence vs. analytical solution.
 
 toy_nonlinear_1d/
-
 1D or 2D nonlinear tracking:
 
 Nonlinear measurement, e.g. range², to exercise EKF, UKF, PF, and FGO.
-
 Used to:
 
 Compare KF vs. EKF vs. UKF vs. PF on the same synthetic data.
@@ -745,11 +680,7 @@ Scenario configurations in JSON/YAML so all chapters share the same definitions.
 
 Purpose
 
- 
-
 Evaluation and visualization utilities shared across chapters.
-
- 
 
 Provide a small, consistent API for:
 
@@ -762,15 +693,12 @@ Basic functions (numerical evaluation)
 Position errors:
 
 compute_position_errors(truth, est) -> dict
-
 Per-epoch error vectors (ENU / NED).
 
 compute_rmse(errors) -> float | dict
-
 Scalar RMSE or per-axis RMSE.
 
 compute_error_stats(errors) -> dict
-
 mean / median / percentiles.
 
 Consistency metrics:
@@ -789,8 +717,6 @@ compute_dop(geometry, weights=None) -> dict (HDOP/VDOP/PDOP), reusing core/coord
 
 Basic functions (visualization)
 
- 
-
 All plotting helpers live in core/eval/plots.py. They must:
 
 accept plain NumPy arrays / dicts (no hidden global state), and
@@ -802,19 +728,15 @@ Planned APIs:
 Trajectory / map views
 
 plot_trajectory_2d(truth_xy, est_xy_dict, anchors_xy=None) -> Figure
-
 truth vs. one or more estimates on a 2D floor plan.
-
 optional RF anchors / landmarks overlay.
 
 plot_trajectory_3d(truth_xyz, est_xyz_dict, anchors_xyz=None) -> Figure
-
 simple 3D view for SLAM / multi-floor examples.
 
 Error over time
 
 plot_position_error_time(errors_dict, dt, axes="enu") -> Figure
-
 per-axis error vs. time, multiple algorithms on one plot.
 
 Error distributions
@@ -822,7 +744,6 @@ Error distributions
 plot_error_hist(errors_dict, bins=…) -> Figure
 
 plot_error_cdf(errors_dict) -> Figure
-
 used heavily in Ch.4–5 to compare RF / fingerprinting methods.
 
 574882d9-b20d-4e2c-a4e3-c94a8d9…
@@ -838,7 +759,6 @@ RF geometry / DOP
 plot_rf_geometry(anchors_xy, traj_xy=None) -> Figure
 
 plot_dop_map(dop_grid, floorplan=None) -> Figure
-
 visualize how beacon layouts (or AP layouts) affect HDOP / VDOP.
 
 SLAM / map views (minimal)
@@ -848,8 +768,6 @@ plot_occupancy_grid(grid, poses=None, landmarks=None) -> Figure
 plot_factor_graph_skeleton(nodes, edges) -> Figure (optional, diagnostic only).
 
 Standard vector export
-
- 
 
 To make results easy to reuse in papers and slides, every plotting helper must work with a single, shared export utility:
 
@@ -883,8 +801,6 @@ Notebooks embed the figure inline, but also call save_figure so users get reusab
 
 Visual style guidelines
 
- 
-
 To keep plots visually consistent across the repo:
 
 Always label axes with units, e.g. Position error [m], Time [s], Heading [deg].
@@ -915,6 +831,521 @@ generates at least one vector figure via save_figure(...).
 
 Ensure that evaluation APIs are reused across RF, PDR, SLAM, and fusion examples so that algorithm comparisons are meaningful and visually comparable.
 
+4.7 core/fingerprinting
+4.7.1 Purpose
+
+This module collects the generic fingerprinting algorithms from Chapter 5 into reusable code:
+
+Deterministic fingerprinting (NN, k-NN).
+
+Probabilistic fingerprinting (Bayesian / Naive Bayes style).
+
+Optional model-based utilities to support ray-tracing / position-hypothesized methods.
+
+Goals:
+
+Provide clean, reusable APIs for fingerprint-based localization.
+
+Maintain equation-level traceability to Chapter 5:
+
+Each algorithm implementation references the relevant Eq. (5.x).
+
+Allow chapter examples (ch5_fingerprinting/, ch8_sensor_fusion/) to reuse the same algorithms.
+
+4.7.2 Key data structures
+
+All defined in core/fingerprinting/dataset.py and core/fingerprinting/types.py.
+
+Location vector
+
+Location = np.ndarray of shape (d,) (typically d = 2 or 3).
+
+Fingerprint / feature vector
+
+Fingerprint = np.ndarray of shape (N,), where N is number of features (e.g. RSSI from N APs).
+
+FingerprintDatabase
+
+@dataclass
+class FingerprintDatabase:
+    locations: np.ndarray  # shape (M, d), x_i
+    features: np.ndarray   # shape (M, N), f_i
+    meta: dict             # AP IDs, floor labels, etc.
+
+
+Query fingerprint
+
+z: np.ndarray of shape (N,), same dimension and ordering as database f_i.
+
+Equation mapping rule:
+
+Any algorithm that directly implements an equation from Chapter 5 must:
+
+Include that equation ID in its docstring (e.g. “Implements Eq. (5.1)”).
+
+Have a corresponding entry in docs/equation_index.yml.
+
+4.7.3 Deterministic fingerprinting (NN / k-NN)
+
+Relevant equations (Chapter 5):
+
+Nearest neighbor (1-NN): decision rule based on distance
+
+𝑖
+∗
+=
+arg
+⁡
+min
+⁡
+𝑖
+𝐷
+(
+𝑧
+,
+𝑓
+𝑖
+)
+i
+∗
+=argmin
+i
+	​
+
+D(z,f
+i
+	​
+
+) (Eq. (5.1)).
+
+Weighted k-NN interpolation:
+
+𝑥
+^
+=
+∑
+𝑖
+∈
+𝐾
+(
+𝑧
+)
+𝑤
+𝑖
+𝑥
+𝑖
+∑
+𝑖
+∈
+𝐾
+(
+𝑧
+)
+𝑤
+𝑖
+x
+^
+=
+∑
+i∈K(z)
+	​
+
+w
+i
+	​
+
+∑
+i∈K(z)
+	​
+
+w
+i
+	​
+
+x
+i
+	​
+
+	​
+
+ (Eq. (5.2)),
+with typical choice 
+𝑤
+𝑖
+=
+1
+/
+(
+𝐷
+(
+𝑧
+,
+𝑓
+𝑖
+)
++
+𝜀
+)
+w
+i
+	​
+
+=1/(D(z,f
+i
+	​
+
+)+ε).
+
+Planned API (in core/fingerprinting/deterministic.py):
+
+Distance utilities:
+
+def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
+    """
+    Compute D(z, f) between query fingerprint z and reference fingerprint f.
+
+    Implements the distance metric D(·, ·) used in Eq. (5.1) and Eq. (5.2)
+    in Chapter 5 (e.g., Euclidean and Manhattan distances).
+    """
+
+def pairwise_distances(
+    z: np.ndarray, F: np.ndarray, metric: str = "euclidean"
+) -> np.ndarray:
+    """
+    Compute distances D(z, f_i) for all fingerprints f_i in F.
+
+    Implements the distance evaluation required in Eq. (5.1) across
+    all i = 1, ..., M.
+    """
+
+
+Nearest-neighbor localizer (Eq. (5.1)):
+
+def nn_localize(
+    z: np.ndarray,
+    db: FingerprintDatabase,
+    metric: str = "euclidean"
+) -> np.ndarray:
+    """
+    Nearest-neighbor deterministic fingerprinting.
+
+    Implements Eq. (5.1) in Chapter 5:
+        i* = argmin_{1<=i<=M} D(z, f_i),
+    and returns x_hat = x_{i*}.
+    """
+
+
+k-NN localizer (Eq. (5.2)):
+
+def knn_localize(
+    z: np.ndarray,
+    db: FingerprintDatabase,
+    k: int = 3,
+    metric: str = "euclidean",
+    weighting: str = "inverse_distance",
+    eps: float = 1e-6,
+) -> np.ndarray:
+    """
+    k-nearest-neighbor fingerprinting with interpolation.
+
+    Implements Eq. (5.2) in Chapter 5:
+        x_hat = sum_{i in K(z)} w_i x_i / sum_{i in K(z)} w_i,
+
+    with weights w_i defined from D(z, f_i), typically
+        w_i = 1 / (D(z, f_i) + eps).
+    """
+
+
+Equation mapping:
+
+nn_localize docstring references Eq. (5.1).
+
+knn_localize docstring references Eq. (5.2).
+
+equation_index.yml entries:
+
+"Eq. (5.1)" → core/fingerprinting/deterministic.py::nn_localize.
+
+"Eq. (5.2)" → core/fingerprinting/deterministic.py::knn_localize.
+
+4.7.4 Probabilistic fingerprinting (Bayesian)
+
+Relevant equations (Chapter 5):
+
+Posterior over locations:
+
+𝑃
+(
+𝑥
+𝑖
+∣
+𝑍
+𝑖
+=
+𝑧
+)
+=
+𝑃
+(
+𝑍
+𝑖
+=
+𝑧
+∣
+𝑥
+𝑖
+)
+𝑃
+(
+𝑥
+𝑖
+)
+𝑃
+(
+𝑍
+𝑖
+=
+𝑧
+)
+P(x
+i
+	​
+
+∣Z
+i
+	​
+
+=z)=
+P(Z
+i
+	​
+
+=z)
+P(Z
+i
+	​
+
+=z∣x
+i
+	​
+
+)P(x
+i
+	​
+
+)
+	​
+
+ (Eq. (5.3)).
+
+ML / MAP estimate:
+
+𝑖
+∗
+=
+arg
+⁡
+max
+⁡
+𝑖
+𝑃
+(
+𝑍
+𝑖
+=
+𝑧
+∣
+𝑥
+𝑖
+)
+i
+∗
+=argmax
+i
+	​
+
+P(Z
+i
+	​
+
+=z∣x
+i
+	​
+
+) (Eq. (5.4)).
+
+Posterior-mean estimate:
+
+𝑥
+^
+=
+∑
+𝑖
+=
+1
+𝑀
+𝑃
+(
+𝑥
+𝑖
+∣
+𝑍
+𝑖
+=
+𝑧
+)
+𝑥
+𝑖
+x
+^
+=∑
+i=1
+M
+	​
+
+P(x
+i
+	​
+
+∣Z
+i
+	​
+
+=z)x
+i
+	​
+
+ (Eq. (5.5)).
+
+Planned API (in core/fingerprinting/probabilistic.py):
+
+Model:
+
+@dataclass
+class NaiveBayesFingerprintModel:
+    """
+    Probabilistic fingerprinting model P(z | x_i) under naive Bayes assumptions.
+
+    Implements the Bayesian formulation in Eqs. (5.3)–(5.5) of Chapter 5:
+        - Eq. (5.3): posterior P(x_i | Z_i = z)
+        - Eq. (5.4): ML/MAP selection of i*
+        - Eq. (5.5): posterior-mean location estimate x_hat
+    """
+    db: FingerprintDatabase
+    priors: np.ndarray  # shape (M,), P(x_i)
+    means: np.ndarray   # shape (M, N)
+    vars: np.ndarray    # shape (M, N)
+
+
+Fitting:
+
+def fit_gaussian_naive_bayes(
+    db: FingerprintDatabase,
+    samples_per_rp: np.ndarray,
+    var_floor: float = 1e-4,
+    prior: str = "uniform",
+) -> NaiveBayesFingerprintModel:
+    """
+    Fit a Gaussian naive Bayes P(z | x_i) model from offline survey data.
+
+    Each reference point i has empirical mean and variance of each feature,
+    which parameterize P(Z_i = z | x_i) in Eq. (5.3).
+    """
+
+
+Inference helpers:
+
+def log_likelihoods(
+    model: NaiveBayesFingerprintModel,
+    z: np.ndarray
+) -> np.ndarray:
+    """
+    Compute log P(Z_i = z | x_i) for all i.
+
+    This corresponds to the likelihood term in Eq. (5.3) & Eq. (5.4).
+    """
+
+def posterior(
+    model: NaiveBayesFingerprintModel,
+    z: np.ndarray
+) -> np.ndarray:
+    """
+    Compute posterior P(x_i | Z_i = z) over all i.
+
+    Implements Eq. (5.3) with normalization over i.
+    """
+
+def map_localize(
+    model: NaiveBayesFingerprintModel,
+    z: np.ndarray
+) -> np.ndarray:
+    """
+    ML/MAP estimate based on Eq. (5.4):
+
+        i* = argmax_i P(Z_i = z | x_i) (with uniform priors),
+
+    and returns x_hat = x_{i*}.
+    """
+
+def posterior_mean_localize(
+    model: NaiveBayesFingerprintModel,
+    z: np.ndarray
+) -> np.ndarray:
+    """
+    Posterior-mean estimate of location:
+
+        x_hat = sum_i P(x_i | Z_i = z) * x_i    (Eq. (5.5))
+    """
+
+
+Equation mapping:
+
+posterior ↔ Eq. (5.3).
+
+map_localize ↔ Eq. (5.4).
+
+posterior_mean_localize ↔ Eq. (5.5).
+
+Corresponding entries in equation_index.yml.
+
+4.7.5 Advanced / model-based fingerprinting (optional)
+
+For the ray-tracing / position-hypothesized method (Eqs. (5.7)–(5.11)), implement only lightweight helpers in core/fingerprinting/model_based.py:
+
+gaussian_likelihood(z, z_pred, sigma) – measurement likelihood reused by demos.
+
+raytrace_likelihood(z, z_pred, sigma) – convenience wrapper for “ray-traced” features.
+
+The full position-hypothesized particle method (sampling states from a Gaussian prior, computing likelihoods, then weighted averaging as in Eq. (5.11)) is implemented as a chapter demo in ch5_fingerprinting (Section 7.4.5), not as a generic core API.
+
+Docstrings for these helpers reference the likelihood concept used in Eqs. (5.8)–(5.10).
+
+4.7.6 Simulation data requirements (for fingerprinting)
+
+core/fingerprinting relies on at least one standardized dataset family in data/sim/:
+
+wifi_fingerprint_grid/:
+
+locations.*: (M, d) reference point coordinates.
+
+fingerprints.*: (M, N) mean feature vectors f_i.
+
+Optional fingerprints_samples/: raw RSS samples per RP for probabilistic model fitting.
+
+query_trajectories/: sequences (x_true(t), z(t)) for evaluation.
+
+Metadata: AP IDs, floor labels, building ID, etc.
+
+These are used by:
+
+Unit tests:
+
+tests/test_fingerprinting_deterministic.py
+
+tests/test_fingerprinting_probabilistic.py
+
+Chapter 5 examples in ch5_fingerprinting (Section 7.4).
+
 5. Simulation Datasets & Open Data
 5.1 Principles
 
@@ -933,7 +1364,6 @@ Clearly licensed (e.g. CC-BY-4.0) and documented in docs/data.md.
 Planned families under data/sim/:
 
 rf_2d_floor/
-
 2D or 2.5D floor map with known beacon/anchor positions (in ENU coordinates).
 
 True agent trajectories:
@@ -944,42 +1374,11 @@ Moving paths (for time-series demos and filter comparisons).
 
 Generated measurement files (or generation configs) for:
 
-TOA / two-way TOA ranges 
-𝑑
-𝑖
-𝑎
-d
-i
-a
-	​
+TOA / two-way TOA ranges d^a_i (Eqs. (4.1)–(4.3), (4.6)–(4.7)).
 
- (Eqs. (4.1)–(4.3), (4.6)–(4.7)).
+RSS values p^R_{a,i} with path-loss parameters (Eqs. (4.11)–(4.13)).
 
-RSS values 
-𝑝
-𝑎
-,
-𝑖
-𝑅
-p
-a,i
-R
-	​
-
- with path-loss parameters (Eqs. (4.11)–(4.13)).
-
-TDOA range differences 
-𝑑
-𝑖
-,
-𝑗
-𝑎
-d
-i,j
-a
-	​
-
- (Eqs. (4.27)–(4.33)).
+TDOA range differences d^a_{i,j} (Eqs. (4.27)–(4.33)).
 
 AOA azimuth/elevation (Eqs. (4.63)–(4.67)).
 
@@ -994,19 +1393,15 @@ Coordinate frames:
 All positions expressed in ENU with a documented origin and height reference.
 
 wifi_fingerprint_grid/
-
 Reference points on a grid, RSS vectors, test trajectories.
 
 pdr_corridor_walk/
-
 IMU time series, reference path, step labels, floor labels.
 
 slam_lidar2d/
-
 2D occupancy grid, range-bearing measurements, ground truth poses.
 
 toy_ls_linear/
-
 Simple linear system for least squares testing:
 
 Files: H.npy, y.npy, x_true.npy, noise_config.json.
@@ -1014,7 +1409,6 @@ Files: H.npy, y.npy, x_true.npy, noise_config.json.
 Used by: core/estimators/least_squares.py unit tests and ch3_estimators examples.
 
 toy_kf_1d_cv/
-
 1D constant velocity system:
 
 Files: x_true.npy, z.npy, F.npy, H.npy, Q.npy, R.npy, dt.
@@ -1022,12 +1416,11 @@ Files: x_true.npy, z.npy, F.npy, H.npy, Q.npy, R.npy, dt.
 Used to validate KalmanFilter implementation and tuning.
 
 toy_nonlinear_1d/
-
 Nonlinear state/measurement example:
 
 State trajectory file, nonlinear measurement config, noise statistics.
 
-Used by: EKF, UKF, PF, and FGO examples to illustrate behavior under non Gaussian/nonlinear conditions.
+Used by: EKF, UKF, PF, and FGO examples to illustrate behavior under non-Gaussian/nonlinear conditions.
 
 For each dataset:
 
@@ -1055,13 +1448,13 @@ Eq. (C.NN) for Chapter C, Equation NN.
 
 If the book uses section-based numbering, adapt to Eq. (C.SS).
 
-Examples
+Examples:
 
-Chapter 2, equation 5 → "Eq. (2.5)"
+Chapter 2, equation 5 → Eq. (2.5)
 
-Chapter 3, equation 12 → "Eq. (3.12)"
+Chapter 3, equation 12 → Eq. (3.12)
 
-Rules
+Rules:
 
 This exact string must appear in:
 
@@ -1077,13 +1470,9 @@ That way, a simple repo search for "Eq. (3.12)" finds all relevant code/tests.
 
 6.2 Code Conventions (Docstrings & Comments)
 
-Requirement
-
- 
+Requirement:
 
 Every function/class that directly implements a book equation must mention it in its docstring.
-
- 
 
 Example: LS
 
@@ -1113,15 +1502,13 @@ def predict(self, u: np.ndarray) -> None:
 
 Line-level comments
 
- 
-
 If a specific line encodes an equation:
 
 # Eq. (3.27): P_{k|k-1} = F_k P_{k-1|k-1} F_k^T + Q_k
 P_pred = F @ P @ F.T + Q
 
 
-Design rule
+Design rule:
 
 Whole function = one equation (or block) → docstring reference.
 
@@ -1131,11 +1518,7 @@ Single expression or key step = equation → inline comment with the exact Eq. (
 
 Create docs/equation_index.yml (or .json).
 
- 
-
-Purpose
-
- 
+Purpose:
 
 From the book side, you can look up "Eq. (3.12)" and see:
 
@@ -1143,7 +1526,7 @@ Which modules/objects implement it.
 
 Which tests/notebooks exercise it.
 
-YAML structure (example)
+YAML structure (example):
 
 - eq: "Eq. (2.3)"
   chapter: 2
@@ -1166,7 +1549,7 @@ YAML structure (example)
     - "notebooks/ch3_estimators/ls_vs_ekf.ipynb"
 
 
-Design choices
+Design choices:
 
 One entry per implemented equation.
 
@@ -1184,13 +1567,9 @@ Optional: tests, notebooks, notes.
 
 6.4 Notebooks & Docs Conventions
 
-Notebooks
-
- 
+Notebooks:
 
 At the top of each chapter notebook, add an “Equations used” list, e.g.:
-
-Equations in this notebook
 
 Eq. (3.12): Linear least squares solution.
 
@@ -1200,9 +1579,7 @@ And reference equations in text:
 
 We now implement the linear least squares estimator from Eq. (3.12).
 
-Docs
-
- 
+Docs:
 
 In docs/ch3_estimators.md:
 
@@ -1224,8 +1601,6 @@ Read chapter docs listing mappings.
 
 Add tools/check_equation_index.py:
 
- 
-
 Responsibilities:
 
 Parse docs/equation_index.yml.
@@ -1236,7 +1611,7 @@ Verify the module and object exist.
 
 Verify the docstring or comments contain the mapped "Eq. (C.NN)".
 
-Sketch (already provided conceptually):
+Sketch (conceptually):
 
 Use importlib to load modules.
 
@@ -1269,15 +1644,12 @@ Notebook/docs list relevant equations.
 Concretely:
 
 Epic 1 – Coordinates (Ch.2)
-
 All transforms tagged with Eq. (2.x) where applicable.
 
 Epic 2 – Estimators (Ch.3)
-
 LS, KF, EKF, UKF, PF, FGO all mapped to Ch.3 equations.
 
 Epic 3 – RF positioning (Ch.4)
-
 TOA/TDOA/AOA/RSS and DOP models mapped.
 
 Subsequent epics (fingerprinting, PDR, SLAM, fusion) follow the same pattern.
@@ -1293,8 +1665,6 @@ Which core/ functions they exercise.
 Which equations they highlight.
 
 Standard visualization outputs (all chapters)
-
- 
 
 For each chX_... module, at least one example must:
 
@@ -1323,7 +1693,6 @@ instructors can directly reuse the vector figures in slides and course materials
 Examples
 
 demo_frames.py
-
 Build body/map/ENU/NED frames and print transforms.
 
 Simple plotting script to reproduce or echo Ch.2 figures.
@@ -1337,11 +1706,9 @@ core.coords, core.sim, core.eval.
 Examples
 
 ls_vs_robust_ls.py
-
 Outlier demo: LS vs Huber vs Cauchy.
 
 kf_vs_ekf_vs_ukf_vs_pf_vs_fgo.ipynb
-
 1D/2D toy system comparing estimator families.
 
 Unique tasks
@@ -1353,23 +1720,21 @@ Show qualitatively how different estimators behave under same conditions.
 7.3 ch4_rf_point_positioning/ – Point Positioning by Radio Signals (Chapter 4)
 7.3.1 Purpose
 
-This module provides end‑to‑end simulation examples for Chapter 4: Point Positioning by Radio Signals.
-
- 
+This module provides end-to-end simulation examples for Chapter 4: Point Positioning by Radio Signals.
 
 Main goals:
 
-Demonstrate TOA, two‑way TOA/RTT, RSS‑based ranging, TDOA, and AOA positioning on a common simulated floorplan (rf_2d_floor dataset).
+Demonstrate TOA, two-way TOA/RTT, RSS-based ranging, TDOA, and AOA positioning on a common simulated floorplan (rf_2d_floor dataset).
 
 Compare:
 
-Iterative WLS / I‑WLS vs closed‑form algorithms (Fang, Chan).
+Iterative WLS / I-WLS vs closed-form algorithms (Fang, Chan).
 
 Different measurement types (TOA vs TDOA vs AOA vs RSS) under the same geometry and noise levels.
 
-Make the link between Chapter 4 equations and actual numerical behavior explicit via equation‑level traceability.
+Make the link between Chapter 4 equations and actual numerical behavior explicit via equation-level traceability.
 
-This is a Chapter‑specific wiring layer: it uses core/rf, core/estimators, core/coords, core/sim, and core/eval, plus data/sim/rf_2d_floor/.
+This is a Chapter-specific wiring layer: it uses core/rf, core/estimators, core/coords, core/sim, and core/eval, plus data/sim/rf_2d_floor/.
 
 7.3.2 Dependencies
 
@@ -1394,41 +1759,37 @@ Notebooks
 notebooks/ch4_rf_point_positioning/*.ipynb.
 
 7.3.3 Example scenarios & scripts
-Scenario A – Direct ranging: TOA / two‑way TOA / RSS (Section 4.2)
+
+Scenario A – Direct ranging: TOA / two-way TOA / RSS (Section 4.2)
 
 Key equations
 
 TOA models:
-
 Basic TOA range and variants with clock offsets (Eqs. (4.1)–(4.3)).
 
-Two‑way TOA (RTT):
-
+Two-way TOA (RTT):
 RTT distance with and without processing delay (Eqs. (4.6)–(4.7)).
 
-RSS path‑loss:
+RSS path-loss:
+Path-loss inversion and fading/noise models (Eqs. (4.11)–(4.13)).
 
-Path‑loss inversion and fading/noise models (Eqs. (4.11)–(4.13)).
-
-Nonlinear TOA LS/I‑WLS:
-
+Nonlinear TOA LS/I-WLS:
 Measurement vector, state, nonlinear range, linearization and iterative WLS update (Eqs. (4.14)–(4.23)).
 
 Joint position + clock bias:
-
 Extended state and modified TOA model (Eqs. (4.24)–(4.26)).
 
 Planned examples
 
 ch4_rf_point_positioning/direct_ranging_tutorial.ipynb
 
-Generate TOA / two‑way TOA / RSS measurements from rf_2d_floor using core/rf.
+Generate TOA / two-way TOA / RSS measurements from rf_2d_floor using core/rf.
 
 Implement:
 
 Plain LS on ranges (linearized Eq. (4.16)).
 
-I‑WLS using Eqs. (4.14)–(4.23).
+I-WLS using Eqs. (4.14)–(4.23).
 
 Compare TOA vs RTT vs RSS positioning under different noise levels.
 
@@ -1448,7 +1809,7 @@ Docstrings explicitly reference:
 
 “TOA model in Eqs. (4.1)–(4.3), (4.6)–(4.7)”
 
-“Nonlinear TOA I‑WLS algorithm from Eqs. (4.14)–(4.23)”
+“Nonlinear TOA I-WLS algorithm from Eqs. (4.14)–(4.23)”
 
 “Joint position + clock bias formulation from Eqs. (4.24)–(4.26)”
 
@@ -1463,15 +1824,12 @@ Scenario B – TDOA positioning: LS / WLS vs Fang & Chan (Section 4.3)
 Key equations
 
 TDOA definition and range differences:
-
 Uplink/downlink TDOA and range differences (Eqs. (4.27)–(4.33)).
 
 TDOA LS/WLS:
-
 Linearized TDOA system, LS and WLS solutions, weighting matrix (Eqs. (4.34)–(4.42)).
 
-Fang & Chan closed‑form hyperbolic algorithms:
-
+Fang & Chan closed-form hyperbolic algorithms:
 Hyperbolic relationships and algebraic LS forms (Eqs. (4.43)–(4.48), plus refinement in Eq. (4.58)).
 
 Planned examples
@@ -1486,19 +1844,19 @@ Basic TDOA LS.
 
 WLS with correct covariance weighting.
 
-Compare with TOA‑based positioning (Scenario A).
+Compare with TOA-based positioning (Scenario A).
 
 ch4_rf_point_positioning/tdoa_fang_chan.py
 
-Implement Fang’s closed‑form TDOA algorithm.
+Implement Fang’s closed-form TDOA algorithm.
 
-Implement Chan’s two‑step algorithm:
+Implement Chan’s two-step algorithm:
 
 Step 1: LS.
 
 Step 2: WLS refinement with covariance.
 
-Compare Fang, Chan, and LS/I‑WLS under:
+Compare Fang, Chan, and LS/I-WLS under:
 
 Varying noise levels.
 
@@ -1512,7 +1870,7 @@ Docstrings reference:
 
 “Fang’s algorithm from Eqs. (4.43)–(4.48).”
 
-“Chan’s two‑step refinement including Eq. (4.58).”
+“Chan’s two-step refinement including Eq. (4.58).”
 
 equation_index.yml maps these equations to:
 
@@ -1520,24 +1878,20 @@ TDOA helpers in core/rf.
 
 Scenario scripts in ch4_rf_point_positioning.
 
-Scenario C – AOA positioning: LS/I‑WLS, OVE, 3D PLE (Section 4.4)
+Scenario C – AOA positioning: LS/I-WLS, OVE, 3D PLE (Section 4.4)
 
 Key equations
 
 AOA geometry:
-
 Vertical and azimuth angle relationships (Eqs. (4.63)–(4.64)).
 
 AOA measurement vectors and stacking:
-
-Single‑beacon and multi‑beacon measurement vectors (Eqs. (4.65)–(4.66)).
+Single-beacon and multi-beacon measurement vectors (Eqs. (4.65)–(4.66)).
 
 State vector consistency:
+State definition reused from range-based positioning (Eq. (4.35)).
 
-State definition reused from range‑based positioning (Eq. (4.35)).
-
-Linearization and LS/I‑WLS:
-
+Linearization and LS/I-WLS:
 Linearized form and Jacobians of the AOA model (Eqs. (4.63)–(4.67)).
 
 Planned examples
@@ -1550,13 +1904,13 @@ Implement:
 
 LS AOA solver based on linearized Eqs. (4.63)–(4.67).
 
-I‑WLS refinement using multiple iterations.
+I-WLS refinement using multiple iterations.
 
 ch4_rf_point_positioning/aoa_ove_3dple.py
 
 Implement OVE and 3D PLE methods as described in Section 4.4.
 
-Compare OVE and 3D PLE vs LS/I‑WLS under:
+Compare OVE and 3D PLE vs LS/I-WLS under:
 
 Different noise levels.
 
@@ -1566,7 +1920,7 @@ Equation mapping
 
 Docstrings indicate:
 
-“AOA LS/I‑WLS based on Eqs. (4.63)–(4.67).”
+“AOA LS/I-WLS based on Eqs. (4.63)–(4.67).”
 
 “OVE / 3D PLE built on the same AOA geometry (Eqs. (4.63)–(4.67)).”
 
@@ -1579,8 +1933,6 @@ AOA demo scripts in ch4_rf_point_positioning.
 Scenario D – RF challenges & limitations (Section 4.5)
 
 Focus
-
- 
 
 Illustrate limitations and realistic imperfections discussed in Section 4.5:
 
@@ -1598,7 +1950,7 @@ ch4_rf_point_positioning/rf_challenges.ipynb
 
 Baseline scenario:
 
-Well‑conditioned TOA/TDOA/AOA geometry and low noise.
+Well-conditioned TOA/TDOA/AOA geometry and low noise.
 
 Progressive stress tests:
 
@@ -1612,7 +1964,7 @@ Add NLOS:
 
 Inject biases on selected anchors using rf_2d_floor noise config.
 
-Compare LS vs I‑WLS robustness.
+Compare LS vs I-WLS robustness.
 
 Change geometry:
 
@@ -1622,13 +1974,13 @@ Relate GDOP/HDOP/PDOP to position error statistics.
 
 Bad initialization:
 
-Show TOA I‑WLS divergence or convergence to wrong local minima for poor initial guesses.
+Show TOA I-WLS divergence or convergence to wrong local minima for poor initial guesses.
 
 Equation mapping
 
 Markdown cells explicitly mention which ideal assumptions from Chapter 4’s equations are being violated in each experiment.
 
-These are behavior‑focused demos rather than new implementations, but they still reference:
+These are behavior-focused demos rather than new implementations, but they still reference:
 
 TOA/TDOA/AOA model equations.
 
@@ -1636,56 +1988,273 @@ DOP formulas (from core/rf and Chapter 4).
 
 7.3.4 Tests
 
-Scenario‑level regression tests to complement core/ unit tests:
+Scenario-level regression tests to complement core/ unit tests:
 
 tests/ch4/test_direct_ranging_accuracy.py
-
 For a fixed rf_2d_floor config and random seed:
-
-Check TOA I‑WLS RMSE is below a threshold (e.g. < ε m).
+Check TOA I-WLS RMSE is below a threshold (e.g. < ε m).
 
 tests/ch4/test_tdoa_chan_fang_consistency.py
-
 For a simple configuration:
-
-Confirm Fang and Chan solutions are close to LS/I‑WLS when noise is small.
+Confirm Fang and Chan solutions are close to LS/I-WLS when noise is small.
 
 tests/ch4/test_aoa_methods.py
+Verify LS/I-WLS/OVE/3D PLE solutions converge within tolerance in a nominal AOA scenario.
 
-Verify LS/I‑WLS/OVE/3D PLE solutions converge within tolerance in a nominal AOA scenario.
-
-These tests ensure the wiring between datasets, core/ models, and Chapter‑4 examples remains intact.
+These tests ensure the wiring between datasets, core/ models, and Chapter-4 examples remains intact.
 
 7.4 ch5_fingerprinting/
+7.4.1 Goals
 
-Examples
+Demonstrate deterministic vs probabilistic fingerprinting as introduced in Chapter 5.
 
-Synthetic grid map:
+Show pattern-recognition formulations (classification/regression) using the same synthetic fingerprints.
 
-Generate RSS fingerprints from core.rf and core.sim.
+Optionally demonstrate a model-based + particle/hypothesis example using ray-tracing-like simulation and the position-hypothesized method.
 
-Deterministic methods:
+Every example must:
 
-k-NN, weighted k-NN.
+Use core/fingerprinting for algorithms.
 
-Probabilistic:
+Use core/eval for error metrics and CDF/trajectory plots.
 
-Naive Bayes / simple Gaussian likelihood.
+Call save_figure(...) to output vector figures into ch5_fingerprinting/figs/.
 
-Optional:
+7.4.2 Example 1 – Deterministic NN / k-NN (Eqs. (5.1)–(5.2))
 
-Small MLP (e.g. 2–3 layers) as a “modern” baseline.
+Files:
+
+ch5_fingerprinting/demo_deterministic_nn_knn.py
+
+notebooks/ch5_fingerprinting/demo_deterministic_nn_knn.ipynb
+
+Core functions used:
+
+core.fingerprinting.deterministic.nn_localize (Eq. (5.1)).
+
+core.fingerprinting.deterministic.knn_localize (Eq. (5.2)).
+
+core.eval.compute_position_errors, core.eval.plot_error_cdf, core.eval.plot_trajectory_2d.
+
+Equations to highlight:
+
+Eq. (5.1): nearest-neighbor decision rule.
+
+Eq. (5.2): weighted k-NN interpolation.
+
+Notebook structure:
+
+Markdown header “Equations used in this notebook”:
+
+Eq. (5.1): Nearest-neighbor fingerprinting rule.
+
+Eq. (5.2): Weighted k-NN interpolated position estimate.
+
+Code cells:
+
+Load wifi_fingerprint_grid/.
+
+Simulate query fingerprints along a test trajectory (add noise).
+
+Run NN and k-NN for different k (e.g. 1, 3, 5, 10).
+
+Compute RMSE and error CDFs using core.eval.
+
+Plots:
+
+ch5_fingerprinting/figs/ch5_nn_vs_knn_cdf.svg.
+
+ch5_fingerprinting/figs/ch5_nn_vs_knn_traj.svg.
+
+Equation mapping:
+
+Notebook header explicitly lists Eqs. (5.1)–(5.2).
+
+docs/ch5_fingerprinting.md “Equation map” section will include:
+
+Eq. (5.1): core/fingerprinting/deterministic.py::nn_localize.
+
+Eq. (5.2): core/fingerprinting/deterministic.py::knn_localize.
+
+7.4.3 Example 2 – Probabilistic (Bayesian) fingerprinting (Eqs. (5.3)–(5.5))
+
+Files:
+
+ch5_fingerprinting/demo_probabilistic_bayes.py
+
+notebooks/ch5_fingerprinting/demo_probabilistic_bayes.ipynb
+
+Core functions used:
+
+fit_gaussian_naive_bayes, posterior, map_localize, posterior_mean_localize from core.fingerprinting.probabilistic.
+
+core.eval.compute_position_errors, core.eval.plot_error_cdf.
+
+Equations to highlight:
+
+Eq. (5.3): posterior 
+𝑃
+(
+𝑥
+𝑖
+∣
+𝑍
+𝑖
+=
+𝑧
+)
+P(x
+i
+	​
+
+∣Z
+i
+	​
+
+=z).
+
+Eq. (5.4): ML/MAP estimate.
+
+Eq. (5.5): posterior-mean estimate.
+
+Notebook structure:
+
+Markdown header “Equations used in this notebook”:
+
+Eq. (5.3): Bayesian posterior over locations.
+
+Eq. (5.4): ML/MAP fingerprint-based location estimate.
+
+Eq. (5.5): Posterior-mean location.
+
+Code:
+
+Load wifi_fingerprint_grid/ with multiple samples per RP.
+
+Fit Naive Bayes model (means/variances per RP).
+
+Compare:
+
+Deterministic NN (from Example 1).
+
+MAP estimator (Eq. 5.4).
+
+Posterior mean estimator (Eq. 5.5).
+
+Plots:
+
+ch5_fingerprinting/figs/ch5_det_vs_prob_cdf.svg.
+
+Optional: posterior heatmap for a single query point.
+
+Equation mapping:
+
+Notebook references Eqs. (5.3)–(5.5) in text.
+
+equation_index.yml entries point to posterior, map_localize, posterior_mean_localize.
+
+7.4.4 Example 3 – Pattern recognition (classification & regression) – Section 5.2
+
+File:
+
+notebooks/ch5_fingerprinting/demo_pattern_recognition.ipynb
+
+Core functions used:
+
+New simple wrappers in core/fingerprinting/pattern_recognition.py, e.g.:
+
+LinearRegressionLocalizer (x̂ = W f + b).
+
+Optional: simple MLP classifier/regressor (thin wrapper around scikit-learn or PyTorch if allowed).
+
+Concepts to highlight:
+
+Classification view: treating each reference point / area as a class.
+
+Regression view: mapping features directly to continuous coordinates.
+
+Notebook structure:
+
+Markdown references to Chapter 5, Section 5.2.1 (classification) and 5.2.2 (regression).
+
+Code:
+
+Build a classifier across regions/cells of the grid.
+
+Build a regression model for continuous x,y from features.
+
+Compare performance to NN/k-NN and Bayesian methods.
+
+Equation mapping:
+
+If the book defines explicit equations (e.g. linear regression form), docstrings in LinearRegressionLocalizer reference the Eq. (5.x); otherwise, they reference the section numbers (5.2.1 / 5.2.2).
+
+7.4.5 Example 4 – Model-based + PF demo (Eqs. (5.7)–(5.11), optional/advanced)
+
+File:
+
+notebooks/ch5_fingerprinting/demo_raytracing_pf.ipynb
+
+Core modules used:
+
+core.sim – to generate a simple 2D map and simulate “ray-tracing-like” features.
+
+core.fingerprinting.model_based – likelihood helpers.
+
+Optionally core.estimators.ParticleFilter as a base implementation.
+
+Equations to highlight:
+
+Eq. (5.7): Gaussian prior over hypothesized states around an initial guess.
+
+Eqs. (5.8)–(5.10): Gaussian likelihoods of simulated measurements.
+
+Eq. (5.11): weighted average over hypotheses to produce an estimate.
+
+Notebook structure:
+
+Header “Equations used in this notebook” listing Eqs. (5.7)–(5.11).
+
+Code:
+
+Define a small 2D environment and “ray-tracing-like” simulator (simplified).
+
+Sample particles around a prior mean (Eq. 5.7).
+
+Compute likelihoods with gaussian_likelihood / raytrace_likelihood (Eqs. 5.8–5.10).
+
+Compute weighted average of particles as position estimate (Eq. 5.11).
+
+Compare performance vs a simpler deterministic method.
+
+Plots:
+
+Particle cloud colored by likelihood.
+
+Position error statistics compared to deterministic fingerprinting.
+
+Equation mapping:
+
+Eqs. (5.7)–(5.11) are referenced in notebook markdown and in equation_index.yml as notebook-based implementations (not core functions).
+
+7.4.6 Dependencies
+
+core.fingerprinting (deterministic, probabilistic, pattern-recognition wrappers).
+
+core.rf and core.sim (to generate synthetic fingerprints for wifi_fingerprint_grid/).
+
+core.eval for metrics and visualization.
+
+data/sim/wifi_fingerprint_grid/.
 
 7.5 ch6_dead_reckoning/
 
 Examples
 
 Foot-mounted PDR with ZUPT:
-
 Walk along corridor, accumulate drift, correct with constraints.
 
 Vehicle odom + IMU:
-
 Simple car-like motion on a map.
 
 7.6 ch7_slam/
@@ -1693,7 +2262,6 @@ Simple car-like motion on a map.
 Examples
 
 Minimal 2D LiDAR / range-bearing SLAM:
-
 Use FGO with pose + landmark factors.
 
 Loop closure toy example.
@@ -1703,15 +2271,12 @@ Loop closure toy example.
 Examples
 
 Loosely vs tightly coupled fusion examples:
-
 GNSS+IMU style but adapted to indoor sensors.
 
 Observability demo:
-
 Show drift/unobservability vs properly fused sensors.
 
 Calibration:
-
 Simple intrinsic/extrinsic calibration toy.
 
 For each chapter section, the design doc should separate:
@@ -1815,6 +2380,8 @@ Similar pattern:
 
 Spec → core implementation → tests → examples → docs → equation mapping.
 
+(When you’re ready, Chapter 5 would become its own epic with core/fingerprinting + ch5_fingerprinting implemented as above.)
+
 10. Working Effectively: SW vs Navigation Engineers
 
 Throughout the design doc, separate:
@@ -1834,4 +2401,3 @@ The equation mapping system bridges the two:
 Navigation engineers can check correctness by tracing Eq. → code.
 
 Software engineers can preserve traceability by following docstring + index conventions and the equation checker.
-
