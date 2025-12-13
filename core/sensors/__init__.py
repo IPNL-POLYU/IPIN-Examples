@@ -11,8 +11,8 @@ Modules:
     wheel_odometry: Wheel speed DR and lever-arm compensation
     constraints: ZUPT/ZARU/NHC detectors and pseudo-measurements
     pdr: Step detection, step length, PDR propagation
+    environment: Magnetometer heading and barometer altitude
     ins_ekf_models: ProcessModel/MeasurementModel for IMU+wheel EKF (future)
-    environment: Magnetometer heading and barometer altitude (future)
     calibration: Allan variance and IMU scale/misalignment model (future)
 
 Primary data structures (from types module):
@@ -59,6 +59,14 @@ Pedestrian Dead Reckoning functions (from pdr module):
     detect_step_simple: Simple peak-based step detector
     integrate_gyro_heading: Gyro-based heading integration
     wrap_heading: Wrap heading to [-π, π]
+
+Environmental sensor functions (from environment module):
+    mag_tilt_compensate: Tilt compensation for magnetometer (Eq. 6.52)
+    mag_heading: Heading from magnetometer (Eqs. 6.51-6.53)
+    pressure_to_altitude: Barometric altitude (Eq. 6.54)
+    detect_floor_change: Simple floor change detector
+    smooth_measurement_simple: Exponential smoothing (Eq. 6.55 concept)
+    compensate_hard_iron: Hard-iron bias correction
 
 Design principles:
     - All sensor models reference Chapter 6 equations in docstrings
@@ -148,6 +156,15 @@ from core.sensors.pdr import (
     wrap_heading,
 )
 
+from core.sensors.environment import (
+    mag_tilt_compensate,
+    mag_heading,
+    pressure_to_altitude,
+    detect_floor_change,
+    smooth_measurement_simple,
+    compensate_hard_iron,
+)
+
 __all__ = [
     # Data types
     "ImuSeries",
@@ -189,7 +206,14 @@ __all__ = [
     "detect_step_simple",
     "integrate_gyro_heading",
     "wrap_heading",
+    # Environmental sensors (magnetometer + barometer)
+    "mag_tilt_compensate",
+    "mag_heading",
+    "pressure_to_altitude",
+    "detect_floor_change",
+    "smooth_measurement_simple",
+    "compensate_hard_iron",
 ]
 
-__version__ = "0.4.0"
+__version__ = "0.5.0"
 
