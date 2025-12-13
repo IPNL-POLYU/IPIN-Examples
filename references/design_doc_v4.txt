@@ -648,6 +648,428 @@ Unique tasks
 
 Define a unified sensor packet structure used across simulation and logs.
 
+4.4.1 Chapter 6 scope and design stance
+
+This module implements the proprioceptive + environmental sensor models and dead-reckoning algorithms from Chapter 6:
+
+IMU strapdown propagation (attitude/velocity/position).
+
+Wheel odometry dead reckoning (vehicle).
+
+Integrated IMU + wheel speed fusion (EKF).
+
+Drift correction constraints: ZUPT / ZARU / NHC.
+
+Pedestrian Dead Reckoning (PDR): step detection + step length + heading + step update.
+
+Environmental sensors: magnetometer heading, barometer altitude / floor change.
+
+Calibration utilities: Allan variance; IMU scale/misalignment model.
+
+Design stance
+
+Dead-reckoning drifts. Examples must make drift clearly visible, then show how constraints/fusion reduce it.
+
+Keep two tracks for teaching clarity:
+
+Pure propagation (strapdown / PDR) to show drift.
+
+Constraint/fusion (EKF updates with ZUPT/ZARU/NHC, mag/baro) to show drift reduction.
+
+Avoid production-grade INS complexity unless needed. Implement the chapter equations faithfully, with minimal state choices.
+
+4.4.2 Key data structures and packet formats
+
+All structures live in core/sensors/types.py.
+
+Time base
+
+Use float seconds t (monotonic), or timestamp arrays np.ndarray (preferred).
+
+Sensor series packets
+
+from dataclasses import dataclass
+import numpy as np
+
+@dataclass(frozen=True)
+class ImuSeries:
+    t: np.ndarray        # (N,)
+    accel: np.ndarray    # (N,3) m/s^2 in body frame B
+    gyro: np.ndarray     # (N,3) rad/s in body frame B
+    meta: dict
+
+@dataclass(frozen=True)
+class WheelSpeedSeries:
+    t: np.ndarray        # (N,)
+    v_s: np.ndarray      # (N,3) velocity in speed frame S (per Chapter 6)
+    meta: dict
+
+@dataclass(frozen=True)
+class MagnetometerSeries:
+    t: np.ndarray
+    mag: np.ndarray      # (N,3) in device/body frame
+    meta: dict
+
+@dataclass(frozen=True)
+class BarometerSeries:
+    t: np.ndarray
+    pressure: np.ndarray # (N,) Pa (or hPa, but must be explicit in meta)
+    meta: dict
+
+
+Navigation state (minimal Chapter-6 state)
+
+Base state is consistent with Chapter-6 integrated formulation (quaternion + velocity + position), e.g. Eq. (6.16).
+
+@dataclass
+class NavStateQPVP:
+    q: np.ndarray  # (4,) quaternion scalar-first (q0,q1,q2,q3)
+    v: np.ndarray  # (3,) velocity in map frame M
+    p: np.ndarray  # (3,) position in map frame M
+
+
+Bias-augmented state (recommended for realism)
+
+Add gyro and accel biases when implementing Eq. (6.5)/(6.9) style models.
+
+@dataclass
+class NavStateQPVPBias:
+    q: np.ndarray      # (4,)
+    v: np.ndarray      # (3,)
+    p: np.ndarray      # (3,)
+    b_g: np.ndarray    # (3,) gyro bias
+    b_a: np.ndarray    # (3,) accel bias
+
+
+Rule
+
+Chapter-6 examples may start with NavStateQPVP to keep concepts simple, then optionally switch to NavStateQPVPBias in “advanced” notebooks/tests.
+
+4.4.3 Module layout
+
+Recommended layout:
+
+core/sensors/
+  types.py
+  imu_models.py          # measurement correction + calibration helpers
+  strapdown.py           # quaternion/vel/pos propagation
+  wheel_odometry.py      # wheel speed DR + lever-arm compensation
+  ins_ekf_models.py      # ProcessModel/MeasurementModel for IMU+wheel EKF
+  constraints.py         # ZUPT / ZARU / NHC detectors + pseudo-measurements
+  pdr.py                 # step detection, step length, PDR propagation
+  environment.py         # mag heading + baro altitude (+ small smoothing helper)
+  calibration.py         # Allan variance + IMU scale/misalignment model
+
+4.4.4 IMU strapdown propagation APIs (Chapter 6 quaternion/velocity/position)
+
+Quaternion propagation (Eqs. (6.2)–(6.4), Ω matrix Eq. (6.3))
+
+def omega_matrix(omega_b: np.ndarray) -> np.ndarray:
+    """
+    Build Ω(ω) used in quaternion kinematics.
+    Implements Eq. (6.3).
+    """
+
+def quat_integrate(q_prev: np.ndarray, omega_b: np.ndarray, dt: float) -> np.ndarray:
+    """
+    Discrete quaternion update.
+    Implements Eqs. (6.2)–(6.4).
+    Note: normalize output quaternion each step.
+    """
+
+
+IMU correction (gyro/accel bias/noise; Eqs. (6.5)–(6.6), Eq. (6.9))
+
+def correct_gyro(gyro_meas: np.ndarray, b_g: np.ndarray, n_g: np.ndarray | None = None) -> np.ndarray:
+    """
+    ω = ω~ - b_g - n_g.
+    Implements Eq. (6.6) (consistent with Eq. (6.5)).
+    """
+
+def correct_accel(accel_meas: np.ndarray, b_a: np.ndarray, n_a: np.ndarray | None = None) -> np.ndarray:
+    """
+    Specific force correction consistent with Eq. (6.9).
+    """
+
+
+Velocity, gravity, position updates (Eqs. (6.7)–(6.10))
+
+def gravity_vector() -> np.ndarray:
+    """
+    Gravity approximation.
+    Implements Eq. (6.8).
+    """
+
+def vel_update(v_prev: np.ndarray, q_prev: np.ndarray, f_b: np.ndarray, dt: float) -> np.ndarray:
+    """
+    v_k = v_{k-1} + (C_B^M(q) f_b + g) dt.
+    Implements Eq. (6.7).
+    """
+
+def pos_update(p_prev: np.ndarray, v_prev: np.ndarray, dt: float) -> np.ndarray:
+    """
+    p_k = p_{k-1} + v_k dt.
+    Implements Eq. (6.10).
+    """
+
+
+Note on coordinate transforms
+
+If core/coords/quat_to_rotmat is used for Chapter-6 propagation, add Chapter-6 equation references (e.g. Eq. (6.13) if the book defines the quaternion rotation matrix there) to its docstring in addition to Chapter-2 references.
+
+4.4.5 Wheel odometry dead reckoning APIs (Eqs. (6.11)–(6.15))
+
+Skew matrix / lever arm / velocity transform / position update:
+
+def skew(v: np.ndarray) -> np.ndarray:
+    """
+    Skew-symmetric matrix [v×].
+    Implements Eq. (6.12).
+    """
+
+def wheel_speed_to_attitude_velocity(v_s: np.ndarray, omega_b: np.ndarray, lever_arm_b: np.ndarray) -> np.ndarray:
+    """
+    Convert wheel speed measurement to attitude-frame velocity with lever arm compensation.
+    Implements Eq. (6.11).
+    """
+
+def attitude_to_map_velocity(v_a: np.ndarray, q: np.ndarray) -> np.ndarray:
+    """
+    v^M = C_A^M(q) v^A.
+    Implements Eq. (6.14).
+    """
+
+def odom_pos_update(p_prev: np.ndarray, v_map: np.ndarray, dt: float) -> np.ndarray:
+    """
+    p_k^M = p_{k-1}^M + v_k^M Δt.
+    Implements Eq. (6.15).
+    """
+
+4.4.6 Integrated IMU + wheel EKF models (Eqs. (6.16)–(6.43))
+
+Implement as ProcessModel and MeasurementModel so it plugs into core/estimators/ExtendedKalmanFilter.
+
+Process model (Eqs. (6.17)–(6.32); state Eq. (6.16))
+
+class InsWheelProcessModel(ProcessModel):
+    """
+    EKF process model for state x=[q, v, p] (Eq. (6.16)),
+    with propagation and covariance per Eqs. (6.17)–(6.32).
+    """
+
+    def f(self, x: np.ndarray, u: dict, dt: float) -> np.ndarray:
+        """
+        Implements Eq. (6.17) and the concrete sub-updates in the Chapter 6 text.
+        """
+
+    def F(self, x: np.ndarray, u: dict, dt: float) -> np.ndarray:
+        """
+        State Jacobian.
+        Implements Eq. (6.28) (and uses Eq. (6.29) where needed).
+        """
+
+    def Q(self, x: np.ndarray, u: dict, dt: float) -> np.ndarray:
+        """
+        Process noise covariance.
+        Implements Eqs. (6.30)–(6.31).
+        """
+
+
+Wheel measurement model (Eqs. (6.33)–(6.38))
+
+class WheelSpeedMeasurementModel(MeasurementModel):
+    """
+    Wheel-speed measurement model.
+    Implements Eqs. (6.33)–(6.38).
+    """
+
+    def h(self, x: np.ndarray) -> np.ndarray:
+        """Implements Eqs. (6.33)–(6.35)."""
+
+    def H(self, x: np.ndarray) -> np.ndarray:
+        """Implements Eqs. (6.37)–(6.38)."""
+
+    def R(self, x: np.ndarray) -> np.ndarray:
+        """Measurement covariance (configurable)."""
+
+
+EKF update equations (Eqs. (6.39)–(6.43))
+
+Do not duplicate EKF update logic in core/sensors.
+
+core/estimators/ExtendedKalmanFilter.update() is the single source of truth.
+
+Add docstring references in ExtendedKalmanFilter.update() to include both:
+
+Chapter 3 EKF update block, and
+
+Chapter 6 EKF update block (Eqs. (6.39)–(6.43)).
+
+4.4.7 Drift correction constraints (ZUPT / ZARU / NHC)
+
+ZUPT detector (Eq. (6.44)) and pseudo-measurement (Eq. (6.45))
+
+def detect_zupt(gyro_b: np.ndarray, accel_b: np.ndarray, delta_omega: float, delta_f: float) -> bool:
+    """
+    Stationary detector.
+    Implements Eq. (6.44).
+    """
+
+class ZuptMeasurementModel(MeasurementModel):
+    """
+    Zero-velocity pseudo-measurement.
+    Implements Eq. (6.45).
+    """
+
+
+ZARU pseudo-measurement (Eq. (6.60))
+
+class ZaruMeasurementModel(MeasurementModel):
+    """
+    Zero angular rate pseudo-measurement.
+    Implements Eq. (6.60).
+    """
+
+
+NHC pseudo-measurement (Eq. (6.61))
+
+class NhcMeasurementModel(MeasurementModel):
+    """
+    Nonholonomic constraint pseudo-measurement.
+    Implements Eq. (6.61).
+    """
+
+
+Practical warning (must be shown in examples)
+
+These constraints are only valid under their motion assumptions.
+
+Include at least one “assumption violated” segment (e.g., wheel slip, foot sliding) and show the failure mode.
+
+4.4.8 PDR APIs (Eqs. (6.46)–(6.50))
+def total_accel_magnitude(accel_b: np.ndarray) -> float:
+    """Implements Eq. (6.46)."""
+
+def remove_gravity_from_magnitude(a_mag: float, g: float = 9.81) -> float:
+    """Implements Eq. (6.47)."""
+
+def step_frequency(delta_t: float) -> float:
+    """Implements Eq. (6.48)."""
+
+def step_length(h: float, f_step: float, a: float = 0.371, b: float = 0.227, c: float = 1.0) -> float:
+    """Implements Eq. (6.49)."""
+
+def pdr_step_update(p_prev_xy: np.ndarray, step_len: float, heading_rad: float) -> np.ndarray:
+    """
+    2D PDR step update.
+    Implements Eq. (6.50) specialized to 2D.
+    """
+
+
+Heading sources for PDR examples
+
+Gyro-integrated yaw (drifts).
+
+Magnetometer heading (suffers indoor disturbance).
+
+Optional smoothing filter using Eq. (6.55) style model.
+
+4.4.9 Environmental sensor models (magnetometer + barometer) (Eqs. (6.51)–(6.55))
+
+Magnetometer heading (Eqs. (6.51)–(6.53))
+
+def mag_tilt_compensate(mag_b: np.ndarray, roll: float, pitch: float) -> np.ndarray:
+    """Implements Eq. (6.52)."""
+
+def mag_heading(mag_b: np.ndarray, roll: float, pitch: float) -> float:
+    """Implements Eqs. (6.51)–(6.53)."""
+
+
+Barometer altitude (Eq. (6.54))
+
+def pressure_to_altitude(p: float, p0: float, T: float) -> float:
+    """Implements Eq. (6.54)."""
+
+
+Optional smoothing helper (Eq. (6.55))
+
+Provide a small reusable “altitude smoothing KF” or “heading smoothing KF” helper that references Eq. (6.55) as the generic state/measurement model, but still uses core/estimators KF/EKF APIs.
+
+4.4.10 Calibration utilities (Eqs. (6.56)–(6.59))
+
+Allan variance (Eqs. (6.56)–(6.58))
+
+def allan_variance(x: np.ndarray, fs: float, taus: np.ndarray) -> np.ndarray:
+    """Implements Eqs. (6.56)–(6.58)."""
+
+
+IMU scale/misalignment model (Eq. (6.59))
+
+def apply_imu_scale_misalignment(u: np.ndarray, M: np.ndarray, S: np.ndarray, b: np.ndarray) -> np.ndarray:
+    """Implements Eq. (6.59)."""
+
+4.4.11 Simulation data requirements (for sensors / Chapter 6)
+
+Although most Chapter-6 algorithms are exercised through ch6_dead_reckoning, core/sensors must be testable with standardized simulation datasets stored in data/sim/ (see Section 5.2):
+
+ch6_strapdown_basic/
+
+ch6_wheel_odom_square/
+
+ch6_foot_zupt_walk/
+
+ch6_pdr_corridor_walk/
+
+ch6_env_sensors_heading_altitude/
+
+These datasets must be deterministic (fixed seeds, config files), small, and documented.
+
+2) INSERT into Section 5.2 Dataset Families (no deletion required)
+
+In Section 5.2 Dataset Families, after your existing pdr_corridor_walk/ entry (or right after wifi_fingerprint_grid/ if you prefer), insert the following additional dataset families:
+
+ch6_strapdown_basic/
+Baseline strapdown IMU propagation dataset (attitude/velocity/position).
+
+Files (NPZ preferred):
+truth.npz: t, q, v, p
+imu.npz: t, accel, gyro (optional b_g_true, b_a_true)
+config.json: dt, noise, bias, initial conditions, frame definitions
+
+ch6_wheel_odom_square/
+Vehicle-style dataset for wheel DR and IMU+wheel EKF.
+
+Files:
+truth.npz: t, q, v, p
+wheel.npz: t, v_s (speed frame S)
+imu.npz: t, accel, gyro
+config.json: lever arm, wheel noise, optional slip segments
+
+ch6_foot_zupt_walk/
+Foot-mounted INS dataset with stance phases for ZUPT/ZARU.
+
+Files:
+truth.npz: t, q, v, p
+imu.npz
+events.npz: stance_mask (optional for evaluation)
+config.json: detector thresholds (δ_ω, δ_f), sample rate
+
+ch6_pdr_corridor_walk/
+Step-and-heading PDR dataset (lightweight PDR baseline).
+
+Files:
+truth_xy.npz: t, p_xy, heading_true
+imu.npz
+config.json: user height h, (a,b,c) parameters for step length model
+
+ch6_env_sensors_heading_altitude/
+Environmental sensor dataset (mag heading + barometer altitude).
+
+Files:
+truth.npz: heading_true, altitude_true
+mag.npz, baro.npz
+config.json: disturbance segments, p0 and T for barometer model
+
 4.5 core/sim
 
 Purpose
@@ -2249,13 +2671,298 @@ data/sim/wifi_fingerprint_grid/.
 
 7.5 ch6_dead_reckoning/
 
-Examples
+(Keep this short summary at the top for readability)
+
+Examples (summary)
 
 Foot-mounted PDR with ZUPT:
 Walk along corridor, accumulate drift, correct with constraints.
 
 Vehicle odom + IMU:
 Simple car-like motion on a map.
+
+7.5.1 Purpose
+
+This module provides end-to-end simulation examples for Chapter 6:
+
+Strapdown IMU propagation (shows drift).
+
+Wheel odometry dead reckoning (shows drift + sensitivity).
+
+Integrated IMU + wheel EKF (reduces drift).
+
+Foot-mounted ZUPT INS (constraint-based drift correction).
+
+Step-and-heading PDR baseline (simple but fragile).
+
+Environmental sensors (magnetometer heading and barometer altitude).
+
+All examples must:
+
+Use core/sensors for models and algorithms.
+
+Use core/estimators for KF/EKF update machinery (single source of truth).
+
+Use core/eval for metrics and vector plot export (save_figure).
+
+7.5.2 Dependencies
+
+Core modules
+
+core/sensors – Chapter 6 models.
+
+core/estimators – KF/EKF used for constraint and fusion updates.
+
+core/coords – quaternion/rotmat conversions.
+
+core/sim – trajectory generation + sensor noise injection.
+
+core/eval – metrics and standardized plots.
+
+Data
+
+data/sim/ch6_* (see Section 5.2).
+
+Notebooks
+
+notebooks/ch6_dead_reckoning/*.ipynb.
+
+7.5.3 Example scenarios & notebooks/scripts
+
+Scenario 6A – Strapdown IMU propagation (drift demo)
+
+Key equations (Chapter 6)
+
+Quaternion kinematics and discrete update: Eqs. (6.2)–(6.4), Ω matrix Eq. (6.3).
+
+Gyro model/correction: Eqs. (6.5)–(6.6).
+
+Velocity and gravity: Eqs. (6.7)–(6.8).
+
+Accelerometer model and position update: Eqs. (6.9)–(6.10).
+
+Notebook
+
+notebooks/ch6_dead_reckoning/strapdown_imu_drift.ipynb
+
+Must show
+
+Perfect IMU vs biased IMU drift.
+
+Trajectory plot (truth vs estimate) + error vs time.
+
+Save vector outputs into notebooks/figs/ch6_dead_reckoning/.
+
+Scenario 6B – Wheel odometry dead reckoning (vehicle)
+
+Key equations
+
+Lever arm compensation and skew matrix: Eqs. (6.11)–(6.12).
+
+Velocity transform and position update: Eqs. (6.14)–(6.15).
+
+Notebook
+
+notebooks/ch6_dead_reckoning/wheel_odometry_dr.ipynb
+
+Must show
+
+DR drift under noise.
+
+Failure mode under injected slip.
+
+Scenario 6C – Integrated IMU + wheel EKF (vehicle)
+
+Key equations
+
+State definition: Eq. (6.16).
+
+Process propagation and covariance: Eqs. (6.17)–(6.32).
+
+Wheel measurement model and Jacobian: Eqs. (6.33)–(6.38).
+
+EKF update block: Eqs. (6.39)–(6.43).
+
+Notebook
+
+notebooks/ch6_dead_reckoning/imu_wheel_ekf.ipynb
+
+Must show
+
+Compare:
+
+IMU-only strapdown
+
+wheel-only DR
+
+integrated EKF
+
+Report RMSE and drift summary.
+
+Implementation rule
+
+Do not duplicate EKF update math here; call core/estimators EKF update.
+
+Scenario 6D – Foot-mounted ZUPT INS (drift correction)
+
+Key equations
+
+ZUPT detector: Eq. (6.44)
+
+ZUPT pseudo-measurement: Eq. (6.45)
+
+Optional: ZARU pseudo-measurement: Eq. (6.60)
+
+Notebook
+
+notebooks/ch6_dead_reckoning/foot_zupt_ins.ipynb
+
+Must show
+
+IMU drift vs ZUPT-corrected drift.
+
+Plot detector firing timeline.
+
+Scenario 6E – Step-and-heading PDR baseline
+
+Key equations
+
+Acceleration magnitude and gravity removal: Eqs. (6.46)–(6.47).
+
+Step frequency, step length, step update: Eqs. (6.48)–(6.50).
+
+Notebook
+
+notebooks/ch6_dead_reckoning/pdr_step_heading.ipynb
+
+Must show
+
+Sensitivity to user height h and personal factor c.
+
+Compare heading sources:
+
+gyro yaw integration (drifts)
+
+magnetometer heading (can jump under disturbance)
+
+Scenario 6F – Magnetometer + barometer demos
+
+Key equations
+
+Magnetometer heading: Eqs. (6.51)–(6.53).
+
+Barometer altitude: Eq. (6.54).
+
+Generic state/measurement form: Eq. (6.55) (for smoothing helper).
+
+Notebook
+
+notebooks/ch6_dead_reckoning/env_heading_altitude.ipynb
+
+Must show
+
+Mag disturbance intervals causing heading jumps.
+
+Barometer altitude trend and offset handling.
+
+Optional smoothing using core/estimators.
+
+7.5.4 Tests (Chapter 6)
+
+Add tests under tests/ch6/:
+
+tests/ch6/test_quaternion_propagation.py
+Validate quat_integrate normalization and sanity for simple rotation cases.
+(Eqs. (6.2)–(6.4))
+
+tests/ch6/test_strapdown_stationary.py
+Stationary IMU should maintain near-zero velocity and stable position (within tolerance).
+(Eqs. (6.7)–(6.10))
+
+tests/ch6/test_wheel_odometry_update.py
+Known straight-line motion: wheel DR matches truth within tolerance.
+(Eqs. (6.11)–(6.15))
+
+tests/ch6/test_imu_wheel_ekf_smoke.py
+Integrated EKF RMSE < min(IMU-only, wheel-only) for a fixed seed and config.
+(Eqs. (6.16)–(6.43))
+
+tests/ch6/test_zupt_detector.py
+Synthetic stance intervals trigger Eq. (6.44) detector behavior.
+
+tests/ch6/test_pdr_step_length.py
+Validate step length computation and step update correctness.
+(Eqs. (6.48)–(6.50))
+
+tests/ch6/test_mag_baro_models.py
+Validate magnetometer heading and barometer altitude transforms.
+(Eqs. (6.51)–(6.54))
+
+7.5.5 Standard visualization outputs (Chapter 6)
+
+Each notebook/script must generate at least:
+
+Trajectory plot (truth vs estimate) → SVG/PDF
+
+Error vs time plot (position error, heading error, altitude error) → SVG/PDF
+
+(Optional) CDF plot for position error if comparing multiple methods
+
+Naming examples
+
+ch6_strapdown_drift_traj.svg
+ch6_imu_wheel_ekf_error_time.pdf
+ch6_zupt_detector_timeline.svg
+ch6_pdr_heading_comparison.svg
+
+7.5.6 Equation mapping entries to add (Chapter 6)
+
+Add entries in docs/equation_index.yml mapping Chapter-6 equations to code objects, for example:
+
+Eqs. (6.2)–(6.4) → core/sensors/strapdown.py::quat_integrate
+
+Eq. (6.3) → core/sensors/strapdown.py::omega_matrix
+
+Eqs. (6.5)–(6.6) → core/sensors/imu_models.py::correct_gyro
+
+Eq. (6.7) → core/sensors/strapdown.py::vel_update
+
+Eq. (6.8) → core/sensors/strapdown.py::gravity_vector
+
+Eq. (6.9) → core/sensors/imu_models.py::correct_accel
+
+Eq. (6.10) → core/sensors/strapdown.py::pos_update
+
+Eqs. (6.11)–(6.15) → core/sensors/wheel_odometry.py::{skew, wheel_speed_to_attitude_velocity, attitude_to_map_velocity, odom_pos_update}
+
+Eqs. (6.16)–(6.32) → core/sensors/ins_ekf_models.py::InsWheelProcessModel
+
+Eqs. (6.33)–(6.38) → core/sensors/ins_ekf_models.py::WheelSpeedMeasurementModel
+
+Eqs. (6.39)–(6.43) → core/estimators/kalman.py::ExtendedKalmanFilter.update
+(extend docstring to mention Chapter 6 EKF update block)
+
+Eq. (6.44) → core/sensors/constraints.py::detect_zupt
+
+Eq. (6.45) → core/sensors/constraints.py::ZuptMeasurementModel
+
+Eqs. (6.46)–(6.47) → core/sensors/pdr.py::{total_accel_magnitude, remove_gravity_from_magnitude}
+
+Eqs. (6.48)–(6.50) → core/sensors/pdr.py::{step_frequency, step_length, pdr_step_update}
+
+Eqs. (6.51)–(6.53) → core/sensors/environment.py::mag_heading
+
+Eq. (6.54) → core/sensors/environment.py::pressure_to_altitude
+
+Eq. (6.55) → core/sensors/environment.py::(smoothing helper, if implemented)
+
+Eqs. (6.56)–(6.58) → core/sensors/calibration.py::allan_variance
+
+Eq. (6.59) → core/sensors/calibration.py::apply_imu_scale_misalignment
+
+Eq. (6.60) → core/sensors/constraints.py::ZaruMeasurementModel
+
+Eq. (6.61) → core/sensors/constraints.py::NhcMeasurementModel
 
 7.6 ch7_slam/
 
@@ -2374,13 +3081,23 @@ TOA, TDOA (Chan/Fang), AOA demos, and RF challenges notebook.
 
 Add Ch.4 equations to equation_index.yml.
 
-9.5 Later Epics – Fingerprinting, Sensors, SLAM, Fusion
+9.5 Epic 4 – Sensors & Dead Reckoning (Ch.6)
+
+Implement core/sensors detailed in Section 4.4.
+
+Add Chapter 6 dataset families under data/sim/ (Section 5.2).
+
+Implement ch6_dead_reckoning notebooks (Section 7.5).
+
+Add tests under tests/ch6/.
+
+Update equation_index.yml for Chapter 6 and ensure equation checker passes.
+
+9.6 Later Epics – Fingerprinting, SLAM, Fusion
 
 Similar pattern:
 
 Spec → core implementation → tests → examples → docs → equation mapping.
-
-(When you’re ready, Chapter 5 would become its own epic with core/fingerprinting + ch5_fingerprinting implemented as above.)
 
 10. Working Effectively: SW vs Navigation Engineers
 
