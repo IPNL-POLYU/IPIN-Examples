@@ -94,6 +94,7 @@ ipin-examples/
     estimators/
     rf/
     sensors/
+    slam/
     sim/
     eval/
     fingerprinting/
@@ -124,6 +125,8 @@ estimators/ – LS/WLS, robust LS, KF/EKF/UKF/PF, FGO wrappers.
 rf/ – TOA/TDOA/AOA/RSS models, DOP utilities.
 
 sensors/ – IMU, wheel odom, PDR, mag, barometer models.
+
+slam/ – SLAM geometry + models: SE(2) helpers, scan matching (ICP/NDT), LOAM-style feature residuals, camera model + reprojection factors (Chapter 7).
 
 sim/ – trajectory generators, scenario definitions, noise injection.
 
@@ -1587,6 +1590,199 @@ tests/test_fingerprinting_probabilistic.py
 
 Chapter 5 examples in ch5_fingerprinting (Section 7.4).
 
+4.8 core/slam
+4.8.1 Purpose
+
+Provide minimal, reusable building blocks for Chapter 7 (SLAM) examples:
+
+- LiDAR scan matching (scan-to-scan and scan-to-map) using ICP-style objectives (Eqs. (7.10)–(7.11)).
+- NDT (normal distribution transform) scan matching (Eqs. (7.12)–(7.16)).
+- LOAM-style feature residuals (edge/plane) for didactic odometry + mapping (Eqs. (7.17)–(7.19)).
+- Camera projection/distortion helpers and reprojection residuals for (synthetic) visual SLAM / bundle adjustment (Eqs. (7.43)–(7.46), (7.68)–(7.70)).
+
+Design rule (important):
+
+- This is not a full SLAM framework.
+- core/slam provides geometry + residual models.
+- The nonlinear solvers live in core/estimators (Gauss–Newton / LM / FGO).
+- ch7_slam/ wires datasets + factors + solver + plots.
+
+4.8.2 Key abstractions & data structures
+
+Pose representations
+
+- Pose2 (SE(2)) state: x = [x, y, yaw] in meters/radians.
+- Pose3 (SE(3)) is optional; the repo can stay 2D-first.
+
+Point clouds / scans
+
+- PointCloud2D: np.ndarray of shape (N,2) in meters.
+- PointCloud3D (optional): np.ndarray of shape (N,3).
+
+VoxelGrid (for NDT)
+
+- Voxel key: integer tuple (ix, iy, iz) for 3D or (ix, iy) for 2D.
+- Store per-voxel mean p_k and covariance Σ_k (Eqs. (7.12)–(7.13)).
+
+Feature sets (for LOAM-style residuals)
+
+- EdgeFeatures: np.ndarray of shape (Ne,3) in 3D (or (Ne,2) in 2D).
+- PlaneFeatures: np.ndarray of shape (Np,3) (3D only).
+- Each feature set may carry indices back to the original scan.
+
+Camera model (for synthetic visual SLAM)
+
+- CameraIntrinsics: fx, fy, cx, cy, distortion parameters (k1, k2, p1, p2).
+- Observations: (frame_id, landmark_id, u, v) pixel coordinates.
+
+4.8.3 Recommended module layout
+
+core/slam/
+  types.py                # dataclasses: Pose2, CameraIntrinsics, etc.
+  se2.py                  # SE(2) compose/inverse/apply + angle wrapping
+  scan_matching.py        # ICP-style matching + correspondence gating (Eqs. (7.10)–(7.11))
+  ndt.py                  # voxel stats + NDT objective/optimizer hooks (Eqs. (7.12)–(7.16))
+  loam.py                 # curvature + feature selection + residuals (Eqs. (7.17)–(7.19))
+  camera.py               # distortion / projection helpers (Eqs. (7.43)–(7.46), plus projection Eq. (7.40) if needed)
+  factors.py              # FactorGraph factor classes for pose graph + reprojection
+
+4.8.4 Required functions / APIs (with equation hooks)
+
+(a) SE(2) helpers (used by all Chapter 7 examples)
+
+core/slam/se2.py
+
+- se2_compose(p: np.ndarray, dp: np.ndarray) -> np.ndarray
+  Compose poses in [x,y,yaw] form.
+
+- se2_inverse(p: np.ndarray) -> np.ndarray
+
+- se2_apply(p: np.ndarray, pts: np.ndarray) -> np.ndarray
+  Apply pose to points. Used by scan matching residuals.
+
+- wrap_angle(theta: float) -> float
+
+(b) ICP-style scan matching (Eqs. (7.10)–(7.11))
+
+core/slam/scan_matching.py
+
+- build_correspondences(
+    pts_ref: np.ndarray,   # scan at t-1
+    pts_cur: np.ndarray,   # scan at t
+    T_init: np.ndarray,    # Pose2 initial guess
+    epsilon: float
+  ) -> tuple[np.ndarray, np.ndarray]
+
+  Implements the gating/association variable in Eq. (7.11) using nearest-neighbor + distance threshold epsilon.
+
+- icp_point_to_point(
+    pts_ref: np.ndarray,
+    pts_cur: np.ndarray,
+    T_init: np.ndarray,
+    max_iters: int = 20,
+    epsilon: float = 0.5,
+    robust_kernel: str | None = None,
+  ) -> np.ndarray
+
+  Minimizes the LS objective in Eq. (7.10) (with correspondences from Eq. (7.11)).
+  Should expose per-iteration diagnostics: number of correspondences, residual RMS, Δpose.
+
+Implementation notes
+
+- Use scipy.spatial.cKDTree for fast nearest-neighbor queries.
+- For the rigid transform update step, use an SVD/Procrustes solve (point-to-point ICP); keep the implementation readable.
+
+(c) NDT scan matching (Eqs. (7.12)–(7.16))
+
+core/slam/ndt.py
+
+- voxel_stats(points: np.ndarray, voxel_size: float) -> dict
+  Compute per-voxel mean p_k and covariance Σ_k (Eqs. (7.12)–(7.13)).
+
+- ndt_negative_log_likelihood(
+    pts_cur: np.ndarray,
+    voxel_map: dict,
+    T: np.ndarray
+  ) -> float
+
+  Implements the negative log of the likelihood product in Eqs. (7.14)–(7.15).
+
+- ndt_align(
+    pts_cur: np.ndarray,
+    voxel_map: dict,
+    T_init: np.ndarray,
+    max_iters: int = 20,
+  ) -> np.ndarray
+
+  Optimization wrapper corresponding to the MLE in Eq. (7.16).
+  Should call core/estimators/optim (GN/LM) rather than implementing its own solver.
+
+(d) LOAM-style feature residuals (Eqs. (7.17)–(7.19))
+
+core/slam/loam.py
+
+- compute_curvature(points: np.ndarray, k: int = 10) -> np.ndarray
+
+- select_loam_features(curvature: np.ndarray, edge_q: float, plane_q: float) -> tuple[np.ndarray, np.ndarray]
+  Select “edge” and “plane” points based on curvature thresholding (as described in the LOAM subsection).
+
+- point_to_line_distance(p: np.ndarray, a: np.ndarray, b: np.ndarray) -> float
+  Implements Eq. (7.18).
+
+- point_to_plane_distance(p: np.ndarray, a: np.ndarray, b: np.ndarray, c: np.ndarray) -> float
+  Implements Eq. (7.19) (3D only; can be stubbed if repo stays 2D-first).
+
+- loam_odometry_step(...)
+  Wrapper for the odometry objective in Eq. (7.17). In the repo this is a didactic demo:
+  a small number of features, small maps, and clear plots.
+
+Robust weights
+
+- LOAM uses robust/bisquare-like weighting for residuals; implement as a robust kernel option in core/estimators or core/slam/loam.py.
+
+(e) Visual SLAM helpers + reprojection residuals (Eqs. (7.43)–(7.46), (7.68)–(7.70))
+
+core/slam/camera.py
+
+- distort_normalized(xy: np.ndarray, k1,k2,p1,p2) -> np.ndarray
+  Encodes the radial + tangential distortion model (Eqs. (7.43)–(7.46)).
+
+- project_point(K: CameraIntrinsics, p_cam: np.ndarray) -> np.ndarray
+  Projection function referenced by Eq. (7.40) and used in the reprojection cost.
+
+core/slam/factors.py
+
+- ReprojectionFactor
+  Residual implements the bundle adjustment cost structure in Eqs. (7.68)–(7.70).
+
+- BetweenPoseFactorSE2
+  Used for pose graph SLAM constraints produced by scan matching.
+
+4.8.5 Simulation data requirements (for SLAM)
+
+core/slam examples depend on dataset families in data/sim/:
+
+- slam_lidar2d/ (scan matching + pose graph).
+- slam_visual_bearing2d/ (synthetic camera observations + bundle adjustment).
+
+Section 5.2 defines the exact file formats.
+
+4.8.6 Ownership split
+
+Navigation engineer
+
+- Decide which Chapter-7 equations are “must-implement” vs “optional demo”.
+- Choose simplifications (2D vs 3D; which residuals to include).
+- Set nominal noise/outlier parameters for the synthetic datasets.
+
+Software engineer
+
+- Implement file layout, dataclasses, and stable APIs.
+- Provide unit tests + CI.
+- Keep performance reasonable (KD-tree for ICP; vectorized operations).
+
+
+
 5. Simulation Datasets & Open Data
 5.1 Principles
 
@@ -1644,7 +1840,43 @@ IMU time series, reference path, step labels, floor labels.
 
 slam_lidar2d/
 
-2D occupancy grid, range-bearing measurements, ground truth poses.
+Minimal 2D LiDAR SLAM dataset used in Chapter 7 demos (scan-to-scan, scan-to-map, and loop closure).
+
+Required files
+
+- map_occupancy.npy: (H,W) occupancy grid in map frame M.
+- map_meta.json: meters_per_cell, origin (ENU), and frame conventions.
+- poses_true.npy: (T,3) ground-truth poses [x,y,yaw] in map frame M.
+- scans/: per-timestep point clouds (already converted from range-bearing)
+  - scan_0000.npy: (N,2) xy points in the LiDAR/body frame B_t (meters).
+  - scan_0001.npy, ...
+- timestamps.npy: (T,) timestamps for aligning scans and optional IMU.
+
+Optional (recommended for teaching)
+
+- raw_ranges/: range + bearing arrays if you want to show “sensor → points” explicitly.
+- loop_closures.csv: synthetic loop closure constraints (i,j, dx,dy,dyaw, weight/info).
+- noise_config.yml: correspondence threshold epsilon (Eq. (7.11)), outlier rate, and scan noise.
+
+Used by
+
+- ch7_slam ICP + NDT + LOAM-style odometry examples.
+- tests/ch7 regression tests (pose RMSE thresholds on fixed seeds).
+
+slam_visual_bearing2d/
+
+Toy visual SLAM / bundle adjustment dataset (no real images; synthetic feature tracks).
+
+Required files
+
+- camera_intrinsics.json: fx, fy, cx, cy + distortion (k1,k2,p1,p2).
+- poses_true.npy: (T,3) ground-truth camera poses [x,y,yaw] (2D demo).
+- landmarks_true.npy: (L,2) landmark positions in map frame.
+- observations.csv: (t, landmark_id, u, v) pixel observations + optional outlier flags.
+
+Used by
+
+- ch7_slam bundle adjustment example (Eqs. (7.68)–(7.70)).
 
 toy_ls_linear/
 
@@ -2787,15 +3019,271 @@ Eq. (6.60) → core/sensors/constraints.py::ZaruMeasurementModel
 
 Eq. (6.61) → core/sensors/constraints.py::NhcMeasurementModel
 
+
 7.6 ch7_slam/
+7.6.1 Goals
 
-Examples
+Chapter 7 is about SLAM technologies (LiDAR SLAM and visual SLAM) and why they matter for indoor positioning.
 
-Minimal 2D LiDAR / range-bearing SLAM:
+This repo’s goal is to make Chapter-7 math executable without turning the repository into a full robotics SLAM stack.
 
-Use FGO with pose + landmark factors.
+What Chapter-7 examples must achieve
 
-Loop closure toy example.
+- Demonstrate scan matching objectives (ICP / NDT) and how they produce relative pose constraints.
+- Show how feature selection (LOAM-style) reduces compute while keeping accuracy.
+- Show loop closure and why global optimization (pose graph / factor graph) reduces drift.
+- Show the basic bundle adjustment objective on synthetic camera observations.
+- Keep everything small and reproducible (data/sim/, fixed seeds, fast runtime).
+
+What Chapter-7 examples must NOT become
+
+- A production LOAM/LIO-SAM/VINS implementation.
+- A ROS2 pipeline.
+- A massive dataset + tuning project.
+
+7.6.2 Core Chapter-7 equations to implement (minimum set)
+
+LiDAR scan matching (ICP-style)
+
+- Eq. (7.10): scan-to-scan matching LS objective.
+- Eq. (7.11): correspondence gating / association variable.
+
+NDT scan matching
+
+- Eqs. (7.12)–(7.13): per-voxel mean and covariance.
+- Eqs. (7.14)–(7.15): likelihood of scan points under voxel Gaussians.
+- Eq. (7.16): MLE as nonlinear LS.
+
+LOAM-style residuals
+
+- Eq. (7.17): odometry objective using edge + plane features.
+- Eqs. (7.18)–(7.19): point-to-line and point-to-plane distances.
+
+Visual model + bundle adjustment
+
+- Eqs. (7.43)–(7.46): camera distortion model.
+- Eqs. (7.68)–(7.70): bundle adjustment (BA) reprojection cost over poses + landmarks.
+
+7.6.3 Example 1 – LiDAR scan-to-scan matching (ICP-style) (Eqs. (7.10)–(7.11))
+
+Files
+
+- ch7_slam/lidar_icp_scan_matching.py
+- notebooks/ch7_slam/lidar_icp_scan_matching.ipynb
+
+Core functions used
+
+- core.slam.scan_matching.build_correspondences (Eq. (7.11))
+- core.slam.scan_matching.icp_point_to_point (Eq. (7.10))
+- core.slam.se2 utilities for applying/compounding poses
+- core.eval plots + metrics
+
+Dataset
+
+- data/sim/slam_lidar2d/
+
+Notebook structure
+
+1) Load two consecutive scans and ground truth relative pose.
+
+2) Run ICP with:
+
+- a good initial guess (ground truth + noise),
+- a poor initial guess, and
+- no initial guess (identity).
+
+3) For each run, plot:
+
+- correspondence count per iteration,
+- residual RMS per iteration,
+- final alignment overlay (ref points vs transformed current points).
+
+4) Convert per-pair relative poses into an odometry trajectory and show drift.
+
+Plots
+
+- ch7_slam/figs/ch7_icp_alignment_overlay.svg
+- ch7_slam/figs/ch7_icp_residual_vs_iter.svg
+- ch7_slam/figs/ch7_icp_odometry_traj.svg
+- ch7_slam/figs/ch7_icp_odometry_error_cdf.svg
+
+Equation mapping
+
+- icp_point_to_point docstring references Eq. (7.10).
+- build_correspondences docstring references Eq. (7.11).
+- equation_index.yml maps:
+  - Eq. (7.10) → core/slam/scan_matching.py::icp_point_to_point
+  - Eq. (7.11) → core/slam/scan_matching.py::build_correspondences
+
+7.6.4 Example 2 – NDT scan matching (Eqs. (7.12)–(7.16))
+
+Files
+
+- ch7_slam/lidar_ndt_alignment.py
+- notebooks/ch7_slam/lidar_ndt_alignment.ipynb
+
+Core functions used
+
+- core.slam.ndt.voxel_stats (Eqs. (7.12)–(7.13))
+- core.slam.ndt.ndt_negative_log_likelihood (Eqs. (7.14)–(7.15))
+- core.slam.ndt.ndt_align (Eq. (7.16), via core/estimators optimizer)
+
+Experiment
+
+- Build an NDT voxel map from a “reference scan” or a short local map.
+- Align the current scan against the voxel map.
+- Compare ICP vs NDT on:
+  - random outliers,
+  - reduced point density,
+  - larger initial pose error.
+
+Plots
+
+- ch7_slam/figs/ch7_icp_vs_ndt_rmse_bar.svg
+- ch7_slam/figs/ch7_ndt_convergence.svg
+
+Equation mapping
+
+- voxel_stats docstring references Eqs. (7.12)–(7.13).
+- ndt_align docstring references Eq. (7.16).
+
+7.6.5 Example 3 – LOAM-style feature odometry (Eqs. (7.17)–(7.19))
+
+Files
+
+- ch7_slam/lidar_loam_feature_odometry.py
+- notebooks/ch7_slam/lidar_loam_feature_odometry.ipynb
+
+Core functions used
+
+- core.slam.loam.compute_curvature
+- core.slam.loam.select_loam_features
+- core.slam.loam.point_to_line_distance (Eq. (7.18))
+- core.slam.loam.point_to_plane_distance (Eq. (7.19), optional)
+
+What to demonstrate
+
+- Select a small subset of “edge” and “plane” features.
+- Solve a tiny nonlinear LS step for the relative pose using only these features (Eq. (7.17)).
+- Compare runtime and accuracy vs point-to-point ICP.
+
+Important simplification
+
+- It is acceptable to implement a 2D-only LOAM demo:
+  - “edge features” in 2D are points on high-curvature corners.
+  - Use only point-to-line residuals (a 2D analogue of Eq. (7.18)).
+  - Keep plane features as optional.
+
+Plots
+
+- ch7_slam/figs/ch7_loam_feature_selection.svg
+- ch7_slam/figs/ch7_loam_vs_icp_runtime.svg
+
+Equation mapping
+
+- point_to_line_distance docstring references Eq. (7.18).
+- point_to_plane_distance docstring references Eq. (7.19) (if implemented).
+- loam_odometry_step docstring references Eq. (7.17).
+
+7.6.6 Example 4 – Pose graph SLAM with loop closure (uses Ch3 MAP + Ch7 constraints)
+
+Goal
+
+Turn scan matching outputs into a global trajectory estimate:
+
+- consecutive scan matches → between-pose factors
+- loop closure constraints (synthetic) → long-range between-pose factors
+- solve via FGO (Chapter 3 MAP) to reduce drift
+
+Files
+
+- ch7_slam/pose_graph_loop_closure.py
+- notebooks/ch7_slam/pose_graph_loop_closure.ipynb
+
+Core functions used
+
+- core.slam.factors.BetweenPoseFactorSE2
+- core.estimators.fgo.solve_fgo
+- core.eval metrics + plotting
+
+Must show
+
+- Odometry-only trajectory vs optimized (loop-closed) trajectory.
+- Error CDF and RMSE reduction.
+
+7.6.7 Example 5 – Visual SLAM: camera model + bundle adjustment (Eqs. (7.43)–(7.46), (7.68)–(7.70))
+
+This repo avoids full image processing. Instead, it uses synthetic “feature tracks” so the estimation math is clear.
+
+Files
+
+- ch7_slam/visual_bundle_adjustment.py
+- notebooks/ch7_slam/visual_bundle_adjustment.ipynb
+
+Core functions used
+
+- core.slam.camera.distort_normalized (Eqs. (7.43)–(7.46))
+- core.slam.factors.ReprojectionFactor (BA cost; Eqs. (7.68)–(7.70))
+- core.estimators.fgo.solve_fgo
+
+Dataset
+
+- data/sim/slam_visual_bearing2d/
+
+Notebook structure
+
+1) Load true poses, landmarks, and noisy pixel observations.
+
+2) Initialize:
+
+- poses with drifted odometry,
+- landmarks with noisy guesses.
+
+3) Run BA and plot:
+
+- reprojection RMS vs iteration
+- before/after trajectory
+- before/after landmark map
+
+Equation mapping
+
+- distort_normalized docstring references Eqs. (7.43)–(7.46).
+- ReprojectionFactor references Eqs. (7.68)–(7.70).
+
+7.6.8 IMU roles in LiDAR SLAM (Section 7.5) – minimal demo requirement
+
+Chapter 7 emphasizes IMU as a high-rate motion source that can provide a strong initial guess for scan matching and help bridge gaps between scans.
+
+Repo requirement (minimal)
+
+- Add one small demo showing ICP/NDT convergence with:
+  - constant-velocity initial guess, vs
+  - IMU-integrated initial guess (using Chapter-6 strapdown helpers).
+
+This is a “bridging” demo only; full IMU preintegration factors belong in Chapter 8 (tightly coupled fusion).
+
+7.6.9 Tests (Chapter 7)
+
+Add tests under tests/ch7/:
+
+tests/ch7/test_icp_converges.py
+- On a fixed synthetic pair of scans, ICP recovers the known transform within tolerance.
+- References Eqs. (7.10)–(7.11).
+
+tests/ch7/test_ndt_voxel_stats.py
+- Validate voxel mean/covariance against a hand-checked mini point set.
+- References Eqs. (7.12)–(7.13).
+
+tests/ch7/test_point_to_line_plane_distance.py
+- Unit tests for Eq. (7.18) and (optionally) Eq. (7.19).
+
+tests/ch7/test_pose_graph_loop_closure_smoke.py
+- Odometry + loop closure optimization reduces RMSE vs odometry-only.
+
+tests/ch7/test_bundle_adjustment_smoke.py
+- BA decreases reprojection RMS and reduces pose error on a small synthetic problem.
+
+
 
 7.7 ch8_sensor_fusion/
 
@@ -2920,9 +3408,30 @@ Add tests under tests/ch6/.
 
 Update equation_index.yml for Chapter 6 and ensure equation checker passes.
 
-9.6 Later Epics – Fingerprinting, SLAM, Fusion
+9.6 Epic 5 – Fingerprinting (Ch.5)
 
-Similar pattern:
+Implement core/fingerprinting (Section 4.7) + ch5_fingerprinting notebooks (Section 7.4).
+
+- Unit tests for deterministic and probabilistic methods.
+- Add Ch.5 equations to equation_index.yml.
+
+9.7 Epic 6 – SLAM (Ch.7)
+
+Implement core/slam (Section 4.8) + ch7_slam notebooks (Section 7.6).
+
+Minimum deliverables
+
+- ICP scan matching with correspondence gating (Eqs. (7.10)–(7.11)).
+- NDT scan matching (Eqs. (7.12)–(7.16)).
+- LOAM-style residual helpers (Eqs. (7.17)–(7.19)) as a didactic demo.
+- Pose graph loop closure example using FGO.
+- Synthetic visual BA example (Eqs. (7.43)–(7.46), (7.68)–(7.70)).
+- Tests under tests/ch7/.
+- Update equation_index.yml for all implemented Chapter-7 equations.
+
+9.8 Epic 7 – Sensor Fusion (Ch.8)
+
+Use Chapter-7 SLAM outputs as measurements inside loosely coupled vs tightly coupled fusion examples.
 
 Spec → core implementation → tests → examples → docs → equation mapping.
 
