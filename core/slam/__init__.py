@@ -15,8 +15,9 @@ Chapter examples in ch7_slam/ wire datasets + factors + solver + plots.
 Main components:
     - Pose2, CameraIntrinsics: Core data structures
     - se2_compose, se2_inverse, se2_apply: SE(2) operations
+    - icp_point_to_point: ICP scan matching (Section 7.2.1)
     - (Additional modules will be added in later phases:
-       scan_matching, ndt, loam, camera, factors)
+       ndt, loam, camera, factors)
 
 Example usage:
     >>> from core.slam import Pose2, se2_compose, se2_inverse, se2_apply
@@ -42,6 +43,13 @@ Author: Navigation Engineer
 Date: 2024
 """
 
+from .scan_matching import (
+    align_svd,
+    compute_icp_covariance,
+    compute_icp_residual,
+    find_correspondences,
+    icp_point_to_point,
+)
 from .se2 import (
     se2_apply,
     se2_compose,
@@ -68,6 +76,12 @@ __all__ = [
     "se2_to_matrix",
     "se2_from_matrix",
     "wrap_angle",
+    # ICP scan matching
+    "find_correspondences",
+    "compute_icp_residual",
+    "align_svd",
+    "icp_point_to_point",
+    "compute_icp_covariance",
 ]
 
 __version__ = "0.1.0"
