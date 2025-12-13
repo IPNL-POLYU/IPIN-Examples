@@ -12,8 +12,8 @@ Modules:
     constraints: ZUPT/ZARU/NHC detectors and pseudo-measurements
     pdr: Step detection, step length, PDR propagation
     environment: Magnetometer heading and barometer altitude
+    calibration: Allan variance and IMU noise characterization
     ins_ekf_models: ProcessModel/MeasurementModel for IMU+wheel EKF (future)
-    calibration: Allan variance and IMU scale/misalignment model (future)
 
 Primary data structures (from types module):
     ImuSeries: Time-series IMU data (accel, gyro)
@@ -67,6 +67,13 @@ Environmental sensor functions (from environment module):
     detect_floor_change: Simple floor change detector
     smooth_measurement_simple: Exponential smoothing (Eq. 6.55 concept)
     compensate_hard_iron: Hard-iron bias correction
+
+Calibration functions (from calibration module):
+    allan_variance: Allan variance and deviation computation (Eqs. 6.56-6.58)
+    identify_bias_instability: Extract bias instability from Allan curve
+    identify_random_walk: Extract angle/velocity random walk coefficient
+    identify_rate_random_walk: Extract rate random walk coefficient
+    characterize_imu_noise: Complete IMU noise characterization
 
 Design principles:
     - All sensor models reference Chapter 6 equations in docstrings
@@ -165,6 +172,14 @@ from core.sensors.environment import (
     compensate_hard_iron,
 )
 
+from core.sensors.calibration import (
+    allan_variance,
+    identify_bias_instability,
+    identify_random_walk,
+    identify_rate_random_walk,
+    characterize_imu_noise,
+)
+
 __all__ = [
     # Data types
     "ImuSeries",
@@ -213,7 +228,13 @@ __all__ = [
     "detect_floor_change",
     "smooth_measurement_simple",
     "compensate_hard_iron",
+    # Calibration utilities (Allan variance)
+    "allan_variance",
+    "identify_bias_instability",
+    "identify_random_walk",
+    "identify_rate_random_walk",
+    "characterize_imu_noise",
 ]
 
-__version__ = "0.5.0"
+__version__ = "1.0.0"
 
