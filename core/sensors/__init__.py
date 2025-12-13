@@ -8,9 +8,9 @@ Modules:
     types: Sensor data structures and navigation state representations
     imu_models: IMU measurement correction and calibration helpers
     strapdown: Quaternion/velocity/position propagation
-    wheel_odometry: Wheel speed DR and lever-arm compensation (future)
+    wheel_odometry: Wheel speed DR and lever-arm compensation
+    constraints: ZUPT/ZARU/NHC detectors and pseudo-measurements
     ins_ekf_models: ProcessModel/MeasurementModel for IMU+wheel EKF (future)
-    constraints: ZUPT/ZARU/NHC detectors and pseudo-measurements (future)
     pdr: Step detection, step length, PDR propagation (future)
     environment: Magnetometer heading and barometer altitude (future)
     calibration: Allan variance and IMU scale/misalignment model (future)
@@ -36,6 +36,19 @@ Strapdown integration functions (from strapdown module):
     vel_update: Velocity propagation (Eq. 6.7)
     pos_update: Position propagation (Eq. 6.10)
     strapdown_update: Complete attitude/velocity/position update
+
+Wheel odometry functions (from wheel_odometry module):
+    skew: Skew-symmetric matrix [v×] (Eq. 6.12)
+    wheel_speed_to_attitude_velocity: Lever arm compensation (Eq. 6.11)
+    attitude_to_map_velocity: Attitude to map frame transform (Eq. 6.14)
+    odom_pos_update: Position update from wheel velocity (Eq. 6.15)
+    wheel_odom_update: Complete wheel DR update loop
+
+Drift correction constraints (from constraints module):
+    detect_zupt: Stationary detector (Eq. 6.44)
+    ZuptMeasurementModel: Zero velocity update (Eq. 6.45)
+    ZaruMeasurementModel: Zero angular rate update (Eq. 6.60)
+    NhcMeasurementModel: Nonholonomic constraint (Eq. 6.61)
 
 Design principles:
     - All sensor models reference Chapter 6 equations in docstrings
@@ -99,6 +112,21 @@ from core.sensors.strapdown import (
     strapdown_update,
 )
 
+from core.sensors.wheel_odometry import (
+    skew,
+    wheel_speed_to_attitude_velocity,
+    attitude_to_map_velocity,
+    odom_pos_update,
+    wheel_odom_update,
+)
+
+from core.sensors.constraints import (
+    detect_zupt,
+    ZuptMeasurementModel,
+    ZaruMeasurementModel,
+    NhcMeasurementModel,
+)
+
 __all__ = [
     # Data types
     "ImuSeries",
@@ -120,7 +148,18 @@ __all__ = [
     "vel_update",
     "pos_update",
     "strapdown_update",
+    # Wheel odometry
+    "skew",
+    "wheel_speed_to_attitude_velocity",
+    "attitude_to_map_velocity",
+    "odom_pos_update",
+    "wheel_odom_update",
+    # Drift correction constraints
+    "detect_zupt",
+    "ZuptMeasurementModel",
+    "ZaruMeasurementModel",
+    "NhcMeasurementModel",
 ]
 
-__version__ = "0.2.0"
+__version__ = "0.3.0"
 
