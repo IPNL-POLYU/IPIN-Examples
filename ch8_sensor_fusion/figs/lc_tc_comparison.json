@@ -1,0 +1,80 @@
+{
+  "dataset": {
+    "path": "data/sim/fusion_2d_imu_uwb",
+    "config": {
+      "dataset_info": {
+        "description": "2D IMU + UWB fusion dataset for Chapter 8",
+        "seed": 42,
+        "duration_sec": 60.0,
+        "imu_samples": 6000,
+        "uwb_samples": 600
+      },
+      "trajectory": {
+        "type": "rectangular_walk",
+        "width_m": 20.0,
+        "height_m": 15.0,
+        "speed_m_s": 1.0
+      },
+      "imu": {
+        "rate_hz": 100.0,
+        "dt_sec": 0.01,
+        "accel_noise_std_m_s2": 0.1,
+        "gyro_noise_std_rad_s": 0.01,
+        "accel_bias_m_s2": [
+          0.0,
+          0.0
+        ],
+        "gyro_bias_rad_s": 0.0
+      },
+      "uwb": {
+        "rate_hz": 10.0,
+        "n_anchors": 4,
+        "range_noise_std_m": 0.05,
+        "nlos_anchors": [],
+        "nlos_bias_m": 0.5,
+        "dropout_rate": 0.05
+      },
+      "temporal_calibration": {
+        "time_offset_sec": 0.0,
+        "clock_drift": 0.0,
+        "note": "Use TimeSyncModel to apply these during fusion"
+      },
+      "coordinate_frame": {
+        "description": "ENU (East-North-Up)",
+        "origin": "Bottom-left corner (0, 0)",
+        "units": "meters"
+      }
+    },
+    "n_imu_samples": 6000,
+    "n_uwb_epochs": 600,
+    "duration": 59.99
+  },
+  "lc_fusion": {
+    "rmse_2d": 12.895864923933225,
+    "rmse_x": 17.091896971141036,
+    "rmse_y": 6.3618961167691435,
+    "max_error": 40.826098558030516,
+    "mean_error": 11.747015377252849,
+    "final_error": 39.11215035164275,
+    "n_updates": 176,
+    "n_rejected": 408,
+    "n_failed": 16,
+    "acceptance_rate": 30.136986301369863
+  },
+  "tc_fusion": {
+    "rmse_2d": 12.352023398920757,
+    "rmse_x": 16.519044783820114,
+    "rmse_y": 5.680327765641458,
+    "max_error": 38.99335819329376,
+    "mean_error": 11.24805877346406,
+    "final_error": 37.39237045662993,
+    "n_updates": 748,
+    "n_rejected": 1523,
+    "acceptance_rate": 32.937032144429764
+  },
+  "comparison": {
+    "rmse_difference": 0.5438415250124677,
+    "better_rmse": "TC",
+    "update_ratio": 0.23529411764705882
+  }
+}

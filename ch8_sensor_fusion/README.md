@@ -338,6 +338,82 @@ All implementations reference their source equations from Chapter 8:
 
 ---
 
+## LC vs TC Direct Comparison Tool ⚖️
+
+### `compare_lc_tc.py` - Side-by-Side Comparison Script
+
+Runs both LC and TC fusion on the same dataset and generates comprehensive comparison visualizations and metrics.
+
+**Features**:
+- Runs both fusions with identical parameters
+- Side-by-side trajectory plots
+- Position error comparison
+- NIS comparison (1 DOF vs 2 DOF)
+- Performance metrics bar chart
+- Quantitative comparison table
+- Exportable JSON report
+
+**Run the comparison**:
+```bash
+# Basic comparison (uses baseline dataset)
+python -m ch8_sensor_fusion.compare_lc_tc
+
+# With custom dataset
+python -m ch8_sensor_fusion.compare_lc_tc --data data/sim/fusion_2d_imu_uwb
+
+# Save outputs
+python -m ch8_sensor_fusion.compare_lc_tc \
+    --save comparison.svg \
+    --report comparison.json
+
+# Disable gating for both
+python -m ch8_sensor_fusion.compare_lc_tc --no-gating
+
+# Adjust gating threshold
+python -m ch8_sensor_fusion.compare_lc_tc --alpha 0.01  # Stricter
+```
+
+**Output**:
+- **Figure**: 9-panel comprehensive comparison (3×3 grid)
+  - Row 1: LC trajectory, TC trajectory, overlay comparison
+  - Row 2: LC error, TC error, error comparison
+  - Row 3: LC NIS, TC NIS, metrics bar chart
+- **Console**: Detailed comparison table with metrics
+- **JSON Report** (optional): Machine-readable comparison data
+
+**Example Results** (baseline dataset):
+
+```
+======================================================================
+LC vs TC Performance Comparison
+======================================================================
+Metric                          LC Fusion       TC Fusion   Difference
+----------------------------------------------------------------------
+RMSE 2D (m)                        12.896          12.352      +0.544
+RMSE X (m)                         17.092          16.519      +0.573
+RMSE Y (m)                          6.362           5.680      +0.682
+Max Error (m)                      40.826          38.993      +1.833
+----------------------------------------------------------------------
+UWB Updates Accepted                  176             748        -572
+UWB Updates Rejected                  408            1523       -1115
+Acceptance Rate (%)                  30.1            32.9        -2.8
+======================================================================
+
+Summary:
+  • TC has lower RMSE (0.544m difference)
+  • TC has higher acceptance rate (2.8% difference)
+  • LC: 176 updates, TC: 748 updates (TC has +572 more)
+```
+
+**Key Insights**:
+- **TC is slightly more accurate** (~0.5m better RMSE)
+- **TC processes 4× more updates** (one per anchor vs one per epoch)
+- **LC has fewer solver failures** when ≥3 anchors visible
+- **Both achieve comparable accuracy** (~12-13m RMSE due to IMU drift)
+- **Chi-square bounds differ**: LC uses 2 DOF (position), TC uses 1 DOF (range)
+
+---
+
 ## Files
 
 ```
@@ -347,9 +423,12 @@ ch8_sensor_fusion/
 ├── tc_uwb_imu_ekf.py                  # TC demo script
 ├── lc_models.py                       # LC fusion EKF models (Phase 3)
 ├── lc_uwb_imu_ekf.py                  # LC demo script (Phase 3)
+├── compare_lc_tc.py                   # LC vs TC comparison tool
 ├── figs/                              # Generated figures
 │   ├── tc_results.svg                 # TC fusion results
-│   └── lc_results.svg                 # LC fusion results (Phase 3)
+│   ├── lc_results.svg                 # LC fusion results (Phase 3)
+│   ├── lc_tc_comparison.svg           # LC vs TC comparison
+│   └── lc_tc_comparison.json          # Comparison metrics (JSON)
 └── README.md                          # This file
 
 scripts/
