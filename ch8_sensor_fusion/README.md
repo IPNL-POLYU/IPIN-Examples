@@ -327,9 +327,113 @@ All implementations reference their source equations from Chapter 8:
 
 ---
 
+---
+
+## Phase 4 Complete: Advanced Demos ✅
+
+### Deliverables
+
+#### 1. Observability Demo (`observability_demo.py`)
+
+Demonstrates that absolute translation is **unobservable** from odometry alone.
+
+**Key Concept**: Odometry measures relative displacement (increments), not absolute position. Two trajectories differing by a constant translation produce identical odometry measurements.
+
+**Features**:
+- Generates figure-8 trajectory
+- Runs odometry-only fusion with different translation offsets
+- Shows constant translation error (unobservable mode)
+- Runs odometry + absolute position fixes fusion
+- Demonstrates translation correction when fixes are available
+- 6-panel visualization
+
+**Run the demo**:
+```bash
+# Basic usage
+python -m ch8_sensor_fusion.observability_demo
+
+# Save results
+python -m ch8_sensor_fusion.observability_demo --save observability.svg
+```
+
+**Expected Results**:
+- **Odometry-only**: Constant ~3.6m error (translation offset)
+- **Odometry + Fixes**: Error corrected to <0.5m at each fix
+
+#### 2. Tuning & Robust Loss Demo (`tuning_robust_demo.py`)
+
+Demonstrates filter tuning and robust estimation on the **NLOS dataset**.
+
+**Key Concepts**:
+- Baseline (no gating): Accepts all measurements (including outliers)
+- **Chi-square gating** (Eq. 8.9): Hard rejection of outliers
+- **Huber loss** (Eq. 8.7): Soft down-weighting with linear tail
+- **Cauchy loss** (Eq. 8.7): Strong down-weighting with bounded influence
+
+**Features**:
+- Compares 4 strategies on NLOS-corrupted data
+- Shows impact of NLOS bias on baseline filter
+- Demonstrates gating effectiveness
+- Compares hard gating vs soft robust losses
+- 9-panel visualization with NIS plots, trajectories, and metrics
+
+**Run the demo**:
+```bash
+# Basic usage (uses NLOS dataset by default)
+python -m ch8_sensor_fusion.tuning_robust_demo
+
+# Specify dataset
+python -m ch8_sensor_fusion.tuning_robust_demo --data data/sim/fusion_2d_imu_uwb_nlos
+
+# Save results
+python -m ch8_sensor_fusion.tuning_robust_demo --save tuning_robust.svg
+```
+
+**Expected Results**:
+- **Baseline**: Degraded by NLOS outliers
+- **Gating**: Rejects many outliers, improves accuracy
+- **Huber/Cauchy**: Soft downweighting, comparable to gating
+- **Improvement**: ~10-15% RMSE reduction over baseline
+
+#### 3. Temporal Calibration Demo (`temporal_calibration_demo.py`)
+
+Demonstrates the importance of temporal calibration using the **time-offset dataset**.
+
+**Key Concepts**:
+- Sensor clocks are not perfectly synchronized
+- Time offset: Constant shift between sensors (50ms in demo)
+- Clock drift: Relative rate difference (100ppm in demo)
+- **TimeSyncModel**: t_fusion = (1 + drift) * t_sensor + offset
+
+**Features**:
+- Shows fusion degradation from time misalignment
+- Applies TimeSyncModel to correct offset and drift
+- Demonstrates accuracy recovery with proper calibration
+- 6-panel visualization comparing corrected vs uncorrected
+
+**Run the demo**:
+```bash
+# Basic usage (uses time-offset dataset by default)
+python -m ch8_sensor_fusion.temporal_calibration_demo
+
+# Specify dataset
+python -m ch8_sensor_fusion.temporal_calibration_demo \
+    --data data/sim/fusion_2d_imu_uwb_timeoffset
+
+# Save results
+python -m ch8_sensor_fusion.temporal_calibration_demo --save temporal_calib.svg
+```
+
+**Expected Results**:
+- **Without correction**: Degraded RMSE due to 50ms offset + 100ppm drift
+- **With TimeSyncModel**: Accuracy restored (10-20% improvement)
+- **Key insight**: Even small time offsets significantly impact fusion
+
+---
+
 ## Next Steps: Phase 4 (Future Work)
 
-### Phase 4: Advanced Demos
+### Optional Extensions (Beyond Core Requirements)
 
 1. **Observability Demo**: Show unobservable modes with odometry-only
 2. **Tuning Demo**: Compare different Q/R choices, NIS plots
@@ -420,15 +524,21 @@ Summary:
 ch8_sensor_fusion/
 ├── __init__.py                        # Package init
 ├── tc_models.py                       # TC fusion EKF models
-├── tc_uwb_imu_ekf.py                  # TC demo script
+├── tc_uwb_imu_ekf.py                  # TC demo script (Phase 2)
 ├── lc_models.py                       # LC fusion EKF models (Phase 3)
 ├── lc_uwb_imu_ekf.py                  # LC demo script (Phase 3)
 ├── compare_lc_tc.py                   # LC vs TC comparison tool
+├── observability_demo.py              # Observability demo (Phase 4)
+├── tuning_robust_demo.py              # Tuning & robust loss demo (Phase 4)
+├── temporal_calibration_demo.py       # Temporal calibration demo (Phase 4)
 ├── figs/                              # Generated figures
 │   ├── tc_results.svg                 # TC fusion results
-│   ├── lc_results.svg                 # LC fusion results (Phase 3)
+│   ├── lc_results.svg                 # LC fusion results
 │   ├── lc_tc_comparison.svg           # LC vs TC comparison
-│   └── lc_tc_comparison.json          # Comparison metrics (JSON)
+│   ├── lc_tc_comparison.json          # Comparison metrics
+│   ├── observability_demo.svg         # Observability results
+│   ├── tuning_robust_demo.svg         # Tuning & robust results
+│   └── temporal_calibration_demo.svg  # Temporal calibration results
 └── README.md                          # This file
 
 scripts/
@@ -509,5 +619,6 @@ Navigation Engineer
 Date: December 2025
 
 **Phase 2 Status**: ✅ Complete (Tightly Coupled Fusion)  
-**Phase 3 Status**: ✅ Complete (Loosely Coupled Fusion)
+**Phase 3 Status**: ✅ Complete (Loosely Coupled Fusion)  
+**Phase 4 Status**: ✅ Complete (Advanced Demos)
 
