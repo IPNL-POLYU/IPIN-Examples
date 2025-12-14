@@ -98,6 +98,7 @@ ipin-examples/
     sim/
     eval/
     fingerprinting/
+    fusion/
   ch2_coords/
   ch3_estimators/
   ch4_rf_point_positioning/
@@ -133,6 +134,8 @@ sim/ – trajectory generators, scenario definitions, noise injection.
 eval/ – error metrics, CDFs, NEES/NIS, DOP.
 
 fingerprinting/ – deterministic (NN / k-NN) and probabilistic (Bayesian) fingerprinting algorithms reused across Chapter 5 and fusion examples.
+
+fusion/ – practical multi-sensor fusion utilities (multi-rate measurement queues, gating, robust/adaptive noise, time alignment, and calibration glue) used in ch8_sensor_fusion/ and as optional helpers elsewhere.
 
 chX_.../
 
@@ -1782,6 +1785,151 @@ Software engineer
 - Keep performance reasonable (KD-tree for ICP; vectorized operations).
 
 
+4.9 core/fusion
+Purpose
+
+Chapter 8 is about *practical* aspects of sensor fusion (coupling choices, observability, tuning, calibration, time synchronization, and efficiency). This repo needs a small cross-cutting module that makes those topics concrete without turning into a production fusion stack.
+
+Design stance
+
+- Do NOT re-implement KF/EKF/UKF/PF/FGO here. Those live in core/estimators.
+- core/fusion provides *utilities and glue* that let chapter examples:
+  - process asynchronous / multi-rate sensors in timestamp order,
+  - log innovations + consistency metrics (NIS/NEES),
+  - reject or downweight outliers (gating + robust loss),
+  - compensate time offsets (temporal calibration) and interpolate signals,
+  - demonstrate calibration impact (extrinsic / lever arm toys).
+
+4.9.1 Key data structures
+
+All structures live in core/fusion/types.py.
+
+StampedMeasurement
+
+from dataclasses import dataclass, field
+import numpy as np
+
+@dataclass(frozen=True)
+class StampedMeasurement:
+    """Generic time-stamped measurement packet used by fusion demos."""
+    t: float                 # seconds (float)
+    sensor: str              # e.g. 'imu', 'uwb_range', 'lidar_odom'
+    z: np.ndarray            # measurement vector
+    R: np.ndarray            # measurement covariance
+    meta: dict = field(default_factory=dict)
+
+Time synchronization model
+
+@dataclass(frozen=True)
+class TimeSyncModel:
+    """Map sensor-local time to a common fusion time."""
+    offset: float = 0.0      # seconds
+    drift: float = 0.0       # seconds/second (0 means no drift)
+
+    def to_fusion_time(self, t_sensor: float) -> float:
+        # t_fusion = (1 + drift) * t_sensor + offset
+        ...
+
+Rule
+
+All fusion examples must pass timestamps through TimeSyncModel (even if offset=0) so that temporal calibration is a first-class concept.
+
+4.9.2 Tuning & gating helpers (Chapter 8, Section 8.3)
+
+Innovation (Eq. (8.5))
+
+def innovation(z: np.ndarray, z_pred: np.ndarray) -> np.ndarray:
+    """Implements Eq. (8.5): y_k = z_k - h(x_k|k-1)."""
+    ...
+
+Innovation covariance (Eq. (8.6))
+
+def innovation_covariance(H: np.ndarray, P_pred: np.ndarray, R: np.ndarray) -> np.ndarray:
+    """Implements Eq. (8.6): S_k = H_k P_pred H_k^T + R_k."""
+    ...
+
+Robust scaling of measurement covariance (Eq. (8.7))
+
+def scale_measurement_covariance(R: np.ndarray, w: float) -> np.ndarray:
+    """Implements Eq. (8.7): R_k <- w(y_k) * R_k."""
+    ...
+
+Chi-square gating (Eqs. (8.8)–(8.9))
+
+def chi_square_gate(innov: np.ndarray, S: np.ndarray, alpha: float) -> bool:
+    """Implements Eqs. (8.8)–(8.9): accept if d^2 < chi2(m, alpha)."""
+    ...
+
+Implementation note
+
+- core/eval.compute_nis already computes d^2 = y^T S^{-1} y. core/fusion should call into core/eval rather than duplicate math.
+
+4.9.3 Multi-rate EKF runner (didactic)
+
+Provide a small runner in core/fusion/run.py that processes a list of StampedMeasurement objects.
+
+def run_multisensor_ekf(
+    ekf,
+    measurements: list[StampedMeasurement],
+    *,
+    time_sync: dict[str, TimeSyncModel] | None = None,
+    gate=None,
+) -> dict:
+    """
+    Time-order measurements (after applying time_sync), propagate, update, and log:
+    - x_hat(t), P(t)
+    - innovations y_k, innovation covariances S_k
+    - NIS (and optionally NEES if truth is available)
+    - accepted/rejected flags per measurement
+    """
+    ...
+
+This runner is used by the Chapter-8 LC/TC demos to keep each script short and consistent.
+
+4.9.4 Temporal alignment utilities (Chapter 8, Section 8.5)
+
+Provide small, reusable helpers in core/fusion/time_alignment.py:
+
+- interpolate_series(t_src, y_src, t_query, method='linear')
+- resample_series(t_src, y_src, dt, method='linear')
+
+Goal: make it trivial to evaluate a measurement at an arbitrary time (e.g., interpolate a state history to a LiDAR timestamp).
+
+4.9.5 Calibration utilities (Chapter 8, Section 8.4)
+
+Provide toy extrinsic calibration helpers in core/fusion/calibration.py:
+
+- estimate_rigid_transform(A_pts, B_pts) -> (R, t)  # SVD / Procrustes
+- apply_rigid_transform(R, t, pts) -> pts_transformed
+
+This supports a minimal demo showing how wrong extrinsics degrade fusion.
+
+4.9.6 Equation mapping requirements
+
+docs/equation_index.yml must include:
+
+- Eq. (8.5) -> core/fusion/tuning.py::innovation
+- Eq. (8.6) -> core/fusion/tuning.py::innovation_covariance
+- Eq. (8.7) -> core/fusion/tuning.py::scale_measurement_covariance
+- Eq. (8.8) -> core/eval/metrics.py::compute_nis
+- Eq. (8.9) -> core/fusion/gating.py::chi_square_gate
+
+Eq. (8.1)–(8.2) are observability definitions; the repo implements them as a behavioral demo (see Section 7.7.4) rather than a single reusable math routine.
+
+4.9.7 Ownership split
+
+Navigation engineer
+
+- Choose the state for each demo (what is estimated vs assumed known).
+- Choose nominal Q/R values, gating confidence alpha, and robust-loss parameters.
+
+Software engineer
+
+- Implement stable APIs and logging so examples can inspect innovations/NIS and accepted/rejected measurements.
+- Implement time alignment utilities with unit tests.
+- Keep the runner deterministic and well-tested (fixed seeds and exact outputs on toy datasets).
+
+
 
 5. Simulation Datasets & Open Data
 5.1 Principles
@@ -1837,6 +1985,32 @@ Reference points on a grid, RSS vectors, test trajectories.
 pdr_corridor_walk/
 
 IMU time series, reference path, step labels, floor labels.
+
+fusion_2d_imu_uwb/
+
+Multi-sensor fusion dataset designed for Chapter 8 (LC vs TC, tuning, and temporal calibration).
+
+Scenario
+
+- 2D walking or robot trajectory on a simple floor.
+- High-rate IMU (or PDR increments) + low-rate UWB range measurements to fixed anchors.
+- Optional injected time offset and drift between IMU and UWB timestamps.
+
+Required files
+
+- truth.npz: t, p_xy, v_xy, yaw (ground truth)
+- imu.npz: t, accel_xy (or accel_xyz), gyro_z (or gyro_xyz)
+- uwb_anchors.npy: (A,2) anchor positions in map frame
+- uwb_ranges.npz: t, ranges  # shape (T,A), with NaNs allowed for dropouts
+- config.json: dt_imu, dt_uwb, noise params, optional time_offset_sec, optional clock_drift
+
+Used by
+
+- ch8_sensor_fusion LC UWB-position-fix + IMU EKF example.
+- ch8_sensor_fusion TC raw-range + IMU EKF example.
+- tuning + gating demos (NIS plots + chi-square gating).
+- temporal calibration demo (recover performance after compensating time_offset_sec).
+
 
 slam_lidar2d/
 
@@ -3287,25 +3461,301 @@ tests/ch7/test_bundle_adjustment_smoke.py
 
 7.7 ch8_sensor_fusion/
 
-Examples
+Chapter 8 is cross-cutting: it focuses on the *practical aspects* that determine whether a fusion system works outside of idealized assumptions:
 
-Loosely vs tightly coupled fusion examples:
+- coupling architecture (loosely vs tightly coupled),
+- observability and failure modes,
+- tuning (covariance selection, thresholds, robust losses),
+- calibration (intrinsic/extrinsic),
+- temporal calibration (synchronization and interpolation),
+- computational efficiency.
 
-GNSS+IMU style but adapted to indoor sensors.
+Repo stance
 
-Observability demo:
+- Implement small, inspectable building blocks + didactic demos.
+- Prefer 2D where possible.
+- Reuse Chapter 3 estimators and Chapter 4–7 measurement models.
 
-Show drift/unobservability vs properly fused sensors.
+7.7.1 Minimum deliverables
 
-Calibration:
+A) LC vs TC pair on the *same dataset*
 
-Simple intrinsic/extrinsic calibration toy.
+- Loosely coupled: first compute per-sensor outputs (e.g., UWB position fixes), then fuse those outputs.
+- Tightly coupled: fuse raw measurements directly (e.g., UWB ranges), so the estimator sees the real measurement model.
+
+B) Observability demo
+
+A minimal example that shows an unobservable mode (e.g., global translation with odometry-only) and how an absolute measurement makes it observable.
+
+C) Tuning + gating demo
+
+A minimal example showing:
+
+- how overly optimistic R (measurement covariance) can destabilize a filter,
+- innovation/NIS monitoring,
+- chi-square gating,
+- robust loss / down-weighting instead of hard rejection.
+
+D) Calibration demo (toy)
+
+Show that incorrect extrinsic parameters cause systematic residuals and worse accuracy, and demonstrate a toy extrinsic calibration (rigid transform or lever arm).
+
+E) Temporal calibration demo (toy)
+
+Show that a fixed time offset between two sensor streams degrades performance, and that correcting the offset (plus interpolation) recovers accuracy.
+
+7.7.2 Core Chapter-8 equations to implement (minimum set)
+
+These are the “must implement” equations from Chapter 8 because they directly translate into reusable code and tests.
+
+Observability definitions
+
+- Eq. (8.1)–(8.2): definition of unobservability via indistinguishable measurements.
+
+Tuning and gating
+
+- Eq. (8.5): innovation y_k.
+- Eq. (8.6): innovation covariance S_k.
+- Eq. (8.7): robust scaling of measurement covariance R_k <- w(y_k) R_k.
+- Eq. (8.8): squared Mahalanobis distance d_k^2 = y_k^T S_k^{-1} y_k (same quantity as NIS).
+- Eq. (8.9): chi-square gating threshold d_k^2 < chi2(m, alpha).
+
+Equation mapping requirements
+
+- Eq. (8.5) -> core/fusion/tuning.py::innovation
+- Eq. (8.6) -> core/fusion/tuning.py::innovation_covariance
+- Eq. (8.7) -> core/fusion/tuning.py::scale_measurement_covariance
+- Eq. (8.8) -> core/eval/metrics.py::compute_nis
+- Eq. (8.9) -> core/fusion/gating.py::chi_square_gate
+
+7.7.3 Required plotting outputs (for every Chapter-8 demo)
+
+All Chapter-8 notebooks/scripts must generate at least:
+
+- trajectory plot: truth vs estimate(s)
+- position error vs time
+- error CDF
+
+And for tuning-focused demos:
+
+- NIS over time with chi-square bounds (core/eval.plot_nis)
+- accepted vs rejected measurements (a simple boolean timeline or marker plot)
+
+7.7.4 Example set (scripts + notebooks)
+
+Folder structure
+
+ch8_sensor_fusion/
+
+- lc_uwb_imu_ekf.py
+- tc_uwb_imu_ekf.py
+- observability_translation_demo.py
+- tuning_gating_robust_demo.py
+- calib_extrinsic_demo.py
+- temporal_sync_demo.py
+- figs/
+
+notebooks/ch8_sensor_fusion/
+
+- lc_vs_tc_uwb_imu.ipynb
+- observability.ipynb
+- tuning_and_gating.ipynb
+- calibration_and_sync.ipynb
+
+Each script must be runnable as:
+
+python -m ch8_sensor_fusion.lc_uwb_imu_ekf --data data/sim/fusion_2d_imu_uwb
+
+7.7.5 Example A: Loosely coupled fusion (UWB position fixes + IMU)
+
+Goal
+
+Demonstrate a standard loosely coupled architecture: compute UWB position fixes first (from raw ranges), then fuse those fixes as measurements in an EKF.
+
+Inputs
+
+- IMU (high rate) for propagation (or PDR increments as a simplified control).
+- UWB range measurements to anchors (low rate).
+
+LC pipeline
+
+1) UWB position fixes (per epoch)
+
+- For each UWB timestamp, compute p_uwb_xy via LS/WLS (Chapter 4 positioning solver).
+- Treat p_uwb_xy and its covariance R_uwb_fix as a measurement.
+
+2) EKF fusion
+
+- State (minimal): x = [p_x, p_y, v_x, v_y, yaw] or a simpler [p_x, p_y] if using PDR increments as control.
+- Propagate using IMU/strapdown (Chapter 6) or using a simplified constant-velocity model.
+- Update with the UWB position fix.
+
+Outlier handling
+
+- Apply chi-square gating on the innovation (Eqs. (8.8)–(8.9)).
+- If rejected, skip the update.
+
+Required plots
+
+- LC EKF vs UWB-only fixes vs dead-reckoning only.
+- NIS with chi-square bounds.
+
+7.7.6 Example B: Tightly coupled fusion (raw UWB ranges + IMU)
+
+Goal
+
+Demonstrate a tightly coupled architecture: fuse the *raw* UWB ranges directly in the EKF (or optionally FGO), instead of first computing a position fix.
+
+TC pipeline
+
+- State and propagation are the same as Example A.
+- Measurement model uses the range function h(x) = ||p - a_i|| (anchors known).
+- EKF update is done per anchor measurement (or per vector of ranges).
+
+Why this example matters
+
+- It makes the coupling difference obvious: LC uses a derived position fix; TC uses the real sensor measurement model.
+- It reuses Chapter 4 measurement models and Chapter 3 estimators, and adds Chapter 8 tuning/gating logic.
+
+Required plots
+
+- TC EKF vs LC EKF on the same dataset.
+- Show behavior when one anchor has injected NLOS bias: gating/robust loss should reduce impact.
+
+7.7.7 Example C: Observability demo (odometry-only vs odometry + absolute fixes)
+
+Goal
+
+Demonstrate the Chapter-8 observability definition by showing that an odometry-only system cannot determine its global translation (two different initial positions produce the same odometry measurements).
+
+Demo definition
+
+- Define an odometry measurement function that observes only *increments* (delta position), not absolute position.
+- Create two trajectories that are identical up to a constant translation.
+- Show that the generated measurements are identical (Eq. (8.1)–(8.2) condition).
+
+Then add an absolute measurement source (e.g., occasional UWB position fixes or a synthetic 'Wi-Fi fix') and show:
+
+- the translation becomes observable,
+- the estimate converges to the true global position.
+
+Required outputs
+
+- plot two translated trajectories with identical odometry increments
+- plot estimation results with and without absolute fixes
+
+7.7.8 Example D: Tuning, thresholds, and robust losses
+
+Goal
+
+Make tuning concepts concrete by showing:
+
+- a filter with under-estimated R becomes overconfident and may diverge,
+- inflating R increases robustness,
+- innovation-based monitoring and robust loss scaling can stabilize performance.
+
+Required code features
+
+- log innovation y_k (Eq. (8.5)) and innovation covariance S_k (Eq. (8.6)) for every update.
+- compute NIS (= d^2) and compare to chi-square bounds.
+- implement at least:
+  - hard chi-square gating (Eq. (8.9)), and
+  - soft robust down-weighting via R_k <- w(y_k) R_k (Eq. (8.7)) with Huber or Cauchy weight.
+
+Required plots
+
+- NIS timeline with gates marked
+- trajectory and error comparisons across:
+  - baseline (no gating)
+  - chi-square gating
+  - robust down-weighting
+
+7.7.9 Example E: Calibration (toy extrinsic)
+
+Goal
+
+Show that wrong extrinsic parameters degrade fusion quality.
+
+Minimum toy
+
+- Rigid transform demo:
+  - generate points in sensor A frame
+  - transform with known (R,t) to sensor B frame
+  - add noise
+  - recover (R,t) with estimate_rigid_transform
+
+Fusion-oriented toy (optional but recommended)
+
+- lever arm demo:
+  - UWB tag is offset from IMU origin by a fixed translation
+  - simulate ranges from the tag
+  - run fusion with wrong lever arm and observe systematic residuals
+
+7.7.10 Example F: Temporal calibration and interpolation
+
+Goal
+
+Show that even a small time offset between two sensor streams can cause significant fusion error, and that:
+
+- applying a corrected offset, and
+- interpolating signals to the correct measurement time
+
+recovers accuracy.
+
+Minimum toy
+
+- inject a fixed time offset between IMU and UWB range timestamps (config.json)
+- run the TC fusion:
+  - without correction
+  - with correction via TimeSyncModel
+- show trajectory + error difference
+
+Required utilities
+
+- core/fusion/time_alignment.py interpolation helpers
+- TimeSyncModel applied consistently
+
+7.7.11 Tests (Chapter 8)
+
+Add tests under tests/ch8/:
+
+tests/ch8/test_innovation_and_S.py
+- Validate Eq. (8.5) and Eq. (8.6) on a small linear KF example.
+
+tests/ch8/test_chi_square_gate.py
+- Validate Eqs. (8.8)–(8.9): accept/reject decisions match known chi-square quantiles.
+
+tests/ch8/test_robust_R_scaling.py
+- Validate Eq. (8.7) scaling behavior.
+
+tests/ch8/test_time_sync_model.py
+- Validate TimeSyncModel offset/drift mapping.
+
+tests/ch8/test_interpolation_helpers.py
+- Validate interpolation on a known function.
+
+tests/ch8/test_lc_tc_smoke.py
+- Runs LC and TC scripts on a tiny dataset and asserts TC or LC improves over DR-only (smoke-level assertion, not a strict benchmark).
+
+7.7.12 Ownership split (Chapter 8)
+
+Navigation engineer
+
+- Decide which fusion pair to emphasize (e.g., UWB+IMU baseline, plus optional LiDAR/IMU extension).
+- Define the state vector for each demo and justify observability.
+- Select noise levels, gating alpha, and robust-loss parameters.
+
+Software engineer
+
+- Implement the core/fusion utilities and keep interfaces stable.
+- Ensure every demo logs innovations/NIS and generates the required plots.
+- Add unit tests and keep runtime short.
 
 For each chapter section, the design doc should separate:
 
-Core functions reused from core/.
+- Core functions reused from core/.
+- Chapter-specific “unique tasks” and plots.
 
-Chapter-specific “unique tasks” and plots.
 
 8. Non-Functional Requirements
 8.1 Language & Tooling
@@ -3431,9 +3881,36 @@ Minimum deliverables
 
 9.8 Epic 7 – Sensor Fusion (Ch.8)
 
-Use Chapter-7 SLAM outputs as measurements inside loosely coupled vs tightly coupled fusion examples.
+Deliverables (minimum)
 
-Spec → core implementation → tests → examples → docs → equation mapping.
+Core
+
+- Add core/fusion/ (Section 4.9) and wire it into ch8 demos.
+- Implement and unit-test:
+  - innovation + innovation covariance helpers (Eqs. (8.5)–(8.6))
+  - robust covariance scaling (Eq. (8.7))
+  - NIS + chi-square gating (Eqs. (8.8)–(8.9))
+  - time sync + interpolation utilities
+
+Data
+
+- Add data/sim/fusion_2d_imu_uwb/ (Section 5.2).
+
+Examples
+
+- LC vs TC pair on the same dataset:
+  - LC: UWB position fixes + IMU EKF
+  - TC: raw UWB ranges + IMU EKF
+- Observability demo (odometry-only vs odometry + absolute fixes).
+- Tuning/gating/robust demo (NIS plots + outlier injection).
+- Calibration + temporal sync toy demos.
+
+Quality gates
+
+- Tests under tests/ch8/.
+- Update docs/equation_index.yml for all implemented Chapter-8 equations and ensure equation checker passes.
+- Ensure all scripts run in minutes on a laptop.
+
 
 10. Working Effectively: SW vs Navigation Engineers
 
