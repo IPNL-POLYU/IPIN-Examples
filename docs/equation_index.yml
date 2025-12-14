@@ -365,9 +365,241 @@
 # To be added when Chapter 6 PDR/sensors are implemented
 
 # ==============================================================================
-# Chapter 7: SLAM (Placeholder)
+# Chapter 7: SLAM Technologies
 # ==============================================================================
-# To be added when Chapter 7 SLAM is implemented
+
+# ------------------------------------------------------------------------------
+# Section 7.2.1: ICP (Iterative Closest Point) Scan Matching
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (7.10)"
+  chapter: 7
+  description: "ICP point-to-point matching objective (sum of squared distances)"
+  files:
+    - path: "core/slam/scan_matching.py"
+      object: "compute_icp_residual"
+    - path: "core/slam/scan_matching.py"
+      object: "icp_point_to_point"
+    - path: "ch7_slam/example_pose_graph_slam.py"
+      object: "detect_loop_closures_icp"
+  tests:
+    - "tests/core/slam/test_scan_matching.py::TestComputeICPResidual"
+    - "tests/core/slam/test_scan_matching.py::TestICPPointToPoint"
+  notes: "Minimizes sum of squared Euclidean distances between corresponding points. Iterative algorithm with SVD-based rigid transform update."
+
+- eq: "Eq. (7.11)"
+  chapter: 7
+  description: "ICP correspondence association with distance threshold"
+  files:
+    - path: "core/slam/scan_matching.py"
+      object: "find_correspondences"
+    - path: "core/slam/scan_matching.py"
+      object: "icp_point_to_point"
+  tests:
+    - "tests/core/slam/test_scan_matching.py::TestFindCorrespondences"
+    - "tests/core/slam/test_scan_matching.py::TestICPPointToPoint::test_max_correspondence_distance"
+  notes: "Nearest-neighbor correspondence search with max_distance threshold (epsilon). Uses KD-tree for efficiency."
+
+- eq: "SVD-based rigid alignment"
+  chapter: 7
+  description: "SVD (Singular Value Decomposition) for optimal rigid body transformation"
+  files:
+    - path: "core/slam/scan_matching.py"
+      object: "align_svd"
+  tests:
+    - "tests/core/slam/test_scan_matching.py::TestAlignSVD"
+  notes: "Computes optimal [x, y, yaw] transformation between matched point clouds using SVD (Procrustes problem). Core update step in ICP."
+
+# ------------------------------------------------------------------------------
+# Section 7.2.2: NDT (Normal Distributions Transform) Scan Matching
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (7.12)-(7.13)"
+  chapter: 7
+  description: "NDT voxel statistics (mean and covariance per voxel)"
+  files:
+    - path: "core/slam/ndt.py"
+      object: "build_ndt_map"
+  tests:
+    - "tests/core/slam/test_ndt.py::TestBuildNDTMap"
+  notes: "Computes per-voxel Gaussian distribution (mean μ_k and covariance Σ_k) from point cloud. Requires minimum points per voxel."
+
+- eq: "Eqs. (7.14)-(7.15)"
+  chapter: 7
+  description: "NDT negative log-likelihood (score function)"
+  files:
+    - path: "core/slam/ndt.py"
+      object: "ndt_score"
+  tests:
+    - "tests/core/slam/test_ndt.py::TestNDTScore"
+  notes: "Computes negative log-likelihood of transformed scan under NDT map Gaussian distributions. Lower score = better alignment."
+
+- eq: "Eq. (7.16)"
+  chapter: 7
+  description: "NDT alignment via MLE optimization"
+  files:
+    - path: "core/slam/ndt.py"
+      object: "ndt_align"
+    - path: "core/slam/ndt.py"
+      object: "ndt_gradient"
+  tests:
+    - "tests/core/slam/test_ndt.py::TestNDTAlign"
+    - "tests/core/slam/test_ndt.py::TestNDTGradient"
+  notes: "Optimizes pose to maximize likelihood (minimize negative log-likelihood). Uses gradient descent with numerical derivatives."
+
+# ------------------------------------------------------------------------------
+# Section 7.3: Pose Graph Optimization
+# ------------------------------------------------------------------------------
+
+- eq: "Section 7.3 (Pose Graph Framework)"
+  chapter: 7
+  description: "Pose graph optimization with odometry and loop closure factors"
+  files:
+    - path: "core/slam/factors.py"
+      object: "create_pose_graph"
+    - path: "core/slam/factors.py"
+      object: "create_odometry_factor"
+    - path: "core/slam/factors.py"
+      object: "create_loop_closure_factor"
+    - path: "core/slam/factors.py"
+      object: "create_prior_factor"
+    - path: "ch7_slam/example_pose_graph_slam.py"
+      object: "main"
+  tests:
+    - "tests/core/slam/test_factors.py::TestPoseGraphCreation"
+    - "tests/core/slam/test_factors.py::TestIntegration::test_full_slam_scenario"
+  notes: "Complete pose graph SLAM: odometry factors connect consecutive poses, loop closure factors reduce drift, prior anchors first pose."
+
+- eq: "Odometry Factor (SE(2) relative pose)"
+  chapter: 7
+  description: "Binary factor for odometry constraint between consecutive poses"
+  files:
+    - path: "core/slam/factors.py"
+      object: "create_odometry_factor"
+  tests:
+    - "tests/core/slam/test_factors.py::TestOdometryFactor"
+  notes: "Residual: r = (x_i^-1 ⊕ x_j) - z_ij, where z_ij is measured relative pose. Uses SE(2) operations."
+
+- eq: "Loop Closure Factor"
+  chapter: 7
+  description: "Binary factor for loop closure constraint (from scan matching)"
+  files:
+    - path: "core/slam/factors.py"
+      object: "create_loop_closure_factor"
+  tests:
+    - "tests/core/slam/test_factors.py::TestLoopClosureFactor"
+  notes: "Structurally identical to odometry factor but connects non-consecutive poses. Information matrix from ICP/NDT covariance."
+
+- eq: "Prior Factor"
+  chapter: 7
+  description: "Unary factor to anchor pose to known value"
+  files:
+    - path: "core/slam/factors.py"
+      object: "create_prior_factor"
+  tests:
+    - "tests/core/slam/test_factors.py::TestPriorFactor"
+  notes: "Residual: r = x - x_prior. Used to fix first pose (preventing gauge freedom) or incorporate GPS measurements."
+
+- eq: "Landmark Factor (range-bearing)"
+  chapter: 7
+  description: "Binary factor connecting pose to landmark via range-bearing measurement"
+  files:
+    - path: "core/slam/factors.py"
+      object: "create_landmark_factor"
+  tests:
+    - "tests/core/slam/test_factors.py::TestLandmarkFactor"
+  notes: "For feature-based SLAM. Residual: r = h(x_i, l_k) - z_ik where h is range-bearing measurement model."
+
+# ------------------------------------------------------------------------------
+# Section 7.4: Visual SLAM - Camera Model
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (7.40)"
+  chapter: 7
+  description: "Pinhole camera projection (3D point to pixel coordinates)"
+  files:
+    - path: "core/slam/camera.py"
+      object: "project_point"
+  tests:
+    - "tests/core/slam/test_camera.py::TestProjectPoint"
+  notes: "Full projection: normalize to z=1, apply distortion, scale by intrinsics. u = fx*x_d + cx, v = fy*y_d + cy."
+
+- eq: "Eqs. (7.43)-(7.46)"
+  chapter: 7
+  description: "Brown-Conrady lens distortion model (radial + tangential)"
+  files:
+    - path: "core/slam/camera.py"
+      object: "distort_normalized"
+    - path: "core/slam/camera.py"
+      object: "undistort_normalized"
+    - path: "core/slam/camera.py"
+      object: "project_point"
+  tests:
+    - "tests/core/slam/test_camera.py::TestDistortNormalized"
+    - "tests/core/slam/test_camera.py::TestUndistortNormalized"
+  notes: "Radial distortion (k1, k2) and tangential distortion (p1, p2). Eq. 7.43: radial component. Eqs. 7.44-7.45: tangential. Eq. 7.46: combined."
+
+- eq: "Inverse Projection"
+  chapter: 7
+  description: "Pixel to 3D ray (inverse of projection)"
+  files:
+    - path: "core/slam/camera.py"
+      object: "unproject_pixel"
+  tests:
+    - "tests/core/slam/test_camera.py::TestUnprojectPixel"
+  notes: "Inverts camera model: pixel → undistort → normalize → 3D ray. Optional depth parameter gives 3D point."
+
+# ------------------------------------------------------------------------------
+# Section 7.4: Visual SLAM - Bundle Adjustment
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (7.68)-(7.70)"
+  chapter: 7
+  description: "Bundle adjustment (joint pose and landmark optimization)"
+  files:
+    - path: "core/slam/factors.py"
+      object: "create_reprojection_factor"
+    - path: "core/slam/camera.py"
+      object: "compute_reprojection_error"
+    - path: "ch7_slam/example_bundle_adjustment.py"
+      object: "main"
+  tests:
+    - "tests/core/slam/test_camera.py::TestComputeReprojectionError"
+  notes: "Eq. 7.68: BA cost function (sum of squared reprojection errors). Eq. 7.69: reprojection error definition. Eq. 7.70: robust kernel (optional)."
+
+- eq: "Reprojection Error"
+  chapter: 7
+  description: "2D pixel error between observed and projected landmark"
+  files:
+    - path: "core/slam/camera.py"
+      object: "compute_reprojection_error"
+    - path: "core/slam/factors.py"
+      object: "create_reprojection_factor"
+  tests:
+    - "tests/core/slam/test_camera.py::TestComputeReprojectionError"
+  notes: "Error = projected_pixel - observed_pixel. Minimized in bundle adjustment to jointly refine camera poses and 3D landmark positions."
+
+# ------------------------------------------------------------------------------
+# SE(2) Operations (Supporting Functions)
+# ------------------------------------------------------------------------------
+
+- eq: "SE(2) Group Operations"
+  chapter: 7
+  description: "Special Euclidean Group SE(2) for 2D rigid body transformations"
+  files:
+    - path: "core/slam/se2.py"
+      object: "se2_compose"
+    - path: "core/slam/se2.py"
+      object: "se2_inverse"
+    - path: "core/slam/se2.py"
+      object: "se2_apply"
+    - path: "core/slam/se2.py"
+      object: "se2_relative"
+    - path: "core/slam/se2.py"
+      object: "wrap_angle"
+  tests:
+    - "tests/core/slam/test_se2.py"
+  notes: "Core 2D transformation algebra for SLAM. Pose = [x, y, yaw]. Operations: compose (⊕), inverse (⁻¹), apply to points, relative pose."
 
 # ==============================================================================
 # Chapter 8: Sensor Fusion (Placeholder)
