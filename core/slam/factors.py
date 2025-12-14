@@ -20,12 +20,15 @@ Author: Navigation Engineer
 Date: 2024
 """
 
-from typing import Optional
+from typing import Optional, TYPE_CHECKING
 
 import numpy as np
 
 from ..estimators.factor_graph import Factor
 from .se2 import se2_compose, se2_inverse, se2_relative, wrap_angle
+
+if TYPE_CHECKING:
+    from .types import CameraIntrinsics
 
 
 def create_odometry_factor(
@@ -428,4 +431,192 @@ def create_pose_graph(
             graph.add_factor(factor)
 
     return graph
+
+
+def create_reprojection_factor(
+    camera_pose_id: int,
+    landmark_id: int,
+    observed_pixel: np.ndarray,
+    camera_intrinsics: "CameraIntrinsics",
+    information: Optional[np.ndarray] = None,
+) -> Factor:
+    """
+    Create a reprojection factor for visual bundle adjustment.
+
+    A reprojection factor connects a camera pose and a 3D landmark through
+    an image observation (pixel coordinates). It penalizes the difference
+    between the observed pixel and the projection of the landmark into the
+    camera.
+
+    This is the core constraint in visual SLAM and bundle adjustment.
+
+    Residual:
+        r = h(pose, landmark) - observed_pixel
+    where h is the camera projection function (Eqs. 7.43-7.46, 7.40).
+
+    Args:
+        camera_pose_id: Variable ID of the camera pose.
+                       For 2D: pose = [x, y, yaw] (SE(2))
+                       For 3D: pose = [x, y, z, qw, qx, qy, qz] (SE(3))
+        landmark_id: Variable ID of the 3D landmark [x, y, z] or [x, y] in map frame.
+        observed_pixel: Observed pixel coordinates [u, v], shape (2,).
+        camera_intrinsics: Camera intrinsic parameters (fx, fy, cx, cy, distortion).
+        information: Information matrix (inverse covariance) for the measurement,
+                    shape (2, 2). If None, uses identity (equal weight to u and v).
+
+    Returns:
+        Factor encoding the reprojection constraint.
+
+    References:
+        Implements the reprojection residual from Eqs. (7.68)-(7.70) in Chapter 7:
+            - Eq. (7.68): Bundle adjustment cost function
+            - Eq. (7.69): Reprojection error definition
+            - Eq. (7.70): Robust kernel (optional, not implemented here)
+
+    Example:
+        >>> from core.slam.types import CameraIntrinsics
+        >>> intrinsics = CameraIntrinsics(fx=500, fy=500, cx=320, cy=240)
+        >>> observed = np.array([420.5, 340.2])
+        >>> factor = create_reprojection_factor(
+        ...     camera_pose_id=0, landmark_id=10,
+        ...     observed_pixel=observed, camera_intrinsics=intrinsics
+        ... )
+
+    Notes:
+        - For 2D SLAM: landmark is [x, y], assumes Z=constant or computes from pose
+        - For 3D SLAM: landmark is [x, y, z], full 3D projection
+        - Information matrix encodes pixel measurement uncertainty (typically ~1 pixel)
+        - This factor is used in visual odometry and bundle adjustment
+    """
+    # Import here to avoid circular dependency
+    from . import camera as cam_module
+
+    if information is None:
+        # Default: 1 pixel std dev in both u and v
+        pixel_std = 1.0
+        information = np.eye(2) / (pixel_std**2)
+
+    if observed_pixel.shape != (2,):
+        raise ValueError(f"observed_pixel must be shape (2,), got {observed_pixel.shape}")
+
+    def residual_func(variables: list[np.ndarray]) -> np.ndarray:
+        """
+        Compute reprojection residual.
+
+        For 2D SLAM with fixed height:
+            - pose = [x, y, yaw] (SE(2))
+            - landmark = [x, y] (2D map coordinates)
+            - Assume constant Z or compute from geometry
+
+        For 3D SLAM:
+            - pose = [x, y, z, qw, qx, qy, qz] (SE(3) with quaternion)
+            - landmark = [x, y, z] (3D map coordinates)
+        """
+        pose = variables[0]
+        landmark = variables[1]
+
+        # For now, implement 2D SLAM version (simpler for teaching)
+        # Support both 2D [x, y] and 3D [x, y, z] landmarks
+        if pose.shape[0] == 3:  # SE(2): [x, y, yaw]
+            # Transform landmark from map frame to camera frame
+            x_cam, y_cam, yaw_cam = pose
+            
+            # Handle both 2D and 3D landmarks
+            if landmark.shape[0] == 2:
+                lx, ly = landmark
+                lz = 0.0  # Assume at camera height for 2D
+            elif landmark.shape[0] == 3:
+                lx, ly, lz = landmark
+            else:
+                raise ValueError(f"Landmark must be 2D or 3D, got shape {landmark.shape}")
+
+            # Relative position in map frame
+            dx_map = lx - x_cam
+            dy_map = ly - y_cam
+            dz_map = lz  # Height difference (assume camera at z=0)
+
+            # Rotate to camera frame (camera X-axis points forward along yaw)
+            # Camera frame: X-forward, Y-left, Z-up (standard robotics)
+            cos_yaw = np.cos(yaw_cam)
+            sin_yaw = np.sin(yaw_cam)
+
+            # Transform to camera frame
+            x_in_cam = cos_yaw * dx_map + sin_yaw * dy_map
+            y_in_cam = -sin_yaw * dx_map + cos_yaw * dy_map
+            z_in_cam = dz_map  # Height difference
+
+            # Create 3D point in camera frame
+            # Adjust for camera coordinate convention (Z-forward for projection)
+            point_camera = np.array([y_in_cam, z_in_cam, x_in_cam])
+
+        elif pose.shape[0] == 7:  # SE(3): [x, y, z, qw, qx, qy, qz]
+            # Full 3D case (for future extension)
+            raise NotImplementedError("3D SE(3) poses not yet implemented")
+        else:
+            raise ValueError(f"Unsupported pose dimension: {pose.shape[0]}")
+
+        # Check if landmark is in front of camera
+        if point_camera[2] <= 0.1:  # Small margin for numerical stability
+            # Behind camera → moderate penalty (not too large for numerical stability)
+            return np.array([100.0, 100.0])
+
+        # Project to pixel
+        try:
+            projected_pixel = cam_module.project_point(camera_intrinsics, point_camera)
+        except ValueError:
+            # Projection failed → moderate penalty
+            return np.array([100.0, 100.0])
+
+        # Residual: projected - observed
+        # Eq. (7.69): reprojection error
+        residual = projected_pixel - observed_pixel
+
+        return residual
+
+    def jacobian_func(variables: list[np.ndarray]) -> list[np.ndarray]:
+        """
+        Compute Jacobians of reprojection error w.r.t. pose and landmark.
+
+        Returns [J_pose, J_landmark] where:
+            - J_pose: (2, pose_dim) Jacobian w.r.t. camera pose
+            - J_landmark: (2, landmark_dim) Jacobian w.r.t. 3D landmark
+
+        For now, use numerical differentiation (finite differences).
+        For production code, analytical Jacobians are preferred for speed.
+        """
+        epsilon = 1e-7
+
+        # Numerical Jacobian for pose
+        pose = variables[0]
+        landmark = variables[1]
+
+        base_residual = residual_func(variables)
+
+        # Jacobian w.r.t. pose
+        J_pose = np.zeros((2, pose.shape[0]))
+        for i in range(pose.shape[0]):
+            pose_perturbed = pose.copy()
+            pose_perturbed[i] += epsilon
+            residual_perturbed = residual_func([pose_perturbed, landmark])
+            J_pose[:, i] = (residual_perturbed - base_residual) / epsilon
+
+        # Jacobian w.r.t. landmark
+        J_landmark = np.zeros((2, landmark.shape[0]))
+        for i in range(landmark.shape[0]):
+            landmark_perturbed = landmark.copy()
+            landmark_perturbed[i] += epsilon
+            residual_perturbed = residual_func([pose, landmark_perturbed])
+            J_landmark[:, i] = (residual_perturbed - base_residual) / epsilon
+
+        return [J_pose, J_landmark]
+
+    # Create and return factor
+    factor = Factor(
+        variable_ids=[camera_pose_id, landmark_id],
+        residual_func=residual_func,
+        jacobian_func=jacobian_func,
+        information=information,
+    )
+
+    return factor
 

@@ -18,9 +18,9 @@ Main components:
     - icp_point_to_point: ICP scan matching (Section 7.2.1)
     - ndt_align: NDT alignment (Section 7.2.2)
     - create_pose_graph: Pose graph optimization (Section 7.3)
+    - project_point, distort_normalized: Camera projection (Section 7.4)
+    - create_reprojection_factor: Visual SLAM bundle adjustment (Eqs. 7.68-7.70)
     - create_odometry_factor, create_loop_closure_factor, create_prior_factor: Factor constructors
-    - (Additional modules will be added in later phases:
-       loam, camera)
 
 Example usage:
     >>> from core.slam import Pose2, se2_compose, se2_inverse, se2_apply
@@ -46,12 +46,21 @@ Author: Navigation Engineer
 Date: 2024
 """
 
+from . import camera
+from .camera import (
+    compute_reprojection_error,
+    distort_normalized,
+    project_point,
+    undistort_normalized,
+    unproject_pixel,
+)
 from .factors import (
     create_landmark_factor,
     create_loop_closure_factor,
     create_odometry_factor,
     create_pose_graph,
     create_prior_factor,
+    create_reprojection_factor,
 )
 from .ndt import (
     build_ndt_map,
@@ -105,11 +114,19 @@ __all__ = [
     "ndt_gradient",
     "ndt_align",
     "ndt_covariance",
+    # Camera model and projection
+    "camera",
+    "distort_normalized",
+    "undistort_normalized",
+    "project_point",
+    "unproject_pixel",
+    "compute_reprojection_error",
     # Pose graph factors
     "create_odometry_factor",
     "create_loop_closure_factor",
     "create_prior_factor",
     "create_landmark_factor",
+    "create_reprojection_factor",
     "create_pose_graph",
 ]
 
