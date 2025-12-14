@@ -1,0 +1,44 @@
+{
+  "dataset_info": {
+    "description": "2D IMU + UWB fusion dataset for Chapter 8",
+    "seed": 42,
+    "duration_sec": 60.0,
+    "imu_samples": 6000,
+    "uwb_samples": 600
+  },
+  "trajectory": {
+    "type": "rectangular_walk",
+    "width_m": 20.0,
+    "height_m": 15.0,
+    "speed_m_s": 1.0
+  },
+  "imu": {
+    "rate_hz": 100.0,
+    "dt_sec": 0.01,
+    "accel_noise_std_m_s2": 0.1,
+    "gyro_noise_std_rad_s": 0.01,
+    "accel_bias_m_s2": [
+      0.0,
+      0.0
+    ],
+    "gyro_bias_rad_s": 0.0
+  },
+  "uwb": {
+    "rate_hz": 10.0,
+    "n_anchors": 4,
+    "range_noise_std_m": 0.05,
+    "nlos_anchors": [],
+    "nlos_bias_m": 0.5,
+    "dropout_rate": 0.05
+  },
+  "temporal_calibration": {
+    "time_offset_sec": -0.05,
+    "clock_drift": 0.0001,
+    "note": "Use TimeSyncModel to apply these during fusion"
+  },
+  "coordinate_frame": {
+    "description": "ENU (East-North-Up)",
+    "origin": "Bottom-left corner (0, 0)",
+    "units": "meters"
+  }
+}
