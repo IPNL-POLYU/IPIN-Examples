@@ -1,59 +1,59 @@
-# Chapter 8: Sensor Fusion Examples
-
-This directory contains practical sensor fusion demonstrations from **Chapter 8: Sensor Fusion** of *Principles of Indoor Positioning and Indoor Navigation*.
+# Chapter 8: Sensor Fusion
 
 ## Overview
 
-Chapter 8 focuses on **practical aspects** of multi-sensor fusion:
+This module implements multi-sensor fusion algorithms described in **Chapter 8** of *Principles of Indoor Positioning and Indoor Navigation*.
+
+Chapter 8 focuses on **practical aspects** of sensor fusion:
 - **Tightly coupled (TC) vs loosely coupled (LC) fusion architectures**
 - **Innovation monitoring and chi-square gating** (Eqs. 8.5-8.9)
 - **Robust measurement down-weighting**
 - **Temporal calibration and synchronization**
 - **Observability analysis**
 
----
+## Quick Start
 
-## Phase 2 Complete: Tightly Coupled Fusion ✅
-
-### Deliverables
-
-#### 1. Dataset Generator (`scripts/generate_fusion_2d_imu_uwb_dataset.py`)
-
-Generates three synthetic dataset variants for Chapter 8 demos:
-
-- **`data/sim/fusion_2d_imu_uwb/`** - Baseline dataset
-  - 60s rectangular walking trajectory (20m × 15m)
-  - High-rate IMU (100 Hz): 2D accelerations + yaw rate
-  - Low-rate UWB ranges (10 Hz) to 4 corner anchors
-  - Realistic noise, ~5% dropouts
-  - **No time offset, no NLOS bias**
-
-- **`data/sim/fusion_2d_imu_uwb_nlos/`** - NLOS variant
-  - Same as baseline but with **NLOS bias on anchors 1 & 2** (+0.8m)
-  - For robust loss demos (Phase 3)
-
-- **`data/sim/fusion_2d_imu_uwb_timeoffset/`** - Temporal calibration variant
-  - Same as baseline but with **50ms time offset + 100ppm clock drift**
-  - For temporal calibration demos (Phase 4)
-
-**Usage**:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py
+# Tightly coupled IMU + UWB fusion
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf
+
+# Loosely coupled IMU + UWB fusion
+python -m ch8_sensor_fusion.lc_uwb_imu_ekf
+
+# Compare LC vs TC architectures
+python -m ch8_sensor_fusion.compare_lc_tc
+
+# Advanced demos
+python -m ch8_sensor_fusion.observability_demo
+python -m ch8_sensor_fusion.tuning_robust_demo
+python -m ch8_sensor_fusion.temporal_calibration_demo
 ```
 
-#### 2. Tightly Coupled IMU + UWB Fusion (`tc_uwb_imu_ekf.py`)
+## Equation Reference
 
-Demonstrates tightly coupled fusion where **raw UWB range measurements** are fused directly in the EKF, rather than first computing position fixes.
+### Innovation Monitoring and Gating
 
-**Features**:
-- 5D state: `[px, py, vx, vy, yaw]`
-- High-rate IMU propagation (100 Hz)
-- Low-rate UWB range updates (10 Hz per anchor)
-- **Chi-square innovation gating** (Eq. 8.9)
-- **Innovation monitoring** (Eqs. 8.5-8.6)
-- Real-time NIS consistency monitoring
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `innovation()` | `core/fusion/tuning.py` | Eq. (8.5) | Compute innovation y = z - h(x) |
+| `innovation_covariance()` | `core/fusion/tuning.py` | Eq. (8.6) | S = HPH' + R |
+| `scale_measurement_covariance()` | `core/fusion/tuning.py` | Eq. (8.7) | Robust down-weighting |
+| `mahalanobis_distance_squared()` | `core/fusion/gating.py` | Eq. (8.8) | d² = y'S⁻¹y |
+| `chi_square_gate()` | `core/fusion/gating.py` | Eq. (8.9) | Accept if d² < χ²(α,m) |
 
-**Run the demo**:
+### Fusion Models
+
+| Function | Location | Description |
+|----------|----------|-------------|
+| `create_process_model()` | `tc_models.py` | 2D IMU dead-reckoning process model |
+| `create_uwb_range_measurement_model()` | `tc_models.py` | UWB range measurement for TC |
+| `solve_uwb_position_wls()` | `lc_models.py` | WLS position solver for LC |
+| `create_lc_position_measurement_model()` | `lc_models.py` | Position measurement for LC |
+
+## Usage Examples
+
+### Tightly Coupled Fusion
+
 ```bash
 # Basic usage
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf
@@ -64,155 +64,27 @@ python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_2d_imu_uwb
 # Disable gating
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf --no-gating
 
-# Adjust gating threshold (more/less conservative)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --alpha 0.01  # 99% confidence (stricter)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --alpha 0.10  # 90% confidence (looser)
-
-# Save results
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --save my_results.svg
+# Adjust gating threshold
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf --alpha 0.01  # Stricter (99%)
 ```
 
-**Command-line arguments**:
-- `--data`: Path to dataset directory (default: `data/sim/fusion_2d_imu_uwb`)
-- `--no-gating`: Disable chi-square gating
-- `--alpha`: Gating significance level (default: 0.05)
-- `--save`: Path to save results figure
+### Loosely Coupled Fusion
 
-#### 3. TC Fusion Models (`tc_models.py`)
-
-Reusable model functions for tightly coupled fusion:
-
-- **`create_process_model()`**: 2D IMU dead-reckoning process model
-  - State propagation with body-to-map frame rotation
-  - Jacobian computation
-  - Process noise covariance
-  
-- **`create_uwb_range_measurement_model(anchor_position)`**: UWB range measurement
-  - Nonlinear range function `h(x) = ||p - anchor||`
-  - Measurement Jacobian
-  - Measurement noise covariance
-
-- **`create_tc_fusion_ekf()`**: Initialize EKF for TC fusion
-
----
-
-## Phase 3 Complete: Loosely Coupled Fusion ✅
-
-### Deliverables
-
-#### 1. Loosely Coupled IMU + UWB Fusion (`lc_uwb_imu_ekf.py`)
-
-Demonstrates loosely coupled fusion where UWB ranges are **first solved for a position fix**, then the position fix is fused with IMU propagation.
-
-**Key Difference from TC**:
-- **TC**: Fuses raw UWB ranges directly (one EKF update per anchor)
-- **LC**: First computes position from all ranges, then fuses position (one EKF update per epoch)
-
-**Features**:
-- 5D state: `[px, py, vx, vy, yaw]` (same as TC)
-- High-rate IMU propagation (100 Hz)
-- **WLS position solver** (Chapter 4) for each UWB epoch
-- Low-rate position fix updates (10 Hz)
-- **Chi-square innovation gating** (Eq. 8.9, 2 DOF for position)
-- **Innovation monitoring** (Eqs. 8.5-8.6)
-- NIS consistency monitoring
-
-**Run the demo**:
 ```bash
 # Basic usage
 python -m ch8_sensor_fusion.lc_uwb_imu_ekf
 
-# With custom dataset
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --data data/sim/fusion_2d_imu_uwb
-
-# Disable gating
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --no-gating
-
-# Adjust gating threshold
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --alpha 0.01  # 99% confidence (stricter)
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --alpha 0.10  # 90% confidence (looser)
-
-# Save results
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --save lc_results.svg
+# Compare with TC
+python -m ch8_sensor_fusion.compare_lc_tc --save comparison.svg
 ```
 
-**Command-line arguments**: Same as TC demo
+## Expected Output
 
-#### 2. LC Fusion Models (`lc_models.py`)
+### TC Fusion Demo
 
-Reusable model functions for loosely coupled fusion:
+Running `python -m ch8_sensor_fusion.tc_uwb_imu_ekf` produces:
 
-- **`solve_uwb_position_wls()`**: Iterative WLS position solver
-  - Solves for 2D position from UWB ranges to multiple anchors
-  - Handles NaN dropouts gracefully (needs ≥3 valid ranges)
-  - Returns position + covariance
-  - Implements Chapter 4 TOA I-WLS (Eqs. 4.14-4.23)
-
-- **`create_lc_process_model()`**: 2D IMU dead-reckoning (reuses TC model)
-
-- **`create_lc_position_measurement_model()`**: Position measurement
-  - Measurement function `h(x) = [px, py]` (direct position observation)
-  - Jacobian `H = [[1,0,0,0,0], [0,1,0,0,0]]`
-  - Measurement noise from WLS covariance
-
-- **`create_lc_fusion_ekf()`**: Initialize EKF for LC fusion
-
----
-
-## LC vs TC Comparison
-
-### Architecture Differences
-
-| Aspect | **Tightly Coupled (TC)** | **Loosely Coupled (LC)** |
-|--------|--------------------------|--------------------------|
-| **Measurement Type** | Raw range to each anchor | Position fix from all ranges |
-| **Measurement Dimension** | 1D (scalar range) | 2D (position vector) |
-| **EKF Updates per Epoch** | 4 updates (one per anchor) | 1 update (aggregated position) |
-| **Chi-Square DOF** | m=1 (range) | m=2 (position) |
-| **Pre-Processing** | None | WLS position solver |
-| **Anchor Dropout Handling** | Graceful (update with available) | Requires ≥3 valid ranges |
-| **Complexity** | Higher (more updates) | Lower (fewer updates) |
-| **Observability** | Better (incremental info) | Good (aggregated info) |
-| **Computational Cost** | Lower (simpler updates) | Higher (WLS solver per epoch) |
-
-### When to Use Each
-
-**Use Tightly Coupled (TC) when**:
-- Maximum accuracy is required
-- Anchors frequently drop out (need robustness to partial measurements)
-- You want better observability (each range adds incremental information)
-- You need per-anchor outlier rejection
-
-**Use Loosely Coupled (LC) when**:
-- Simplicity is preferred over maximum accuracy
-- You already have a position solver (e.g., from existing positioning system)
-- Computational efficiency is important for EKF updates (fewer updates)
-- All anchors are usually visible (dropout rate is low)
-
-### Expected Performance Comparison
-
-On the baseline dataset (`fusion_2d_imu_uwb/`):
-
-| Metric | **TC Fusion** | **LC Fusion** |
-|--------|---------------|---------------|
-| RMSE (2D) | ~12m | ~10-15m |
-| EKF Updates | ~750 (UWB) | ~550 (position fixes) |
-| Processing Time | Faster | Slower (WLS solver) |
-| Robustness to Dropouts | Better | Worse (needs ≥3 ranges) |
-
-**Note**: Both show moderate RMSE due to simplified 2D model without IMU bias estimation. Production systems would use Chapter 6 full strapdown with bias augmentation.
-
----
-
-## Results & Expected Behavior
-
-### TC Demo: Baseline Dataset Results
-
-Running the TC demo on the baseline dataset:
-
-```bash
-$ python -m ch8_sensor_fusion.tc_uwb_imu_ekf
-
+```
 ======================================================================
 Tightly Coupled IMU + UWB EKF Fusion
 ======================================================================
@@ -225,7 +97,6 @@ Initialization:
 Measurements:
   IMU samples: 6000
   UWB samples: 2271
-  Total: 8271
 
 Fusion complete:
   UWB accepted: 748
@@ -239,253 +110,21 @@ Evaluation Metrics
   RMSE (X)     : 16.519 m
   RMSE (Y)     : 5.680 m
   Max Error    : 38.993 m
-  Final Error  : 37.392 m
 ```
 
-### LC Demo: Baseline Dataset Results
+**Visual Output:**
 
-Running the LC demo on the baseline dataset:
+![TC Fusion Results](figs/tc_results.svg)
 
-```bash
-$ python -m ch8_sensor_fusion.lc_uwb_imu_ekf
+*Four-panel visualization:*
+- **Trajectory:** Truth vs EKF estimate with UWB anchors
+- **Position Error:** Drift accumulation over time
+- **NIS Plot:** Innovation consistency with chi-square bounds
+- **Covariance Trace:** Filter uncertainty evolution
 
-======================================================================
-Loosely Coupled IMU + UWB EKF Fusion
-======================================================================
+### LC vs TC Comparison
 
-Initialization:
-  State: [0. 0. 1. 0. 0.]
-  Gating: Enabled
-  Alpha: 0.05 (95% confidence)
-
-Measurements:
-  IMU samples: 6000
-  UWB epochs: 600
-  Total: 6600
-
-Fusion complete:
-  UWB position fixes solved: 550-580
-  UWB fixes accepted: 450-500
-  UWB fixes rejected: 50-80
-  UWB solver failures: 20-50
-
-Evaluation Metrics:
-  RMSE (2D)    : 10-15 m
-  RMSE (X)     : 12-18 m
-  RMSE (Y)     : 4-8 m
-  Max Error    : 35-45 m
-  Final Error  : 30-40 m
-```
-
-**Note**: LC performance is comparable to TC but with different characteristics:
-- Fewer updates (one per epoch vs one per anchor)
-- Some epochs fail when <3 anchors have valid ranges
-- Position fixes may be less robust to individual outliers
-- Faster EKF updates but slower overall (WLS solver overhead)
-
-### Understanding the Results
-
-**Why is the RMSE ~10-15m for both TC and LC?**
-
-This is **expected behavior** for this simplified 2D model:
-
-1. **No IMU Bias Estimation**: The 5D state `[px, py, vx, vy, yaw]` does not include accelerometer or gyroscope biases. In real systems, you would use a 15D state (Chapter 6) with bias augmentation.
-
-2. **Dead-Reckoning Drift**: Without bias estimation, IMU-only propagation accumulates large drift. The chi-square gate correctly rejects many UWB measurements that are inconsistent with the drifted state.
-
-3. **Pedagogical Simplification**: This demo prioritizes **clarity** over accuracy to illustrate:
-   - How tightly coupled fusion works
-   - How chi-square gating operates (Eq. 8.9)
-   - How to monitor NIS for consistency
-
-4. **Expected Trade-off**: Accepting all measurements (`--no-gating`) would give lower RMSE but the filter would be inconsistent.
-
-### Visualizations
-
-The demo generates 4 plots saved to `ch8_sensor_fusion/figs/tc_results.svg`:
-
-1. **Trajectory**: Truth vs TC EKF estimate with UWB anchor positions
-2. **Position Error vs Time**: Shows drift accumulation and correction
-3. **NIS Plot**: Innovation consistency with 95% chi-square bounds
-   - Green dots = accepted measurements (inside bounds)
-   - Red X = rejected measurements (outside bounds)
-4. **Covariance Trace**: Filter uncertainty over time
-
----
-
-## Equation Traceability
-
-All implementations reference their source equations from Chapter 8:
-
-| Equation | Implementation | Module |
-|----------|---------------|--------|
-| **Eq. (8.5)** | `innovation(z, z_pred)` | `core.fusion.tuning` |
-| **Eq. (8.6)** | `innovation_covariance(H, P_pred, R)` | `core.fusion.tuning` |
-| **Eq. (8.7)** | `scale_measurement_covariance(R, weight)` | `core.fusion.tuning` |
-| **Eq. (8.8)** | `mahalanobis_distance_squared(y, S)` | `core.fusion.gating` |
-| **Eq. (8.9)** | `chi_square_gate(y, S, alpha)` | `core.fusion.gating` |
-
----
-
----
-
-## Phase 4 Complete: Advanced Demos ✅
-
-### Deliverables
-
-#### 1. Observability Demo (`observability_demo.py`)
-
-Demonstrates that absolute translation is **unobservable** from odometry alone.
-
-**Key Concept**: Odometry measures relative displacement (increments), not absolute position. Two trajectories differing by a constant translation produce identical odometry measurements.
-
-**Features**:
-- Generates figure-8 trajectory
-- Runs odometry-only fusion with different translation offsets
-- Shows constant translation error (unobservable mode)
-- Runs odometry + absolute position fixes fusion
-- Demonstrates translation correction when fixes are available
-- 6-panel visualization
-
-**Run the demo**:
-```bash
-# Basic usage
-python -m ch8_sensor_fusion.observability_demo
-
-# Save results
-python -m ch8_sensor_fusion.observability_demo --save observability.svg
-```
-
-**Expected Results**:
-- **Odometry-only**: Constant ~3.6m error (translation offset)
-- **Odometry + Fixes**: Error corrected to <0.5m at each fix
-
-#### 2. Tuning & Robust Loss Demo (`tuning_robust_demo.py`)
-
-Demonstrates filter tuning and robust estimation on the **NLOS dataset**.
-
-**Key Concepts**:
-- Baseline (no gating): Accepts all measurements (including outliers)
-- **Chi-square gating** (Eq. 8.9): Hard rejection of outliers
-- **Huber loss** (Eq. 8.7): Soft down-weighting with linear tail
-- **Cauchy loss** (Eq. 8.7): Strong down-weighting with bounded influence
-
-**Features**:
-- Compares 4 strategies on NLOS-corrupted data
-- Shows impact of NLOS bias on baseline filter
-- Demonstrates gating effectiveness
-- Compares hard gating vs soft robust losses
-- 9-panel visualization with NIS plots, trajectories, and metrics
-
-**Run the demo**:
-```bash
-# Basic usage (uses NLOS dataset by default)
-python -m ch8_sensor_fusion.tuning_robust_demo
-
-# Specify dataset
-python -m ch8_sensor_fusion.tuning_robust_demo --data data/sim/fusion_2d_imu_uwb_nlos
-
-# Save results
-python -m ch8_sensor_fusion.tuning_robust_demo --save tuning_robust.svg
-```
-
-**Expected Results**:
-- **Baseline**: Degraded by NLOS outliers
-- **Gating**: Rejects many outliers, improves accuracy
-- **Huber/Cauchy**: Soft downweighting, comparable to gating
-- **Improvement**: ~10-15% RMSE reduction over baseline
-
-#### 3. Temporal Calibration Demo (`temporal_calibration_demo.py`)
-
-Demonstrates the importance of temporal calibration using the **time-offset dataset**.
-
-**Key Concepts**:
-- Sensor clocks are not perfectly synchronized
-- Time offset: Constant shift between sensors (50ms in demo)
-- Clock drift: Relative rate difference (100ppm in demo)
-- **TimeSyncModel**: t_fusion = (1 + drift) * t_sensor + offset
-
-**Features**:
-- Shows fusion degradation from time misalignment
-- Applies TimeSyncModel to correct offset and drift
-- Demonstrates accuracy recovery with proper calibration
-- 6-panel visualization comparing corrected vs uncorrected
-
-**Run the demo**:
-```bash
-# Basic usage (uses time-offset dataset by default)
-python -m ch8_sensor_fusion.temporal_calibration_demo
-
-# Specify dataset
-python -m ch8_sensor_fusion.temporal_calibration_demo \
-    --data data/sim/fusion_2d_imu_uwb_timeoffset
-
-# Save results
-python -m ch8_sensor_fusion.temporal_calibration_demo --save temporal_calib.svg
-```
-
-**Expected Results**:
-- **Without correction**: Degraded RMSE due to 50ms offset + 100ppm drift
-- **With TimeSyncModel**: Accuracy restored (10-20% improvement)
-- **Key insight**: Even small time offsets significantly impact fusion
-
----
-
-## Next Steps: Phase 4 (Future Work)
-
-### Optional Extensions (Beyond Core Requirements)
-
-1. **Observability Demo**: Show unobservable modes with odometry-only
-2. **Tuning Demo**: Compare different Q/R choices, NIS plots
-3. **Robust Loss Demo**: Use NLOS dataset, apply Huber/Cauchy down-weighting
-4. **Temporal Calibration Demo**: Use time-offset dataset, recover accuracy with `TimeSyncModel`
-
----
-
-## LC vs TC Direct Comparison Tool ⚖️
-
-### `compare_lc_tc.py` - Side-by-Side Comparison Script
-
-Runs both LC and TC fusion on the same dataset and generates comprehensive comparison visualizations and metrics.
-
-**Features**:
-- Runs both fusions with identical parameters
-- Side-by-side trajectory plots
-- Position error comparison
-- NIS comparison (1 DOF vs 2 DOF)
-- Performance metrics bar chart
-- Quantitative comparison table
-- Exportable JSON report
-
-**Run the comparison**:
-```bash
-# Basic comparison (uses baseline dataset)
-python -m ch8_sensor_fusion.compare_lc_tc
-
-# With custom dataset
-python -m ch8_sensor_fusion.compare_lc_tc --data data/sim/fusion_2d_imu_uwb
-
-# Save outputs
-python -m ch8_sensor_fusion.compare_lc_tc \
-    --save comparison.svg \
-    --report comparison.json
-
-# Disable gating for both
-python -m ch8_sensor_fusion.compare_lc_tc --no-gating
-
-# Adjust gating threshold
-python -m ch8_sensor_fusion.compare_lc_tc --alpha 0.01  # Stricter
-```
-
-**Output**:
-- **Figure**: 9-panel comprehensive comparison (3×3 grid)
-  - Row 1: LC trajectory, TC trajectory, overlay comparison
-  - Row 2: LC error, TC error, error comparison
-  - Row 3: LC NIS, TC NIS, metrics bar chart
-- **Console**: Detailed comparison table with metrics
-- **JSON Report** (optional): Machine-readable comparison data
-
-**Example Results** (baseline dataset):
+Running `python -m ch8_sensor_fusion.compare_lc_tc` produces:
 
 ```
 ======================================================================
@@ -496,129 +135,76 @@ Metric                          LC Fusion       TC Fusion   Difference
 RMSE 2D (m)                        12.896          12.352      +0.544
 RMSE X (m)                         17.092          16.519      +0.573
 RMSE Y (m)                          6.362           5.680      +0.682
-Max Error (m)                      40.826          38.993      +1.833
 ----------------------------------------------------------------------
 UWB Updates Accepted                  176             748        -572
-UWB Updates Rejected                  408            1523       -1115
 Acceptance Rate (%)                  30.1            32.9        -2.8
 ======================================================================
-
-Summary:
-  • TC has lower RMSE (0.544m difference)
-  • TC has higher acceptance rate (2.8% difference)
-  • LC: 176 updates, TC: 748 updates (TC has +572 more)
 ```
 
-**Key Insights**:
-- **TC is slightly more accurate** (~0.5m better RMSE)
-- **TC processes 4× more updates** (one per anchor vs one per epoch)
-- **LC has fewer solver failures** when ≥3 anchors visible
-- **Both achieve comparable accuracy** (~12-13m RMSE due to IMU drift)
-- **Chi-square bounds differ**: LC uses 2 DOF (position), TC uses 1 DOF (range)
+**Visual Output:**
 
----
+![LC vs TC Comparison](figs/lc_tc_comparison.svg)
 
-## Files
+*Nine-panel comparison showing trajectories, errors, NIS plots, and metrics.*
+
+## LC vs TC Comparison
+
+| Aspect | **Tightly Coupled (TC)** | **Loosely Coupled (LC)** |
+|--------|--------------------------|--------------------------|
+| **Measurement** | Raw range to each anchor | Position fix from all ranges |
+| **EKF Updates** | 4 per epoch (one per anchor) | 1 per epoch |
+| **Chi-Square DOF** | m=1 (range) | m=2 (position) |
+| **Dropout Handling** | Graceful | Requires ≥3 ranges |
+| **Complexity** | Higher | Lower |
+
+**When to use TC:** Maximum accuracy, frequent dropouts, per-anchor outlier rejection
+
+**When to use LC:** Simplicity, existing position solver, computational efficiency
+
+## Dataset Variants
+
+Three synthetic datasets are provided:
+
+| Dataset | Description | Use For |
+|---------|-------------|---------|
+| `fusion_2d_imu_uwb/` | Baseline (no bias, no offset) | TC/LC demos |
+| `fusion_2d_imu_uwb_nlos/` | NLOS bias on anchors 1,2 | Robust loss demo |
+| `fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift | Temporal calibration |
+
+Generate datasets:
+```bash
+python scripts/generate_fusion_2d_imu_uwb_dataset.py
+```
+
+## File Structure
 
 ```
 ch8_sensor_fusion/
-├── __init__.py                        # Package init
-├── tc_models.py                       # TC fusion EKF models
-├── tc_uwb_imu_ekf.py                  # TC demo script (Phase 2)
-├── lc_models.py                       # LC fusion EKF models (Phase 3)
-├── lc_uwb_imu_ekf.py                  # LC demo script (Phase 3)
-├── compare_lc_tc.py                   # LC vs TC comparison tool
-├── observability_demo.py              # Observability demo (Phase 4)
-├── tuning_robust_demo.py              # Tuning & robust loss demo (Phase 4)
-├── temporal_calibration_demo.py       # Temporal calibration demo (Phase 4)
-├── figs/                              # Generated figures
-│   ├── tc_results.svg                 # TC fusion results
-│   ├── lc_results.svg                 # LC fusion results
-│   ├── lc_tc_comparison.svg           # LC vs TC comparison
-│   ├── lc_tc_comparison.json          # Comparison metrics
-│   ├── observability_demo.svg         # Observability results
-│   ├── tuning_robust_demo.svg         # Tuning & robust results
-│   └── temporal_calibration_demo.svg  # Temporal calibration results
-└── README.md                          # This file
+├── README.md                        # This file (student documentation)
+├── tc_models.py                     # TC fusion EKF models
+├── tc_uwb_imu_ekf.py                # TC demo
+├── lc_models.py                     # LC fusion EKF models
+├── lc_uwb_imu_ekf.py                # LC demo
+├── compare_lc_tc.py                 # LC vs TC comparison
+├── observability_demo.py            # Observability analysis
+├── tuning_robust_demo.py            # Robust estimation demo
+├── temporal_calibration_demo.py     # Time sync demo
+└── figs/                            # Generated figures
 
-scripts/
-└── generate_fusion_2d_imu_uwb_dataset.py  # Dataset generator
-
-data/sim/
-├── fusion_2d_imu_uwb/                 # Baseline dataset
-│   ├── truth.npz                      # Ground truth
-│   ├── imu.npz                        # IMU measurements
-│   ├── uwb_anchors.npy                # Anchor positions
-│   ├── uwb_ranges.npz                 # UWB ranges
-│   └── config.json                    # Configuration
-├── fusion_2d_imu_uwb_nlos/            # NLOS variant
-└── fusion_2d_imu_uwb_timeoffset/      # Time offset variant
+core/fusion/
+├── tuning.py                        # Innovation, scaling (Eqs. 8.5-8.7)
+└── gating.py                        # Chi-square gating (Eqs. 8.8-8.9)
 ```
-
----
-
-## Dependencies
-
-From `core/` modules:
-- **`core.fusion`**: Innovation monitoring, gating (Phase 1)
-- **`core.estimators`**: `ExtendedKalmanFilter` (Chapter 3)
-- **`core.eval`**: Metrics and plotting utilities
-
-External:
-- NumPy, Matplotlib, SciPy
-
----
-
-## Design Notes
-
-### Why Tightly Coupled?
-
-Tightly coupled fusion fuses **raw sensor measurements** directly:
-- UWB: Individual range measurements `h(x) = ||p - anchor_i||`
-- IMU: Accelerations and angular rates for propagation
-
-**Advantages**:
-- Better observability (each range adds information incrementally)
-- More robust to anchor dropouts (can update with partial measurements)
-- Easier to apply per-measurement gating and robust losses
-
-**Disadvantages**:
-- More complex implementation
-- Higher computational cost (one EKF update per anchor per epoch)
-
-### Practical Comparison: Which Should You Use?
-
-**For Teaching & Learning**:
-- Start with **TC** to understand raw sensor fusion
-- Then implement **LC** to see the architectural trade-off
-- Both demos are valuable for understanding Chapter 8 concepts
-
-**For Real Systems**:
-- **Use TC if**: You need maximum accuracy, handle frequent dropouts, or want per-measurement outlier rejection
-- **Use LC if**: You have a stable positioning subsystem or need simpler integration
-- **In Practice**: Many production systems use hybrid approaches (TC for critical sensors, LC for convenience)
-
-**Educational Value**:
-Both demos use the same dataset and state representation, making the architectural difference clear and easy to study.
-
----
 
 ## References
 
-- **Chapter 8, Section 8.2**: Tightly vs Loosely Coupled Fusion
-- **Chapter 8, Section 8.3**: Tuning and Robustness (Eqs. 8.5-8.9)
-- **Chapter 3**: Extended Kalman Filter (Eqs. 3.21-3.22)
-- **Chapter 6**: IMU Strapdown Integration
+- **Chapter 8**: Sensor Fusion
+  - Section 8.2: Tightly vs Loosely Coupled Fusion
+  - Section 8.3: Tuning and Robustness (Eqs. 8.5-8.9)
+- **Chapter 3**: Extended Kalman Filter
 - **Chapter 4**: UWB Range Positioning
+- **Chapter 6**: IMU Strapdown Integration
 
 ---
 
-## Author
-
-Navigation Engineer  
-Date: December 2025
-
-**Phase 2 Status**: ✅ Complete (Tightly Coupled Fusion)  
-**Phase 3 Status**: ✅ Complete (Loosely Coupled Fusion)  
-**Phase 4 Status**: ✅ Complete (Advanced Demos)
-
+For implementation details and development notes, see [docs/ch8_development.md](../docs/ch8_development.md).
