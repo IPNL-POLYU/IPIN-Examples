@@ -5,28 +5,49 @@ Code examples for the IPIN (Indoor Positioning and Indoor Navigation) book, orga
 ## Project Structure
 
 ```
-ipin-examples/
-├── core/                    # Reusable math & models
-│   ├── coords/              # Coordinate systems (ENU/NED/LLH, rotations)
-│   ├── estimators/         # LS, robust LS, KF/EKF/UKF, PF, FGO
-│   ├── rf/                  # RF models (RSS, TOA/TDOA/AOA)
-│   ├── sensors/             # IMU, wheel odom, mag, barometer
-│   ├── sim/                 # Generic simulators
-│   └── eval/                # Metrics, error stats, DOP
-├── ch2_coords/              # Chapter 2 examples
-├── ch3_estimators/          # Chapter 3 examples
-├── ch4_rf_point_positioning/# Chapter 4 examples
-├── ch5_fingerprinting/      # Chapter 5 examples
-├── ch6_dead_reckoning/      # Chapter 6 examples
-├── ch7_slam/                # Chapter 7 examples
-├── ch8_sensor_fusion/       # Chapter 8 examples
-├── ch9_advanced/            # Chapter 9 examples
-├── data/                    # Data files
-│   ├── sim/                 # Simulated data
-│   └── real/                # Real data (optional)
-├── notebooks/               # Jupyter notebooks per chapter
-└── tests/                   # Unit tests
+IPIN_Book_Examples/
+├── core/                        # Reusable math & models
+│   ├── coords/                  # Coordinate systems (ENU/NED/LLH, rotations)
+│   ├── estimators/              # LS, robust LS, KF/EKF/UKF, PF
+│   ├── rf/                      # RF models (RSS, TOA/TDOA/AOA, DOP)
+│   ├── sensors/                 # IMU, wheel odom, PDR, mag, barometer
+│   ├── fingerprinting/          # Wi-Fi/magnetic fingerprinting algorithms
+│   ├── slam/                    # SLAM geometry, scan matching, factors
+│   ├── fusion/                  # Multi-sensor fusion utilities
+│   └── eval/                    # Metrics, error stats, plots
+├── ch2_coords/                  # Chapter 2: Coordinate Systems
+├── ch3_estimators/              # Chapter 3: State Estimation
+├── ch4_rf_point_positioning/    # Chapter 4: RF Point Positioning
+├── ch5_fingerprinting/          # Chapter 5: Fingerprinting
+├── ch6_dead_reckoning/          # Chapter 6: Dead Reckoning & PDR
+├── ch7_slam/                    # Chapter 7: SLAM Technologies
+├── ch8_sensor_fusion/           # Chapter 8: Sensor Fusion
+├── data/sim/                    # Simulated datasets
+├── docs/                        # Documentation & equation mappings
+├── scripts/                     # Dataset generation scripts
+├── references/                  # Book chapters & design docs
+└── tests/                       # Unit tests (400+ test cases)
+```
 
+## Chapter Overview
+
+Each chapter folder contains example scripts and a README with equation-to-code mappings:
+
+| Chapter | Topic | Key Algorithms | Equations |
+|---------|-------|----------------|-----------|
+| **Ch2** | Coordinate Systems | LLH↔ECEF↔ENU, Euler/Quaternion/Matrix rotations | Eqs. 2.1-2.10 |
+| **Ch3** | State Estimation | LS, WLS, Robust LS, KF, EKF | Eqs. 3.1-3.9 |
+| **Ch4** | RF Positioning | TOA, TDOA, AOA, RSS, DOP | Eqs. 4.1-4.69 |
+| **Ch5** | Fingerprinting | k-NN, MAP, Posterior Mean, Linear Regression | Eqs. 5.1-5.5 |
+| **Ch6** | Dead Reckoning | IMU Strapdown, PDR, ZUPT, Wheel Odometry | Eqs. 6.2-6.61 |
+| **Ch7** | SLAM | ICP, NDT, Pose Graph, Bundle Adjustment | Eqs. 7.10-7.70 |
+| **Ch8** | Sensor Fusion | Loosely/Tightly Coupled EKF, Observability | Practical methods |
+
+**Quick Start:** Run any chapter's example script:
+```bash
+python ch3_estimators/example_least_squares.py
+python ch5_fingerprinting/example_comparison.py
+python ch6_dead_reckoning/example_comparison.py
 ```
 
 ## Setup
