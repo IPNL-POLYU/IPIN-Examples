@@ -151,9 +151,152 @@
   notes: "Uses Shepperd's method for numerical stability. Chooses largest diagonal element. Normalizes output."
 
 # ==============================================================================
-# Chapter 3: Estimation and Filtering (Placeholder)
+# Chapter 3: State Estimation and Filtering
 # ==============================================================================
-# To be added when Chapter 3 estimators are implemented
+
+# ------------------------------------------------------------------------------
+# Least Squares Methods
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (3.1)"
+  chapter: 3
+  description: "Standard Least Squares: x̂ = (A'A)⁻¹A'b"
+  files:
+    - path: "core/estimators/least_squares.py"
+      object: "linear_least_squares"
+    - path: "ch3_estimators/example_least_squares.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py::TestLinearLeastSquares"
+  notes: "Solves overdetermined linear systems. Computes covariance P = σ²(A'A)⁻¹."
+
+- eq: "Eq. (3.2)"
+  chapter: 3
+  description: "Weighted Least Squares: x̂ = (A'WA)⁻¹A'Wb"
+  files:
+    - path: "core/estimators/least_squares.py"
+      object: "weighted_least_squares"
+    - path: "ch3_estimators/example_least_squares.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py::TestWeightedLeastSquares"
+  notes: "Weight matrix W typically R⁻¹ (inverse measurement covariance)."
+
+- eq: "Eq. (3.3)"
+  chapter: 3
+  description: "Gauss-Newton Iterative Least Squares"
+  files:
+    - path: "core/estimators/least_squares.py"
+      object: "iterative_least_squares"
+    - path: "ch3_estimators/example_least_squares.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py::TestIterativeLeastSquares"
+  notes: "For nonlinear problems: xₖ₊₁ = xₖ + (J'J)⁻¹J'r. Requires Jacobian function."
+
+- eq: "Eq. (3.4)"
+  chapter: 3
+  description: "Robust Least Squares with M-estimators"
+  files:
+    - path: "core/estimators/least_squares.py"
+      object: "robust_least_squares"
+    - path: "ch3_estimators/example_least_squares.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py::TestRobustLeastSquares"
+  notes: "IRLS with Huber, Cauchy, or Tukey loss functions. Downweights outliers."
+
+# ------------------------------------------------------------------------------
+# Kalman Filter
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (3.11)-(3.12)"
+  chapter: 3
+  description: "Kalman Filter Prediction Step"
+  files:
+    - path: "core/estimators/kalman_filter.py"
+      object: "KalmanFilter.predict"
+    - path: "ch3_estimators/example_kalman_1d.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py"
+  notes: "State prediction: x̄ₖ = Fxₖ₋₁ + Buₖ. Covariance: P̄ₖ = FPₖ₋₁F' + Q."
+
+- eq: "Eqs. (3.17)-(3.19)"
+  chapter: 3
+  description: "Kalman Filter Update Step"
+  files:
+    - path: "core/estimators/kalman_filter.py"
+      object: "KalmanFilter.update"
+    - path: "ch3_estimators/example_kalman_1d.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py"
+  notes: "State update: xₖ = x̄ₖ + K(z - Hx̄ₖ). Kalman gain: K = P̄H'(HP̄H' + R)⁻¹."
+
+# ------------------------------------------------------------------------------
+# Extended Kalman Filter
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (3.21)-(3.22)"
+  chapter: 3
+  description: "Extended Kalman Filter (EKF)"
+  files:
+    - path: "core/estimators/extended_kalman_filter.py"
+      object: "ExtendedKalmanFilter"
+    - path: "ch3_estimators/example_ekf_range_bearing.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py"
+  notes: "Nonlinear prediction/update with Jacobian linearization. For range-bearing positioning."
+
+# ------------------------------------------------------------------------------
+# Unscented Kalman Filter
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (3.24)-(3.30)"
+  chapter: 3
+  description: "Unscented Kalman Filter (UKF)"
+  files:
+    - path: "core/estimators/unscented_kalman_filter.py"
+      object: "UnscentedKalmanFilter"
+    - path: "ch3_estimators/example_comparison.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py"
+  notes: "Sigma point-based nonlinear filter. No Jacobians required."
+
+# ------------------------------------------------------------------------------
+# Particle Filter
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (3.33)-(3.34)"
+  chapter: 3
+  description: "Particle Filter (Sequential Monte Carlo)"
+  files:
+    - path: "core/estimators/particle_filter.py"
+      object: "ParticleFilter"
+    - path: "ch3_estimators/example_comparison.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py"
+  notes: "Monte Carlo approach for non-Gaussian distributions. Systematic resampling."
+
+# ------------------------------------------------------------------------------
+# Factor Graph Optimization
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (3.35)-(3.43)"
+  chapter: 3
+  description: "Factor Graph Optimization (MAP estimation)"
+  files:
+    - path: "core/estimators/factor_graph.py"
+      object: "FactorGraph"
+    - path: "ch3_estimators/example_comparison.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py"
+  notes: "Batch optimization. Gauss-Newton and gradient descent solvers."
 
 # ==============================================================================
 # Chapter 4: RF Point Positioning by Radio Signals
@@ -355,14 +498,408 @@
   notes: "Geometry matrix and DOP metrics for evaluating positioning quality"
 
 # ==============================================================================
-# Chapter 5: Fingerprinting (Placeholder)
+# Chapter 5: Fingerprinting-based Indoor Positioning
 # ==============================================================================
-# To be added when Chapter 5 fingerprinting is implemented
+
+# ------------------------------------------------------------------------------
+# Deterministic Fingerprinting
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (5.1)"
+  chapter: 5
+  description: "Nearest-Neighbor (NN) fingerprinting"
+  files:
+    - path: "core/fingerprinting/deterministic.py"
+      object: "nn_localize"
+    - path: "ch5_fingerprinting/example_deterministic.py"
+      object: "main"
+  tests:
+    - "tests/core/fingerprinting/test_deterministic.py"
+  notes: "Decision rule: i* = argmin_i D(z, f_i). Returns location of nearest RP."
+
+- eq: "Eq. (5.2)"
+  chapter: 5
+  description: "k-Nearest-Neighbor (k-NN) fingerprinting"
+  files:
+    - path: "core/fingerprinting/deterministic.py"
+      object: "knn_localize"
+    - path: "ch5_fingerprinting/example_deterministic.py"
+      object: "main"
+  tests:
+    - "tests/core/fingerprinting/test_deterministic.py"
+  notes: "Weighted average: x̂ = Σ w_i x_i / Σ w_i. Supports inverse distance and uniform weighting."
+
+# ------------------------------------------------------------------------------
+# Probabilistic Fingerprinting
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (5.3)"
+  chapter: 5
+  description: "Log-likelihood under Gaussian Naive Bayes"
+  files:
+    - path: "core/fingerprinting/probabilistic.py"
+      object: "log_likelihood"
+    - path: "ch5_fingerprinting/example_probabilistic.py"
+      object: "main"
+  tests:
+    - "tests/core/fingerprinting/test_probabilistic.py"
+  notes: "Log p(z|x_i) = Σ_j log N(z_j; μ_ij, σ_ij²). Assumes feature independence."
+
+- eq: "Eq. (5.4)"
+  chapter: 5
+  description: "Maximum A Posteriori (MAP) localization"
+  files:
+    - path: "core/fingerprinting/probabilistic.py"
+      object: "map_localize"
+    - path: "ch5_fingerprinting/example_probabilistic.py"
+      object: "main"
+  tests:
+    - "tests/core/fingerprinting/test_probabilistic.py"
+  notes: "MAP: i* = argmax_i p(x_i|z). Returns discrete position estimate."
+
+- eq: "Eq. (5.5)"
+  chapter: 5
+  description: "Posterior mean localization"
+  files:
+    - path: "core/fingerprinting/probabilistic.py"
+      object: "posterior_mean_localize"
+    - path: "ch5_fingerprinting/example_probabilistic.py"
+      object: "main"
+  tests:
+    - "tests/core/fingerprinting/test_probabilistic.py"
+  notes: "Posterior mean: x̂ = Σ p(x_i|z) x_i. Returns continuous position estimate."
+
+# ------------------------------------------------------------------------------
+# Pattern Recognition
+# ------------------------------------------------------------------------------
+
+- eq: "Linear Regression Model"
+  chapter: 5
+  description: "Linear regression localizer (ridge regression)"
+  files:
+    - path: "core/fingerprinting/pattern_recognition.py"
+      object: "LinearRegressionLocalizer"
+    - path: "ch5_fingerprinting/example_pattern_recognition.py"
+      object: "main"
+  tests:
+    - "tests/core/fingerprinting/test_pattern_recognition.py"
+  notes: "Direct regression: x̂ = Wz + b. Ridge regularization prevents overfitting."
 
 # ==============================================================================
-# Chapter 6: Dead Reckoning (Placeholder)
+# Chapter 6: Dead Reckoning and Proprioceptive Sensors
 # ==============================================================================
-# To be added when Chapter 6 PDR/sensors are implemented
+
+# ------------------------------------------------------------------------------
+# IMU Strapdown Integration
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (6.2)-(6.4)"
+  chapter: 6
+  description: "Quaternion attitude integration"
+  files:
+    - path: "core/sensors/strapdown.py"
+      object: "quat_integrate"
+    - path: "ch6_dead_reckoning/example_imu_strapdown.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_strapdown.py"
+  notes: "Discrete quaternion integration: q_k = q_{k-1} + ½Ω(ω)q_{k-1}Δt"
+
+- eq: "Eq. (6.3)"
+  chapter: 6
+  description: "Ω(ω) skew-symmetric matrix for quaternion kinematics"
+  files:
+    - path: "core/sensors/strapdown.py"
+      object: "omega_matrix"
+  tests:
+    - "tests/core/sensors/test_sensors_strapdown.py"
+  notes: "4×4 matrix for quaternion differential equation: q̇ = ½Ω(ω)q"
+
+- eq: "Eq. (6.6)"
+  chapter: 6
+  description: "Gyroscope error correction"
+  files:
+    - path: "core/sensors/imu_models.py"
+      object: "correct_gyro"
+  tests:
+    - "tests/core/sensors/test_sensors_imu_models.py"
+  notes: "Corrected angular rate: ω = ω̃ - b_g - n_g"
+
+- eq: "Eq. (6.7)"
+  chapter: 6
+  description: "Velocity integration"
+  files:
+    - path: "core/sensors/strapdown.py"
+      object: "vel_update"
+    - path: "ch6_dead_reckoning/example_imu_strapdown.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_strapdown.py"
+  notes: "Velocity update: v_k = v_{k-1} + (C_B^M f_b + g)Δt"
+
+- eq: "Eq. (6.8)"
+  chapter: 6
+  description: "Gravity vector in map frame"
+  files:
+    - path: "core/sensors/strapdown.py"
+      object: "gravity_vector"
+  tests:
+    - "tests/core/sensors/test_sensors_strapdown.py"
+  notes: "g = [0, 0, -9.81]^T in ENU frame"
+
+- eq: "Eq. (6.9)"
+  chapter: 6
+  description: "Accelerometer error correction"
+  files:
+    - path: "core/sensors/imu_models.py"
+      object: "correct_accel"
+  tests:
+    - "tests/core/sensors/test_sensors_imu_models.py"
+  notes: "Corrected specific force: f = f̃ - b_a - n_a"
+
+- eq: "Eq. (6.10)"
+  chapter: 6
+  description: "Position integration"
+  files:
+    - path: "core/sensors/strapdown.py"
+      object: "pos_update"
+    - path: "ch6_dead_reckoning/example_imu_strapdown.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_strapdown.py"
+  notes: "Position update: p_k = p_{k-1} + v_k Δt"
+
+# ------------------------------------------------------------------------------
+# Wheel Odometry
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (6.11)"
+  chapter: 6
+  description: "Lever arm compensation for wheel odometry"
+  files:
+    - path: "core/sensors/wheel_odometry.py"
+      object: "wheel_speed_to_attitude_velocity"
+    - path: "ch6_dead_reckoning/example_wheel_odometry.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_wheel_odometry.py"
+  notes: "v^A = v^S + [ω^B×]r^B. Compensates for IMU offset from wheel."
+
+- eq: "Eq. (6.12)"
+  chapter: 6
+  description: "Skew-symmetric matrix for cross product"
+  files:
+    - path: "core/sensors/wheel_odometry.py"
+      object: "skew"
+  tests:
+    - "tests/core/sensors/test_sensors_wheel_odometry.py"
+  notes: "[v×] matrix such that [v×]u = v × u"
+
+- eq: "Eq. (6.14)"
+  chapter: 6
+  description: "Velocity frame transformation"
+  files:
+    - path: "core/sensors/wheel_odometry.py"
+      object: "attitude_to_map_velocity"
+  tests:
+    - "tests/core/sensors/test_sensors_wheel_odometry.py"
+  notes: "v^M = C_A^M(q) v^A. Transforms velocity to map frame."
+
+- eq: "Eq. (6.15)"
+  chapter: 6
+  description: "Wheel odometry position update"
+  files:
+    - path: "core/sensors/wheel_odometry.py"
+      object: "odom_pos_update"
+    - path: "ch6_dead_reckoning/example_wheel_odometry.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_wheel_odometry.py"
+  notes: "p_k^M = p_{k-1}^M + v_k^M Δt"
+
+# ------------------------------------------------------------------------------
+# Drift Correction Constraints
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (6.44)"
+  chapter: 6
+  description: "Zero velocity (ZUPT) detector"
+  files:
+    - path: "core/sensors/constraints.py"
+      object: "detect_zupt"
+    - path: "ch6_dead_reckoning/example_zupt.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_constraints.py"
+  notes: "Detects stationary periods: |Δω| < δ_ω AND |Δf - g| < δ_f"
+
+- eq: "Eq. (6.45)"
+  chapter: 6
+  description: "ZUPT pseudo-measurement"
+  files:
+    - path: "core/sensors/constraints.py"
+      object: "ZuptMeasurementModel"
+    - path: "ch6_dead_reckoning/example_zupt.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_constraints.py"
+  notes: "h(x) = v. Constrains velocity to zero during stationary periods."
+
+- eq: "Eq. (6.60)"
+  chapter: 6
+  description: "ZARU (Zero Angular Rate Update) pseudo-measurement"
+  files:
+    - path: "core/sensors/constraints.py"
+      object: "ZaruMeasurementModel"
+  tests:
+    - "tests/core/sensors/test_sensors_constraints.py"
+  notes: "h(x) = ω. Constrains angular rate to zero when stationary."
+
+- eq: "Eq. (6.61)"
+  chapter: 6
+  description: "NHC (Non-Holonomic Constraint) pseudo-measurement"
+  files:
+    - path: "core/sensors/constraints.py"
+      object: "NhcMeasurementModel"
+  tests:
+    - "tests/core/sensors/test_sensors_constraints.py"
+  notes: "h(x) = C_B^M^T v. Constrains lateral/vertical velocity to zero for vehicles."
+
+# ------------------------------------------------------------------------------
+# Pedestrian Dead Reckoning (PDR)
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (6.46)"
+  chapter: 6
+  description: "Total acceleration magnitude"
+  files:
+    - path: "core/sensors/pdr.py"
+      object: "total_accel_magnitude"
+    - path: "ch6_dead_reckoning/example_pdr.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_pdr.py"
+  notes: "a_mag = ||a||. Used for step detection."
+
+- eq: "Eq. (6.47)"
+  chapter: 6
+  description: "Remove gravity from acceleration magnitude"
+  files:
+    - path: "core/sensors/pdr.py"
+      object: "remove_gravity_from_magnitude"
+  tests:
+    - "tests/core/sensors/test_sensors_pdr.py"
+  notes: "a_dyn = a_mag - g. Isolates dynamic acceleration component."
+
+- eq: "Eq. (6.48)"
+  chapter: 6
+  description: "Step frequency estimation"
+  files:
+    - path: "core/sensors/pdr.py"
+      object: "step_frequency"
+  tests:
+    - "tests/core/sensors/test_sensors_pdr.py"
+  notes: "f_step = 1/Δt. Computed from step detection timing."
+
+- eq: "Eq. (6.49)"
+  chapter: 6
+  description: "Weinberg step length model"
+  files:
+    - path: "core/sensors/pdr.py"
+      object: "step_length"
+    - path: "ch6_dead_reckoning/example_pdr.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_pdr.py"
+  notes: "L = c·h^a·f_step^b. Empirical model based on height and cadence."
+
+- eq: "Eq. (6.50)"
+  chapter: 6
+  description: "PDR position update"
+  files:
+    - path: "core/sensors/pdr.py"
+      object: "pdr_step_update"
+    - path: "ch6_dead_reckoning/example_pdr.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_pdr.py"
+  notes: "p_k = p_{k-1} + L[cos(ψ), sin(ψ)]^T. 2D step-and-heading update."
+
+# ------------------------------------------------------------------------------
+# Environmental Sensors
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (6.51)-(6.53)"
+  chapter: 6
+  description: "Magnetometer heading computation"
+  files:
+    - path: "core/sensors/environment.py"
+      object: "mag_heading"
+    - path: "ch6_dead_reckoning/example_environment.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_environment.py"
+  notes: "ψ = atan2(mag_hy, mag_hx) + declination. With tilt compensation."
+
+- eq: "Eq. (6.52)"
+  chapter: 6
+  description: "Magnetometer tilt compensation"
+  files:
+    - path: "core/sensors/environment.py"
+      object: "mag_tilt_compensate"
+  tests:
+    - "tests/core/sensors/test_sensors_environment.py"
+  notes: "mag_h = R_y(-pitch)·R_x(-roll)·mag_b. Projects to horizontal plane."
+
+- eq: "Eq. (6.54)"
+  chapter: 6
+  description: "Barometric altitude from pressure"
+  files:
+    - path: "core/sensors/environment.py"
+      object: "pressure_to_altitude"
+    - path: "ch6_dead_reckoning/example_environment.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_environment.py"
+  notes: "h = (T/L)(1 - (p/p₀)^α). International barometric formula."
+
+- eq: "Eq. (6.55)"
+  chapter: 6
+  description: "Exponential smoothing filter"
+  files:
+    - path: "core/sensors/environment.py"
+      object: "smooth_measurement_simple"
+  tests:
+    - "tests/core/sensors/test_sensors_environment.py"
+  notes: "x_k = (1-α)x_{k-1} + αz_k. Simple low-pass filter."
+
+# ------------------------------------------------------------------------------
+# IMU Calibration
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (6.56)-(6.58)"
+  chapter: 6
+  description: "Allan variance for IMU noise characterization"
+  files:
+    - path: "core/sensors/calibration.py"
+      object: "allan_variance"
+    - path: "core/sensors/calibration.py"
+      object: "characterize_imu_noise"
+    - path: "ch6_dead_reckoning/example_allan_variance.py"
+      object: "main"
+  tests:
+    - "tests/core/sensors/test_sensors_calibration.py"
+  notes: "σ²(τ) = ½E[(θ̄_{k+1} - θ̄_k)²]. Identifies ARW, bias instability, RRW."
+
+- eq: "Eq. (6.59)"
+  chapter: 6
+  description: "IMU scale factor and misalignment correction"
+  files:
+    - path: "core/sensors/imu_models.py"
+      object: "apply_imu_scale_misalignment"
+  tests:
+    - "tests/core/sensors/test_sensors_imu_models.py"
+  notes: "u_corrected = M·S·(u_meas - b). Full sensor error model."
 
 # ==============================================================================
 # Chapter 7: SLAM Technologies
@@ -602,7 +1139,127 @@
   notes: "Core 2D transformation algebra for SLAM. Pose = [x, y, yaw]. Operations: compose (⊕), inverse (⁻¹), apply to points, relative pose."
 
 # ==============================================================================
-# Chapter 8: Sensor Fusion (Placeholder)
+# Chapter 8: Sensor Fusion
 # ==============================================================================
-# To be added when Chapter 8 sensor fusion is implemented
 
+# ------------------------------------------------------------------------------
+# Innovation Monitoring and Gating
+# ------------------------------------------------------------------------------
+
+- eq: "Eqs. (8.5)-(8.6)"
+  chapter: 8
+  description: "Innovation (measurement residual) computation"
+  files:
+    - path: "core/fusion/gating.py"
+      object: "compute_innovation"
+    - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
+      object: "main"
+  tests:
+    - "tests/core/fusion/test_fusion_gating.py"
+  notes: "Innovation: ν = z - h(x̄). Innovation covariance: S = HPH' + R."
+
+- eq: "Eq. (8.9)"
+  chapter: 8
+  description: "Chi-square innovation gating"
+  files:
+    - path: "core/fusion/gating.py"
+      object: "chi_square_gate"
+    - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
+      object: "main"
+  tests:
+    - "tests/core/fusion/test_fusion_gating.py"
+  notes: "Test statistic: γ = ν'S⁻¹ν ~ χ²(m). Rejects measurements exceeding threshold."
+
+# ------------------------------------------------------------------------------
+# Tightly Coupled Fusion
+# ------------------------------------------------------------------------------
+
+- eq: "TC IMU+UWB Fusion"
+  chapter: 8
+  description: "Tightly coupled IMU + UWB range fusion"
+  files:
+    - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
+      object: "main"
+    - path: "ch8_sensor_fusion/tc_models.py"
+      object: "create_process_model"
+    - path: "ch8_sensor_fusion/tc_models.py"
+      object: "create_uwb_range_measurement_model"
+  tests:
+    - "tests/core/fusion/test_fusion_types.py"
+  notes: "Fuses raw UWB range measurements directly. 5D state: [px, py, vx, vy, yaw]."
+
+# ------------------------------------------------------------------------------
+# Loosely Coupled Fusion
+# ------------------------------------------------------------------------------
+
+- eq: "LC IMU+UWB Fusion"
+  chapter: 8
+  description: "Loosely coupled IMU + UWB position fusion"
+  files:
+    - path: "ch8_sensor_fusion/lc_uwb_imu_ekf.py"
+      object: "main"
+    - path: "ch8_sensor_fusion/lc_models.py"
+      object: "create_process_model"
+    - path: "ch8_sensor_fusion/lc_models.py"
+      object: "create_position_measurement_model"
+  tests:
+    - "tests/core/fusion/test_fusion_types.py"
+  notes: "Fuses pre-computed UWB position fixes. Simpler than TC but loses information."
+
+# ------------------------------------------------------------------------------
+# LC vs TC Comparison
+# ------------------------------------------------------------------------------
+
+- eq: "LC vs TC Comparison"
+  chapter: 8
+  description: "Comparison tool for loosely vs tightly coupled fusion"
+  files:
+    - path: "ch8_sensor_fusion/compare_lc_tc.py"
+      object: "main"
+  tests:
+    - "tests/core/fusion/test_fusion_types.py"
+  notes: "Demonstrates advantages of TC: better accuracy with partial observations, natural multi-rate handling."
+
+# ------------------------------------------------------------------------------
+# Observability Analysis
+# ------------------------------------------------------------------------------
+
+- eq: "Observability Analysis"
+  chapter: 8
+  description: "Observability Gramian and rank analysis"
+  files:
+    - path: "ch8_sensor_fusion/observability_demo.py"
+      object: "main"
+  tests:
+    - "tests/core/fusion/test_fusion_types.py"
+  notes: "Demonstrates observable vs unobservable states for different anchor configurations."
+
+# ------------------------------------------------------------------------------
+# Robust Measurement Handling
+# ------------------------------------------------------------------------------
+
+- eq: "Robust Fusion"
+  chapter: 8
+  description: "Robust measurement down-weighting for NLOS"
+  files:
+    - path: "ch8_sensor_fusion/tuning_robust_demo.py"
+      object: "main"
+    - path: "core/fusion/tuning.py"
+      object: "huber_weight"
+  tests:
+    - "tests/core/fusion/test_fusion_tuning.py"
+  notes: "Huber-based down-weighting for outlier measurements. Handles NLOS bias."
+
+# ------------------------------------------------------------------------------
+# Temporal Calibration
+# ------------------------------------------------------------------------------
+
+- eq: "Temporal Calibration"
+  chapter: 8
+  description: "Time offset estimation between sensors"
+  files:
+    - path: "ch8_sensor_fusion/temporal_calibration_demo.py"
+      object: "main"
+  tests:
+    - "tests/core/fusion/test_fusion_types.py"
+  notes: "Demonstrates effect of time synchronization errors and calibration methods."
