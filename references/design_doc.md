@@ -1944,6 +1944,14 @@ Reproducible (fixed seeds, recorded configs).
 
 Clearly licensed (e.g. CC-BY-4.0) and documented in docs/data.md.
 
+**Student-accessible and well-documented** (Section 5.3):
+
+Every dataset family must have a README.md explaining purpose, parameters, and usage.
+
+Every generation script must have CLI interface and parameter documentation.
+
+Parameter effects on algorithm performance must be documented for learning purposes.
+
 5.2 Dataset Families
 
 Planned families under data/sim/:
@@ -2084,7 +2092,448 @@ Coordinate frames: clearly defined, link to core/coords.
 
 Ground truth semantics.
 
-5.3 Optional Real Data
+5.3 Dataset Documentation Standards
+
+To enable student learning and experimentation, all simulation datasets and generation tools must follow these documentation standards:
+
+5.3.1 data/sim/README.md (Dataset Catalog)
+
+This file must be the entry point for students exploring simulation data. Required sections:
+
+**Overview**
+
+Purpose of simulation datasets in the IPIN learning context.
+
+How datasets connect to book chapters and algorithms.
+
+**Available Datasets Table**
+
+| Dataset | Purpose | Sensors | Key Parameters | Used In | Generation Script |
+|---------|---------|---------|----------------|---------|-------------------|
+| `fusion_2d_imu_uwb/` | Baseline fusion | IMU + UWB | No bias, no offset | Ch8 TC/LC | `scripts/generate_fusion_2d_imu_uwb_dataset.py` |
+| `wifi_fingerprint_grid/` | Fingerprinting | Wi-Fi RSS | 8 APs, 3 floors | Ch5 kNN/MAP | `scripts/generate_wifi_fingerprint_dataset.py` |
+
+**File Format Reference**
+
+Python code examples showing how to load each dataset format (.npz, .json, .csv).
+
+Explanation of coordinate frames and units.
+
+**Quick Start**
+
+Step-by-step instructions for loading and visualizing a dataset.
+
+Example code snippets for common operations.
+
+**Parameter Effects Guide**
+
+Table explaining how key parameters affect algorithm performance:
+
+| Parameter | Range | Effect on Filter/Algorithm |
+|-----------|-------|----------------------------|
+| `accel_noise_std` | 0.01-1.0 | Higher = more velocity drift in IMU integration |
+| `range_noise_std` | 0.01-0.5 | Higher = noisier UWB fixes, more gating rejections |
+| `nlos_bias` | 0-2.0 | Positive bias on affected anchors |
+
+**Generating Custom Datasets**
+
+Pointer to `scripts/README.md` for generation instructions.
+
+5.3.2 Per-Dataset README (e.g., data/sim/fusion_2d_imu_uwb/README.md)
+
+Each dataset folder should contain a README.md with:
+
+**Dataset Description**
+
+Scenario overview (e.g., "2D rectangular walking trajectory with IMU + UWB ranging").
+
+Learning objectives: what students should learn from this dataset.
+
+**Files Included**
+
+List and describe each file:
+- `truth.npz`: Ground truth (t, p_xy, v_xy, yaw)
+- `imu.npz`: IMU measurements (t, accel_xy, gyro_z)
+- `uwb_anchors.npy`: UWB anchor positions
+- `uwb_ranges.npz`: UWB range measurements (with NaN for dropouts)
+- `config.json`: Dataset configuration parameters
+
+**Loading Example**
+
+```python
+import numpy as np
+import json
+
+# Load ground truth
+truth = np.load('data/sim/fusion_2d_imu_uwb/truth.npz')
+t = truth['t']          # (6000,) timestamps
+p_xy = truth['p_xy']    # (6000, 2) positions
+
+# Load configuration
+with open('data/sim/fusion_2d_imu_uwb/config.json') as f:
+    config = json.load(f)
+```
+
+**Configuration Parameters**
+
+Detailed explanation of each parameter in `config.json`:
+- Purpose and typical range
+- Effect on data characteristics
+- Relationship to book equations
+
+**Visualization Example**
+
+Code snippet to visualize the trajectory and sensor data.
+
+**Connection to Book**
+
+Which chapter(s) and equations this dataset is designed to demonstrate.
+
+Related example scripts in `chX_*/` folders.
+
+**Variants**
+
+If multiple variants exist (e.g., baseline, NLOS, time offset), explain:
+- Purpose of each variant
+- Key parameter differences
+- When to use each variant for learning
+
+5.3.3 scripts/README.md (Data Generation Guide)
+
+This file must enable students to generate custom datasets for experimentation. Required sections:
+
+**Overview**
+
+Purpose: Allow students to explore parameter sensitivity.
+
+Prerequisites: Python environment setup.
+
+**Quick Start**
+
+```bash
+# Generate default datasets
+python scripts/generate_fusion_2d_imu_uwb_dataset.py
+
+# Generate with custom parameters
+python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    --accel-noise 0.5 \
+    --output data/sim/my_experiment
+```
+
+**Generation Scripts Inventory**
+
+Table of all generation scripts:
+
+| Script | Generates | Key Parameters | Typical Use |
+|--------|-----------|----------------|-------------|
+| `generate_fusion_2d_imu_uwb_dataset.py` | IMU + UWB fusion data | noise levels, NLOS, time offset | Ch8 fusion experiments |
+| `generate_wifi_fingerprint_dataset.py` | Wi-Fi RSS fingerprint DB | grid spacing, AP count, floors | Ch5 fingerprinting experiments |
+
+**Parameter Reference**
+
+For each major generation script, provide a parameter table:
+
+**generate_fusion_2d_imu_uwb_dataset.py Parameters**
+
+| Parameter | Default | Range | Description | Impact on Learning |
+|-----------|---------|-------|-------------|-------------------|
+| `--duration` | 60.0 | 10-300 | Trajectory duration (sec) | Longer = more drift accumulation |
+| `--accel-noise` | 0.1 | 0.01-1.0 | Accelerometer noise σ (m/s²) | Higher = faster velocity drift |
+| `--gyro-noise` | 0.01 | 0.001-0.1 | Gyroscope noise σ (rad/s) | Higher = faster heading drift |
+| `--range-noise` | 0.05 | 0.01-0.5 | UWB range noise σ (m) | Higher = noisier position fixes |
+| `--nlos-anchors` | [] | [0-3] | NLOS anchor indices | Tests robustness to biased measurements |
+| `--nlos-bias` | 0.5 | 0-2.0 | NLOS positive bias (m) | Larger = more severe outliers |
+| `--dropout-rate` | 0.05 | 0-0.5 | Measurement dropout probability | Tests missing data handling |
+| `--time-offset` | 0.0 | -0.5 to 0.5 | Sensor time offset (sec) | Tests temporal calibration |
+
+**Experimentation Scenarios**
+
+Provide ready-to-use command examples for common learning experiments:
+
+**Scenario 1: Effect of IMU Noise on Drift**
+
+```bash
+# Low noise (tactical-grade IMU)
+python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    --output data/sim/experiment_low_noise \
+    --accel-noise 0.01 --gyro-noise 0.001
+
+# Medium noise (consumer-grade IMU)
+python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    --output data/sim/experiment_med_noise \
+    --accel-noise 0.1 --gyro-noise 0.01
+
+# High noise (degraded IMU)
+python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    --output data/sim/experiment_high_noise \
+    --accel-noise 0.5 --gyro-noise 0.05
+
+# Compare results:
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/experiment_low_noise
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/experiment_med_noise
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/experiment_high_noise
+```
+
+Expected learning outcome: Students observe how IMU noise propagates to position drift over time.
+
+**Scenario 2: NLOS Severity Study**
+
+```bash
+for bias in 0.2 0.5 1.0 2.0; do
+    python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+        --output data/sim/nlos_bias_${bias} \
+        --nlos-anchors 1 2 --nlos-bias $bias
+done
+
+# Compare robustness with and without gating
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+    --data data/sim/nlos_bias_0.5 --no-gating
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+    --data data/sim/nlos_bias_0.5  # default uses gating
+```
+
+Expected learning outcome: Students see how chi-square gating rejects NLOS outliers.
+
+**Scenario 3: Temporal Calibration Impact**
+
+```bash
+# Generate dataset with time offset
+python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    --output data/sim/time_offset_50ms \
+    --time-offset -0.05
+
+# Run without correction (degraded performance)
+python -m ch8_sensor_fusion.temporal_calibration_demo \
+    --data data/sim/time_offset_50ms --no-correction
+
+# Run with correction (recovered performance)
+python -m ch8_sensor_fusion.temporal_calibration_demo \
+    --data data/sim/time_offset_50ms
+```
+
+Expected learning outcome: Students understand importance of temporal synchronization.
+
+**Adding CLI to Generation Scripts**
+
+All generation scripts must support command-line arguments using `argparse`:
+
+```python
+import argparse
+
+def main():
+    parser = argparse.ArgumentParser(
+        description="Generate 2D IMU + UWB fusion dataset for Chapter 8"
+    )
+    
+    # Trajectory parameters
+    parser.add_argument('--duration', type=float, default=60.0,
+                       help='Trajectory duration (seconds)')
+    parser.add_argument('--speed', type=float, default=1.0,
+                       help='Walking speed (m/s)')
+    
+    # IMU parameters
+    parser.add_argument('--accel-noise', type=float, default=0.1,
+                       help='Accelerometer noise std (m/s²)')
+    parser.add_argument('--gyro-noise', type=float, default=0.01,
+                       help='Gyroscope noise std (rad/s)')
+    
+    # UWB parameters
+    parser.add_argument('--range-noise', type=float, default=0.05,
+                       help='UWB range noise std (meters)')
+    parser.add_argument('--nlos-anchors', type=int, nargs='*', default=[],
+                       help='List of NLOS anchor indices (e.g., 1 2)')
+    parser.add_argument('--nlos-bias', type=float, default=0.5,
+                       help='NLOS positive bias (meters)')
+    parser.add_argument('--dropout-rate', type=float, default=0.05,
+                       help='Measurement dropout probability [0-1]')
+    
+    # Temporal calibration
+    parser.add_argument('--time-offset', type=float, default=0.0,
+                       help='Sensor time offset (seconds)')
+    
+    # Output
+    parser.add_argument('--output', type=str, 
+                       default='data/sim/fusion_2d_imu_uwb',
+                       help='Output directory')
+    parser.add_argument('--seed', type=int, default=42,
+                       help='Random seed for reproducibility')
+    
+    args = parser.parse_args()
+    
+    generate_fusion_2d_imu_uwb_dataset(
+        output_dir=args.output,
+        seed=args.seed,
+        duration=args.duration,
+        speed=args.speed,
+        accel_noise_std=args.accel_noise,
+        gyro_noise_std=args.gyro_noise,
+        range_noise_std=args.range_noise,
+        nlos_anchors=args.nlos_anchors,
+        nlos_bias=args.nlos_bias,
+        dropout_rate=args.dropout_rate,
+        time_offset_sec=args.time_offset
+    )
+
+if __name__ == "__main__":
+    main()
+```
+
+**Troubleshooting**
+
+Common issues students may encounter:
+- Import errors → check package installation
+- Memory errors → reduce duration or sampling rate
+- Slow generation → expected for large datasets
+
+5.3.4 docs/data_simulation_guide.md (Comprehensive Learning Guide)
+
+Create a standalone learning guide that bridges theory and practice:
+
+**Purpose**
+
+Connect book equations to simulation parameters.
+
+Guide students through systematic parameter sensitivity experiments.
+
+Provide interpretation frameworks for experimental results.
+
+**Theory-to-Simulation Mapping**
+
+For each major concept, show the connection:
+
+**IMU Error Models (Ch6, Eqs. 6.5-6.9)**
+
+Book equations:
+- Gyro error model: ω̃ = ω + b_g + n_g (Eq. 6.5)
+- Accel error model: f̃ = f + b_a + n_a (similar to Eq. 6.9)
+
+Simulation parameters:
+- `gyro_noise_std`: σ_g for white noise n_g
+- `accel_noise_std`: σ_a for white noise n_a
+- `gyro_bias`: constant bias b_g
+- `accel_bias`: constant bias b_a
+
+Expected behavior:
+- Gyro noise → heading drift accumulation
+- Accel noise → velocity and position drift
+- Bias → systematic drift (unbounded without corrections)
+
+**NLOS Bias (Ch4, RF challenges)**
+
+Book concept: Non-line-of-sight propagation adds positive bias to range measurements.
+
+Simulation parameters:
+- `nlos_anchors`: which anchors are affected
+- `nlos_bias`: magnitude of positive bias (meters)
+
+Expected behavior:
+- Unmitigated: systematic position bias
+- With chi-square gating (Ch8): outlier rejection
+- With robust loss (Ch8): down-weighting
+
+**Step-by-Step Experiment Guides**
+
+**Experiment 1: IMU Drift Characterization**
+
+Objective: Understand how IMU noise propagates to position error over time.
+
+Setup:
+1. Generate three datasets with different noise levels
+2. Run pure IMU strapdown integration (no corrections)
+3. Compare position error vs. time
+
+Commands: [provided]
+
+Analysis:
+- Plot position RMSE vs. time for all three cases
+- Compute drift rate (m/s) from linear fit
+- Verify relationship: higher noise → faster drift
+
+Key insight: IMU-only positioning is unbounded without corrections (Ch6 finding).
+
+**Experiment 2: Filter Tuning Sensitivity**
+
+Objective: Understand impact of measurement covariance on fusion performance.
+
+Setup:
+1. Use fixed dataset (baseline fusion_2d_imu_uwb)
+2. Run TC fusion with different R scaling factors
+3. Monitor NIS and position accuracy
+
+Expected observations:
+- Under-estimated R (scaling < 1): overconfident, possible divergence
+- Correctly estimated R (scaling = 1): consistent, optimal
+- Over-estimated R (scaling > 1): conservative, suboptimal
+
+Key insight: Proper covariance tuning is critical (Ch8, Section 8.3).
+
+**Parameter Sensitivity Reference Tables**
+
+Provide quick-reference tables for all major parameters showing:
+- Typical ranges for different sensor grades
+- Expected impact on algorithm metrics (RMSE, drift rate, etc.)
+- Recommended values for different learning scenarios
+
+**Common Student Questions**
+
+Q: How do I choose realistic noise parameters?
+A: [guidance on sensor datasheets, Allan variance, typical ranges]
+
+Q: Why does my filter diverge with low measurement noise?
+A: [explanation of over-confidence and innovation monitoring]
+
+Q: How much data do I need for reliable conclusions?
+A: [guidance on trajectory length, statistical significance]
+
+5.3.5 Visualization and Analysis Tools
+
+To support student experimentation, provide helper scripts in `tools/`:
+
+**tools/plot_dataset_overview.py**
+
+Generate summary visualizations for any dataset:
+- Trajectory plot with sensor positions
+- Sensor measurement timelines
+- Noise characteristics (histograms, Allan variance)
+
+Usage:
+```bash
+python tools/plot_dataset_overview.py data/sim/fusion_2d_imu_uwb
+```
+
+**tools/compare_dataset_variants.py**
+
+Compare parameter effects across multiple datasets:
+- Side-by-side trajectory plots
+- Parameter impact tables
+- Performance metric summaries
+
+Usage:
+```bash
+python tools/compare_dataset_variants.py \
+    data/sim/fusion_2d_imu_uwb \
+    data/sim/fusion_2d_imu_uwb_nlos \
+    data/sim/fusion_2d_imu_uwb_timeoffset
+```
+
+5.3.6 Implementation Ownership (Dataset Documentation)
+
+Navigation engineer responsibilities:
+
+- Define parameter ranges and typical values for each sensor type.
+- Write theory-to-simulation mapping sections.
+- Design experimentation scenarios with clear learning outcomes.
+- Validate that parameter effects match theoretical predictions.
+
+Software engineer responsibilities:
+
+- Implement CLI interfaces for all generation scripts.
+- Create dataset loading utility functions and examples.
+- Build visualization and comparison tools.
+- Ensure all documentation examples run correctly.
+- Maintain consistency across all dataset READMEs.
+
+5.4 Optional Real Data
 
 data/real/ may contain small demo logs (not full research datasets) to show real-world quirks.
 
@@ -2669,6 +3118,50 @@ Verify LS/I-WLS/OVE/3D PLE solutions converge within tolerance in a nominal AOA 
 
 These tests ensure the wiring between datasets, core/ models, and Chapter-4 examples remains intact.
 
+7.3.5 Dataset Documentation Requirements (Chapter 4)
+
+Following Section 5.3 standards, Chapter 4 must include:
+
+**data/sim/rf_2d_floor/README.md**
+
+Must document:
+- Beacon/anchor placement rationale and DOP implications
+- RF measurement types available (TOA, TDOA, AOA, RSS)
+- Noise model parameters and typical ranges
+- NLOS bias injection for RF challenges demo
+- Loading examples for each measurement type
+
+Parameter effects table:
+| Parameter | Range | Effect on Positioning |
+|-----------|-------|----------------------|
+| `timing_noise_std` | 1-50 ns | Directly propagates to range error (× c) |
+| `rss_sigma` | 2-10 dBm | Larger = more variable RSS-based ranging |
+| `nlos_bias` | 0-5 m | Positive bias on affected beacons |
+| `beacon_geometry` | varies | Poor geometry → high DOP → amplified errors |
+
+**scripts/generate_rf_2d_floor_dataset.py** (if not yet implemented)
+
+Must support CLI for:
+- Number and placement of beacons (geometry experiments)
+- Trajectory type (static grid, moving paths)
+- Noise levels for each RF measurement type
+- NLOS beacon selection
+
+Example experimentation scenario:
+```bash
+# Study DOP impact: clustered vs distributed beacons
+python scripts/generate_rf_2d_floor_dataset.py \
+    --beacon-layout clustered --output data/sim/rf_high_dop
+
+python scripts/generate_rf_2d_floor_dataset.py \
+    --beacon-layout distributed --output data/sim/rf_low_dop
+```
+
+Connection to book:
+- Beacon geometry → DOP (Ch4, Section 4.1)
+- Timing noise → TOA accuracy (Ch4, Eqs. 4.1-4.3)
+- NLOS modeling → RF challenges (Ch4, Section 4.5)
+
 7.4 ch5_fingerprinting/
 7.4.1 Goals
 
@@ -2894,6 +3387,57 @@ core.rf and core.sim (to generate synthetic fingerprints for wifi_fingerprint_gr
 core.eval for metrics and visualization.
 
 data/sim/wifi_fingerprint_grid/.
+
+7.4.7 Dataset Documentation Requirements (Chapter 5)
+
+Following Section 5.3 standards, Chapter 5 must include:
+
+**data/sim/wifi_fingerprint_grid/README.md**
+
+Must document:
+- Fingerprint database structure (reference points, features, metadata)
+- Path-loss model parameters and multi-floor attenuation
+- AP placement strategy and coverage characteristics
+- Loading examples for deterministic and probabilistic methods
+- Query trajectory generation for evaluation
+
+Parameter effects table:
+| Parameter | Range | Effect on Fingerprinting |
+|-----------|-------|--------------------------|
+| `grid_spacing` | 1-10 m | Finer grid → better resolution but more data |
+| `n_aps` | 4-20 | More APs → better uniqueness, less ambiguity |
+| `shadow_fading_std` | 2-8 dBm | Higher → more variable RSS, harder matching |
+| `floor_attenuation` | 10-20 dB | Affects cross-floor discrimination |
+
+**scripts/generate_wifi_fingerprint_dataset.py** enhancement
+
+Must support CLI for:
+- Grid spacing and area size
+- Number and placement of APs
+- Path-loss parameters (exponent, shadow fading)
+- Number of floors and floor height
+- Number of RSS samples per reference point (for probabilistic methods)
+
+Example experimentation scenario:
+```bash
+# Study AP density impact
+python scripts/generate_wifi_fingerprint_dataset.py \
+    --n-aps 4 --output data/sim/wifi_sparse_aps
+
+python scripts/generate_wifi_fingerprint_dataset.py \
+    --n-aps 12 --output data/sim/wifi_dense_aps
+
+# Compare k-NN performance
+python -m ch5_fingerprinting.example_deterministic \
+    --data data/sim/wifi_sparse_aps
+python -m ch5_fingerprinting.example_deterministic \
+    --data data/sim/wifi_dense_aps
+```
+
+Connection to book:
+- Grid resolution → NN/k-NN accuracy (Ch5, Eqs. 5.1-5.2)
+- RSS variance → probabilistic uncertainty (Ch5, Eqs. 5.3-5.5)
+- AP coverage → feature uniqueness
 
 7.5 ch6_dead_reckoning/
 
@@ -3194,6 +3738,74 @@ Eq. (6.60) → core/sensors/constraints.py::ZaruMeasurementModel
 
 Eq. (6.61) → core/sensors/constraints.py::NhcMeasurementModel
 
+7.5.7 Dataset Documentation Requirements (Chapter 6)
+
+Following Section 5.3 standards, Chapter 6 must include READMEs for all dataset families:
+
+**data/sim/ch6_strapdown_basic/README.md**
+
+Parameter effects table:
+| Parameter | Range | Effect on Strapdown |
+|-----------|-------|---------------------|
+| `gyro_bias` | 0-0.1 rad/s | Causes heading drift proportional to bias × time |
+| `accel_bias` | 0-0.5 m/s² | Causes velocity drift → quadratic position drift |
+| `gyro_noise_std` | 0.001-0.1 rad/s | Random walk in heading |
+| `accel_noise_std` | 0.01-1.0 m/s² | Random walk in velocity and position |
+
+Expected learning: IMU drift is unbounded without corrections (Ch6 key insight).
+
+**data/sim/ch6_wheel_odom_square/README.md**
+
+Parameter effects:
+| Parameter | Range | Effect |
+|-----------|-------|--------|
+| `wheel_noise_std` | 0.01-0.2 m/s | Odometry drift rate |
+| `lever_arm_error` | 0-0.5 m | Systematic error during turns |
+| `slip_segments` | varies | Failure mode demonstration |
+
+**data/sim/ch6_foot_zupt_walk/README.md**
+
+Must document ZUPT detector thresholds (δ_ω, δ_f from Eq. 6.44):
+| Parameter | Range | Effect |
+|-----------|-------|--------|
+| `delta_omega` | 0.1-0.5 rad/s | Lower → more ZUPT detections (may include false positives) |
+| `delta_f` | 0.5-2.0 m/s² | Lower → more ZUPT detections |
+
+Expected learning: ZUPT dramatically reduces drift during stance phases.
+
+**data/sim/ch6_pdr_corridor_walk/README.md**
+
+Parameter effects:
+| Parameter | Range | Effect on PDR |
+|-----------|-------|---------------|
+| `user_height` | 1.5-2.0 m | Affects step length model (Eq. 6.49) |
+| `step_length_params` (a,b,c) | varies | Personal calibration factors |
+| `heading_source` | gyro/mag | Gyro drifts; mag has disturbances |
+
+**data/sim/ch6_env_sensors_heading_altitude/README.md**
+
+Documents magnetometer disturbance segments and barometer drift characteristics.
+
+**Generation script requirements**
+
+All ch6 dataset generation scripts must support CLI for IMU grade selection:
+
+```bash
+python scripts/generate_ch6_strapdown_dataset.py \
+    --imu-grade tactical \  # presets: tactical, consumer, mems
+    --output data/sim/my_strapdown_test
+
+# Or custom parameters:
+python scripts/generate_ch6_strapdown_dataset.py \
+    --gyro-noise 0.05 --accel-noise 0.3 \
+    --output data/sim/my_custom_imu
+```
+
+Connection to book:
+- Noise parameters → Allan variance characterization (Ch6, Eqs. 6.56-6.58)
+- Drift behavior → Error propagation analysis (Ch6, Sections 6.1-6.2)
+- ZUPT effectiveness → Constraint-based correction (Ch6, Eqs. 6.44-6.45)
+
 
 7.6 ch7_slam/
 7.6.1 Goals
@@ -3457,6 +4069,74 @@ tests/ch7/test_pose_graph_loop_closure_smoke.py
 
 tests/ch7/test_bundle_adjustment_smoke.py
 - BA decreases reprojection RMS and reduces pose error on a small synthetic problem.
+
+7.6.10 Dataset Documentation Requirements (Chapter 7)
+
+Following Section 5.3 standards, Chapter 7 must include:
+
+**data/sim/slam_lidar2d/README.md**
+
+Must document:
+- Map structure and occupancy grid format
+- Scan generation process and coordinate frames
+- Loop closure constraint format
+- Noise characteristics and outlier injection
+
+Parameter effects table:
+| Parameter | Range | Effect on SLAM |
+|-----------|-------|----------------|
+| `correspondence_epsilon` | 0.1-1.0 m | ICP correspondence threshold (Eq. 7.11) |
+| `outlier_rate` | 0-0.3 | Tests robustness of scan matching |
+| `scan_noise` | 0.01-0.1 m | Point measurement noise |
+| `loop_closure_rate` | varies | Global drift reduction |
+
+**data/sim/slam_visual_bearing2d/README.md**
+
+Must document:
+- Camera intrinsics and distortion parameters (Eqs. 7.43-7.46)
+- Landmark distribution and visibility
+- Observation noise characteristics
+- Bundle adjustment problem structure
+
+Parameter effects:
+| Parameter | Range | Effect on BA |
+|-----------|-------|--------------|
+| `pixel_noise_std` | 0.5-5.0 px | Measurement uncertainty |
+| `n_landmarks` | 10-100 | Observability and conditioning |
+| `outlier_rate` | 0-0.2 | Tests robust kernels |
+
+**Generation script requirements**
+
+```bash
+# Generate SLAM datasets with varying difficulty
+python scripts/generate_slam_lidar2d_dataset.py \
+    --outlier-rate 0.1 \
+    --scan-noise 0.05 \
+    --output data/sim/slam_lidar_moderate
+
+python scripts/generate_slam_lidar2d_dataset.py \
+    --outlier-rate 0.3 \
+    --scan-noise 0.1 \
+    --output data/sim/slam_lidar_hard
+```
+
+Experimentation scenario:
+```bash
+# Study loop closure impact
+python -m ch7_slam.pose_graph_loop_closure \
+    --data data/sim/slam_lidar2d \
+    --no-loop-closure  # odometry-only
+
+python -m ch7_slam.pose_graph_loop_closure \
+    --data data/sim/slam_lidar2d  # with loop closure
+```
+
+Expected learning: Loop closure dramatically reduces accumulated drift.
+
+Connection to book:
+- Correspondence gating → Eq. 7.11
+- NDT voxel parameters → Eqs. 7.12-7.16
+- Reprojection error → Eqs. 7.68-7.70
 
 
 
@@ -3752,10 +4432,282 @@ Software engineer
 - Ensure every demo logs innovations/NIS and generates the required plots.
 - Add unit tests and keep runtime short.
 
+7.7.13 Dataset Documentation Requirements (Chapter 8)
+
+Following Section 5.3 standards, Chapter 8 fusion datasets must be exceptionally well-documented since they are the primary vehicle for teaching practical fusion concepts.
+
+**data/sim/fusion_2d_imu_uwb/README.md** (Comprehensive Example)
+
+This README must be the gold standard for dataset documentation. Required sections:
+
+**Overview**
+
+Purpose: Demonstrate loosely vs tightly coupled fusion on a realistic 2D scenario.
+
+Learning objectives:
+- Understand multi-rate sensor fusion (100 Hz IMU, 10 Hz UWB)
+- Observe innovation monitoring and chi-square gating (Ch8, Eqs. 8.5-8.9)
+- Compare LC and TC architectures
+- Study parameter sensitivity (noise, dropout, NLOS)
+
+**Scenario Description**
+
+Trajectory: 2D rectangular walking path (20m × 15m)
+Duration: 60 seconds
+Motion: Constant speed (1.0 m/s), 70m perimeter, ~0.86 laps
+
+Sensors:
+- IMU: 100 Hz, 2D accelerometer + 1D gyroscope
+- UWB: 10 Hz, ranges to 4 corner anchors
+- Anchors placed at: (0,0), (20,0), (20,15), (0,15)
+
+**Files and Data Structure**
+
+| File | Shape | Description | Units |
+|------|-------|-------------|-------|
+| `truth.npz` | | Ground truth states | |
+| ├─ `t` | (6000,) | Timestamps | seconds |
+| ├─ `p_xy` | (6000, 2) | 2D positions | meters |
+| ├─ `v_xy` | (6000, 2) | 2D velocities | m/s |
+| └─ `yaw` | (6000,) | Heading angles | radians |
+| `imu.npz` | | IMU measurements | |
+| ├─ `t` | (6000,) | Timestamps | seconds |
+| ├─ `accel_xy` | (6000, 2) | 2D accelerations | m/s² |
+| └─ `gyro_z` | (6000,) | Yaw rates | rad/s |
+| `uwb_anchors.npy` | (4, 2) | Anchor positions | meters |
+| `uwb_ranges.npz` | | UWB measurements | |
+| ├─ `t` | (600,) | Timestamps | seconds |
+| └─ `ranges` | (600, 4) | Ranges (NaN = dropout) | meters |
+| `config.json` | | Configuration params | see below |
+
+**Loading Example**
+
+```python
+import numpy as np
+import json
+
+# Load ground truth
+truth = np.load('data/sim/fusion_2d_imu_uwb/truth.npz')
+t = truth['t']          # (6000,) timestamps
+p_xy = truth['p_xy']    # (6000, 2) positions [x, y]
+v_xy = truth['v_xy']    # (6000, 2) velocities [vx, vy]
+yaw = truth['yaw']      # (6000,) heading angles
+
+# Load IMU
+imu = np.load('data/sim/fusion_2d_imu_uwb/imu.npz')
+t_imu = imu['t']              # (6000,) at 100 Hz
+accel_xy = imu['accel_xy']    # (6000, 2) in body frame
+gyro_z = imu['gyro_z']        # (6000,) in body frame
+
+# Load UWB
+anchors = np.load('data/sim/fusion_2d_imu_uwb/uwb_anchors.npy')  # (4, 2)
+uwb = np.load('data/sim/fusion_2d_imu_uwb/uwb_ranges.npz')
+t_uwb = uwb['t']        # (600,) at 10 Hz
+ranges = uwb['ranges']  # (600, 4), NaN indicates dropout
+
+# Load configuration
+with open('data/sim/fusion_2d_imu_uwb/config.json') as f:
+    config = json.load(f)
+    
+print(f"IMU rate: {config['imu']['rate_hz']} Hz")
+print(f"UWB rate: {config['uwb']['rate_hz']} Hz")
+print(f"IMU accel noise: {config['imu']['accel_noise_std_m_s2']} m/s²")
+print(f"UWB range noise: {config['uwb']['range_noise_std_m']} m")
+```
+
+**Configuration Parameters** (from `config.json`)
+
+IMU parameters:
+- `rate_hz`: 100.0 (sampling rate)
+- `accel_noise_std_m_s2`: 0.1 (white noise σ)
+- `gyro_noise_std_rad_s`: 0.01 (white noise σ)
+- `accel_bias_m_s2`: [0.0, 0.0] (constant bias)
+- `gyro_bias_rad_s`: 0.0 (constant bias)
+
+UWB parameters:
+- `rate_hz`: 10.0 (measurement rate)
+- `n_anchors`: 4
+- `range_noise_std_m`: 0.05 (white noise σ)
+- `nlos_anchors`: [] (list of biased anchor indices)
+- `nlos_bias_m`: 0.5 (positive bias magnitude)
+- `dropout_rate`: 0.05 (probability of missing measurement)
+
+Temporal calibration:
+- `time_offset_sec`: 0.0 (UWB time offset relative to IMU)
+- `clock_drift`: 0.0 (relative clock drift rate)
+
+**Parameter Effects and Learning Experiments**
+
+| Parameter | Default | Experiment Range | Effect on Fusion | Learning Objective |
+|-----------|---------|------------------|------------------|-------------------|
+| `accel_noise_std` | 0.1 | 0.01-0.5 | Higher → IMU velocity drift faster → fusion relies more on UWB | Understand process model uncertainty |
+| `gyro_noise_std` | 0.01 | 0.001-0.05 | Higher → heading drift faster | Observe heading error propagation |
+| `range_noise_std` | 0.05 | 0.01-0.5 | Higher → UWB fixes noisier → EKF trusts IMU more | Understand measurement uncertainty balance |
+| `nlos_anchors` | [] | [1], [1,2] | Introduces systematic bias → tests gating/robust loss | Learn outlier rejection (Ch8, Eqs. 8.8-8.9) |
+| `nlos_bias` | 0.5 | 0.2-2.0 | Larger bias → more rejections by chi-square gate | Quantify gating effectiveness |
+| `dropout_rate` | 0.05 | 0.1-0.3 | More dropouts → longer IMU-only intervals | Understand missing data handling |
+| `time_offset_sec` | 0.0 | -0.1 to 0.1 | Non-zero → systematic residuals → degraded fusion | Learn temporal calibration importance |
+
+**Dataset Variants**
+
+This baseline dataset is accompanied by two variants:
+
+1. **fusion_2d_imu_uwb_nlos/** - NLOS corruption
+   - Anchors 1 and 2 have positive bias (+0.8 m)
+   - Use for robust loss and gating demonstrations
+   - Expected: chi-square gating rejects ~30-50% of NLOS measurements
+
+2. **fusion_2d_imu_uwb_timeoffset/** - Temporal misalignment
+   - UWB 50ms behind IMU (`time_offset_sec = -0.05`)
+   - 100 ppm clock drift (`clock_drift = 0.0001`)
+   - Use for temporal calibration demonstrations
+   - Expected: without correction, position RMSE increases by 50-100%
+
+**Visualization Example**
+
+```python
+import matplotlib.pyplot as plt
+
+# Plot trajectory
+fig, ax = plt.subplots(figsize=(8, 6))
+ax.plot(p_xy[:, 0], p_xy[:, 1], 'k-', label='Ground Truth', linewidth=2)
+ax.scatter(anchors[:, 0], anchors[:, 1], 
+          marker='^', s=200, c='red', 
+          edgecolors='black', linewidths=2,
+          label='UWB Anchors', zorder=10)
+ax.set_xlabel('X [m]')
+ax.set_ylabel('Y [m]')
+ax.set_title('2D Walking Trajectory with UWB Anchors')
+ax.legend()
+ax.grid(True, alpha=0.3)
+ax.axis('equal')
+plt.tight_layout()
+plt.savefig('trajectory_overview.svg')
+```
+
+**Connection to Book Equations**
+
+This dataset is designed to demonstrate:
+- Ch6, Eqs. 6.2-6.10: IMU strapdown integration (propagation)
+- Ch4, Eqs. 4.14-4.23: UWB range-based positioning
+- Ch3, Eqs. 3.21-3.22: EKF prediction and update
+- Ch8, Eq. 8.5: Innovation y = z - h(x)
+- Ch8, Eq. 8.6: Innovation covariance S
+- Ch8, Eqs. 8.8-8.9: Chi-square gating threshold
+
+**Recommended Experiments**
+
+**Experiment 1: LC vs TC Comparison**
+
+```bash
+# Run both architectures on baseline dataset
+python -m ch8_sensor_fusion.lc_uwb_imu_ekf
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf
+python -m ch8_sensor_fusion.compare_lc_tc
+```
+
+Expected observations:
+- TC typically achieves 10-20% better RMSE
+- TC handles dropouts more gracefully (continues with partial updates)
+- TC has higher computational cost (4× more updates per epoch)
+
+**Experiment 2: Gating Effectiveness**
+
+```bash
+# Test on NLOS-corrupted data with/without gating
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+    --data data/sim/fusion_2d_imu_uwb_nlos --no-gating
+
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+    --data data/sim/fusion_2d_imu_uwb_nlos  # gating enabled
+
+# Visualize NIS and rejected measurements
+python -m ch8_sensor_fusion.tuning_robust_demo \
+    --data data/sim/fusion_2d_imu_uwb_nlos
+```
+
+Expected observations:
+- Without gating: NLOS measurements corrupt position estimate
+- With gating: ~30-50% of NLOS measurements rejected
+- NIS plot shows rejected measurements exceeding χ²(α=0.05) threshold
+
+**Experiment 3: Parameter Sensitivity**
+
+Generate custom datasets to study specific effects:
+
+```bash
+# High IMU noise scenario
+python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    --accel-noise 0.5 --gyro-noise 0.05 \
+    --output data/sim/fusion_high_imu_noise
+
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+    --data data/sim/fusion_high_imu_noise
+
+# Result: Fusion relies more heavily on UWB updates,
+# longer IMU-only intervals cause larger prediction uncertainty
+```
+
+**Troubleshooting / Common Student Questions**
+
+Q: Why are there NaN values in the UWB ranges?
+A: These represent measurement dropouts (packet loss, occlusion). The fusion system must handle missing data gracefully.
+
+Q: Why is the IMU rate 100x faster than UWB?
+A: This reflects realistic sensor characteristics. IMU provides high-rate motion prior; UWB provides sparse absolute corrections.
+
+Q: How do I know if my filter is working correctly?
+A: Check:
+1. Position RMSE decreases compared to DR-only
+2. NIS values are statistically consistent (within χ² bounds 95% of time)
+3. Covariance trace decreases after updates, increases during prediction
+
+Q: What if I want 3D instead of 2D?
+A: Modify generation script to include z-axis. Core fusion logic extends naturally to 3D state.
+
+**scripts/generate_fusion_2d_imu_uwb_dataset.py Enhancement**
+
+The generation script must have a comprehensive CLI as documented in Section 5.3.3.
+
+Add preset configurations for common scenarios:
+
+```python
+PRESETS = {
+    'baseline': {
+        'accel_noise': 0.1, 'gyro_noise': 0.01,
+        'range_noise': 0.05, 'nlos_anchors': [], 'dropout_rate': 0.05
+    },
+    'nlos_severe': {
+        'accel_noise': 0.1, 'gyro_noise': 0.01,
+        'range_noise': 0.05, 'nlos_anchors': [1, 2], 'nlos_bias': 1.5, 'dropout_rate': 0.05
+    },
+    'high_dropout': {
+        'accel_noise': 0.1, 'gyro_noise': 0.01,
+        'range_noise': 0.05, 'nlos_anchors': [], 'dropout_rate': 0.3
+    },
+    'degraded_imu': {
+        'accel_noise': 0.5, 'gyro_noise': 0.05,
+        'range_noise': 0.05, 'nlos_anchors': [], 'dropout_rate': 0.05
+    }
+}
+
+# Usage:
+parser.add_argument('--preset', choices=PRESETS.keys(),
+                   help='Use preset configuration')
+```
+
+Example usage:
+```bash
+python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    --preset nlos_severe \
+    --output data/sim/fusion_nlos_severe
+```
+
 For each chapter section, the design doc should separate:
 
 - Core functions reused from core/.
-- Chapter-specific “unique tasks” and plots.
+- Chapter-specific "unique tasks" and plots.
+- **Dataset documentation requirements** (following Section 5.3 standards).
 
 
 8. Non-Functional Requirements
@@ -3847,6 +4799,13 @@ TOA, TDOA (Chan/Fang), AOA demos, and RF challenges notebook.
 
 Add Ch.4 equations to equation_index.yml.
 
+**Dataset documentation deliverables (Section 5.3):**
+
+- Create data/sim/rf_2d_floor/README.md with parameter effects table
+- Add CLI to scripts/generate_rf_2d_floor_dataset.py (if not present)
+- Document beacon geometry impact on DOP
+- Provide experimentation scenarios for students
+
 9.5 Epic 4 – Sensors & Dead Reckoning (Ch.6)
 
 Implement core/sensors detailed in Section 4.4.
@@ -3859,12 +4818,31 @@ Add tests under tests/ch6/.
 
 Update equation_index.yml for Chapter 6 and ensure equation checker passes.
 
+**Dataset documentation deliverables (Section 5.3, 7.5.7):**
+
+- Create READMEs for all ch6 datasets:
+  - data/sim/ch6_strapdown_basic/README.md
+  - data/sim/ch6_wheel_odom_square/README.md
+  - data/sim/ch6_foot_zupt_walk/README.md
+  - data/sim/ch6_pdr_corridor_walk/README.md
+  - data/sim/ch6_env_sensors_heading_altitude/README.md
+- Add CLI with IMU grade presets (tactical, consumer, MEMS)
+- Document parameter-to-drift relationships
+- Provide experimentation scenarios showing constraint effectiveness
+
 9.6 Epic 5 – Fingerprinting (Ch.5)
 
 Implement core/fingerprinting (Section 4.7) + ch5_fingerprinting notebooks (Section 7.4).
 
 - Unit tests for deterministic and probabilistic methods.
 - Add Ch.5 equations to equation_index.yml.
+
+**Dataset documentation deliverables (Section 5.3, 7.4.7):**
+
+- Create data/sim/wifi_fingerprint_grid/README.md
+- Enhance scripts/generate_wifi_fingerprint_dataset.py with CLI
+- Document path-loss model parameters and AP placement strategy
+- Provide experimentation scenarios (grid spacing, AP density impact on k-NN)
 
 9.7 Epic 6 – SLAM (Ch.7)
 
@@ -3879,6 +4857,18 @@ Minimum deliverables
 - Synthetic visual BA example (Eqs. (7.43)–(7.46), (7.68)–(7.70)).
 - Tests under tests/ch7/.
 - Update equation_index.yml for all implemented Chapter-7 equations.
+
+**Dataset documentation deliverables (Section 5.3, 7.6.10):**
+
+- Create data/sim/slam_lidar2d/README.md with:
+  - Scan format and coordinate frames
+  - Loop closure constraint structure
+  - Parameter effects on scan matching (correspondence threshold, noise, outliers)
+- Create data/sim/slam_visual_bearing2d/README.md with:
+  - Camera model documentation (intrinsics, distortion)
+  - Landmark visibility and observation format
+- Add CLI to SLAM dataset generation scripts
+- Provide experimentation scenarios (loop closure impact, outlier robustness)
 
 9.8 Epic 7 – Sensor Fusion (Ch.8)
 
@@ -3912,6 +4902,32 @@ Quality gates
 - Update docs/equation_index.yml for all implemented Chapter-8 equations and ensure equation checker passes.
 - Ensure all scripts run in minutes on a laptop.
 
+**Dataset documentation deliverables (Section 5.3, 7.7.13) - HIGHEST PRIORITY:**
+
+Chapter 8 datasets must be the gold standard for documentation since they demonstrate the most practical concepts for students.
+
+- Create **comprehensive** data/sim/fusion_2d_imu_uwb/README.md:
+  - Complete with all sections from Section 7.7.13 (overview, files, loading examples, parameter effects, variants, experiments)
+  - This README serves as a template for all other dataset documentation
+- Create data/sim/fusion_2d_imu_uwb_nlos/README.md (focus on NLOS handling)
+- Create data/sim/fusion_2d_imu_uwb_timeoffset/README.md (focus on temporal calibration)
+- Enhance scripts/generate_fusion_2d_imu_uwb_dataset.py with:
+  - Full CLI interface with all parameters
+  - Preset configurations (baseline, nlos_severe, high_dropout, degraded_imu)
+  - Parameter validation and user-friendly error messages
+- Update scripts/README.md with comprehensive Ch8 examples:
+  - All three experimentation scenarios from Section 5.3.3
+  - Expected learning outcomes for each scenario
+  - Troubleshooting section for common student issues
+- Create docs/data_simulation_guide.md:
+  - Theory-to-simulation mapping for IMU error models
+  - Theory-to-simulation mapping for NLOS effects
+  - Step-by-step experiment guides (IMU drift, filter tuning, gating effectiveness)
+  - Parameter sensitivity reference tables
+- Create visualization tools:
+  - tools/plot_dataset_overview.py (works with fusion datasets)
+  - tools/compare_dataset_variants.py (compares baseline vs NLOS vs timeoffset)
+
 
 10. Working Effectively: SW vs Navigation Engineers
 
@@ -3932,3 +4948,34 @@ The equation mapping system bridges the two:
 Navigation engineers can check correctness by tracing Eq. → code.
 
 Software engineers can preserve traceability by following docstring + index conventions and the equation checker.
+
+**Dataset documentation bridges learning and practice:**
+
+Navigation engineers:
+- Define parameter ranges that demonstrate key theoretical concepts
+- Write theory-to-simulation mappings connecting book equations to data parameters
+- Design experimentation scenarios with clear learning outcomes
+- Validate that parameter effects match theoretical predictions
+
+Software engineers:
+- Implement CLI interfaces enabling easy parameter exploration
+- Create loading utilities and visualization tools
+- Maintain documentation consistency across all datasets
+- Ensure all documentation examples are tested and working
+
+Students benefit from:
+- READMEs that explain "what" and "why" for each dataset
+- Parameter tables showing cause-and-effect relationships
+- Ready-to-run experimentation scenarios
+- Troubleshooting guides for common issues
+
+**Quality gate for dataset documentation:**
+
+Every dataset must have:
+1. README.md with all required sections (Section 5.3)
+2. Generation script with CLI interface
+3. At least 2 experimentation scenarios in scripts/README.md
+4. Parameter effects table with learning objectives
+5. Working code examples for loading and visualization
+
+This documentation is **not optional** – it is how students learn to manipulate simulation parameters and observe algorithm behavior, which is a core learning objective of this repository.
