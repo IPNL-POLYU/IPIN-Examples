@@ -2134,8 +2134,10 @@ def linear_least_squares(A: np.ndarray, b: np.ndarray) -> np.ndarray:
     """
     Solve the linear least squares problem x* = argmin ||Ax - b||_2.
 
-    Implements Eq. (3.12) in Chapter 3 of the book:
-        x* = (A^T A)^{-1} A^T b
+    Implements Eqs. (3.2)–(3.3) in Chapter 3 of the book:
+    - Normal equations: (A^T A) x* = A^T b   (Eq. (3.2))
+    - Closed-form solution: x* = (A^T A)^{-1} A^T b   (Eq. (3.3))
+
     """
     ...
 
@@ -2146,10 +2148,9 @@ def predict(self, u: np.ndarray) -> None:
     """
     Extended Kalman filter prediction step.
 
-    Implements Eqs. (3.25)–(3.27) in Chapter 3:
-        - State propagation: Eq. (3.25)
-        - Jacobian: Eq. (3.26)
-        - Covariance propagation: Eq. (3.27)
+    Implements Eqs. (3.21)–(3.22) in Chapter 3:
+    - Nonlinear process model definition: Eq. (3.21)
+    - EKF prediction (state + covariance propagation using the Jacobian F): Eq. (3.22)
     """
     ...
 
@@ -2158,7 +2159,7 @@ Line-level comments
 
 If a specific line encodes an equation:
 
-# Eq. (3.27): P_{k|k-1} = F_k P_{k-1|k-1} F_k^T + Q_k
+# Eq. (3.22): P_k^- = F_{k-1} P_{k-1} F_{k-1}^T + Q
 P_pred = F @ P @ F.T + Q
 
 
@@ -2193,9 +2194,9 @@ YAML structure (example):
   tests:
     - "tests/test_coords.py::test_ecef_enu_roundtrip"
 
-- eq: "Eq. (3.12)"
+- eq: "Eq. (3.3)"
   chapter: 3
-  description: "Linear least squares closed form"
+  description: "Linear least squares closed-form solution"
   files:
     - path: "core/estimators/least_squares.py"
       object: "linear_least_squares"
