@@ -119,32 +119,84 @@ print(f"||q|| = {np.linalg.norm(q):.6f}")  # Should be 1.0
 When you run the demonstration script, you should see output similar to:
 
 ```
-================================================================================
-Chapter 2: Coordinate Systems and Transformations
-================================================================================
+======================================================================
+Chapter 2: Coordinate Transformation Examples
+======================================================================
 
-1. LLH to ECEF Transformation (Eq. 2.1)
-   Input:  lat=37.7749°, lon=-122.4194°, height=0.0m
-   Output: ECEF = [-2694044.41, -4266368.81, 3888310.05] m
+1. LLH to ECEF Transformation
+----------------------------------------------------------------------
+Location: San Francisco
+  Latitude:  37.7749°
+  Longitude: -122.4194°
+  Height:    0.0 m
 
-2. ECEF to LLH Round-trip (Eq. 2.2)
-   Recovered: lat=37.7749°, lon=-122.4194°, height=0.00m
-   Round-trip error: < 1e-9 m
+ECEF Coordinates:
+  X: -2,706,174.85 m
+  Y: -4,261,059.49 m
+  Z: 3,885,725.49 m
 
-3. ECEF to ENU Transformation (Eq. 2.3)
-   Reference: Building entrance
-   Target: 100m north
-   ENU result: East=0.00m, North=100.00m, Up=0.00m
+2. ECEF to LLH (Round-trip)
+----------------------------------------------------------------------
+Recovered LLH:
+  Latitude:  37.7749°
+  Longitude: -122.4194°
+  Height:    0.00 m
 
-4. Rotation Representations (Eqs. 2.5-2.10)
-   Euler angles: roll=10°, pitch=20°, yaw=30°
-   Rotation matrix determinant: 1.000000
-   Quaternion norm: 1.000000
-   Round-trip error: < 1e-9 radians
+3. Local ENU Frame Transformation
+----------------------------------------------------------------------
+Target: 50m Up
+  ENU: [0.00, -0.00, 50.00] m
 
-================================================================================
-All transformations completed successfully!
-================================================================================
+4. Rotation Representations
+----------------------------------------------------------------------
+Euler Angles:
+  Roll:  10.0°
+  Pitch: 20.0°
+  Yaw:   30.0°
+
+Rotation Matrix:
+[[ 0.81379768 -0.44096961  0.37852231]
+ [ 0.46984631  0.88256412  0.01802831]
+ [-0.34202014  0.16317591  0.92541658]]
+  Determinant: 1.000000 (should be 1.0)
+
+Quaternion [qw, qx, qy, qz]:
+  [0.95154852 0.03813458 0.18930786 0.23929834]
+  Norm: 1.000000 (should be 1.0)
+
+5. Applying Rotation to Vector
+----------------------------------------------------------------------
+Vector in body frame: [1. 0. 0.]
+Vector in navigation frame: [ 0.81379768  0.46984631 -0.34202014]
+
+6. Round-trip Rotation Conversions
+----------------------------------------------------------------------
+Original Euler: [10.0°, 20.0°, 30.0°]
+Recovered Euler: [10.0°, 20.0°, 30.0°]
+
+7. Practical Indoor Positioning Scenario
+----------------------------------------------------------------------
+Building entrance (reference): 37.7749°N, 122.4194°W
+
+Lobby:
+  ENU:  [0.0, 0.0, 0.0] m
+  LLH:  [37.774900°, -122.419400°, 0.00 m]
+
+Room 101:
+  ENU:  [15.0, 10.0, 0.0] m
+  LLH:  [37.774990°, -122.419230°, 0.00 m]
+
+Room 201:
+  ENU:  [15.0, 10.0, 3.5] m
+  LLH:  [37.774990°, -122.419230°, 3.50 m]
+
+Parking:
+  ENU:  [-5.0, -20.0, -2.5] m
+  LLH:  [37.774720°, -122.419457°, -2.50 m]
+
+======================================================================
+Examples completed successfully!
+======================================================================
 ```
 
 ## File Structure
