@@ -24,9 +24,11 @@ IPIN_Book_Examples/
 ├── ch8_sensor_fusion/           # Chapter 8: Sensor Fusion
 ├── data/sim/                    # Simulated datasets
 ├── docs/                        # Documentation & equation mappings
+├── notebooks/                   # Jupyter notebooks (planned)
 ├── scripts/                     # Dataset generation scripts
+├── tools/                       # CI/maintenance scripts
 ├── references/                  # Book chapters & design docs
-└── tests/                       # Unit tests (400+ test cases)
+└── tests/                       # Unit tests (777 test cases)
 ```
 
 ## Chapter Overview
