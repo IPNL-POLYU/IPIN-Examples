@@ -1,0 +1,2 @@
+# Reference point: latitude (rad), longitude (rad), height (m)
+0.6592963796 -2.1366215983 15.000

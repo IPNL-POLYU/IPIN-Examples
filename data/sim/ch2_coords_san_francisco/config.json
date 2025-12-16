@@ -1,0 +1,27 @@
+{
+  "dataset": "ch2_coordinate_transforms",
+  "preset": "san_francisco",
+  "reference_point": {
+    "latitude_deg": 37.7749,
+    "longitude_deg": -122.4194,
+    "height_m": 0.0,
+    "location": "san_francisco"
+  },
+  "building": {
+    "size_m": 50.0,
+    "num_points": 20
+  },
+  "accuracy": {
+    "llh_roundtrip_lat_arcsec": 4.579998741307464e-11,
+    "llh_roundtrip_lon_arcsec": 0.0,
+    "llh_roundtrip_height_m": 9.313225746154785e-10,
+    "rotation_roundtrip_deg": 360.00000000000006
+  },
+  "equations": [
+    "2.1 (LLH->ECEF)",
+    "2.2 (ECEF->LLH)",
+    "2.3 (ECEF->ENU)",
+    "2.5-2.10 (Rotations)"
+  ],
+  "seed": 42
+}
