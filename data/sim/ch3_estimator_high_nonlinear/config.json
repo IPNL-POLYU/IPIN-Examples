@@ -1,0 +1,47 @@
+{
+  "dataset": "ch3_estimator_comparison",
+  "preset": "high_nonlinearity",
+  "trajectory": {
+    "type": "figure8",
+    "duration_s": 30.0,
+    "dt_s": 0.1,
+    "num_samples": 300
+  },
+  "beacons": {
+    "count": 4,
+    "positions": [
+      [
+        -15.0,
+        -15.0
+      ],
+      [
+        15.0,
+        -15.0
+      ],
+      [
+        15.0,
+        15.0
+      ],
+      [
+        -15.0,
+        15.0
+      ]
+    ]
+  },
+  "measurements": {
+    "range_noise_std_m": 0.5,
+    "bearing_noise_std_deg": 5.0,
+    "outlier_rate": 0.0
+  },
+  "statistics": {
+    "range_rmse_m": 0.5057720858534224,
+    "range_bias_m": -0.011525898403638856
+  },
+  "equations": [
+    "3.11-3.19 (KF)",
+    "3.21 (EKF)",
+    "3.24-3.30 (UKF)",
+    "3.32-3.34 (PF)"
+  ],
+  "seed": 42
+}
