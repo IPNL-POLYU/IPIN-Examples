@@ -12,14 +12,24 @@ The module provides three main categories of methods:
 ## Quick Start
 
 ```bash
-# Run individual examples
-python ch5_fingerprinting/example_deterministic.py
-python ch5_fingerprinting/example_probabilistic.py
-python ch5_fingerprinting/example_pattern_recognition.py
+# Run individual examples (use ch5_wifi_fingerprint_grid by default)
+python -m ch5_fingerprinting.example_deterministic
+python -m ch5_fingerprinting.example_probabilistic
+python -m ch5_fingerprinting.example_pattern_recognition
 
 # Run comprehensive comparison of all methods
-python ch5_fingerprinting/example_comparison.py
+python -m ch5_fingerprinting.example_comparison
 ```
+
+## 📂 Dataset Connection
+
+| Example Script | Dataset | Description |
+|----------------|---------|-------------|
+| All examples | `data/sim/ch5_wifi_fingerprint_grid/` | Standard 5m grid, 121 RPs (default) |
+| All examples | `data/sim/ch5_wifi_fingerprint_dense/` | Dense 2m grid, 676 RPs (higher accuracy) |
+| All examples | `data/sim/ch5_wifi_fingerprint_sparse/` | Sparse 10m grid, 25 RPs (quick deployment) |
+
+> **Note**: To use a different dataset density, edit the `db_path` variable in the example scripts.
 
 ## Equation Reference
 

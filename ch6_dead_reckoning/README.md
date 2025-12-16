@@ -18,15 +18,43 @@ The module provides simulation-based examples of:
 
 ```bash
 # Run individual examples
-python ch6_dead_reckoning/example_imu_strapdown.py
-python ch6_dead_reckoning/example_zupt.py
-python ch6_dead_reckoning/example_pdr.py
-python ch6_dead_reckoning/example_wheel_odometry.py
-python ch6_dead_reckoning/example_environment.py
-python ch6_dead_reckoning/example_allan_variance.py
+python -m ch6_dead_reckoning.example_imu_strapdown
+python -m ch6_dead_reckoning.example_zupt
+python -m ch6_dead_reckoning.example_wheel_odometry
+python -m ch6_dead_reckoning.example_environment
+python -m ch6_dead_reckoning.example_allan_variance
+
+# Run PDR with pre-generated dataset
+python -m ch6_dead_reckoning.example_pdr --data ch6_pdr_corridor_walk
 
 # Run comprehensive comparison
-python ch6_dead_reckoning/example_comparison.py
+python -m ch6_dead_reckoning.example_comparison
+```
+
+## 📂 Dataset Connection
+
+| Example Script | Dataset | Description |
+|----------------|---------|-------------|
+| `example_pdr.py` | `data/sim/ch6_pdr_corridor_walk/` | 40m x 20m corridor walk with IMU data |
+| *(manual loading)* | `data/sim/ch6_strapdown_basic/` | Basic IMU strapdown integration |
+| *(manual loading)* | `data/sim/ch6_wheel_odom_square/` | Vehicle wheel odometry square path |
+| *(manual loading)* | `data/sim/ch6_foot_zupt_walk/` | Foot-mounted IMU with ZUPT |
+| *(manual loading)* | `data/sim/ch6_env_sensors_heading_altitude/` | Magnetometer and barometer data |
+
+**Load dataset manually:**
+```python
+import numpy as np
+import json
+from pathlib import Path
+
+path = Path("data/sim/ch6_pdr_corridor_walk")
+t = np.loadtxt(path / "time.txt")
+pos_true = np.loadtxt(path / "ground_truth_position.txt")
+heading_true = np.loadtxt(path / "ground_truth_heading.txt")
+accel = np.loadtxt(path / "accel.txt")
+gyro = np.loadtxt(path / "gyro.txt")
+mag = np.loadtxt(path / "magnetometer.txt")
+config = json.load(open(path / "config.json"))
 ```
 
 ## Equation Reference

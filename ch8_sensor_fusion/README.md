@@ -161,17 +161,29 @@ Acceptance Rate (%)                  30.1            32.9        -2.8
 
 **When to use LC:** Simplicity, existing position solver, computational efficiency
 
-## Dataset Variants
+## 📂 Dataset Connection
 
 Three synthetic datasets are provided:
 
-| Dataset | Description | Use For |
-|---------|-------------|---------|
-| `ch8_fusion_2d_imu_uwb/` | Baseline (no bias, no offset) | TC/LC demos |
-| `ch8_fusion_2d_imu_uwb_nlos/` | NLOS bias on anchors 1,2 | Robust loss demo |
-| `ch8_fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift | Temporal calibration |
+| Example Script | Dataset | Description |
+|----------------|---------|-------------|
+| `lc_uwb_imu_ekf.py`, `tc_uwb_imu_ekf.py` | `data/sim/ch8_fusion_2d_imu_uwb/` | Baseline (no bias, no offset) |
+| `tuning_robust_demo.py` | `data/sim/ch8_fusion_2d_imu_uwb_nlos/` | NLOS bias on anchors 1,2 |
+| `temporal_calibration_demo.py` | `data/sim/ch8_fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift |
 
-Generate datasets:
+**Load dataset manually:**
+```python
+from ch8_sensor_fusion.lc_uwb_imu_ekf import load_fusion_dataset
+
+data = load_fusion_dataset("data/sim/ch8_fusion_2d_imu_uwb")
+truth = data['truth']       # Ground truth trajectory
+imu = data['imu']           # IMU measurements
+uwb = data['uwb']           # UWB range measurements
+uwb_anchors = data['uwb_anchors']  # Anchor positions
+config = data['config']     # Configuration parameters
+```
+
+**Generate custom datasets:**
 ```bash
 python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
 ```

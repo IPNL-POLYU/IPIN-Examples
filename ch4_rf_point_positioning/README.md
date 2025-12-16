@@ -8,12 +8,44 @@ This module implements RF (Radio Frequency) positioning algorithms described in 
 
 ```bash
 # Run individual examples
-python ch4_rf_point_positioning/example_toa_positioning.py
-python ch4_rf_point_positioning/example_tdoa_positioning.py
-python ch4_rf_point_positioning/example_aoa_positioning.py
+python -m ch4_rf_point_positioning.example_toa_positioning
+python -m ch4_rf_point_positioning.example_tdoa_positioning
+python -m ch4_rf_point_positioning.example_aoa_positioning
 
-# Run comprehensive comparison of all RF methods
-python ch4_rf_point_positioning/example_comparison.py
+# Run with pre-generated datasets
+python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_square
+python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_nlos
+
+# Compare different beacon geometries
+python -m ch4_rf_point_positioning.example_comparison --compare-geometry
+
+# Run comprehensive comparison of all RF methods (inline data)
+python -m ch4_rf_point_positioning.example_comparison
+```
+
+## 📂 Dataset Connection
+
+| Example Script | Dataset | Description |
+|----------------|---------|-------------|
+| `example_comparison.py` | `data/sim/ch4_rf_2d_square/` | Square geometry (4 corners) - good baseline |
+| `example_comparison.py` | `data/sim/ch4_rf_2d_optimal/` | Circular geometry - best GDOP |
+| `example_comparison.py` | `data/sim/ch4_rf_2d_linear/` | Linear array - worst GDOP (10x degradation!) |
+| `example_comparison.py` | `data/sim/ch4_rf_2d_nlos/` | Square + NLOS bias - robustness testing |
+
+**Load dataset manually:**
+```python
+import numpy as np
+import json
+from pathlib import Path
+
+path = Path("data/sim/ch4_rf_2d_square")
+beacons = np.loadtxt(path / "beacons.txt")
+positions = np.loadtxt(path / "ground_truth_positions.txt")
+toa_ranges = np.loadtxt(path / "toa_ranges.txt")
+tdoa_diffs = np.loadtxt(path / "tdoa_diffs.txt")
+aoa_angles = np.loadtxt(path / "aoa_angles.txt")
+gdop_toa = np.loadtxt(path / "gdop_toa.txt")
+config = json.load(open(path / "config.json"))
 ```
 
 ## Equation Reference

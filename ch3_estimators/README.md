@@ -8,12 +8,37 @@ This module implements the state estimation algorithms described in **Chapter 3*
 
 ```bash
 # Run individual examples
-python ch3_estimators/example_least_squares.py
-python ch3_estimators/example_kalman_1d.py
-python ch3_estimators/example_ekf_range_bearing.py
+python -m ch3_estimators.example_least_squares
+python -m ch3_estimators.example_kalman_1d
+python -m ch3_estimators.example_ekf_range_bearing
+
+# Run with pre-generated dataset
+python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_nonlinear
 
 # Run comprehensive comparison of all estimators
-python ch3_estimators/example_comparison.py
+python -m ch3_estimators.example_comparison
+```
+
+## 📂 Dataset Connection
+
+| Example Script | Dataset | Description |
+|----------------|---------|-------------|
+| `example_ekf_range_bearing.py` | `data/sim/ch3_estimator_nonlinear/` | Moderate nonlinearity (circular trajectory) |
+| `example_ekf_range_bearing.py` | `data/sim/ch3_estimator_high_nonlinear/` | High nonlinearity (figure-8 trajectory) |
+
+**Load dataset manually:**
+```python
+import numpy as np
+import json
+from pathlib import Path
+
+path = Path("data/sim/ch3_estimator_nonlinear")
+t = np.loadtxt(path / "time.txt")
+beacons = np.loadtxt(path / "beacons.txt")
+true_states = np.loadtxt(path / "ground_truth_states.txt")
+range_meas = np.loadtxt(path / "range_measurements.txt")
+bearing_meas = np.loadtxt(path / "bearing_measurements.txt")
+config = json.load(open(path / "config.json"))
 ```
 
 ## Equation Reference

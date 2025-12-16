@@ -7,8 +7,30 @@ This module implements the coordinate systems and transformation functions descr
 ## Quick Start
 
 ```bash
-# Run the demonstration script
-python ch2_coords/example_coordinate_transforms.py
+# Run with inline data (default)
+python -m ch2_coords.example_coordinate_transforms
+
+# Run with pre-generated dataset
+python -m ch2_coords.example_coordinate_transforms --data ch2_coords_san_francisco
+```
+
+## 📂 Dataset Connection
+
+| Example Script | Dataset | Description |
+|----------------|---------|-------------|
+| `example_coordinate_transforms.py` | `data/sim/ch2_coords_san_francisco/` | San Francisco coordinates with LLH, ECEF, ENU, and rotation data |
+
+**Load dataset manually:**
+```python
+import numpy as np
+import json
+from pathlib import Path
+
+path = Path("data/sim/ch2_coords_san_francisco")
+llh = np.loadtxt(path / "llh_coordinates.txt")
+ecef = np.loadtxt(path / "ecef_coordinates.txt")
+enu = np.loadtxt(path / "enu_coordinates.txt")
+config = json.load(open(path / "config.json"))
 ```
 
 ## Equation Reference

@@ -18,11 +18,39 @@ The chapter implements:
 ## Quick Start
 
 ```bash
-# Run LiDAR SLAM example
+# Run LiDAR SLAM example (inline data)
 python -m ch7_slam.example_pose_graph_slam
+
+# Run with pre-generated dataset
+python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square
+
+# Run high-drift scenario (demonstrates SLAM value)
+python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_high_drift
 
 # Run Visual SLAM example
 python -m ch7_slam.example_bundle_adjustment
+```
+
+## 📂 Dataset Connection
+
+| Example Script | Dataset | Description |
+|----------------|---------|-------------|
+| `example_pose_graph_slam.py` | `data/sim/ch7_slam_2d_square/` | Square trajectory with loop closure |
+| `example_pose_graph_slam.py` | `data/sim/ch7_slam_2d_high_drift/` | High drift scenario (20x improvement with SLAM!) |
+
+**Load dataset manually:**
+```python
+import numpy as np
+import json
+from pathlib import Path
+
+path = Path("data/sim/ch7_slam_2d_square")
+true_poses = np.loadtxt(path / "ground_truth_poses.txt")
+odom_poses = np.loadtxt(path / "odometry_poses.txt")
+landmarks = np.loadtxt(path / "landmarks.txt")
+loop_closures = np.loadtxt(path / "loop_closures.txt")
+scans = np.load(path / "scans.npz")
+config = json.load(open(path / "config.json"))
 ```
 
 ## Equation Reference
