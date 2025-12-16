@@ -1,0 +1,29 @@
+{
+  "dataset_info": {
+    "description": "IMU strapdown integration dataset for Ch6",
+    "seed": 42,
+    "duration_sec": 60.0,
+    "num_samples": 6000
+  },
+  "trajectory": {
+    "type": "circular",
+    "radius_m": 10.0,
+    "speed_m_s": 1.0
+  },
+  "imu": {
+    "rate_hz": 100.0,
+    "dt_sec": 0.01,
+    "accel_noise_std_m_s2": 0.1,
+    "gyro_noise_std_rad_s": 0.01,
+    "accel_bias_m_s2": [
+      0.0,
+      0.0
+    ],
+    "gyro_bias_rad_s": 0.0
+  },
+  "coordinate_frame": {
+    "description": "ENU (East-North-Up)",
+    "origin": "Circle center at (0, 0)",
+    "units": "meters"
+  }
+}
