@@ -213,32 +213,147 @@ def generate_wifi_fingerprint_database(
 
 
 def main():
-    """Generate and save the fingerprint database."""
+    """Main CLI entry point."""
+    import argparse
+    
+    parser = argparse.ArgumentParser(
+        description="Generate Ch5 Wi-Fi Fingerprint Database",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Presets:
+  baseline      Standard 5m grid, 8 APs, 3 floors (100 RPs/floor)
+  dense         Dense 2m grid, 8 APs, 3 floors (676 RPs/floor)
+  sparse        Sparse 10m grid, 8 APs, 3 floors (25 RPs/floor)
+  few_aps       Standard grid, only 4 APs (corner placement)
+
+Examples:
+  # Generate baseline dataset
+  python scripts/generate_wifi_fingerprint_dataset.py --preset baseline
+
+  # Generate with custom parameters
+  python scripts/generate_wifi_fingerprint_dataset.py \\
+      --output data/sim/my_wifi_fp \\
+      --grid-spacing 3.0 \\
+      --n-aps 12
+
+  # Generate all presets
+  python scripts/generate_wifi_fingerprint_dataset.py --preset baseline
+  python scripts/generate_wifi_fingerprint_dataset.py --preset dense
+  python scripts/generate_wifi_fingerprint_dataset.py --preset sparse
+  python scripts/generate_wifi_fingerprint_dataset.py --preset few_aps
+
+Learning Focus:
+  - Grid spacing affects positioning accuracy (2m vs 10m → 5× difference!)
+  - Number of APs impacts RSS dimensionality
+  - Dense databases → better accuracy but higher storage/computation
+
+Book Reference: Chapter 5, Sections 5.1-5.3
+        """,
+    )
+    
+    # Preset or custom
+    parser.add_argument(
+        "--preset",
+        type=str,
+        choices=["baseline", "dense", "sparse", "few_aps"],
+        help="Use preset configuration (overrides other parameters)",
+    )
+    parser.add_argument(
+        "--output",
+        type=str,
+        default="data/sim/wifi_fingerprint_grid",
+        help="Output directory (default: data/sim/wifi_fingerprint_grid)",
+    )
+    
+    # Area parameters
+    area_group = parser.add_argument_group("Area Parameters")
+    area_group.add_argument(
+        "--area-width", type=float, default=50.0, help="Area width in meters (default: 50.0)"
+    )
+    area_group.add_argument(
+        "--area-height", type=float, default=50.0, help="Area height in meters (default: 50.0)"
+    )
+    area_group.add_argument(
+        "--grid-spacing", type=float, default=5.0, help="Grid spacing in meters (default: 5.0)"
+    )
+    
+    # Building parameters
+    building_group = parser.add_argument_group("Building Parameters")
+    building_group.add_argument(
+        "--n-floors", type=int, default=3, help="Number of floors (default: 3)"
+    )
+    building_group.add_argument(
+        "--floor-height", type=float, default=3.0, help="Floor height in meters (default: 3.0)"
+    )
+    
+    # AP parameters
+    ap_group = parser.add_argument_group("Access Point Parameters")
+    ap_group.add_argument(
+        "--n-aps", type=int, default=8, help="Number of access points (default: 8)"
+    )
+    
+    # Other
+    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    
+    args = parser.parse_args()
+    
+    # Apply preset if specified
+    if args.preset == "baseline":
+        area_size = (50.0, 50.0)
+        grid_spacing = 5.0
+        n_floors = 3
+        n_aps = 8
+        output_dir = "data/sim/wifi_fingerprint_grid"
+    elif args.preset == "dense":
+        area_size = (50.0, 50.0)
+        grid_spacing = 2.0
+        n_floors = 3
+        n_aps = 8
+        output_dir = "data/sim/wifi_fingerprint_dense"
+    elif args.preset == "sparse":
+        area_size = (50.0, 50.0)
+        grid_spacing = 10.0
+        n_floors = 3
+        n_aps = 8
+        output_dir = "data/sim/wifi_fingerprint_sparse"
+    elif args.preset == "few_aps":
+        area_size = (50.0, 50.0)
+        grid_spacing = 5.0
+        n_floors = 3
+        n_aps = 4
+        output_dir = "data/sim/wifi_fingerprint_few_aps"
+    else:
+        area_size = (args.area_width, args.area_height)
+        grid_spacing = args.grid_spacing
+        n_floors = args.n_floors
+        n_aps = args.n_aps
+        output_dir = args.output
+    
     # Generate database
     db = generate_wifi_fingerprint_database(
-        area_size=(50.0, 50.0),
-        grid_spacing=5.0,
-        n_floors=3,
-        floor_height=3.0,
-        n_aps=8,
-        seed=42,
+        area_size=area_size,
+        grid_spacing=grid_spacing,
+        n_floors=n_floors,
+        floor_height=args.floor_height if not args.preset else 3.0,
+        n_aps=n_aps,
+        seed=args.seed,
     )
     
     # Save to disk
-    output_dir = Path("data/sim/wifi_fingerprint_grid")
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_path = Path(output_dir)
+    output_path.mkdir(parents=True, exist_ok=True)
     
     print(f"\n{'='*60}")
     print(f"Saving database...")
-    save_fingerprint_database(db, output_dir)
-    print(f"OK Saved to: {output_dir}")
+    save_fingerprint_database(db, output_path)
+    print(f"OK Saved to: {output_path}")
     
     # Validate
     from core.fingerprinting import load_fingerprint_database, validate_database
     
     print(f"\n{'='*60}")
     print(f"Validating database...")
-    db_loaded = load_fingerprint_database(output_dir)
+    db_loaded = load_fingerprint_database(output_path)
     stats = validate_database(db_loaded)
     
     print(f"\nValidation Results:")

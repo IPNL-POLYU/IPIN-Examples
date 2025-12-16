@@ -1,0 +1,70 @@
+{
+  "ap_ids": [
+    "AP1",
+    "AP2",
+    "AP3",
+    "AP4",
+    "AP5",
+    "AP6",
+    "AP7",
+    "AP8"
+  ],
+  "ap_positions": [
+    [
+      0.0,
+      0.0,
+      2.5
+    ],
+    [
+      50.0,
+      0.0,
+      2.5
+    ],
+    [
+      50.0,
+      50.0,
+      2.5
+    ],
+    [
+      0.0,
+      50.0,
+      2.5
+    ],
+    [
+      25.0,
+      0.0,
+      2.5
+    ],
+    [
+      25.0,
+      50.0,
+      2.5
+    ],
+    [
+      0.0,
+      25.0,
+      2.5
+    ],
+    [
+      50.0,
+      25.0,
+      2.5
+    ]
+  ],
+  "area_size": [
+    50.0,
+    50.0
+  ],
+  "grid_spacing": 10.0,
+  "floor_height": 3.0,
+  "n_floors": 3,
+  "path_loss_model": {
+    "type": "log_distance",
+    "P0_dBm": -30.0,
+    "path_loss_exponent": 2.5,
+    "shadow_fading_std_dBm": 4.0,
+    "floor_attenuation_dB": 15.0
+  },
+  "description": "Synthetic Wi-Fi RSS fingerprint database for indoor positioning",
+  "generation_date": "2024-12-13"
+}
