@@ -1,0 +1,32 @@
+{
+  "dataset": "ch7_slam_2d",
+  "preset": "high_drift",
+  "trajectory": {
+    "type": "square",
+    "size_m": 20.0,
+    "n_poses_per_side": 10,
+    "total_poses": 41
+  },
+  "landmarks": {
+    "count": 50
+  },
+  "sensor": {
+    "max_range_m": 15.0,
+    "scan_noise_std_m": 0.05
+  },
+  "odometry": {
+    "translation_noise_std_m": 0.3,
+    "rotation_noise_std_rad": 0.05,
+    "final_drift_m": 1.1239129439247115
+  },
+  "loop_closures": {
+    "count": 1,
+    "min_index_diff": 15,
+    "max_distance_m": 2.0
+  },
+  "equations": [
+    "7.10-7.11 (ICP)",
+    "Section 7.3 (Pose graph)"
+  ],
+  "seed": 42
+}

@@ -1,0 +1,2 @@
+# pose_i, pose_j (index pairs for loop closures)
+0 40
