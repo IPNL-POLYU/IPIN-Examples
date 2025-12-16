@@ -6,8 +6,18 @@ indoor positioning applications:
 2. Convert ECEF to local ENU frame
 3. Convert rotation representations (Euler, quaternions, matrices)
 
+Can run with:
+    - Pre-generated dataset: python example_coordinate_transforms.py --data ch2_coords_san_francisco
+    - Inline data (default): python example_coordinate_transforms.py
+
 Reference: Chapter 2 - Coordinate Systems
+Equations: (2.1)-(2.10)
 """
+
+import argparse
+import json
+from pathlib import Path
+from typing import Optional
 
 import numpy as np
 
@@ -23,10 +33,155 @@ from core.coords import (
 )
 
 
-def main() -> None:
-    """Run coordinate transformation examples."""
+def load_dataset(data_dir: str) -> dict:
+    """Load coordinate transforms dataset.
+    
+    Args:
+        data_dir: Path to dataset directory (e.g., 'data/sim/ch2_coords_san_francisco')
+    
+    Returns:
+        Dictionary with loaded data arrays and config
+    """
+    path = Path(data_dir)
+    
+    data = {
+        'llh': np.loadtxt(path / 'llh_coordinates.txt'),
+        'ecef': np.loadtxt(path / 'ecef_coordinates.txt'),
+        'enu': np.loadtxt(path / 'enu_coordinates.txt'),
+        'reference_llh': np.loadtxt(path / 'reference_llh.txt'),
+        'euler_angles': np.loadtxt(path / 'euler_angles.txt'),
+        'quaternions': np.loadtxt(path / 'quaternions.txt'),
+    }
+    
+    with open(path / 'config.json') as f:
+        data['config'] = json.load(f)
+    
+    return data
+
+
+def run_with_dataset(data_dir: str) -> None:
+    """Run coordinate transform examples using pre-generated dataset.
+    
+    Args:
+        data_dir: Path to dataset directory
+    """
     print("=" * 70)
     print("Chapter 2: Coordinate Transformation Examples")
+    print(f"Using dataset: {data_dir}")
+    print("=" * 70)
+    
+    # Load dataset
+    data = load_dataset(data_dir)
+    config = data['config']
+    
+    print(f"\nDataset Info:")
+    print(f"  Location: {config.get('location', 'Unknown')}")
+    print(f"  Points: {len(data['llh'])}")
+    
+    # Example 1: LLH to ECEF (verify dataset)
+    print("\n1. LLH to ECEF Transformation (Dataset Verification)")
+    print("-" * 70)
+    
+    llh_sample = data['llh'][0]
+    ecef_dataset = data['ecef'][0]
+    
+    print(f"Dataset LLH: lat={np.rad2deg(llh_sample[0]):.6f}°, "
+          f"lon={np.rad2deg(llh_sample[1]):.6f}°, h={llh_sample[2]:.2f}m")
+    print(f"Dataset ECEF: [{ecef_dataset[0]:,.2f}, {ecef_dataset[1]:,.2f}, {ecef_dataset[2]:,.2f}] m")
+    
+    # Verify our transform matches
+    ecef_computed = llh_to_ecef(llh_sample[0], llh_sample[1], llh_sample[2])
+    diff = np.linalg.norm(ecef_computed - ecef_dataset)
+    print(f"Computed ECEF: [{ecef_computed[0]:,.2f}, {ecef_computed[1]:,.2f}, {ecef_computed[2]:,.2f}] m")
+    print(f"Difference: {diff:.6e} m (should be ~0)")
+    
+    # Example 2: Round-trip LLH -> ECEF -> LLH
+    print("\n2. Round-Trip Accuracy Test")
+    print("-" * 70)
+    
+    errors_lat = []
+    errors_lon = []
+    errors_h = []
+    
+    for i in range(min(10, len(data['llh']))):
+        llh_orig = data['llh'][i]
+        ecef = llh_to_ecef(llh_orig[0], llh_orig[1], llh_orig[2])
+        llh_recovered = ecef_to_llh(ecef[0], ecef[1], ecef[2])
+        
+        errors_lat.append(np.abs(llh_recovered[0] - llh_orig[0]))
+        errors_lon.append(np.abs(llh_recovered[1] - llh_orig[1]))
+        errors_h.append(np.abs(llh_recovered[2] - llh_orig[2]))
+    
+    print(f"Round-trip errors (10 samples):")
+    print(f"  Latitude:  {np.max(errors_lat):.2e} rad = {np.rad2deg(np.max(errors_lat)) * 3600:.2e} arcsec")
+    print(f"  Longitude: {np.max(errors_lon):.2e} rad = {np.rad2deg(np.max(errors_lon)) * 3600:.2e} arcsec")
+    print(f"  Height:    {np.max(errors_h):.2e} m")
+    
+    # Example 3: ENU Frame
+    print("\n3. Local ENU Frame")
+    print("-" * 70)
+    
+    ref_llh = data['reference_llh']
+    if ref_llh.ndim == 1:
+        lat_ref, lon_ref, h_ref = ref_llh[0], ref_llh[1], ref_llh[2]
+    else:
+        lat_ref, lon_ref, h_ref = ref_llh[0, 0], ref_llh[0, 1], ref_llh[0, 2]
+    
+    print(f"Reference point: lat={np.rad2deg(lat_ref):.6f}°, lon={np.rad2deg(lon_ref):.6f}°")
+    
+    # Show first few ENU coordinates
+    print(f"\nSample ENU coordinates (from dataset):")
+    for i in range(min(5, len(data['enu']))):
+        enu = data['enu'][i]
+        print(f"  Point {i}: E={enu[0]:.2f}m, N={enu[1]:.2f}m, U={enu[2]:.2f}m")
+    
+    # Example 4: Rotation Representations
+    print("\n4. Rotation Representations")
+    print("-" * 70)
+    
+    euler_sample = data['euler_angles'][0]
+    quat_sample = data['quaternions'][0]
+    
+    print(f"Dataset Euler: roll={np.rad2deg(euler_sample[0]):.2f}°, "
+          f"pitch={np.rad2deg(euler_sample[1]):.2f}°, yaw={np.rad2deg(euler_sample[2]):.2f}°")
+    print(f"Dataset Quaternion: [{quat_sample[0]:.4f}, {quat_sample[1]:.4f}, "
+          f"{quat_sample[2]:.4f}, {quat_sample[3]:.4f}]")
+    
+    # Convert and verify
+    quat_computed = euler_to_quat(euler_sample[0], euler_sample[1], euler_sample[2])
+    R_from_euler = euler_to_rotation_matrix(euler_sample[0], euler_sample[1], euler_sample[2])
+    R_from_quat = quat_to_rotation_matrix(quat_sample)
+    
+    print(f"\nComputed Quaternion: [{quat_computed[0]:.4f}, {quat_computed[1]:.4f}, "
+          f"{quat_computed[2]:.4f}, {quat_computed[3]:.4f}]")
+    print(f"Quaternion norm: {np.linalg.norm(quat_computed):.6f} (should be 1.0)")
+    print(f"Rotation matrix determinant: {np.linalg.det(R_from_euler):.6f} (should be 1.0)")
+    
+    # Example 5: Apply rotation to vector
+    print("\n5. Applying Rotations")
+    print("-" * 70)
+    
+    v_body = np.array([1.0, 0.0, 0.0])  # Forward in body frame
+    v_nav = R_from_quat @ v_body
+    
+    print(f"Vector in body frame: {v_body}")
+    print(f"Vector in navigation frame: [{v_nav[0]:.4f}, {v_nav[1]:.4f}, {v_nav[2]:.4f}]")
+    
+    print("\n" + "=" * 70)
+    print("Dataset verification complete!")
+    print("=" * 70)
+    print("\nKey Learning Points:")
+    print("  • LLH↔ECEF transforms have sub-nanometer accuracy")
+    print("  • ENU provides intuitive local coordinates for indoor positioning")
+    print("  • Quaternions avoid gimbal lock (use for computation)")
+    print("  • Euler angles are human-readable (use for display)")
+
+
+def run_with_inline_data() -> None:
+    """Run coordinate transform examples with inline generated data (original behavior)."""
+    print("=" * 70)
+    print("Chapter 2: Coordinate Transformation Examples")
+    print("(Using inline generated data)")
     print("=" * 70)
 
     # Example 1: LLH to ECEF transformation
@@ -174,8 +329,55 @@ def main() -> None:
     print("\n" + "=" * 70)
     print("Examples completed successfully!")
     print("=" * 70)
+    print("\nTip: Run with --data ch2_coords_san_francisco to use pre-generated dataset")
+
+
+def main() -> None:
+    """Run coordinate transformation examples."""
+    parser = argparse.ArgumentParser(
+        description="Chapter 2: Coordinate Transformation Examples",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run with inline generated data (default)
+  python example_coordinate_transforms.py
+  
+  # Run with pre-generated dataset
+  python example_coordinate_transforms.py --data ch2_coords_san_francisco
+  
+  # Specify full path to dataset
+  python example_coordinate_transforms.py --data data/sim/ch2_coords_san_francisco
+        """
+    )
+    parser.add_argument(
+        "--data",
+        type=str,
+        default=None,
+        help="Dataset name or path (e.g., 'ch2_coords_san_francisco' or full path)"
+    )
+    
+    args = parser.parse_args()
+    
+    if args.data:
+        # Resolve dataset path
+        data_path = Path(args.data)
+        if not data_path.exists():
+            # Try prepending data/sim/
+            data_path = Path("data/sim") / args.data
+        if not data_path.exists():
+            print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
+            print("Available datasets:")
+            sim_dir = Path("data/sim")
+            if sim_dir.exists():
+                for d in sorted(sim_dir.iterdir()):
+                    if d.is_dir() and d.name.startswith("ch2"):
+                        print(f"  - {d.name}")
+            return
+        
+        run_with_dataset(str(data_path))
+    else:
+        run_with_inline_data()
 
 
 if __name__ == "__main__":
     main()
-

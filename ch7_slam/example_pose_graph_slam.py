@@ -8,6 +8,11 @@ This example demonstrates the full SLAM pipeline:
     5. Optimize pose graph to correct drift
     6. Visualize results
 
+Can run with:
+    - Pre-generated dataset: python example_pose_graph_slam.py --data ch7_slam_2d_square
+    - Inline data (default): python example_pose_graph_slam.py
+    - High drift scenario: python example_pose_graph_slam.py --data ch7_slam_2d_high_drift
+
 This implements the pose graph SLAM approach from Section 7.3 of Chapter 7.
 
 Usage:
@@ -17,9 +22,12 @@ Author: Navigation Engineer
 Date: 2024
 """
 
+import argparse
+import json
 import numpy as np
 import matplotlib.pyplot as plt
-from typing import List, Tuple
+from pathlib import Path
+from typing import List, Tuple, Dict
 
 from core.slam import (
     se2_apply,
@@ -28,6 +36,212 @@ from core.slam import (
     icp_point_to_point,
     create_pose_graph,
 )
+
+
+def load_slam_dataset(data_dir: str) -> Dict:
+    """Load SLAM dataset from directory.
+    
+    Args:
+        data_dir: Path to dataset directory (e.g., 'data/sim/ch7_slam_2d_square')
+    
+    Returns:
+        Dictionary with poses, landmarks, loop closures, and scans
+    """
+    path = Path(data_dir)
+    
+    data = {
+        'true_poses': np.loadtxt(path / 'ground_truth_poses.txt'),
+        'odom_poses': np.loadtxt(path / 'odometry_poses.txt'),
+        'landmarks': np.loadtxt(path / 'landmarks.txt'),
+        'loop_closures': np.loadtxt(path / 'loop_closures.txt'),
+    }
+    
+    # Load scans from npz
+    scans_npz = np.load(path / 'scans.npz')
+    data['scans'] = [scans_npz[f'scan_{i}'] for i in range(len(data['true_poses']))]
+    
+    # Load config
+    with open(path / 'config.json') as f:
+        data['config'] = json.load(f)
+    
+    return data
+
+
+def run_with_dataset(data_dir: str) -> None:
+    """Run pose graph SLAM using pre-generated dataset.
+    
+    Args:
+        data_dir: Path to dataset directory
+    """
+    print("=" * 70)
+    print("CHAPTER 7: 2D POSE GRAPH SLAM EXAMPLE")
+    print(f"Using dataset: {data_dir}")
+    print("=" * 70)
+    print()
+    
+    # Load dataset
+    data = load_slam_dataset(data_dir)
+    config = data['config']
+    
+    true_poses = [data['true_poses'][i] for i in range(len(data['true_poses']))]
+    odom_poses = [data['odom_poses'][i] for i in range(len(data['odom_poses']))]
+    landmarks = data['landmarks']
+    scans = data['scans']
+    loop_closure_data = data['loop_closures']
+    
+    n_poses = len(true_poses)
+    
+    print(f"Dataset Info:")
+    print(f"  Trajectory: {config.get('trajectory', {}).get('type', 'unknown')}")
+    print(f"  Poses: {n_poses}")
+    print(f"  Landmarks: {len(landmarks)}")
+    print(f"  Loop closures: {len(loop_closure_data)}")
+    
+    # Compute initial drift
+    initial_drift = np.linalg.norm(odom_poses[0][:2] - true_poses[0][:2])
+    final_drift = np.linalg.norm(odom_poses[-1][:2] - true_poses[-1][:2])
+    print(f"\n  Initial drift: {initial_drift:.3f} m")
+    print(f"  Final drift (without SLAM): {final_drift:.3f} m")
+    
+    # Prepare loop closures
+    print("\n" + "-" * 70)
+    print("Loop Closures from Dataset:")
+    loop_closures = []
+    for lc in loop_closure_data:
+        i, j = int(lc[0]), int(lc[1])
+        rel_pose = lc[2:5]
+        cov = np.diag([0.05, 0.05, 0.01])
+        loop_closures.append((i, j, rel_pose, cov))
+        print(f"  {i} ↔ {j}: rel_pose=[{rel_pose[0]:.3f}, {rel_pose[1]:.3f}, {np.rad2deg(rel_pose[2]):.1f}°]")
+    
+    # Build pose graph
+    print("\n" + "-" * 70)
+    print("Building pose graph...")
+    
+    # Prepare odometry measurements
+    odometry_measurements = []
+    for i in range(n_poses - 1):
+        rel_pose = se2_relative(np.array(true_poses[i]), np.array(true_poses[i + 1]))
+        rel_pose[0] += np.random.normal(0, 0.05)
+        rel_pose[1] += np.random.normal(0, 0.05)
+        rel_pose[2] += np.random.normal(0, 0.01)
+        odometry_measurements.append((i, i + 1, rel_pose))
+    
+    # Prepare loop closure measurements
+    loop_measurements = [(i, j, rel_pose) for i, j, rel_pose, _ in loop_closures]
+    
+    odom_info = np.linalg.inv(np.diag([0.1, 0.1, 0.02]))
+    loop_info = np.linalg.inv(np.diag([0.05, 0.05, 0.01]))
+    
+    graph = create_pose_graph(
+        poses=odom_poses,
+        odometry_measurements=odometry_measurements,
+        loop_closures=loop_measurements if loop_measurements else None,
+        odometry_information=odom_info,
+        loop_information=loop_info,
+    )
+    
+    print(f"  Pose graph: {len(graph.variables)} variables, {len(graph.factors)} factors")
+    
+    # Optimize
+    print("\n" + "-" * 70)
+    print("Optimizing pose graph...")
+    
+    initial_error = graph.compute_error()
+    print(f"  Initial error: {initial_error:.6f}")
+    
+    optimized_vars, error_history = graph.optimize(
+        method="gauss_newton", max_iterations=50, tol=1e-6
+    )
+    
+    final_error = error_history[-1]
+    print(f"  Final error: {final_error:.6f}")
+    print(f"  Iterations: {len(error_history) - 1}")
+    print(f"  Error reduction: {(1 - final_error / initial_error) * 100:.2f}%")
+    
+    optimized_poses = [optimized_vars[i] for i in range(n_poses)]
+    
+    # Evaluate
+    print("\n" + "-" * 70)
+    print("Results:")
+    
+    odom_errors = np.array([np.linalg.norm(odom_poses[i][:2] - true_poses[i][:2]) for i in range(n_poses)])
+    opt_errors = np.array([np.linalg.norm(optimized_poses[i][:2] - true_poses[i][:2]) for i in range(n_poses)])
+    
+    odom_rmse = np.sqrt(np.mean(odom_errors**2))
+    opt_rmse = np.sqrt(np.mean(opt_errors**2))
+    
+    print(f"  Odometry RMSE: {odom_rmse:.4f} m")
+    print(f"  Optimized RMSE: {opt_rmse:.4f} m")
+    print(f"  Improvement: {(1 - opt_rmse / odom_rmse) * 100:.2f}%")
+    
+    final_loop_error = np.linalg.norm(optimized_poses[-1][:2] - optimized_poses[0][:2])
+    print(f"  Final loop closure error: {final_loop_error:.4f} m")
+    
+    # Visualize
+    print("\n" + "-" * 70)
+    print("Generating plots...")
+    
+    fig, axes = plt.subplots(1, 2, figsize=(16, 7))
+    
+    ax1 = axes[0]
+    ax1.scatter(landmarks[:, 0], landmarks[:, 1], c="gray", marker="x", s=30, alpha=0.3, label="Landmarks")
+    
+    true_xy = np.array([[p[0], p[1]] for p in true_poses])
+    ax1.plot(true_xy[:, 0], true_xy[:, 1], "g-", linewidth=2, label="Ground Truth", alpha=0.7)
+    ax1.scatter(true_xy[0, 0], true_xy[0, 1], c="green", marker="o", s=100, zorder=5)
+    
+    odom_xy = np.array([[p[0], p[1]] for p in odom_poses])
+    ax1.plot(odom_xy[:, 0], odom_xy[:, 1], "r--", linewidth=2, label="Odometry (Drift)", alpha=0.7)
+    
+    opt_xy = np.array([[p[0], p[1]] for p in optimized_poses])
+    ax1.plot(opt_xy[:, 0], opt_xy[:, 1], "b-", linewidth=2, label="Optimized (SLAM)", alpha=0.8)
+    ax1.scatter(opt_xy[0, 0], opt_xy[0, 1], c="blue", marker="o", s=100, zorder=5)
+    
+    for i, j, _, _ in loop_closures:
+        ax1.plot([odom_xy[i, 0], odom_xy[j, 0]], [odom_xy[i, 1], odom_xy[j, 1]], "m:", linewidth=1, alpha=0.5)
+    
+    ax1.set_xlabel("X [m]", fontsize=12)
+    ax1.set_ylabel("Y [m]", fontsize=12)
+    ax1.set_title("2D Pose Graph SLAM: Trajectories", fontsize=14, fontweight="bold")
+    ax1.legend(fontsize=10)
+    ax1.grid(True, alpha=0.3)
+    ax1.axis("equal")
+    
+    ax2 = axes[1]
+    timesteps = np.arange(n_poses)
+    ax2.plot(timesteps, odom_errors, "r--", linewidth=2, label="Odometry Error", alpha=0.7)
+    ax2.plot(timesteps, opt_errors, "b-", linewidth=2, label="Optimized Error", alpha=0.8)
+    
+    for i, j, _, _ in loop_closures:
+        ax2.axvline(j, color="magenta", linestyle=":", alpha=0.5, linewidth=1)
+    
+    ax2.set_xlabel("Pose Index", fontsize=12)
+    ax2.set_ylabel("Position Error [m]", fontsize=12)
+    ax2.set_title("Position Error Over Time", fontsize=14, fontweight="bold")
+    ax2.legend(fontsize=10)
+    ax2.grid(True, alpha=0.3)
+    
+    plt.tight_layout()
+    
+    figs_dir = Path("ch7_slam/figs")
+    figs_dir.mkdir(parents=True, exist_ok=True)
+    output_file = figs_dir / "pose_graph_slam_results.png"
+    plt.savefig(output_file, dpi=150, bbox_inches="tight")
+    print(f"\n[OK] Saved figure: {output_file}")
+    
+    plt.show()
+    
+    print("\n" + "=" * 70)
+    print("SLAM PIPELINE COMPLETE!")
+    print("=" * 70)
+    print(f"\nSummary:")
+    print(f"  • Trajectory: {n_poses} poses")
+    print(f"  • Loop closures: {len(loop_closures)}")
+    print(f"  • Odometry drift: {final_drift:.3f} m")
+    print(f"  • SLAM accuracy: {opt_rmse:.4f} m RMSE")
+    print(f"  • Improvement: {(1 - opt_rmse / odom_rmse) * 100:.1f}%")
+    print()
 
 
 def generate_square_trajectory(
@@ -361,10 +575,11 @@ def plot_slam_results(
             pass  # Silently skip if display not available
 
 
-def main():
-    """Run complete pose graph SLAM example."""
+def run_with_inline_data():
+    """Run complete pose graph SLAM example with inline data (original behavior)."""
     print("=" * 70)
     print("CHAPTER 7: 2D POSE GRAPH SLAM EXAMPLE")
+    print("(Using inline generated data)")
     print("=" * 70)
     print()
 
@@ -525,6 +740,51 @@ def main():
     print(f"  • SLAM accuracy: {opt_rmse:.4f} m RMSE")
     print(f"  • Improvement: {(1 - opt_rmse / odom_rmse) * 100:.1f}%")
     print()
+    print("\nTip: Run with --data ch7_slam_2d_square to use pre-generated dataset")
+
+
+def main():
+    """Main entry point with CLI argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Chapter 7: 2D Pose Graph SLAM Example",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Run with inline generated data (default)
+  python example_pose_graph_slam.py
+  
+  # Run with pre-generated dataset
+  python example_pose_graph_slam.py --data ch7_slam_2d_square
+  
+  # Run with high drift scenario
+  python example_pose_graph_slam.py --data ch7_slam_2d_high_drift
+        """
+    )
+    parser.add_argument(
+        "--data", type=str, default=None,
+        help="Dataset name or path (e.g., 'ch7_slam_2d_square' or full path)"
+    )
+    
+    args = parser.parse_args()
+    
+    if args.data:
+        # Run with dataset
+        data_path = Path(args.data)
+        if not data_path.exists():
+            data_path = Path("data/sim") / args.data
+        if not data_path.exists():
+            print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
+            print("\nAvailable datasets:")
+            sim_dir = Path("data/sim")
+            if sim_dir.exists():
+                for d in sorted(sim_dir.iterdir()):
+                    if d.is_dir() and d.name.startswith("ch7"):
+                        print(f"  - {d.name}")
+            return
+        
+        run_with_dataset(str(data_path))
+    else:
+        run_with_inline_data()
 
 
 if __name__ == "__main__":
