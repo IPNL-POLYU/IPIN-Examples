@@ -2,6 +2,11 @@
 Test Ch6 dataset code examples to ensure they work correctly.
 
 This script extracts and tests Python code blocks from Ch6 dataset READMEs.
+
+Location: tests/docs/
+Purpose: Documentation validation (not unit tests for core/ modules)
+
+Note: Unit tests for core/sensors/ are in tests/core/sensors/
 """
 
 import io
