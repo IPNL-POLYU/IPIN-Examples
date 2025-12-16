@@ -2,21 +2,36 @@
 
 This directory will contain interactive Jupyter notebooks for each chapter of *Principles of Indoor Positioning and Indoor Navigation*.
 
-## Planned Notebooks
+## Notebooks
 
 | Notebook | Chapter | Description | Status |
 |----------|---------|-------------|--------|
+| `ch3_state_estimation.ipynb` | 3 | LS, WLS, Robust LS, Kalman Filter | ✅ Available |
 | `ch2_coordinates.ipynb` | 2 | Coordinate transforms and rotations | Planned |
-| `ch3_estimators.ipynb` | 3 | LS, KF, EKF, UKF, PF comparison | Planned |
 | `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA positioning demos | Planned |
 | `ch5_fingerprinting.ipynb` | 5 | Wi-Fi fingerprinting methods | Planned |
 | `ch6_dead_reckoning.ipynb` | 6 | IMU, PDR, wheel odometry | Planned |
 | `ch7_slam.ipynb` | 7 | ICP, NDT, pose graph SLAM | Planned |
 | `ch8_sensor_fusion.ipynb` | 8 | LC vs TC fusion comparison | Planned |
 
+## 🚀 Quick Start with Google Colab
+
+The easiest way to run notebooks is with Google Colab (no installation required!):
+
+1. Open Google Colab: https://colab.research.google.com
+2. File → Open notebook → GitHub
+3. Enter the repository URL and select a notebook
+4. Run the first setup cell to clone and install dependencies
+
+**Or run locally:**
+```bash
+cd IPIN_Book_Examples
+jupyter notebook notebooks/
+```
+
 ## Current Status
 
-Notebooks are planned for a future release. In the meantime, please use the extensive resources already available:
+One notebook is now available! More are planned for future releases. In the meantime, please use the extensive resources already available:
 
 1. **Example Scripts** - Each `ch*_*/` directory contains runnable Python examples (24+ scripts total)
 2. **Chapter READMEs** - Comprehensive documentation in each chapter folder with equation-to-code mappings
