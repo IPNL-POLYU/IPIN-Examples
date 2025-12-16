@@ -171,10 +171,10 @@ def run_with_dataset(data_dir: str) -> None:
     print("Dataset verification complete!")
     print("=" * 70)
     print("\nKey Learning Points:")
-    print("  • LLH↔ECEF transforms have sub-nanometer accuracy")
-    print("  • ENU provides intuitive local coordinates for indoor positioning")
-    print("  • Quaternions avoid gimbal lock (use for computation)")
-    print("  • Euler angles are human-readable (use for display)")
+    print("  - LLH<->ECEF transforms have sub-nanometer accuracy")
+    print("  - ENU provides intuitive local coordinates for indoor positioning")
+    print("  - Quaternions avoid gimbal lock (use for computation)")
+    print("  - Euler angles are human-readable (use for display)")
 
 
 def run_with_inline_data() -> None:
