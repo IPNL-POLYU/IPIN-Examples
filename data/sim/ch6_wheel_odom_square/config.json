@@ -1,0 +1,46 @@
+{
+  "dataset": "ch6_wheel_odometry",
+  "preset": "baseline",
+  "trajectory": {
+    "shape": "square",
+    "side_length_m": 20.0,
+    "speed_m_s": 5.0,
+    "num_laps": 2,
+    "duration_s": 73.88,
+    "total_distance_m": 327.51000000000124
+  },
+  "dt_s": 0.01,
+  "sample_rate_hz": 100.0,
+  "num_samples": 7389,
+  "encoder": {
+    "noise_std_m_s": 0.03,
+    "bias_m_s": 0.005
+  },
+  "gyro": {
+    "noise_std_rad_s": 0.0005,
+    "bias_rad_s": 0.0002
+  },
+  "lever_arm_m": [
+    1.5,
+    0.0,
+    -0.3
+  ],
+  "slip": {
+    "enabled": false,
+    "magnitude": 0.3,
+    "num_events": 0
+  },
+  "performance": {
+    "final_error_m": 0.8047426444277428,
+    "mean_error_m": 1.7497487032347776,
+    "max_error_m": 2.82576108706386,
+    "drift_rate_percent": 0.24571544210184107
+  },
+  "equations": [
+    "6.11",
+    "6.12",
+    "6.14",
+    "6.15"
+  ],
+  "seed": 42
+}

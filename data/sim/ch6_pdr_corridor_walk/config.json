@@ -1,0 +1,49 @@
+{
+  "dataset": "ch6_pdr",
+  "preset": "baseline",
+  "trajectory": {
+    "type": "corridor_walk",
+    "num_legs": 4,
+    "leg_length_m": 30.0,
+    "total_distance_m": 123.87948075307025,
+    "duration_s": 47.99
+  },
+  "pedestrian": {
+    "height_m": 1.75,
+    "step_freq_hz": 2.0,
+    "num_steps": 90
+  },
+  "dt_s": 0.01,
+  "sample_rate_hz": 100.0,
+  "num_samples": 4800,
+  "sensors": {
+    "accel_noise_std_m_s2": 0.15,
+    "gyro_noise_std_rad_s": 0.005,
+    "gyro_bias_rad_s": 0.002,
+    "mag_noise_std": 0.05
+  },
+  "performance": {
+    "gyro_heading": {
+      "steps_detected": 90,
+      "final_error_m": 1.9144521596750737,
+      "mean_error_m": 1.0556632517327817
+    },
+    "mag_heading": {
+      "steps_detected": 90,
+      "final_error_m": 0.9773079814169204,
+      "mean_error_m": 32.71967700256364
+    },
+    "improvement_factor": 1.958903637417821
+  },
+  "equations": [
+    "6.46",
+    "6.47",
+    "6.48",
+    "6.49",
+    "6.50",
+    "6.51",
+    "6.52",
+    "6.53"
+  ],
+  "seed": 42
+}

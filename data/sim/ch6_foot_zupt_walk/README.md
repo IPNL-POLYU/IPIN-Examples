@@ -473,3 +473,4 @@ See `scripts/README.md` for more experimentation scenarios.
   - `ch6_strapdown_basic/` - Shows the problem (unbounded drift)
   - `fusion_2d_imu_uwb/` - Alternative solution (sensor fusion)
 
+

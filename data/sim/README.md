@@ -330,3 +330,4 @@ See `templates/` folder for templates and Section 5.3 of `references/design_doc.
 - **Tools**: `tools/` folder (visualization, validation, comparison)
 - **Book**: *Principles of Indoor Positioning and Indoor Navigation*, Chapters 2-8
 
+

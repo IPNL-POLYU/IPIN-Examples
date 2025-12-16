@@ -1,0 +1,44 @@
+{
+  "dataset": "ch6_env_sensors",
+  "preset": "baseline",
+  "trajectory": {
+    "type": "building_walk",
+    "duration_s": 180.0,
+    "num_floors": 3,
+    "floor_height_m": 3.5,
+    "max_altitude_m": 7.0
+  },
+  "dt_s": 0.1,
+  "sample_rate_hz": 10.0,
+  "num_samples": 1800,
+  "sensors": {
+    "magnetometer": {
+      "noise_std_uT": 1.5,
+      "disturbances_enabled": false,
+      "num_disturbance_events": 0
+    },
+    "barometer": {
+      "noise_std_Pa": 8.0,
+      "weather_drift_Pa": 30.0
+    }
+  },
+  "performance": {
+    "magnetometer_heading": {
+      "mean_error_deg": 65.69172546776898,
+      "max_error_deg": 179.29925429570406
+    },
+    "barometric_altitude": {
+      "mean_error_m": 1.566487262667991,
+      "max_error_m": 2.8453562195842728,
+      "floor_detection_accuracy_percent": 50.0
+    }
+  },
+  "equations": [
+    "6.51",
+    "6.52",
+    "6.53",
+    "6.54",
+    "6.55"
+  ],
+  "seed": 42
+}
