@@ -46,19 +46,6 @@ d² = y' * S⁻¹ * y  # Mahalanobis distance squared
 d² < χ²(α, m)      # Chi-square threshold
 ```
 
-Where:
-- y = innovation (z - h(x))
-- S = innovation covariance
-- α = significance level (default 0.05)
-- m = measurement dimension (1 for TC, 2 for LC)
-
-### Robust Down-weighting (Eq. 8.7)
-
-Three loss functions implemented:
-- **Huber:** Linear tail for outliers
-- **Cauchy:** Bounded influence function
-- **L2 (baseline):** Standard quadratic loss
-
 ## Performance Characteristics
 
 ### Expected Results (Baseline Dataset)
@@ -69,20 +56,7 @@ Three loss functions implemented:
 | Acceptance Rate | ~33% | ~30% |
 | Updates per Epoch | 4 | 1 |
 
-**Why ~12m RMSE?**
-
-This is expected for the simplified 5D model without IMU bias estimation. The demo prioritizes clarity over accuracy to illustrate:
-- How TC vs LC fusion works architecturally
-- How chi-square gating operates
-- How to monitor NIS consistency
-
-### Dataset Variants
-
-| Dataset | Purpose |
-|---------|---------|
-| `fusion_2d_imu_uwb/` | Baseline demos |
-| `fusion_2d_imu_uwb_nlos/` | +0.8m NLOS bias on anchors 1,2 |
-| `fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift |
+**Why ~12m RMSE?** This is expected for the simplified 5D model without IMU bias estimation.
 
 ## Design Decisions
 
@@ -97,32 +71,12 @@ This is expected for the simplified 5D model without IMU bias estimation. The de
 - TC: Better for accuracy, dropout robustness
 - LC: Simpler, good when position solver exists
 
-### Observability Analysis
-
-Key insight demonstrated:
-- Odometry alone cannot observe absolute translation
-- Adding occasional absolute fixes enables full observability
-
-### Temporal Calibration
-
-TimeSyncModel: `t_fusion = (1 + drift) * t_sensor + offset`
-
-Demo shows:
-- How small time offsets (~50ms) degrade fusion
-- How proper calibration recovers accuracy
-
 ## Future Extensions
 
 - 15D state with IMU bias estimation
 - Additional sensor modalities (WiFi, BLE)
 - Real sensor data integration
 - Online calibration
-
-## Related Chapters
-
-- **Chapter 3:** EKF implementation
-- **Chapter 4:** UWB positioning (WLS solver)
-- **Chapter 6:** IMU strapdown integration
 
 ---
 
