@@ -59,7 +59,7 @@ python -m ch8_sensor_fusion.temporal_calibration_demo
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf
 
 # With custom dataset
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_2d_imu_uwb
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
 
 # Disable gating
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf --no-gating
@@ -167,13 +167,13 @@ Three synthetic datasets are provided:
 
 | Dataset | Description | Use For |
 |---------|-------------|---------|
-| `fusion_2d_imu_uwb/` | Baseline (no bias, no offset) | TC/LC demos |
-| `fusion_2d_imu_uwb_nlos/` | NLOS bias on anchors 1,2 | Robust loss demo |
-| `fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift | Temporal calibration |
+| `ch8_fusion_2d_imu_uwb/` | Baseline (no bias, no offset) | TC/LC demos |
+| `ch8_fusion_2d_imu_uwb_nlos/` | NLOS bias on anchors 1,2 | Robust loss demo |
+| `ch8_fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift | Temporal calibration |
 
 Generate datasets:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
 ```
 
 ## File Structure

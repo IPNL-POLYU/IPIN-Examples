@@ -20,7 +20,7 @@ Example usage:
     ...     fit_gaussian_naive_bayes,
     ...     map_localize
     ... )
-    >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+    >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
     >>> z_query = np.array([-50, -60, -70])
     >>> 
     >>> # Deterministic

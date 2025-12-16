@@ -17,11 +17,11 @@ import numpy as np
 import json
 
 # Load any dataset
-truth = np.load('data/sim/fusion_2d_imu_uwb/truth.npz')
-config = json.load(open('data/sim/fusion_2d_imu_uwb/config.json'))
+truth = np.load('data/sim/ch8_fusion_2d_imu_uwb/truth.npz')
+config = json.load(open('data/sim/ch8_fusion_2d_imu_uwb/config.json'))
 
 # Visualize dataset
-python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb
+python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb
 ```
 
 ---
@@ -40,9 +40,9 @@ python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb
 
 ### Path C: Sensor Fusion (Chapters 6 → 8)
 1. **Background**: `ch6_strapdown_basic/` - Understand why fusion is needed
-2. **Baseline**: `fusion_2d_imu_uwb/` - See how fusion bounds IMU drift
-3. **Robustness**: `fusion_2d_imu_uwb_nlos/` - Handle measurement outliers
-4. **Calibration**: `fusion_2d_imu_uwb_timeoffset/` - Time synchronization challenges
+2. **Baseline**: `ch8_fusion_2d_imu_uwb/` - See how fusion bounds IMU drift
+3. **Robustness**: `ch8_fusion_2d_imu_uwb_nlos/` - Handle measurement outliers
+4. **Calibration**: `ch8_fusion_2d_imu_uwb_timeoffset/` - Time synchronization challenges
 
 ### Path D: SLAM (Chapter 7)
 1. **Start**: `ch7_slam_2d_square/` - Pose graph basics with loop closure
@@ -104,9 +104,9 @@ python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb
 
 | Dataset | Purpose | Grid Spacing | RPs/Floor | Key Learning | Documentation |
 |---------|---------|--------------|-----------|--------------|---------------|
-| `wifi_fingerprint_grid/` | Baseline Wi-Fi fingerprinting | 5m | 121 (11×11) | NN, k-NN, MAP, Posterior Mean | [README](wifi_fingerprint_grid/README.md) |
-| `wifi_fingerprint_dense/` | High-accuracy variant | 2m | 676 (26×26) | Dense grids = better accuracy | [README](wifi_fingerprint_dense/README.md) |
-| `wifi_fingerprint_sparse/` | Quick deployment variant | 10m | 25 (5×5) | Accuracy vs. effort trade-off | [README](wifi_fingerprint_sparse/README.md) |
+| `ch5_wifi_fingerprint_grid/` | Baseline Wi-Fi fingerprinting | 5m | 121 (11×11) | NN, k-NN, MAP, Posterior Mean | [README](ch5_wifi_fingerprint_grid/README.md) |
+| `ch5_wifi_fingerprint_dense/` | High-accuracy variant | 2m | 676 (26×26) | Dense grids = better accuracy | [README](ch5_wifi_fingerprint_dense/README.md) |
+| `ch5_wifi_fingerprint_sparse/` | Quick deployment variant | 10m | 25 (5×5) | Accuracy vs. effort trade-off | [README](ch5_wifi_fingerprint_sparse/README.md) |
 
 **Key Equations**:
 - Eq. (5.1): Nearest-Neighbor (NN)
@@ -115,7 +115,7 @@ python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb
 - Eq. (5.4): MAP estimation
 - Eq. (5.5): Posterior Mean estimation
 
-**Generation Script**: `scripts/generate_wifi_fingerprint_dataset.py`
+**Generation Script**: `scripts/generate_ch5_wifi_fingerprint_dataset.py`
 
 ---
 
@@ -164,16 +164,16 @@ python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb
 
 | Dataset | Purpose | Sensors | Key Parameters | Key Learning | Documentation |
 |---------|---------|---------|----------------|--------------|---------------|
-| `fusion_2d_imu_uwb/` | Baseline LC/TC fusion | IMU (100Hz) + UWB (10Hz) | No bias, no offset | Multi-rate fusion fundamentals | [README](fusion_2d_imu_uwb/README.md) |
-| `fusion_2d_imu_uwb_nlos/` | NLOS robustness | IMU + UWB | Anchors 1,2 biased +0.8m | **Chi-square gating, robust loss** | [README](fusion_2d_imu_uwb_nlos/README.md) |
-| `fusion_2d_imu_uwb_timeoffset/` | Temporal calibration | IMU + UWB | 50ms offset, 100ppm drift | **Time synchronization challenges** | [README](fusion_2d_imu_uwb_timeoffset/README.md) |
+| `ch8_fusion_2d_imu_uwb/` | Baseline LC/TC fusion | IMU (100Hz) + UWB (10Hz) | No bias, no offset | Multi-rate fusion fundamentals | [README](ch8_fusion_2d_imu_uwb/README.md) |
+| `ch8_fusion_2d_imu_uwb_nlos/` | NLOS robustness | IMU + UWB | Anchors 1,2 biased +0.8m | **Chi-square gating, robust loss** | [README](ch8_fusion_2d_imu_uwb_nlos/README.md) |
+| `ch8_fusion_2d_imu_uwb_timeoffset/` | Temporal calibration | IMU + UWB | 50ms offset, 100ppm drift | **Time synchronization challenges** | [README](ch8_fusion_2d_imu_uwb_timeoffset/README.md) |
 
 **Key Equations**:
 - Eqs. (8.1)-(8.7): Tightly-coupled EKF fusion
 - Eqs. (8.8)-(8.9): Chi-square gating, NIS monitoring
 - Eqs. (8.13)-(8.18): Loosely-coupled fusion
 
-**Generation Script**: `scripts/generate_fusion_2d_imu_uwb_dataset.py`
+**Generation Script**: `scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py`
 
 ---
 
@@ -254,7 +254,7 @@ def load_dataset(dataset_path):
     return {'truth': truth, 'config': config}
 
 # Example usage
-dataset = load_dataset('data/sim/fusion_2d_imu_uwb')
+dataset = load_dataset('data/sim/ch8_fusion_2d_imu_uwb')
 print(f"Duration: {dataset['truth']['t'][-1]:.1f} seconds")
 ```
 
@@ -319,12 +319,12 @@ All datasets can be regenerated with custom parameters. See `scripts/README.md` 
 
 ```bash
 # Generate fusion dataset with high IMU noise
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --accel-noise 0.5 --gyro-noise 0.05 \
     --output data/sim/my_high_noise_experiment
 
 # Generate fingerprint database with dense AP coverage
-python scripts/generate_wifi_fingerprint_dataset.py \
+python scripts/generate_ch5_wifi_fingerprint_dataset.py \
     --n-aps 16 --grid-spacing 3.0 \
     --output data/sim/my_dense_fingerprint
 
@@ -342,12 +342,12 @@ Quick visualization of any dataset:
 
 ```bash
 # Plot dataset overview (trajectory, sensors, noise characteristics)
-python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb
+python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb
 
 # Compare multiple dataset variants side-by-side
 python tools/compare_fusion_variants.py \
-    data/sim/fusion_2d_imu_uwb \
-    data/sim/fusion_2d_imu_uwb_nlos \
+    data/sim/ch8_fusion_2d_imu_uwb \
+    data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --output comparison.svg
 
 # Validate dataset format and report statistics

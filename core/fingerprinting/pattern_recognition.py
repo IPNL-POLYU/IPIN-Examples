@@ -43,7 +43,7 @@ class LinearRegressionLocalizer:
         meta: Metadata dictionary (e.g., AP IDs, building info).
 
     Example:
-        >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+        >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> 
         >>> # Train separate model for floor 0
         >>> model_floor0 = LinearRegressionLocalizer.fit(db, floor_id=0)
@@ -130,7 +130,7 @@ class LinearRegressionLocalizer:
             ValueError: If floor_id doesn't exist or if insufficient training data.
 
         Examples:
-            >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+            >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
             >>> 
             >>> # Train on floor 0 only
             >>> model = LinearRegressionLocalizer.fit(db, floor_id=0)

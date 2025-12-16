@@ -153,7 +153,7 @@ def nn_localize(
 
     Examples:
         >>> # Single-floor localization
-        >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+        >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> z_query = np.array([-51, -61, -71])
         >>> x_hat = nn_localize(z_query, db, floor_id=0)
         >>> print(f"Estimated position: {x_hat}")
@@ -236,7 +236,7 @@ def knn_localize(
         ValueError: If k < 1, k > M, invalid weighting method, or dimension mismatch.
 
     Examples:
-        >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+        >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> z_query = np.array([-51, -61, -71])
         >>> 
         >>> # Standard k-NN with k=3

@@ -1,6 +1,6 @@
 {
   "dataset": {
-    "path": "data/sim/fusion_2d_imu_uwb",
+    "path": "data/sim/ch8_fusion_2d_imu_uwb",
     "config": {
       "dataset_info": {
         "description": "2D IMU + UWB fusion dataset for Chapter 8",

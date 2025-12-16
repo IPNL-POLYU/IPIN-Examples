@@ -41,7 +41,7 @@ def load_fingerprint_database(
         ValueError: If data validation fails.
 
     Examples:
-        >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+        >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> print(db)
         FingerprintDatabase(n_rps=75, n_features=6, location_dim=2, floors=[0, 1, 2])
     """

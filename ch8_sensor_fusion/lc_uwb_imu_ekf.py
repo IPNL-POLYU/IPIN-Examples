@@ -363,7 +363,7 @@ def main():
     parser.add_argument(
         "--data",
         type=str,
-        default="data/sim/fusion_2d_imu_uwb",
+        default="data/sim/ch8_fusion_2d_imu_uwb",
         help="Path to fusion dataset directory"
     )
     parser.add_argument(

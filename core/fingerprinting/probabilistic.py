@@ -138,7 +138,7 @@ def fit_gaussian_naive_bayes(
         ValueError: If prior type is not supported.
 
     Examples:
-        >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+        >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> model = fit_gaussian_naive_bayes(db, min_std=2.0)
         >>> print(f"Trained model with {model.n_reference_points} RPs")
 
@@ -378,7 +378,7 @@ def map_localize(
         ValueError: If query dimension doesn't match model or floor doesn't exist.
 
     Examples:
-        >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+        >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> model = fit_gaussian_naive_bayes(db, min_std=2.0)
         >>> z_query = np.array([-51, -61, -71])
         >>> x_hat = map_localize(z_query, model, floor_id=0)
@@ -427,7 +427,7 @@ def posterior_mean_localize(
         ValueError: If query dimension doesn't match model or floor doesn't exist.
 
     Examples:
-        >>> db = load_fingerprint_database('data/sim/wifi_fingerprint_grid')
+        >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> model = fit_gaussian_naive_bayes(db, min_std=2.0)
         >>> z_query = np.array([-51, -61, -71])
         >>> x_hat = posterior_mean_localize(z_query, model, floor_id=0)

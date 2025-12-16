@@ -422,7 +422,7 @@ def main():
     parser.add_argument(
         "--data",
         type=str,
-        default="data/sim/fusion_2d_imu_uwb_timeoffset",
+        default="data/sim/ch8_fusion_2d_imu_uwb_timeoffset",
         help="Path to time-offset dataset directory"
     )
     parser.add_argument(

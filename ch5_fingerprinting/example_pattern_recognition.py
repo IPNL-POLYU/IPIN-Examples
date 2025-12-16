@@ -121,7 +121,7 @@ def main():
     
     # Load database
     print("\n1. Loading fingerprint database...")
-    db_path = Path("data/sim/wifi_fingerprint_grid")
+    db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
     db = load_fingerprint_database(db_path)
     print(f"   Database: {db}")
     

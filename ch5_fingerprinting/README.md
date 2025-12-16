@@ -55,7 +55,7 @@ from pathlib import Path
 from core.fingerprinting import load_fingerprint_database, nn_localize
 
 # Load database
-db = load_fingerprint_database(Path("data/sim/wifi_fingerprint_grid"))
+db = load_fingerprint_database(Path("data/sim/ch5_wifi_fingerprint_grid"))
 
 # Query fingerprint (8 RSS values from 8 APs)
 query = np.array([-45, -60, -75, -80, -50, -70, -85, -90])
