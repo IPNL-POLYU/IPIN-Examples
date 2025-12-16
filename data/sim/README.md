@@ -26,6 +26,96 @@ python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb
 
 ---
 
+## 🔗 Example Scripts ↔ Dataset Connections
+
+Each chapter example folder has scripts that can load from these datasets. Use `--data <dataset_name>` to run with pre-generated data:
+
+### Chapter 2: Coordinate Systems (`ch2_coords/`)
+
+| Example Script | Dataset | Command |
+|----------------|---------|---------|
+| `example_coordinate_transforms.py` | `ch2_coords_san_francisco/` | `python -m ch2_coords.example_coordinate_transforms --data ch2_coords_san_francisco` |
+
+### Chapter 3: State Estimation (`ch3_estimators/`)
+
+| Example Script | Dataset | Command |
+|----------------|---------|---------|
+| `example_ekf_range_bearing.py` | `ch3_estimator_nonlinear/` | `python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_nonlinear` |
+| `example_ekf_range_bearing.py` | `ch3_estimator_high_nonlinear/` | `python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_high_nonlinear` |
+
+### Chapter 4: RF Point Positioning (`ch4_rf_point_positioning/`)
+
+| Example Script | Dataset | Command |
+|----------------|---------|---------|
+| `example_comparison.py` | `ch4_rf_2d_square/` | `python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_square` |
+| `example_comparison.py` | `ch4_rf_2d_optimal/` | `python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_optimal` |
+| `example_comparison.py` | `ch4_rf_2d_linear/` | `python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_linear` |
+| `example_comparison.py` | `ch4_rf_2d_nlos/` | `python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_nlos` |
+| `example_comparison.py` | *(compare all)* | `python -m ch4_rf_point_positioning.example_comparison --compare-geometry` |
+
+### Chapter 5: Fingerprinting (`ch5_fingerprinting/`)
+
+| Example Script | Dataset | Command |
+|----------------|---------|---------|
+| `example_deterministic.py` | `ch5_wifi_fingerprint_grid/` | `python -m ch5_fingerprinting.example_deterministic` |
+| `example_probabilistic.py` | `ch5_wifi_fingerprint_grid/` | `python -m ch5_fingerprinting.example_probabilistic` |
+| `example_pattern_recognition.py` | `ch5_wifi_fingerprint_grid/` | `python -m ch5_fingerprinting.example_pattern_recognition` |
+| `example_comparison.py` | `ch5_wifi_fingerprint_grid/` | `python -m ch5_fingerprinting.example_comparison` |
+
+> **Note**: CH5 examples use `ch5_wifi_fingerprint_grid/` by default. Edit the script to use `ch5_wifi_fingerprint_dense/` or `ch5_wifi_fingerprint_sparse/` for different density experiments.
+
+### Chapter 6: Dead Reckoning (`ch6_dead_reckoning/`)
+
+| Example Script | Dataset | Command |
+|----------------|---------|---------|
+| `example_pdr.py` | `ch6_pdr_corridor_walk/` | `python -m ch6_dead_reckoning.example_pdr --data ch6_pdr_corridor_walk` |
+
+> **Other CH6 datasets**: `ch6_strapdown_basic/`, `ch6_wheel_odom_square/`, `ch6_foot_zupt_walk/`, `ch6_env_sensors_heading_altitude/` are available for additional dead reckoning experiments.
+
+### Chapter 7: SLAM (`ch7_slam/`)
+
+| Example Script | Dataset | Command |
+|----------------|---------|---------|
+| `example_pose_graph_slam.py` | `ch7_slam_2d_square/` | `python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square` |
+| `example_pose_graph_slam.py` | `ch7_slam_2d_high_drift/` | `python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_high_drift` |
+
+### Chapter 8: Sensor Fusion (`ch8_sensor_fusion/`)
+
+| Example Script | Dataset | Command |
+|----------------|---------|---------|
+| `lc_uwb_imu_ekf.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.lc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb` |
+| `tc_uwb_imu_ekf.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb` |
+| `compare_lc_tc.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.compare_lc_tc --data data/sim/ch8_fusion_2d_imu_uwb` |
+| `tuning_robust_demo.py` | `ch8_fusion_2d_imu_uwb_nlos/` | `python -m ch8_sensor_fusion.tuning_robust_demo --data data/sim/ch8_fusion_2d_imu_uwb_nlos` |
+| `temporal_calibration_demo.py` | `ch8_fusion_2d_imu_uwb_timeoffset/` | `python -m ch8_sensor_fusion.temporal_calibration_demo --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset` |
+
+### Quick Reference: Dataset → Example Mapping
+
+| Dataset | Primary Example | Chapter |
+|---------|-----------------|---------|
+| `ch2_coords_san_francisco/` | `ch2_coords/example_coordinate_transforms.py` | CH2 |
+| `ch3_estimator_nonlinear/` | `ch3_estimators/example_ekf_range_bearing.py` | CH3 |
+| `ch3_estimator_high_nonlinear/` | `ch3_estimators/example_ekf_range_bearing.py` | CH3 |
+| `ch4_rf_2d_square/` | `ch4_rf_point_positioning/example_comparison.py` | CH4 |
+| `ch4_rf_2d_optimal/` | `ch4_rf_point_positioning/example_comparison.py` | CH4 |
+| `ch4_rf_2d_linear/` | `ch4_rf_point_positioning/example_comparison.py` | CH4 |
+| `ch4_rf_2d_nlos/` | `ch4_rf_point_positioning/example_comparison.py` | CH4 |
+| `ch5_wifi_fingerprint_grid/` | `ch5_fingerprinting/example_*.py` | CH5 |
+| `ch5_wifi_fingerprint_dense/` | `ch5_fingerprinting/example_*.py` | CH5 |
+| `ch5_wifi_fingerprint_sparse/` | `ch5_fingerprinting/example_*.py` | CH5 |
+| `ch6_pdr_corridor_walk/` | `ch6_dead_reckoning/example_pdr.py` | CH6 |
+| `ch6_strapdown_basic/` | *(manual loading)* | CH6 |
+| `ch6_wheel_odom_square/` | *(manual loading)* | CH6 |
+| `ch6_foot_zupt_walk/` | *(manual loading)* | CH6 |
+| `ch6_env_sensors_heading_altitude/` | *(manual loading)* | CH6 |
+| `ch7_slam_2d_square/` | `ch7_slam/example_pose_graph_slam.py` | CH7 |
+| `ch7_slam_2d_high_drift/` | `ch7_slam/example_pose_graph_slam.py` | CH7 |
+| `ch8_fusion_2d_imu_uwb/` | `ch8_sensor_fusion/lc_uwb_imu_ekf.py`, `tc_uwb_imu_ekf.py` | CH8 |
+| `ch8_fusion_2d_imu_uwb_nlos/` | `ch8_sensor_fusion/tuning_robust_demo.py` | CH8 |
+| `ch8_fusion_2d_imu_uwb_timeoffset/` | `ch8_sensor_fusion/temporal_calibration_demo.py` | CH8 |
+
+---
+
 ## 🎓 Suggested Learning Paths
 
 ### Path A: RF Positioning Fundamentals (Chapter 4)
