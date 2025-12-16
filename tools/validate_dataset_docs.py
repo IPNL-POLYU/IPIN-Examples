@@ -27,6 +27,11 @@ class Colors:
     BOLD = '\033[1m'
     END = '\033[0m'
 
+# Unicode-safe symbols (fallback for Windows)
+CHECK = 'OK'  # Was: ✓
+CROSS = 'X'   # Was: ✗
+WARN = '!'    # Was: ⚠
+
 
 # Required sections in dataset README (from Section 5.3.2)
 REQUIRED_SECTIONS = [
@@ -187,10 +192,10 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
         for mf in missing_files:
             results['errors'].append(f"Missing required file: {mf}")
             if verbose:
-                print(f"  {Colors.RED}✗{Colors.END} Missing: {mf}")
+                print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing: {mf}")
     else:
         if verbose:
-            print(f"  {Colors.GREEN}✓{Colors.END} All required files present")
+            print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} All required files present")
     
     # Check README
     readme_path = dataset_path / "README.md"
@@ -199,11 +204,11 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
     if not readme_path.exists():
         results['errors'].append("Missing README.md")
         if verbose:
-            print(f"  {Colors.RED}✗{Colors.END} Missing README.md")
+            print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing README.md")
         return False, results
     else:
         if verbose:
-            print(f"  {Colors.GREEN}✓{Colors.END} README.md exists")
+            print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} README.md exists")
     
     # Check sections
     sections = check_readme_sections(readme_path)
@@ -212,7 +217,7 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
         if not sections[section]:
             results['errors'].append(f"Missing required section: {section}")
             if verbose:
-                print(f"  {Colors.RED}✗{Colors.END} Missing section: {section}")
+                print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing section: {section}")
     
     for section in RECOMMENDED_SECTIONS:
         results['recommended_sections'][section] = sections[section]
@@ -220,7 +225,7 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
             results['warnings'].append(f"Missing recommended section: {section}")
     
     if verbose and not results['errors']:
-        print(f"  {Colors.GREEN}✓{Colors.END} All required sections present")
+        print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} All required sections present")
     
     # Check code examples
     num_blocks, languages = check_readme_code_blocks(readme_path)
@@ -230,31 +235,31 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
     if num_blocks < 3:
         results['warnings'].append(f"Only {num_blocks} code blocks (recommend ≥3)")
         if verbose:
-            print(f"  {Colors.YELLOW}⚠{Colors.END} Only {num_blocks} code blocks (recommend ≥3)")
+            print(f"  {Colors.YELLOW}[{WARN}]{Colors.END} Only {num_blocks} code blocks (recommend ≥3)")
     elif verbose:
-        print(f"  {Colors.GREEN}✓{Colors.END} {num_blocks} code blocks found")
+        print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} {num_blocks} code blocks found")
     
     if 'python' not in languages:
         results['warnings'].append("No Python loading examples found")
         if verbose:
-            print(f"  {Colors.YELLOW}⚠{Colors.END} No Python loading examples")
+            print(f"  {Colors.YELLOW}[{WARN}]{Colors.END} No Python loading examples")
     
     # Check parameter table
     results['has_parameter_table'] = check_parameter_table(readme_path)
     if not results['has_parameter_table']:
         results['errors'].append("Missing parameter effects table")
         if verbose:
-            print(f"  {Colors.RED}✗{Colors.END} Missing parameter effects table")
+            print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing parameter effects table")
     elif verbose:
-        print(f"  {Colors.GREEN}✓{Colors.END} Parameter effects table present")
+        print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} Parameter effects table present")
     
     is_valid = len(results['errors']) == 0
     
     if verbose:
         if is_valid:
-            print(f"  {Colors.GREEN}{Colors.BOLD}Status: VALID ✓{Colors.END}")
+            print(f"  {Colors.GREEN}{Colors.BOLD}Status: VALID [{CHECK}]{Colors.END}")
         else:
-            print(f"  {Colors.RED}{Colors.BOLD}Status: INVALID ✗{Colors.END}")
+            print(f"  {Colors.RED}{Colors.BOLD}Status: INVALID [{CROSS}]{Colors.END}")
         
         if results['warnings']:
             print(f"  {Colors.YELLOW}Warnings: {len(results['warnings'])}{Colors.END}")
@@ -300,7 +305,7 @@ def print_summary(results_list: List[Tuple[bool, Dict]]):
     print(f"Invalid datasets: {Colors.RED}{total_count - valid_count}{Colors.END}")
     
     if valid_count == total_count:
-        print(f"\n{Colors.GREEN}{Colors.BOLD}All datasets have complete documentation! ✓{Colors.END}")
+        print(f"\n{Colors.GREEN}{Colors.BOLD}All datasets have complete documentation! [{CHECK}]{Colors.END}")
     else:
         print(f"\n{Colors.RED}{Colors.BOLD}Some datasets need documentation fixes.{Colors.END}")
         print(f"\nDatasets needing attention:")

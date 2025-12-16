@@ -14,11 +14,81 @@ Date: December 2025
 References: Chapter 8 - Sensor Fusion
 """
 
+import argparse
 import json
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import numpy as np
+
+
+# ============================================================================
+# PRESET CONFIGURATIONS
+# ============================================================================
+
+PRESETS = {
+    'baseline': {
+        'description': 'Standard configuration with nominal parameters',
+        'accel_noise_std': 0.1,
+        'gyro_noise_std': 0.01,
+        'range_noise_std': 0.05,
+        'nlos_anchors': [],
+        'nlos_bias': 0.0,
+        'dropout_rate': 0.05,
+        'time_offset_sec': 0.0,
+    },
+    'nlos_severe': {
+        'description': 'Severe NLOS on 2 anchors to test robust loss functions',
+        'accel_noise_std': 0.1,
+        'gyro_noise_std': 0.01,
+        'range_noise_std': 0.05,
+        'nlos_anchors': [1, 2],
+        'nlos_bias': 1.5,
+        'dropout_rate': 0.05,
+        'time_offset_sec': 0.0,
+    },
+    'high_dropout': {
+        'description': 'High dropout rate to test multi-rate fusion',
+        'accel_noise_std': 0.1,
+        'gyro_noise_std': 0.01,
+        'range_noise_std': 0.05,
+        'nlos_anchors': [],
+        'nlos_bias': 0.0,
+        'dropout_rate': 0.3,
+        'time_offset_sec': 0.0,
+    },
+    'degraded_imu': {
+        'description': 'Poor IMU quality (MEMS-grade) to test IMU drift',
+        'accel_noise_std': 0.5,
+        'gyro_noise_std': 0.05,
+        'range_noise_std': 0.05,
+        'nlos_anchors': [],
+        'nlos_bias': 0.0,
+        'dropout_rate': 0.05,
+        'time_offset_sec': 0.0,
+    },
+    'time_offset_50ms': {
+        'description': 'UWB 50ms behind IMU with clock drift',
+        'accel_noise_std': 0.1,
+        'gyro_noise_std': 0.01,
+        'range_noise_std': 0.05,
+        'nlos_anchors': [],
+        'nlos_bias': 0.0,
+        'dropout_rate': 0.05,
+        'time_offset_sec': -0.05,
+        'clock_drift': 0.0001,
+    },
+    'tactical_imu': {
+        'description': 'Tactical-grade IMU (low noise)',
+        'accel_noise_std': 0.01,
+        'gyro_noise_std': 0.001,
+        'range_noise_std': 0.05,
+        'nlos_anchors': [],
+        'nlos_bias': 0.0,
+        'dropout_rate': 0.05,
+        'time_offset_sec': 0.0,
+    },
+}
 
 
 def generate_rectangular_trajectory(
@@ -413,44 +483,314 @@ def generate_fusion_2d_imu_uwb_dataset(
     print(f"\n")
 
 
+# ============================================================================
+# COMMAND-LINE INTERFACE
+# ============================================================================
+
+def main():
+    """Main entry point with CLI argument parsing."""
+    parser = argparse.ArgumentParser(
+        description="Generate 2D IMU + UWB fusion dataset for Chapter 8",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Generate with default parameters
+  python %(prog)s
+
+  # Use a preset configuration
+  python %(prog)s --preset baseline
+
+  # Generate NLOS variant
+  python %(prog)s --preset nlos_severe --output data/sim/fusion_nlos_test
+
+  # Custom parameters
+  python %(prog)s --accel-noise 0.5 --gyro-noise 0.05 --duration 120
+
+  # Generate all standard variants
+  python %(prog)s --all-variants
+
+  # High dropout test
+  python %(prog)s --dropout-rate 0.3 --output data/sim/fusion_high_dropout
+
+Available presets: """ + ", ".join(PRESETS.keys())
+    )
+    
+    # Preset configuration
+    parser.add_argument(
+        '--preset',
+        type=str,
+        choices=PRESETS.keys(),
+        help='Use preset configuration (overrides individual parameters)'
+    )
+    
+    parser.add_argument(
+        '--all-variants',
+        action='store_true',
+        help='Generate all 3 standard variants (baseline, nlos, timeoffset)'
+    )
+    
+    # Output
+    parser.add_argument(
+        '--output',
+        type=str,
+        default='data/sim/fusion_2d_imu_uwb',
+        help='Output directory (default: data/sim/fusion_2d_imu_uwb)'
+    )
+    
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=42,
+        help='Random seed for reproducibility (default: 42)'
+    )
+    
+    # Trajectory parameters
+    traj_group = parser.add_argument_group('Trajectory Parameters')
+    traj_group.add_argument(
+        '--width',
+        type=float,
+        default=20.0,
+        help='Rectangle width in meters (default: 20.0)'
+    )
+    traj_group.add_argument(
+        '--height',
+        type=float,
+        default=15.0,
+        help='Rectangle height in meters (default: 15.0)'
+    )
+    traj_group.add_argument(
+        '--speed',
+        type=float,
+        default=1.0,
+        help='Walking speed in m/s (default: 1.0)'
+    )
+    traj_group.add_argument(
+        '--duration',
+        type=float,
+        default=60.0,
+        help='Trajectory duration in seconds (default: 60.0)'
+    )
+    traj_group.add_argument(
+        '--dt-imu',
+        type=float,
+        default=0.01,
+        help='IMU time step in seconds (default: 0.01, i.e., 100 Hz)'
+    )
+    
+    # IMU parameters
+    imu_group = parser.add_argument_group('IMU Parameters')
+    imu_group.add_argument(
+        '--accel-noise',
+        type=float,
+        default=0.1,
+        dest='accel_noise_std',
+        help='Accelerometer noise std in m/s² (default: 0.1)'
+    )
+    imu_group.add_argument(
+        '--gyro-noise',
+        type=float,
+        default=0.01,
+        dest='gyro_noise_std',
+        help='Gyroscope noise std in rad/s (default: 0.01)'
+    )
+    imu_group.add_argument(
+        '--accel-bias-x',
+        type=float,
+        default=0.0,
+        help='Accelerometer X-axis bias in m/s² (default: 0.0)'
+    )
+    imu_group.add_argument(
+        '--accel-bias-y',
+        type=float,
+        default=0.0,
+        help='Accelerometer Y-axis bias in m/s² (default: 0.0)'
+    )
+    imu_group.add_argument(
+        '--gyro-bias',
+        type=float,
+        default=0.0,
+        help='Gyroscope Z-axis bias in rad/s (default: 0.0)'
+    )
+    
+    # UWB parameters
+    uwb_group = parser.add_argument_group('UWB Parameters')
+    uwb_group.add_argument(
+        '--uwb-rate',
+        type=float,
+        default=10.0,
+        help='UWB measurement rate in Hz (default: 10.0)'
+    )
+    uwb_group.add_argument(
+        '--range-noise',
+        type=float,
+        default=0.05,
+        dest='range_noise_std',
+        help='UWB range noise std in meters (default: 0.05)'
+    )
+    uwb_group.add_argument(
+        '--nlos-anchors',
+        type=int,
+        nargs='+',
+        default=[],
+        help='List of NLOS anchor indices (e.g., --nlos-anchors 1 2)'
+    )
+    uwb_group.add_argument(
+        '--nlos-bias',
+        type=float,
+        default=0.5,
+        help='NLOS positive bias in meters (default: 0.5)'
+    )
+    uwb_group.add_argument(
+        '--dropout-rate',
+        type=float,
+        default=0.05,
+        help='Measurement dropout probability per anchor (default: 0.05)'
+    )
+    
+    # Temporal calibration
+    temporal_group = parser.add_argument_group('Temporal Calibration Parameters')
+    temporal_group.add_argument(
+        '--time-offset',
+        type=float,
+        default=0.0,
+        dest='time_offset_sec',
+        help='UWB time offset in seconds (negative = UWB behind) (default: 0.0)'
+    )
+    temporal_group.add_argument(
+        '--clock-drift',
+        type=float,
+        default=0.0,
+        help='Relative clock drift (e.g., 0.0001 = 100 ppm) (default: 0.0)'
+    )
+    
+    # Parse arguments
+    args = parser.parse_args()
+    
+    # Handle --all-variants special case
+    if args.all_variants:
+        print(f"\n{'='*70}")
+        print("Generating all 3 standard variants...")
+        print(f"{'='*70}\n")
+        
+        # Baseline
+        print("1/3: BASELINE (no offset, no NLOS)")
+        generate_fusion_2d_imu_uwb_dataset(
+            output_dir="data/sim/fusion_2d_imu_uwb",
+            seed=args.seed,
+            duration=args.duration,
+            width=args.width,
+            height=args.height,
+            speed=args.speed,
+            dt_imu=args.dt_imu,
+            accel_noise_std=args.accel_noise_std,
+            gyro_noise_std=args.gyro_noise_std,
+            uwb_rate=args.uwb_rate,
+            range_noise_std=args.range_noise_std,
+            nlos_anchors=[],
+            time_offset_sec=0.0,
+            clock_drift=0.0
+        )
+        
+        # NLOS variant
+        print("\n2/3: NLOS variant (anchors 1,2 biased +0.8m)")
+        generate_fusion_2d_imu_uwb_dataset(
+            output_dir="data/sim/fusion_2d_imu_uwb_nlos",
+            seed=args.seed,
+            duration=args.duration,
+            width=args.width,
+            height=args.height,
+            speed=args.speed,
+            dt_imu=args.dt_imu,
+            accel_noise_std=args.accel_noise_std,
+            gyro_noise_std=args.gyro_noise_std,
+            uwb_rate=args.uwb_rate,
+            range_noise_std=args.range_noise_std,
+            nlos_anchors=[1, 2],
+            nlos_bias=0.8,
+            dropout_rate=args.dropout_rate,
+            time_offset_sec=0.0,
+            clock_drift=0.0
+        )
+        
+        # Time offset variant
+        print("\n3/3: TIME OFFSET variant (UWB 50ms behind, 100ppm drift)")
+        generate_fusion_2d_imu_uwb_dataset(
+            output_dir="data/sim/fusion_2d_imu_uwb_timeoffset",
+            seed=args.seed,
+            duration=args.duration,
+            width=args.width,
+            height=args.height,
+            speed=args.speed,
+            dt_imu=args.dt_imu,
+            accel_noise_std=args.accel_noise_std,
+            gyro_noise_std=args.gyro_noise_std,
+            uwb_rate=args.uwb_rate,
+            range_noise_std=args.range_noise_std,
+            nlos_anchors=[],
+            dropout_rate=args.dropout_rate,
+            time_offset_sec=-0.05,
+            clock_drift=0.0001
+        )
+        
+        print(f"\n{'='*70}")
+        print("All 3 variants generated successfully!")
+        print(f"{'='*70}\n")
+        return
+    
+    # If preset is specified, override with preset values
+    if args.preset:
+        preset_config = PRESETS[args.preset]
+        print(f"\nUsing preset: '{args.preset}'")
+        print(f"Description: {preset_config['description']}\n")
+        
+        # Override parameters with preset values
+        for key, value in preset_config.items():
+            if key != 'description' and hasattr(args, key):
+                setattr(args, key, value)
+    
+    # Validate parameters
+    if args.duration <= 0:
+        parser.error("Duration must be positive")
+    if args.dt_imu <= 0 or args.dt_imu > args.duration:
+        parser.error("IMU time step must be positive and less than duration")
+    if args.speed <= 0:
+        parser.error("Speed must be positive")
+    if args.accel_noise_std < 0 or args.gyro_noise_std < 0:
+        parser.error("Noise parameters must be non-negative")
+    if args.range_noise_std < 0:
+        parser.error("Range noise must be non-negative")
+    if args.dropout_rate < 0 or args.dropout_rate > 1:
+        parser.error("Dropout rate must be in [0, 1]")
+    if args.nlos_anchors:
+        if any(a < 0 or a > 3 for a in args.nlos_anchors):
+            parser.error("NLOS anchor indices must be in [0, 3]")
+    
+    # Build accel_bias from individual components
+    accel_bias = np.array([args.accel_bias_x, args.accel_bias_y])
+    
+    # Generate dataset
+    generate_fusion_2d_imu_uwb_dataset(
+        output_dir=args.output,
+        seed=args.seed,
+        width=args.width,
+        height=args.height,
+        speed=args.speed,
+        duration=args.duration,
+        dt_imu=args.dt_imu,
+        accel_noise_std=args.accel_noise_std,
+        gyro_noise_std=args.gyro_noise_std,
+        accel_bias=accel_bias,
+        gyro_bias=args.gyro_bias,
+        uwb_rate=args.uwb_rate,
+        range_noise_std=args.range_noise_std,
+        nlos_anchors=args.nlos_anchors,
+        nlos_bias=args.nlos_bias,
+        dropout_rate=args.dropout_rate,
+        time_offset_sec=args.time_offset_sec,
+        clock_drift=args.clock_drift
+    )
+
+
 if __name__ == "__main__":
-    # Generate baseline dataset (no time offset, no NLOS)
-    print("\nGenerating BASELINE dataset (no offset, no NLOS)...")
-    generate_fusion_2d_imu_uwb_dataset(
-        output_dir="data/sim/fusion_2d_imu_uwb",
-        seed=42,
-        duration=60.0,
-        nlos_anchors=[],
-        time_offset_sec=0.0,
-        clock_drift=0.0
-    )
-    
-    # Optional: Generate variant with NLOS for robust demo
-    print("\n" + "="*70)
-    print("Generating NLOS variant for robust loss demo...")
-    generate_fusion_2d_imu_uwb_dataset(
-        output_dir="data/sim/fusion_2d_imu_uwb_nlos",
-        seed=42,
-        duration=60.0,
-        nlos_anchors=[1, 2],  # Anchors 1 and 2 have NLOS
-        nlos_bias=0.8,
-        time_offset_sec=0.0,
-        clock_drift=0.0
-    )
-    
-    # Optional: Generate variant with time offset for temporal calibration demo
-    print("\n" + "="*70)
-    print("Generating TIME OFFSET variant for temporal calibration demo...")
-    generate_fusion_2d_imu_uwb_dataset(
-        output_dir="data/sim/fusion_2d_imu_uwb_timeoffset",
-        seed=42,
-        duration=60.0,
-        nlos_anchors=[],
-        time_offset_sec=-0.05,  # UWB 50ms behind IMU
-        clock_drift=0.0001,     # 100 ppm drift
-    )
-    
-    print("\n" + "="*70)
-    print("All dataset variants generated successfully!")
-    print("="*70)
+    main()
 
