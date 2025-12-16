@@ -24,14 +24,14 @@ python -m ch8_sensor_fusion.compare_lc_tc \
 
 # Test on NLOS dataset
 python -m ch8_sensor_fusion.compare_lc_tc \
-    --data data/sim/fusion_2d_imu_uwb_nlos
+    --data data/sim/ch8_fusion_2d_imu_uwb_nlos
 ```
 
 ### Command-Line Arguments
 
 | Argument | Type | Default | Description |
 |----------|------|---------|-------------|
-| `--data` | str | `data/sim/fusion_2d_imu_uwb` | Dataset directory |
+| `--data` | str | `data/sim/ch8_fusion_2d_imu_uwb` | Dataset directory |
 | `--no-gating` | flag | False | Disable chi-square gating |
 | `--alpha` | float | 0.05 | Gating significance level |
 | `--save` | str | `lc_tc_comparison.svg` | Path to save figure |
@@ -166,7 +166,7 @@ The comparison script generates a comprehensive 3×3 grid:
 ```json
 {
   "dataset": {
-    "path": "data/sim/fusion_2d_imu_uwb",
+    "path": "data/sim/ch8_fusion_2d_imu_uwb",
     "n_imu_samples": 6000,
     "n_uwb_epochs": 600,
     "duration": 59.99
@@ -271,7 +271,7 @@ Compare robustness to NLOS bias:
 
 ```bash
 python -m ch8_sensor_fusion.compare_lc_tc \
-    --data data/sim/fusion_2d_imu_uwb_nlos \
+    --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --save nlos_comparison.svg
 ```
 
@@ -283,7 +283,7 @@ Compare sensitivity to temporal misalignment:
 
 ```bash
 python -m ch8_sensor_fusion.compare_lc_tc \
-    --data data/sim/fusion_2d_imu_uwb_timeoffset \
+    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
     --save timeoffset_comparison.svg
 ```
 
@@ -292,7 +292,7 @@ python -m ch8_sensor_fusion.compare_lc_tc \
 ### 4. **Batch Comparison Across Datasets**
 
 ```bash
-for dataset in fusion_2d_imu_uwb fusion_2d_imu_uwb_nlos fusion_2d_imu_uwb_timeoffset; do
+for dataset in ch8_fusion_2d_imu_uwb ch8_fusion_2d_imu_uwb_nlos ch8_fusion_2d_imu_uwb_timeoffset; do
     python -m ch8_sensor_fusion.compare_lc_tc \
         --data data/sim/$dataset \
         --save figs/${dataset}_comparison.svg \

@@ -7,7 +7,7 @@ Creates a realistic indoor fusion scenario with:
     - Ground truth: position, velocity, heading
     - Configurable noise, time offset, and NLOS bias
 
-Saves to: data/sim/fusion_2d_imu_uwb/
+Saves to: data/sim/ch8_fusion_2d_imu_uwb/
 
 Author: Navigation Engineer
 Date: December 2025
@@ -278,7 +278,7 @@ def generate_uwb_measurements(
 
 
 def generate_fusion_2d_imu_uwb_dataset(
-    output_dir: str = "data/sim/fusion_2d_imu_uwb",
+    output_dir: str = "data/sim/ch8_fusion_2d_imu_uwb",
     seed: int = 42,
     # Trajectory parameters
     width: float = 20.0,
@@ -533,8 +533,8 @@ Available presets: """ + ", ".join(PRESETS.keys())
     parser.add_argument(
         '--output',
         type=str,
-        default='data/sim/fusion_2d_imu_uwb',
-        help='Output directory (default: data/sim/fusion_2d_imu_uwb)'
+        default='data/sim/ch8_fusion_2d_imu_uwb',
+        help='Output directory (default: data/sim/ch8_fusion_2d_imu_uwb)'
     )
     
     parser.add_argument(
@@ -675,7 +675,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         # Baseline
         print("1/3: BASELINE (no offset, no NLOS)")
         generate_fusion_2d_imu_uwb_dataset(
-            output_dir="data/sim/fusion_2d_imu_uwb",
+            output_dir="data/sim/ch8_fusion_2d_imu_uwb",
             seed=args.seed,
             duration=args.duration,
             width=args.width,
@@ -694,7 +694,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         # NLOS variant
         print("\n2/3: NLOS variant (anchors 1,2 biased +0.8m)")
         generate_fusion_2d_imu_uwb_dataset(
-            output_dir="data/sim/fusion_2d_imu_uwb_nlos",
+            output_dir="data/sim/ch8_fusion_2d_imu_uwb_nlos",
             seed=args.seed,
             duration=args.duration,
             width=args.width,
@@ -715,7 +715,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         # Time offset variant
         print("\n3/3: TIME OFFSET variant (UWB 50ms behind, 100ppm drift)")
         generate_fusion_2d_imu_uwb_dataset(
-            output_dir="data/sim/fusion_2d_imu_uwb_timeoffset",
+            output_dir="data/sim/ch8_fusion_2d_imu_uwb_timeoffset",
             seed=args.seed,
             duration=args.duration,
             width=args.width,

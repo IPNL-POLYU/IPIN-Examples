@@ -13,17 +13,17 @@ Generation scripts serve two main purposes:
 
 ```bash
 # Generate default datasets (all chapters)
-python scripts/generate_fusion_2d_imu_uwb_dataset.py
-python scripts/generate_wifi_fingerprint_dataset.py
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
+python scripts/generate_ch5_wifi_fingerprint_dataset.py
 # ... (see script inventory below)
 
 # Generate with custom parameters
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --accel-noise 0.5 \
     --output data/sim/my_experiment
 
 # Use preset configurations
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --preset high_dropout \
     --output data/sim/high_dropout_test
 ```
@@ -34,7 +34,7 @@ python scripts/generate_fusion_2d_imu_uwb_dataset.py \
 
 ### Chapter 8: Sensor Fusion
 
-**`generate_fusion_2d_imu_uwb_dataset.py`** - IMU + UWB Fusion Dataset
+**`generate_ch8_fusion_2d_imu_uwb_dataset.py`** - IMU + UWB Fusion Dataset
 
 Generates 2D walking trajectory with high-rate IMU and low-rate UWB ranging.
 
@@ -176,17 +176,17 @@ python scripts/generate_[dataset]_dataset.py --help | grep "presets:"
 **Setup**:
 ```bash
 # Low noise (tactical-grade IMU)
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --accel-noise 0.01 --gyro-noise 0.001 \
     --output data/sim/fusion_low_noise
 
 # Medium noise (consumer-grade IMU) - baseline
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --accel-noise 0.1 --gyro-noise 0.01 \
     --output data/sim/fusion_med_noise
 
 # High noise (degraded IMU)
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --accel-noise 0.5 --gyro-noise 0.05 \
     --output data/sim/fusion_high_noise
 ```
@@ -222,7 +222,7 @@ python tools/compare_dataset_variants.py \
 ```bash
 # Generate datasets with varying NLOS bias
 for bias in 0.2 0.5 1.0 2.0; do
-    python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
         --nlos-anchors 1 2 \
         --nlos-bias $bias \
         --output data/sim/fusion_nlos_bias_${bias}
@@ -265,7 +265,7 @@ done
 **Setup**:
 ```bash
 # Generate dataset with time offset
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --time-offset -0.05 \
     --clock-drift 0.0001 \
     --output data/sim/fusion_time_offset_50ms
@@ -357,17 +357,17 @@ python -m ch6_dead_reckoning.example_zupt --data ch6_foot_zupt_walk
 **Setup**:
 ```bash
 # Sparse AP coverage
-python scripts/generate_wifi_fingerprint_dataset.py \
+python scripts/generate_ch5_wifi_fingerprint_dataset.py \
     --n-aps 4 --grid-spacing 5.0 \
     --output data/sim/wifi_sparse_4ap
 
 # Medium AP coverage (baseline)
-python scripts/generate_wifi_fingerprint_dataset.py \
+python scripts/generate_ch5_wifi_fingerprint_dataset.py \
     --n-aps 8 --grid-spacing 5.0 \
     --output data/sim/wifi_medium_8ap
 
 # Dense AP coverage
-python scripts/generate_wifi_fingerprint_dataset.py \
+python scripts/generate_ch5_wifi_fingerprint_dataset.py \
     --n-aps 16 --grid-spacing 5.0 \
     --output data/sim/wifi_dense_16ap
 ```
@@ -395,11 +395,11 @@ python -m ch5_fingerprinting.example_deterministic --data data/sim/wifi_dense_16
 **Setup**:
 ```bash
 # Coarse grid (less survey effort)
-python scripts/generate_wifi_fingerprint_dataset.py \
+python scripts/generate_ch5_wifi_fingerprint_dataset.py \
     --grid-spacing 10.0 --output data/sim/wifi_coarse_grid
 
 # Fine grid (more survey effort)  
-python scripts/generate_wifi_fingerprint_dataset.py \
+python scripts/generate_ch5_wifi_fingerprint_dataset.py \
     --grid-spacing 2.0 --output data/sim/wifi_fine_grid
 ```
 
@@ -417,11 +417,11 @@ All scripts validate parameters before generation:
 
 ```bash
 # Example: Invalid duration
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --duration -10
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --duration -10
 # Error: Duration must be positive
 
 # Example: Invalid noise range
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --accel-noise 10.0
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --accel-noise 10.0
 # Warning: Unusually high noise (>1.0), are you sure? [y/N]
 ```
 

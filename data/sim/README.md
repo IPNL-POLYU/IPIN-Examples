@@ -320,7 +320,7 @@ def load_dataset(dataset_path):
     """Load a simulation dataset.
     
     Args:
-        dataset_path: Path to dataset folder (e.g., 'data/sim/fusion_2d_imu_uwb')
+        dataset_path: Path to dataset folder (e.g., 'data/sim/ch8_fusion_2d_imu_uwb')
     
     Returns:
         Dictionary with 'truth', 'sensors', and 'config' keys

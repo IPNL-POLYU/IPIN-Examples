@@ -5,13 +5,13 @@ Creates side-by-side comparison plots of different dataset configurations
 
 Usage:
     python tools/compare_fusion_variants.py \
-        data/sim/fusion_2d_imu_uwb \
-        data/sim/fusion_2d_imu_uwb_nlos \
-        data/sim/fusion_2d_imu_uwb_timeoffset
+        data/sim/ch8_fusion_2d_imu_uwb \
+        data/sim/ch8_fusion_2d_imu_uwb_nlos \
+        data/sim/ch8_fusion_2d_imu_uwb_timeoffset
 
     python tools/compare_fusion_variants.py \
-        data/sim/fusion_2d_imu_uwb \
-        data/sim/fusion_2d_imu_uwb_nlos \
+        data/sim/ch8_fusion_2d_imu_uwb \
+        data/sim/ch8_fusion_2d_imu_uwb_nlos \
         --output comparison.svg
 
 Author: Navigation Engineer
@@ -332,26 +332,26 @@ def main():
 Examples:
   # Compare all 3 standard variants
   python %(prog)s \
-      data/sim/fusion_2d_imu_uwb \
-      data/sim/fusion_2d_imu_uwb_nlos \
-      data/sim/fusion_2d_imu_uwb_timeoffset
+      data/sim/ch8_fusion_2d_imu_uwb \
+      data/sim/ch8_fusion_2d_imu_uwb_nlos \
+      data/sim/ch8_fusion_2d_imu_uwb_timeoffset
 
   # Compare baseline vs. NLOS only
   python %(prog)s \
-      data/sim/fusion_2d_imu_uwb \
-      data/sim/fusion_2d_imu_uwb_nlos \
+      data/sim/ch8_fusion_2d_imu_uwb \
+      data/sim/ch8_fusion_2d_imu_uwb_nlos \
       --output comparison_baseline_vs_nlos
 
   # Save as PNG instead of SVG
   python %(prog)s \
-      data/sim/fusion_2d_imu_uwb \
-      data/sim/fusion_2d_imu_uwb_nlos \
+      data/sim/ch8_fusion_2d_imu_uwb \
+      data/sim/ch8_fusion_2d_imu_uwb_nlos \
       --format png
 
   # Display interactively
   python %(prog)s \
-      data/sim/fusion_2d_imu_uwb \
-      data/sim/fusion_2d_imu_uwb_nlos \
+      data/sim/ch8_fusion_2d_imu_uwb \
+      data/sim/ch8_fusion_2d_imu_uwb_nlos \
       --show
         """
     )

@@ -4,9 +4,9 @@ Creates comprehensive plots showing trajectory, measurements, noise characterist
 and data quality metrics.
 
 Usage:
-    python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb
-    python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb --output my_plots
-    python tools/plot_fusion_dataset.py data/sim/fusion_2d_imu_uwb --format png
+    python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb
+    python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb --output my_plots
+    python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb --format png
 
 Author: Navigation Engineer
 Date: December 2025
@@ -396,23 +396,23 @@ def main():
         epilog="""
 Examples:
   # Generate all plots for baseline dataset
-  python %(prog)s data/sim/fusion_2d_imu_uwb
+  python %(prog)s data/sim/ch8_fusion_2d_imu_uwb
 
   # Save to custom output directory
-  python %(prog)s data/sim/fusion_2d_imu_uwb --output plots/baseline
+  python %(prog)s data/sim/ch8_fusion_2d_imu_uwb --output plots/baseline
 
   # Generate PNG instead of SVG
-  python %(prog)s data/sim/fusion_2d_imu_uwb --format png
+  python %(prog)s data/sim/ch8_fusion_2d_imu_uwb --format png
 
   # Display plots interactively
-  python %(prog)s data/sim/fusion_2d_imu_uwb --show
+  python %(prog)s data/sim/ch8_fusion_2d_imu_uwb --show
         """
     )
     
     parser.add_argument(
         'dataset',
         type=str,
-        help='Path to dataset directory (e.g., data/sim/fusion_2d_imu_uwb)'
+        help='Path to dataset directory (e.g., data/sim/ch8_fusion_2d_imu_uwb)'
     )
     
     parser.add_argument(

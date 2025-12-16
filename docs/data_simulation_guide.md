@@ -308,7 +308,7 @@ Observed: Should be close to prediction (systematic)
 
 ```bash
 # Use standard fusion dataset
-python scripts/generate_fusion_2d_imu_uwb_dataset.py
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
 # Uses default: range_noise_std = 0.05 m
 ```
 
@@ -319,19 +319,19 @@ Modify the fusion script to scale R by factors: 0.1, 0.5, 1.0, 2.0, 5.0
 ```bash
 # Under-estimated R (overconfident)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/fusion_2d_imu_uwb \
+    --data data/sim/ch8_fusion_2d_imu_uwb \
     --r-scale 0.1 \
     --output results_r_scale_0.1.json
 
 # Correct R
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/fusion_2d_imu_uwb \
+    --data data/sim/ch8_fusion_2d_imu_uwb \
     --r-scale 1.0 \
     --output results_r_scale_1.0.json
 
 # Over-estimated R (conservative)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/fusion_2d_imu_uwb \
+    --data data/sim/ch8_fusion_2d_imu_uwb \
     --r-scale 5.0 \
     --output results_r_scale_5.0.json
 ```
@@ -401,7 +401,7 @@ d² = y' S⁻¹ y
 #### Step 1: Generate NLOS Dataset (5 min)
 
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --nlos-anchors 1 2 \
     --nlos-bias 1.0 \
     --output data/sim/fusion_nlos_1m

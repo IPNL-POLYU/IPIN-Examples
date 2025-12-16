@@ -26,9 +26,9 @@ from typing import Dict, List, Tuple
 # Dataset paths by chapter
 DATASETS = {
     "ch8_fusion": [
-        "data/sim/fusion_2d_imu_uwb",
-        "data/sim/fusion_2d_imu_uwb_nlos",
-        "data/sim/fusion_2d_imu_uwb_timeoffset",
+        "data/sim/ch8_fusion_2d_imu_uwb",
+        "data/sim/ch8_fusion_2d_imu_uwb_nlos",
+        "data/sim/ch8_fusion_2d_imu_uwb_timeoffset",
     ],
     "ch6_dead_reckoning": [
         "data/sim/ch6_strapdown_basic",
@@ -41,7 +41,7 @@ DATASETS = {
         "data/sim/ch4_rf_2d_square",
     ],
     "ch5_fingerprint": [
-        "data/sim/wifi_fingerprint_grid",
+        "data/sim/ch5_wifi_fingerprint_grid",
     ],
     "ch7_slam": [
         "data/sim/ch7_slam_2d_square",

@@ -76,7 +76,7 @@ import json
 from pathlib import Path
 
 # Set dataset path
-dataset_path = Path('data/sim/fusion_2d_imu_uwb')
+dataset_path = Path('data/sim/ch8_fusion_2d_imu_uwb')
 
 # Load ground truth
 truth = np.load(dataset_path / 'truth.npz')
@@ -188,7 +188,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Load data (as above)
-dataset_path = 'data/sim/fusion_2d_imu_uwb'
+dataset_path = 'data/sim/ch8_fusion_2d_imu_uwb'
 truth = np.load(f'{dataset_path}/truth.npz')
 uwb = np.load(f'{dataset_path}/uwb_ranges.npz')
 anchors = np.load(f'{dataset_path}/uwb_anchors.npy')
@@ -233,7 +233,7 @@ plt.savefig('fusion_2d_baseline_ranges.svg')
 
 **Quick visualization**:
 ```bash
-python tools/plot_dataset_overview.py data/sim/fusion_2d_imu_uwb
+python tools/plot_dataset_overview.py data/sim/ch8_fusion_2d_imu_uwb
 ```
 
 ---
@@ -276,10 +276,10 @@ This dataset is designed to demonstrate:
 **Setup**:
 ```bash
 # Run LC fusion (two-stage)
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --data data/sim/fusion_2d_imu_uwb
+python -m ch8_sensor_fusion.lc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
 
 # Run TC fusion (single-stage)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_2d_imu_uwb
+python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
 ```
 
 **Expected Observations**:

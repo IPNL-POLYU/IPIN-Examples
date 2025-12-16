@@ -57,7 +57,7 @@ import numpy as np
 import json
 
 # Load dataset
-dataset_path = 'data/sim/fusion_2d_imu_uwb_timeoffset'
+dataset_path = 'data/sim/ch8_fusion_2d_imu_uwb_timeoffset'
 truth = np.load(f'{dataset_path}/truth.npz')
 imu = np.load(f'{dataset_path}/imu.npz')
 uwb = np.load(f'{dataset_path}/uwb_ranges.npz')
@@ -154,7 +154,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Load data
-dataset_path = 'data/sim/fusion_2d_imu_uwb_timeoffset'
+dataset_path = 'data/sim/ch8_fusion_2d_imu_uwb_timeoffset'
 truth = np.load(f'{dataset_path}/truth.npz')
 uwb = np.load(f'{dataset_path}/uwb_ranges.npz')
 anchors = np.load(f'{dataset_path}/uwb_anchors.npy')
@@ -288,20 +288,20 @@ With appropriate process/measurement models (Ch8, Eqs. 8.19-8.21).
 ```bash
 # Run fusion WITHOUT temporal correction
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/fusion_2d_imu_uwb_timeoffset \
+    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
     --no-time-correction \
     --output results_no_correction.json
 
 # Run fusion WITH offline temporal correction (if known)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/fusion_2d_imu_uwb_timeoffset \
+    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
     --time-offset -0.05 \
     --clock-drift 0.0001 \
     --output results_with_correction.json
 
 # Run fusion WITH online temporal calibration (estimate offset)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf_augmented \
-    --data data/sim/fusion_2d_imu_uwb_timeoffset \
+    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
     --estimate-time-offset \
     --output results_online_calibration.json
 ```
@@ -388,7 +388,7 @@ z_pred = h(x_pred)
 **Run**:
 ```bash
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf_augmented \
-    --data data/sim/fusion_2d_imu_uwb_timeoffset \
+    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
     --estimate-time-offset \
     --output results_online.json
 ```
@@ -459,7 +459,7 @@ This dataset was generated using:
 python scripts/generate_fusion_2d_imu_uwb_dataset.py \
     --time-offset -0.05 \
     --clock-drift 0.0001 \
-    --output data/sim/fusion_2d_imu_uwb_timeoffset
+    --output data/sim/ch8_fusion_2d_imu_uwb_timeoffset
 ```
 
 **Or using preset**:

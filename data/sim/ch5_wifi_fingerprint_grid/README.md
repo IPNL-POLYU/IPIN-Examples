@@ -89,7 +89,7 @@ from pathlib import Path
 from core.fingerprinting import load_fingerprint_database
 
 # Load database
-db = load_fingerprint_database("data/sim/wifi_fingerprint_grid")
+db = load_fingerprint_database("data/sim/ch5_wifi_fingerprint_grid")
 
 print(f"Database: {db}")
 print(f"Reference points: {db.n_samples}")
@@ -109,7 +109,7 @@ print(f"RSS range: [{db.features.min():.1f}, {db.features.max():.1f}] dBm")
 import numpy as np
 from pathlib import Path
 
-data_dir = Path("data/sim/wifi_fingerprint_grid")
+data_dir = Path("data/sim/ch5_wifi_fingerprint_grid")
 
 locations = np.load(data_dir / "locations.npy")
 features = np.load(data_dir / "features.npy")
@@ -183,7 +183,7 @@ from core.fingerprinting import load_fingerprint_database, nn_localize
 import numpy as np
 
 # Load database
-db = load_fingerprint_database("data/sim/wifi_fingerprint_grid")
+db = load_fingerprint_database("data/sim/ch5_wifi_fingerprint_grid")
 
 # Create query measurement (simulate at position [25, 25] on floor 0)
 query_rss = np.array([-45, -50, -60, -65, -42, -58, -48, -52])  # dBm
@@ -249,7 +249,7 @@ print(f"Posterior mean position: {estimated_pos_pm}")
 import matplotlib.pyplot as plt
 from core.fingerprinting import load_fingerprint_database
 
-db = load_fingerprint_database("data/sim/wifi_fingerprint_grid")
+db = load_fingerprint_database("data/sim/ch5_wifi_fingerprint_grid")
 
 # Filter floor 0
 floor_0_mask = db.floor_ids == 0

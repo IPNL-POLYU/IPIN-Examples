@@ -56,7 +56,7 @@ import numpy as np
 import json
 
 # Load dataset
-dataset_path = 'data/sim/fusion_2d_imu_uwb_nlos'
+dataset_path = 'data/sim/ch8_fusion_2d_imu_uwb_nlos'
 truth = np.load(f'{dataset_path}/truth.npz')
 uwb = np.load(f'{dataset_path}/uwb_ranges.npz')
 anchors = np.load(f'{dataset_path}/uwb_anchors.npy')
@@ -150,7 +150,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Load data
-dataset_path = 'data/sim/fusion_2d_imu_uwb_nlos'
+dataset_path = 'data/sim/ch8_fusion_2d_imu_uwb_nlos'
 truth = np.load(f'{dataset_path}/truth.npz')
 uwb = np.load(f'{dataset_path}/uwb_ranges.npz')
 anchors = np.load(f'{dataset_path}/uwb_anchors.npy')
@@ -273,19 +273,19 @@ So NLOS measurements should be easily detected!
 ```bash
 # Run fusion without gating (corrupted by NLOS)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/fusion_2d_imu_uwb_nlos \
+    --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --no-gating \
     --output results_no_gating.json
 
 # Run fusion with chi-square gating (α=0.05)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/fusion_2d_imu_uwb_nlos \
+    --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --alpha 0.05 \
     --output results_gating_0.05.json
 
 # Run with stricter gating (α=0.01)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/fusion_2d_imu_uwb_nlos \
+    --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --alpha 0.01 \
     --output results_gating_0.01.json
 ```
@@ -412,7 +412,7 @@ This dataset was generated using:
 python scripts/generate_fusion_2d_imu_uwb_dataset.py \
     --nlos-anchors 1 2 \
     --nlos-bias 0.8 \
-    --output data/sim/fusion_2d_imu_uwb_nlos
+    --output data/sim/ch8_fusion_2d_imu_uwb_nlos
 ```
 
 **Or using preset**:

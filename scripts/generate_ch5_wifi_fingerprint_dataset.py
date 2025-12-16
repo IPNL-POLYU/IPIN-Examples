@@ -8,7 +8,7 @@ Creates a realistic indoor RSS fingerprint database with:
     - Log-distance path-loss model with shadow fading
     - Multi-floor attenuation
 
-Saves to: data/sim/wifi_fingerprint_grid/
+Saves to: data/sim/ch5_wifi_fingerprint_grid/
 
 Author: Navigation Engineer
 Date: December 2024
@@ -261,8 +261,8 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/wifi_fingerprint_grid",
-        help="Output directory (default: data/sim/wifi_fingerprint_grid)",
+        default="data/sim/ch5_wifi_fingerprint_grid",
+        help="Output directory (default: data/sim/ch5_wifi_fingerprint_grid)",
     )
     
     # Area parameters
@@ -303,25 +303,25 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         grid_spacing = 5.0
         n_floors = 3
         n_aps = 8
-        output_dir = "data/sim/wifi_fingerprint_grid"
+        output_dir = "data/sim/ch5_wifi_fingerprint_grid"
     elif args.preset == "dense":
         area_size = (50.0, 50.0)
         grid_spacing = 2.0
         n_floors = 3
         n_aps = 8
-        output_dir = "data/sim/wifi_fingerprint_dense"
+        output_dir = "data/sim/ch5_wifi_fingerprint_dense"
     elif args.preset == "sparse":
         area_size = (50.0, 50.0)
         grid_spacing = 10.0
         n_floors = 3
         n_aps = 8
-        output_dir = "data/sim/wifi_fingerprint_sparse"
+        output_dir = "data/sim/ch5_wifi_fingerprint_sparse"
     elif args.preset == "few_aps":
         area_size = (50.0, 50.0)
         grid_spacing = 5.0
         n_floors = 3
         n_aps = 4
-        output_dir = "data/sim/wifi_fingerprint_few_aps"
+        output_dir = "data/sim/ch5_wifi_fingerprint_few_aps"
     else:
         area_size = (args.area_width, args.area_height)
         grid_spacing = args.grid_spacing
