@@ -1,0 +1,52 @@
+{
+  "dataset": "ch4_rf_2d_positioning",
+  "preset": "baseline",
+  "geometry": {
+    "type": "square",
+    "num_beacons": 4,
+    "area_size_m": 20.0
+  },
+  "trajectory": {
+    "type": "grid",
+    "num_points": 100
+  },
+  "measurements": {
+    "toa_noise_std_m": 0.1,
+    "tdoa_noise_std_m": 0.1,
+    "aoa_noise_std_deg": 2.0
+  },
+  "nlos": {
+    "enabled": false,
+    "beacon_indices": [],
+    "bias_m": 0.0
+  },
+  "dop": {
+    "toa": {
+      "mean": 1.0219465647849286,
+      "min": 1.0000307286851629,
+      "max": 1.086116532793336
+    },
+    "tdoa": {
+      "mean": 0.8730091275640508,
+      "min": 0.8123666717511334,
+      "max": 1.0264266551690753
+    },
+    "aoa": {
+      "mean": 15.041446611915411,
+      "min": 13.836623684400164,
+      "max": 16.73654084730976
+    }
+  },
+  "performance": {
+    "toa_error_mean_m": 0.10055482565933645,
+    "tdoa_error_mean_m": 14.604601663591403,
+    "aoa_error_mean_m": 0.45871857688221496
+  },
+  "equations": [
+    "4.1-4.3",
+    "4.27-4.33",
+    "4.63-4.66",
+    "4.5 (DOP)"
+  ],
+  "seed": 42
+}
