@@ -7,26 +7,21 @@ This directory will contain interactive Jupyter notebooks for each chapter of *P
 | Notebook | Chapter | Description | Status |
 |----------|---------|-------------|--------|
 | `ch2_coordinate_systems.ipynb` | 2 | LLH/ECEF/ENU transforms, rotations | ✅ Available |
-| `ch3_state_estimation.ipynb` | 3 | LS, WLS, Robust LS, Kalman Filter | ✅ Available |
+| `ch3_state_estimation.ipynb` | 3 | LS, WLS, Kalman Filter | ✅ Available |
 | `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA, RSS positioning | ✅ Available |
 | `ch5_fingerprinting.ipynb` | 5 | NN, k-NN, Bayesian fingerprinting | ✅ Available |
 | `ch6_dead_reckoning.ipynb` | 6 | IMU strapdown, PDR, environmental sensors | ✅ Available |
 | `ch7_slam.ipynb` | 7 | Pose graph SLAM, ICP scan matching | ✅ Available |
 | `ch8_sensor_fusion.ipynb` | 8 | TC/LC fusion, chi-square gating | ✅ Available |
-| `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA positioning demos | Planned |
-| `ch5_fingerprinting.ipynb` | 5 | Wi-Fi fingerprinting methods | Planned |
-| `ch6_dead_reckoning.ipynb` | 6 | IMU, PDR, wheel odometry | Planned |
-| `ch7_slam.ipynb` | 7 | ICP, NDT, pose graph SLAM | Planned |
-| `ch8_sensor_fusion.ipynb` | 8 | LC vs TC fusion comparison | Planned |
 
 ## 🚀 Quick Start with Google Colab
 
-The easiest way to run notebooks is with Google Colab (no installation required!):
-
-1. Open Google Colab: https://colab.research.google.com
-2. File → Open notebook → GitHub
-3. Enter the repository URL and select a notebook
-4. Run the first setup cell to clone and install dependencies
+1. Open a notebook in Google Colab
+2. **Set the `GITHUB_REPO` variable** in the setup cell to your repository URL:
+   ```python
+   GITHUB_REPO = "https://github.com/YOUR_USERNAME/IPIN_Book_Examples.git"
+   ```
+3. Run the setup cell - it will clone and install dependencies automatically
 
 **Or run locally:**
 ```bash
@@ -36,7 +31,9 @@ jupyter notebook notebooks/
 
 ## Current Status
 
-One notebook is now available! More are planned for future releases. In the meantime, please use the extensive resources already available:
+All 7 chapter notebooks are now available! Each notebook is Google Colab compatible.
+
+In addition to notebooks, please explore the extensive resources already available:
 
 1. **Example Scripts** - Each `ch*_*/` directory contains runnable Python examples (24+ scripts total)
 2. **Chapter READMEs** - Comprehensive documentation in each chapter folder with equation-to-code mappings
