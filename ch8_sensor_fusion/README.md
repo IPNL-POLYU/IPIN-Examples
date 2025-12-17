@@ -217,6 +217,3 @@ core/fusion/
 - **Chapter 4**: UWB Range Positioning
 - **Chapter 6**: IMU Strapdown Integration
 
----
-
-For implementation details and development notes, see [docs/ch8_development.md](../docs/ch8_development.md).

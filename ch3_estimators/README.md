@@ -270,6 +270,3 @@ core/estimators/
 - **Section 3.5**: Particle Filters
 - **Section 3.6**: Factor Graph Optimization
 
----
-
-*For implementation details and development notes, see [docs/ch3_development.md](../docs/ch3_development.md).*

@@ -238,6 +238,3 @@ core/sensors/
   - Section 6.5: IMU calibration (Allan variance)
   - Section 6.6: Drift correction constraints
 
----
-
-For implementation details and development notes, see [docs/ch6_development.md](../docs/ch6_development.md).

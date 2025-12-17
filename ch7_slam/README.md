@@ -215,6 +215,3 @@ core/slam/
   - Section 7.3: Pose Graph Optimization
   - Section 7.4: Visual SLAM and Bundle Adjustment
 
----
-
-For implementation details and development notes, see [docs/ch7_development.md](../docs/ch7_development.md).

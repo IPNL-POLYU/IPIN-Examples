@@ -241,6 +241,3 @@ core/coords/
 - **Section 2.3**: Coordinate Transformations (LLH↔ECEF↔ENU)
 - **Section 2.4**: Rotation Representations (Euler, Quaternion, Matrix)
 
----
-
-*For implementation details and development notes, see [docs/ch2_development.md](../docs/ch2_development.md).*

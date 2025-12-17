@@ -213,6 +213,3 @@ core/fingerprinting/
   - Section 5.2: Probabilistic Methods (Bayesian)
   - Section 5.3: Pattern Recognition (Regression)
 
----
-
-For implementation details and development notes, see [docs/ch5_development.md](../docs/ch5_development.md).

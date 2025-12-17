@@ -243,6 +243,3 @@ core/rf/
   - Section 4.4: AOA Positioning
   - Section 4.5: DOP and Geometry Analysis
 
----
-
-For implementation details and development notes, see [docs/ch4_development.md](../docs/ch4_development.md).
