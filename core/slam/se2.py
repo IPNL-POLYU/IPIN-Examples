@@ -427,3 +427,4 @@ def se2_from_matrix(T: np.ndarray) -> np.ndarray:
 
     return np.array([x, y, yaw], dtype=np.float64)
 
+

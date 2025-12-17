@@ -546,3 +546,4 @@ def characterize_imu_noise(
 
     return results
 
+

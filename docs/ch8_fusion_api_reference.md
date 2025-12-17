@@ -343,3 +343,4 @@ for m in synced_meas:
 - **Eq. (8.8)**: Mahalanobis distance d² = y^T S^{-1} y
 - **Eq. (8.9)**: Chi-square gate d² < χ²(m, α)
 
+

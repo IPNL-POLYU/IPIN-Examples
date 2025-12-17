@@ -477,3 +477,4 @@ def compensate_hard_iron(
 
     return mag_corrected
 
+

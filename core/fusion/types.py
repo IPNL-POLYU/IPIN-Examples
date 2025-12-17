@@ -198,3 +198,4 @@ class TimeSyncModel:
         """
         return abs(self.offset) < tolerance and abs(self.drift) < tolerance
 
+

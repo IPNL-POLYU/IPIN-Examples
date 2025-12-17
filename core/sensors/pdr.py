@@ -474,3 +474,4 @@ def wrap_heading(heading_rad: float) -> float:
     wrapped = np.arctan2(np.sin(heading_rad), np.cos(heading_rad))
     return wrapped
 
+

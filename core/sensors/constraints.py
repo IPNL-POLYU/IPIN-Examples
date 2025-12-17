@@ -511,3 +511,4 @@ class NhcMeasurementModel:
         R = np.diag([self.sigma_lateral**2, self.sigma_vertical**2])
         return R
 
+
