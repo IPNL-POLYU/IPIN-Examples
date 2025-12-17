@@ -10,6 +10,7 @@ This directory will contain interactive Jupyter notebooks for each chapter of *P
 | `ch3_state_estimation.ipynb` | 3 | LS, WLS, Robust LS, Kalman Filter | ✅ Available |
 | `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA, RSS positioning | ✅ Available |
 | `ch5_fingerprinting.ipynb` | 5 | NN, k-NN, Bayesian fingerprinting | ✅ Available |
+| `ch6_dead_reckoning.ipynb` | 6 | IMU strapdown, PDR, environmental sensors | ✅ Available |
 | `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA positioning demos | Planned |
 | `ch5_fingerprinting.ipynb` | 5 | Wi-Fi fingerprinting methods | Planned |
 | `ch6_dead_reckoning.ipynb` | 6 | IMU, PDR, wheel odometry | Planned |
