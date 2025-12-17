@@ -11,6 +11,7 @@ This directory will contain interactive Jupyter notebooks for each chapter of *P
 | `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA, RSS positioning | ✅ Available |
 | `ch5_fingerprinting.ipynb` | 5 | NN, k-NN, Bayesian fingerprinting | ✅ Available |
 | `ch6_dead_reckoning.ipynb` | 6 | IMU strapdown, PDR, environmental sensors | ✅ Available |
+| `ch7_slam.ipynb` | 7 | Pose graph SLAM, ICP scan matching | ✅ Available |
 | `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA positioning demos | Planned |
 | `ch5_fingerprinting.ipynb` | 5 | Wi-Fi fingerprinting methods | Planned |
 | `ch6_dead_reckoning.ipynb` | 6 | IMU, PDR, wheel odometry | Planned |
