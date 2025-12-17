@@ -27,7 +27,7 @@ IPIN_Book_Examples/
 ├── notebooks/                   # Jupyter notebooks for interactive learning
 ├── scripts/                     # Dataset generation scripts
 ├── tools/                       # CI/maintenance scripts
-├── references/                  # Book chapters & design docs
+├── references/                  # Design specifications
 └── tests/                       # Unit tests (778 test cases)
 ```
 
