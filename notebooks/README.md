@@ -29,9 +29,7 @@ cd IPIN_Book_Examples
 jupyter notebook notebooks/
 ```
 
-## Current Status
-
-All 7 chapter notebooks are now available! Each notebook is Google Colab compatible.
+## Important Resources
 
 In addition to notebooks, please explore the extensive resources already available:
 
