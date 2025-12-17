@@ -143,7 +143,7 @@ For each chapter/topic, follow this 5-step process:
 
 ## Acknowledgements
 
-This repository is supported by **The Hong Kong Polytechnic University (PolyU)** under the **2024/25 Financial Support for Book Writing** scheme (Approved funding: **HK$1,200,000**; Supporting period: **1 July 2025 to 30 June 2028**). This support enables the development, testing, documentation, and release of the companion code and datasets for the book *Principles of Indoor Positioning and Indoor Navigation*.
+This repository is supported by **The Hong Kong Polytechnic University (PolyU)** under the **Financial Support for Book Writing** scheme. This support enables the development, testing, documentation, and release of the companion code and datasets for the book *Principles of Indoor Positioning and Indoor Navigation*.
 
 ## License
 
