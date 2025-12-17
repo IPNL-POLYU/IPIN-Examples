@@ -29,6 +29,16 @@ cd IPIN-Examples
 jupyter notebook notebooks/
 ```
 
+## ⚠️ Troubleshooting
+
+If you encounter import errors:
+
+1. **Restart the kernel** (Kernel → Restart & Clear Output)
+2. **Re-run the setup cell** (first code cell in each notebook)
+3. See `TROUBLESHOOTING.md` for detailed solutions
+
+**Recent Fix (Dec 2025)**: Chapter 6 notebook import issue resolved. If you see `NameError: name 'euler_to_quat' is not defined`, make sure you have the latest version and restart your kernel.
+
 ## Important Resources
 
 In addition to notebooks, please explore the extensive resources already available:
