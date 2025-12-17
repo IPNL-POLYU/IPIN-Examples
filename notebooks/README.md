@@ -8,6 +8,7 @@ This directory will contain interactive Jupyter notebooks for each chapter of *P
 |----------|---------|-------------|--------|
 | `ch2_coordinate_systems.ipynb` | 2 | LLH/ECEF/ENU transforms, rotations | ✅ Available |
 | `ch3_state_estimation.ipynb` | 3 | LS, WLS, Robust LS, Kalman Filter | ✅ Available |
+| `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA, RSS positioning | ✅ Available |
 | `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA positioning demos | Planned |
 | `ch5_fingerprinting.ipynb` | 5 | Wi-Fi fingerprinting methods | Planned |
 | `ch6_dead_reckoning.ipynb` | 6 | IMU, PDR, wheel odometry | Planned |
