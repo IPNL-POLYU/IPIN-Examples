@@ -1,7 +1,33 @@
-# IPIN Book Examples
+# Principle of IPIN Open-Sourced Code and Data
 
-Code examples for the IPIN (Indoor Positioning and Indoor Navigation) book, organized by chapter with shared core modules.
+## Book
 
+This repository is the companion code + datasets for the book:
+
+**Principles of Indoor Positioning and Indoor Navigation** — Li-Ta Hsu, Guohao Zhang, Weisong Wen.
+
+Publisher page (Artech House):
+https://us.artechhouse.com/Principles-of-Indoor-Positioning-and-Indoor-Navigation-P2459.aspx
+
+## How to cite
+
+If you use this repository in academic work, please cite the book:
+
+APA (7th) - Hsu, L.-T., Zhang, G., & Wen, W. (2025). Principles of indoor positioning and indoor navigation. Artech House.
+
+IEEE - L.-T. Hsu, G. Zhang, and W. Wen, Principles of Indoor Positioning and Indoor Navigation. Norwood, MA, USA: Artech House, 2025. ISBN: 978-1-63081-977-4.
+
+### BibTeX
+```bibtex
+@book{Hsu2025IPIN,
+  title     = {Principles of Indoor Positioning and Indoor Navigation},
+  author    = {Hsu, Li-Ta and Zhang, Guohao and Wen, Weisong},
+  publisher = {Artech House},
+  address   = {Norwood, MA},
+  year      = {2025},
+  isbn      = {978-1-63081-977-4}
+}
+```
 ## Project Structure
 
 ```
