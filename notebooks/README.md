@@ -19,13 +19,13 @@ This directory will contain interactive Jupyter notebooks for each chapter of *P
 1. Open a notebook in Google Colab
 2. **Set the `GITHUB_REPO` variable** in the setup cell to your repository URL:
    ```python
-   GITHUB_REPO = "https://github.com/YOUR_USERNAME/IPIN_Book_Examples.git"
+   GITHUB_REPO = "https://github.com/YOUR_USERNAME/IPIN-Examples.git"
    ```
 3. Run the setup cell - it will clone and install dependencies automatically
 
 **Or run locally:**
 ```bash
-cd IPIN_Book_Examples
+cd IPIN-Examples
 jupyter notebook notebooks/
 ```
 

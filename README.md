@@ -12,7 +12,7 @@ https://us.artechhouse.com/Principles-of-Indoor-Positioning-and-Indoor-Navigatio
 ## Project Structure
 
 ```
-IPIN_Book_Examples/
+IPIN-Examples/
 ├── core/                        # Reusable math & models
 │   ├── coords/                  # Coordinate systems (ENU/NED/LLH, rotations)
 │   ├── estimators/              # LS, robust LS, KF/EKF/UKF, PF
@@ -71,7 +71,7 @@ python ch6_dead_reckoning/example_comparison.py
 1. Clone the repository:
 ```bash
 git clone <repository-url>
-cd IPIN_Book_Examples
+cd IPIN-Examples
 ```
 
 2. Create a virtual environment:

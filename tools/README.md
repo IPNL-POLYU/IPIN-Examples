@@ -27,7 +27,7 @@ python tools/check_equation_index.py --strict
 
 **Example output:**
 ```
-Project root: /path/to/IPIN_Book_Examples
+Project root: /path/to/IPIN-Examples
 
 Equations in index: 91
 Equations referenced in code: 103
