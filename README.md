@@ -9,25 +9,6 @@ This repository is the companion code + datasets for the book:
 Publisher page (Artech House):
 https://us.artechhouse.com/Principles-of-Indoor-Positioning-and-Indoor-Navigation-P2459.aspx
 
-## How to cite
-
-If you use this repository in academic work, please cite the book:
-
-APA (7th) - Hsu, L.-T., Zhang, G., & Wen, W. (2025). Principles of indoor positioning and indoor navigation. Artech House.
-
-IEEE - L.-T. Hsu, G. Zhang, and W. Wen, Principles of Indoor Positioning and Indoor Navigation. Norwood, MA, USA: Artech House, 2025. ISBN: 978-1-63081-977-4.
-
-### BibTeX
-```bibtex
-@book{Hsu2025IPIN,
-  title     = {Principles of Indoor Positioning and Indoor Navigation},
-  author    = {Hsu, Li-Ta and Zhang, Guohao and Wen, Weisong},
-  publisher = {Artech House},
-  address   = {Norwood, MA},
-  year      = {2025},
-  isbn      = {978-1-63081-977-4}
-}
-```
 ## Project Structure
 
 ```
@@ -166,6 +147,26 @@ For each chapter/topic, follow this 5-step process:
 3. **Unit tests**: Write tests for core functionality
 4. **Example/notebook**: Create demonstration notebooks
 5. **Documentation**: Update docs with usage examples
+
+## How to cite
+
+If you use this repository in academic work, please cite the book:
+
+APA (7th) - Hsu, L.-T., Zhang, G., & Wen, W. (2025). Principles of indoor positioning and indoor navigation. Artech House.
+
+IEEE - L.-T. Hsu, G. Zhang, and W. Wen, Principles of Indoor Positioning and Indoor Navigation. Norwood, MA, USA: Artech House, 2025. ISBN: 978-1-63081-977-4.
+
+### BibTeX
+```bibtex
+@book{Hsu2025IPIN,
+  title     = {Principles of Indoor Positioning and Indoor Navigation},
+  author    = {Hsu, Li-Ta and Zhang, Guohao and Wen, Weisong},
+  publisher = {Artech House},
+  address   = {Norwood, MA},
+  year      = {2025},
+  isbn      = {978-1-63081-977-4}
+}
+```
 
 ## Acknowledgements
 
