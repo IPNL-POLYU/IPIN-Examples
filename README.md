@@ -24,11 +24,11 @@ IPIN_Book_Examples/
 ├── ch8_sensor_fusion/           # Chapter 8: Sensor Fusion
 ├── data/sim/                    # Simulated datasets
 ├── docs/                        # Documentation & equation mappings
-├── notebooks/                   # Jupyter notebooks (planned)
+├── notebooks/                   # Jupyter notebooks for interactive learning
 ├── scripts/                     # Dataset generation scripts
 ├── tools/                       # CI/maintenance scripts
 ├── references/                  # Book chapters & design docs
-└── tests/                       # Unit tests (777 test cases)
+└── tests/                       # Unit tests (778 test cases)
 ```
 
 ## Chapter Overview
@@ -141,25 +141,22 @@ For each chapter/topic, follow this 5-step process:
 4. **Example/notebook**: Create demonstration notebooks
 5. **Documentation**: Update docs with usage examples
 
--## License
--
--MIT License
-+## Acknowledgements
-+
-+This repository is supported by **The Hong Kong Polytechnic University (PolyU)** under the **2024/25 Financial Support for Book Writing** scheme (Approved funding: **HK$1,200,000**; Supporting period: **1 July 2025 to 30 June 2028**). This support enables the development, testing, documentation, and release of the companion code and datasets for the book *Principles of Indoor Positioning and Indoor Navigation*.
-+
-+## License
-+
-+This repository is intended to be **academic-friendly** (research/teaching) while requiring **prior permission for commercial use**.
-+
-+- **Code** (e.g., `core/`, `ch*_*/`, `scripts/`, `tools/`, `tests/`) is licensed under the **PolyForm Noncommercial License 1.0.0**.
-+- **Data** (e.g., `data/`) is licensed under **Creative Commons Attribution–NonCommercial 4.0 International (CC BY-NC 4.0)** unless otherwise noted in the corresponding folder.
-+
-+### Commercial use
-+
-+Commercial use is **not permitted** under the licenses above. If you want to use this repository for product development, commercial services, internal commercial evaluation, or other for-profit purposes, please contact the maintainers to discuss a separate commercial license.
-+
-+### Book content notice
-+
-+This GitHub repository does **not** distribute the book PDF or other publisher-copyrighted book content. It provides original companion implementations and datasets intended to support learning and reproducible experiments.
+## Acknowledgements
+
+This repository is supported by **The Hong Kong Polytechnic University (PolyU)** under the **2024/25 Financial Support for Book Writing** scheme (Approved funding: **HK$1,200,000**; Supporting period: **1 July 2025 to 30 June 2028**). This support enables the development, testing, documentation, and release of the companion code and datasets for the book *Principles of Indoor Positioning and Indoor Navigation*.
+
+## License
+
+This repository is intended to be **academic-friendly** (research/teaching) while requiring **prior permission for commercial use**.
+
+- **Code** (e.g., `core/`, `ch*_*/`, `scripts/`, `tools/`, `tests/`) is licensed under the **PolyForm Noncommercial License 1.0.0**.
+- **Data** (e.g., `data/`) is licensed under **Creative Commons Attribution–NonCommercial 4.0 International (CC BY-NC 4.0)** unless otherwise noted in the corresponding folder.
+
+### Commercial use
+
+Commercial use is **not permitted** under the licenses above. If you want to use this repository for product development, commercial services, internal commercial evaluation, or other for-profit purposes, please contact the maintainers to discuss a separate commercial license.
+
+### Book content notice
+
+This GitHub repository does **not** distribute the book PDF or other publisher-copyrighted book content. It provides original companion implementations and datasets intended to support learning and reproducible experiments.
 
