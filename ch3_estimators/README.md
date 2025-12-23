@@ -284,6 +284,19 @@ With only the minimum number of anchors (4 for 2D, 5 for 3D), there is insuffici
 
 **Solution:** Use 8+ anchors for reliable robust estimation in 2D scenarios.
 
+## Additional Documentation
+
+### User Guides
+- **[Estimator Selection Guide](../docs/guides/ch3_estimator_selection.md)** - Comprehensive guide for choosing the right estimator for your application (500+ lines covering when to use LS/KF/EKF/UKF/PF/FGO)
+
+### Engineering/Technical Documentation
+For developers and maintainers, detailed implementation notes are available in [`docs/engineering/`](../docs/engineering/):
+
+- **[Complete Implementation Summary](../docs/engineering/complete_implementation_summary.md)** - Master overview of all ch3 improvements
+- **[Production Fixes](../docs/engineering/ch3_production_fixes.md)** - Critical fixes (angle wrapping, singularity handling, observability checks)
+- **[Robustness Improvements](../docs/engineering/ch3_robustness_improvements.md)** - Input validation, shared models, unit tests
+- **[Bugfix Summary](../docs/engineering/ch3_bugfix_summary.md)** - Robust LS fix (4 anchors → 8 anchors)
+
 ## Book References
 
 - **Section 3.2**: Least Squares Methods
