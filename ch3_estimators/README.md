@@ -155,16 +155,39 @@ Note: Uses 8 anchors (not 4) to provide sufficient redundancy for robust estimat
 
 **Figure Description:**
 
-- **Left panel (Examples 1-3)**: Linear and Iterative LS with clean measurements using 4 anchors
-  - Both standard LS and iterative LS converge accurately to the true position
-  - Demonstrates that with clean data, standard methods work well
-  
-- **Right panel (Example 4 - Robust Estimation)**: Comparison with 5.0m outlier using **8 anchors**
-  - **Standard LS** (red ×): Corrupted by the outlier, error = 1.29m
-  - **Robust methods** (Huber/Cauchy/Tukey): Successfully reject the outlier and recover accurate position
-  - **Key observation**: Robust estimation requires sufficient redundancy (8 anchors vs 4)
-  
-**Why 8 anchors?** With only 4 anchors in 2D (2 unknowns), there are only 2 degrees of freedom for redundancy. This is insufficient for robust estimators to reliably identify and downweight outliers. The outlier's effect distributes across all residuals, making it indistinguishable from measurement noise. With 8 anchors (6 DOF), the outlier can be clearly identified through its abnormally large residual, and robust loss functions (Huber/Cauchy/Tukey) successfully downweight it to near zero, achieving 93-97% error reduction compared to standard LS.
+### Left Panel: Example 1-3 (LS Methods - Clean Data)
+- **Geometry**: 4 anchors (blue triangles) at corners of test area
+- **Measurements**: Blue dashed circles show clean range measurements to each anchor
+- **Markers**:
+  - Green star (★): True position at (3, 4) m
+  - Gray × : Initial guess at (5, 5) m
+  - Orange ●: Linear LS estimate (very close to true position)
+  - Red ■: Iterative LS estimate (overlaps with true position)
+- **Result**: Both methods converge accurately when data is clean
+
+### Right Panel: Example 4 (Robust LS with Outlier)
+- **Geometry**: **8 anchors** (blue triangles) - note the increased redundancy!
+- **Outlier Visualization**:
+  - Top-right anchor highlighted with **red circle** (⭕)
+  - **Red dashed arc** shows the corrupted 5.0m outlier measurement
+  - Blue dashed arcs show correct measurements from other 7 anchors
+- **Markers**:
+  - Green star (★): True position at (3, 4) m
+  - Gray × : Initial guess at (5, 5) m
+  - Yellow ●: Standard LS estimate - **pulled toward outlier** at ~(3.5, 2.8) m, error = 1.29m
+  - Purple ♦: Robust LS (Huber) - **rejects outlier**, stays near true position, error = 0.08m
+- **Key Visual Insight**: The yellow Standard LS is visibly displaced from the true position (green star) toward the outlier direction, while the purple Robust LS successfully stays close to the true position by downweighting the red-circled outlier measurement.
+
+### Critical Observation: 8 Anchors Enable Robust Estimation
+
+**Why 8 anchors instead of 4?**
+- With 4 anchors (left panel), only 2 degrees of freedom remain after solving for position
+- With 8 anchors (right panel), 6 degrees of freedom provide sufficient redundancy
+- The 7 good measurements overpower the 1 outlier, making it clearly identifiable
+- Robust loss functions can distinguish the large residual and downweight it to near-zero
+- **Result**: 93-97% error reduction compared to Standard LS
+
+This visual comparison demonstrates why real-world robust positioning systems require generous measurement redundancy (typically 2-3× the minimum) to reliably handle outliers.
 
 ---
 
