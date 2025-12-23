@@ -25,6 +25,9 @@ from typing import Dict
 import numpy as np
 import matplotlib.pyplot as plt
 from core.estimators import ExtendedKalmanFilter
+from core.utils import angle_diff, normalize_jacobian_singularities
+from core.utils.geometry import check_anchor_geometry
+from core.utils.observability import check_range_only_observability_2d
 
 
 def load_estimator_dataset(data_dir: str) -> Dict:
@@ -77,6 +80,21 @@ def run_with_dataset(data_dir: str) -> None:
     dt = t[1] - t[0] if len(t) > 1 else 0.5
     n_steps = len(t) - 1
     
+    # Check observability and geometry
+    print(f"\nGeometry Check:")
+    initial_pos = true_states[0, :2]
+    is_valid, msg = check_anchor_geometry(landmarks, position=initial_pos)
+    if not is_valid:
+        print(f"  WARNING: {msg}")
+    else:
+        print(f"  [OK] Landmark geometry is valid")
+    
+    is_obs, obs_msg = check_range_only_observability_2d(landmarks, initial_pos, warn=False)
+    if is_obs:
+        print(f"  [OK] Position is observable from range measurements")
+    else:
+        print(f"  WARNING: {obs_msg}")
+    
     print(f"\nDataset Info:")
     print(f"  Duration: {t[-1]:.1f} s ({n_steps} steps)")
     print(f"  Time step: {dt:.2f} s")
@@ -119,12 +137,16 @@ def run_with_dataset(data_dir: str) -> None:
             dx = lm[0] - x[0]
             dy = lm[1] - x[1]
             r = np.sqrt(dx**2 + dy**2)
-            r_sq = r**2
+            r_sq = max(r**2, 1e-12)  # Prevent division by zero
             
+            # Use standardized singularity handling
             if r < 1e-6:
+                # Singularity: at landmark position
                 H.extend([[0, 0, 0, 0], [0, 0, 0, 0]])
             else:
+                # Range Jacobian: ∂r/∂[x,y] = [-dx/r, -dy/r]
                 H.append([-dx/r, -dy/r, 0, 0])
+                # Bearing Jacobian: ∂θ/∂[x,y] = [dy/r², -dx/r²]
                 H.append([dy/r_sq, -dx/r_sq, 0, 0])
         return np.array(H)
     
@@ -283,6 +305,20 @@ def example_2d_range_bearing_positioning():
     # True initial state: [x, y, vx, vy]
     true_x0 = np.array([5.0, 5.0, 1.0, 0.5])
 
+    # Check observability and geometry
+    print(f"\nGeometry Check:")
+    is_valid, msg = check_anchor_geometry(landmarks, position=true_x0[:2])
+    if not is_valid:
+        print(f"  WARNING: {msg}")
+    else:
+        print(f"  [OK] Landmark geometry is valid")
+    
+    is_obs, obs_msg = check_range_only_observability_2d(landmarks, true_x0[:2], warn=False)
+    if is_obs:
+        print(f"  [OK] Position is observable from range measurements")
+    else:
+        print(f"  WARNING: {obs_msg}")
+
     # Process model: constant velocity in 2D
     def process_model(x, u, dt):
         F = np.array([
@@ -318,14 +354,18 @@ def example_2d_range_bearing_positioning():
             dx = lm[0] - x[0]
             dy = lm[1] - x[1]
             r = np.sqrt(dx**2 + dy**2)
-            r_sq = r**2
+            r_sq = max(r**2, 1e-12)  # Prevent division by zero
 
+            # Standardized singularity handling
             if r < 1e-6:
+                # Singularity: at landmark position
                 H.extend([[0, 0, 0, 0], [0, 0, 0, 0]])
             else:
+                # Range Jacobian: ∂r/∂[x,y] = [-dx/r, -dy/r]
                 dr_dx = -dx / r
                 dr_dy = -dy / r
                 H.append([dr_dx, dr_dy, 0, 0])
+                # Bearing Jacobian: ∂θ/∂[x,y] = [dy/r², -dx/r²]
                 dtheta_dx = dy / r_sq
                 dtheta_dy = -dx / r_sq
                 H.append([dtheta_dx, dtheta_dy, 0, 0])
