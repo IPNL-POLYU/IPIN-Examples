@@ -96,7 +96,7 @@ config = json.load(open(path / "config.json"))
 python ch3_estimators/example_least_squares.py
 ```
 
-Demonstrates Linear LS, Weighted LS, Iterative LS, and Robust LS for 2D positioning from range measurements.
+Demonstrates Linear LS, Weighted LS, Iterative LS, and Robust LS for 2D positioning from range measurements. The Robust LS example uses 8 anchors to demonstrate proper outlier rejection (4 anchors provide insufficient redundancy for reliable robust estimation).
 
 ### Example 2: 1D Kalman Filter Tracking
 
@@ -134,21 +134,25 @@ CHAPTER 3: LEAST SQUARES EXAMPLES
 
 Example 1: Linear Least Squares (2D Positioning)
   True position: [3.0, 4.0] m
-  LS estimate:   [3.02, 3.98] m
-  Error: 0.028 m
+  LS estimate:   [3.02, 3.92] m
+  Error: 0.080 m
 
-Example 4: Robust Least Squares (with 5m outlier)
-  Standard LS error: 1.23 m (corrupted by outlier)
-  Robust LS error:   0.15 m (outlier downweighted)
-  Outlier weight:    0.12 (should be << 1.0)
+Example 4: Robust Least Squares (8 anchors, 5.0m outlier)
+  Standard LS error: 1.29 m (corrupted by outlier)
+  Huber LS error:    0.08 m (93.5% improvement)
+  Cauchy LS error:   0.03 m (97.4% improvement)
+  Tukey LS error:    0.04 m (97.2% improvement)
+  Outlier weight:    0.025 (Huber), 0.0016 (Cauchy), 0.0 (Tukey)
+  
+Note: Uses 8 anchors (not 4) to provide sufficient redundancy for robust estimation
 ```
 
 **Generated figure:** `figs/ch3_least_squares_examples.png`
 
 ![Least Squares Examples](figs/ch3_least_squares_examples.png)
 
-- **Left panel**: Linear and Iterative LS with clean measurements - both converge to true position
-- **Right panel**: Robust LS with outlier - standard LS is corrupted, Huber loss recovers true position
+- **Left panel**: Linear and Iterative LS with clean measurements (4 anchors) - both converge to true position
+- **Right panel**: Robust LS with 5m outlier (8 anchors) - standard LS is corrupted, Huber/Cauchy/Tukey losses successfully reject the outlier and recover accurate position
 
 ---
 
@@ -261,6 +265,24 @@ core/estimators/
 ├── particle_filter.py               # Particle Filter
 └── factor_graph.py                  # Factor Graph Optimization
 ```
+
+## Important Notes on Robust Estimation
+
+### Minimum Anchor Requirements
+
+Robust least squares requires **sufficient redundancy** to isolate outliers:
+
+- **2D positioning**: Minimum 6-8 anchors recommended (2 unknowns + redundancy)
+- **3D positioning**: Minimum 8-10 anchors recommended (3 unknowns + redundancy)
+
+With only the minimum number of anchors (4 for 2D, 5 for 3D), there is insufficient overdetermination for robust methods to reliably identify and downweight outliers. The outlier's effect spreads across the solution, making all residuals appear similar.
+
+**Example:** With 4 anchors and 1 outlier in 2D:
+- Only 2 degrees of freedom for redundancy
+- Geometric constraints cause outlier to distribute across residuals
+- Robust weighting fails to isolate the corrupted measurement
+
+**Solution:** Use 8+ anchors for reliable robust estimation in 2D scenarios.
 
 ## Book References
 

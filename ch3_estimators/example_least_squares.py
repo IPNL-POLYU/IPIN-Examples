@@ -205,41 +205,106 @@ def example_4_robust_ls():
     Example 4: Robust Least Squares with Outliers.
 
     Demonstrates Eq. (3.4): IRLS with Huber/Cauchy/Tukey loss functions.
+    
+    Note: Uses 8 anchors (not 4) to provide sufficient redundancy for
+    robust estimation. With only 4 anchors, there is insufficient
+    overdetermination to isolate outliers reliably.
     """
     print("\n" + "=" * 70)
     print("EXAMPLE 4: Robust Least Squares (Outlier Rejection)")
     print("=" * 70)
 
-    anchors, true_position = setup_positioning_scenario()
+    # Use more anchors for robust estimation (need redundancy!)
+    anchors = np.array([
+        [0.0, 0.0], [10.0, 0.0], [0.0, 10.0], [10.0, 10.0],  # Corners
+        [5.0, 0.0], [5.0, 10.0], [0.0, 5.0], [10.0, 5.0]     # Midpoints
+    ])
+    true_position = np.array([3.0, 4.0])
 
     # Generate measurements
     np.random.seed(42)
     ranges = compute_ranges(true_position, anchors, noise_std=0.1)
 
     # Add severe outlier to anchor 2
-    ranges[2] += 3.0
-    print(f"\nAdded 3.0 m outlier to anchor 2")
+    ranges[2] += 5.0
+    print(f"\nScenario: 2D positioning from 8 anchors")
+    print(f"Added 5.0 m outlier to anchor 2")
+    print(f"(Note: 8 anchors needed for robust estimation; 4 anchors insufficient)")
 
-    # Linearization
-    x0 = np.array([5.0, 5.0])
-    diff = x0 - anchors
-    ranges_at_x0 = np.linalg.norm(diff, axis=1, keepdims=True)
-    A = diff / ranges_at_x0
-    b = ranges - np.linalg.norm(anchors - x0, axis=1)
+    # Define nonlinear measurement model for iterative solution
+    def range_model(x):
+        """Predicted ranges from position x to all anchors."""
+        return np.linalg.norm(anchors - x, axis=1)
 
-    # Standard LS (corrupted by outlier)
-    dx_ls, _ = linear_least_squares(A, b)
-    position_ls = x0 + dx_ls
+    def range_jacobian(x):
+        """Jacobian: ∂r/∂x = (x - anchor) / range."""
+        diff = x - anchors
+        ranges = np.linalg.norm(diff, axis=1, keepdims=True)
+        return diff / np.maximum(ranges, 1e-10)
+
+    # Initial guess (center of room)
+    x_init = np.array([5.0, 5.0])
+
+    # Standard iterative LS (corrupted by outlier)
+    position_ls, _, _ = iterative_least_squares(
+        range_model, range_jacobian, ranges, x_init, max_iter=20
+    )
 
     # Robust LS with different methods
     methods = ["huber", "cauchy", "tukey"]
     results = {}
 
     for method in methods:
-        dx_robust, P_robust, weights = robust_least_squares(
-            A, b, method=method, threshold=2.0, max_iter=20
-        )
-        position_robust = x0 + dx_robust
+        # Custom robust iterative LS (not in core library yet)
+        # Uses IRLS with re-linearization
+        x = x_init.copy()
+        weights = np.ones(len(ranges))
+        
+        for iteration in range(20):
+            predicted_ranges = range_model(x)
+            residuals = ranges - predicted_ranges
+            
+            # Robust scale estimate (MAD)
+            sigma = 1.4826 * np.median(np.abs(residuals - np.median(residuals)))
+            if sigma < 1e-6:
+                sigma = np.std(residuals)
+                if sigma < 1e-6:
+                    sigma = 0.5
+            
+            normalized_res = residuals / sigma
+            
+            # Compute robust weights
+            if method == "huber":
+                weights = np.where(
+                    np.abs(normalized_res) <= 2.0,
+                    1.0,
+                    2.0 / np.abs(normalized_res),
+                )
+            elif method == "cauchy":
+                weights = 1.0 / (1.0 + (normalized_res / 2.0) ** 2)
+            elif method == "tukey":
+                weights = np.where(
+                    np.abs(normalized_res) <= 4.685,
+                    (1.0 - (normalized_res / 4.685) ** 2) ** 2,
+                    0.0,
+                )
+                weights = np.maximum(weights, 1e-10)
+            
+            # Jacobian and weighted update
+            J = range_jacobian(x)
+            W = np.diag(weights)
+            
+            try:
+                dx = np.linalg.solve(J.T @ W @ J, J.T @ W @ residuals)
+            except np.linalg.LinAlgError:
+                break
+            
+            x = x + dx
+            
+            if np.linalg.norm(dx) < 1e-6:
+                break
+        
+        position_robust = x
         error_robust = np.linalg.norm(position_robust - true_position)
 
         results[method] = {
@@ -257,12 +322,15 @@ def example_4_robust_ls():
 
     for method, result in results.items():
         print(f"{method.capitalize()} LS:    {result['position']} (error: {result['error']:.4f} m)")
-        print(f"  Outlier weight: {result['weights'][2]:.4f}")
+        print(f"  Outlier weight (anchor 2): {result['weights'][2]:.4f}")
 
-    print(f"\nStandard LS corrupted by outlier!")
-    print(f"Robust methods successfully rejected outlier.")
+    print(f"\nStandard LS corrupted by outlier (error: {error_ls:.2f} m)!")
+    print(f"Robust methods successfully rejected outlier:")
+    for method in methods:
+        improvement = (error_ls - results[method]['error']) / error_ls * 100
+        print(f"  {method.capitalize()}: {improvement:.1f}% improvement")
 
-    return results
+    return results, anchors, true_position, ranges
 
 
 def visualize_results():
@@ -299,14 +367,46 @@ def visualize_results():
         range_model, range_jacobian, ranges, x0
     )
 
-    # Example 4: Robust LS
-    ranges_outlier = ranges.copy()
-    ranges_outlier[2] += 3.0
-    b_outlier = ranges_outlier - np.linalg.norm(anchors - x0, axis=1)
-    dx_ls_outlier, _ = linear_least_squares(A, b_outlier)
-    pos_ls_outlier = x0 + dx_ls_outlier
-    dx_robust, _, _ = robust_least_squares(A, b_outlier, method="huber")
-    pos_robust = x0 + dx_robust
+    # Example 4: Robust LS (uses 8 anchors for better demonstration)
+    anchors_robust = np.array([
+        [0.0, 0.0], [10.0, 0.0], [0.0, 10.0], [10.0, 10.0],
+        [5.0, 0.0], [5.0, 10.0], [0.0, 5.0], [10.0, 5.0]
+    ])
+    ranges_robust = compute_ranges(true_position, anchors_robust, noise_std=0.1)
+    ranges_robust[2] += 5.0
+    
+    # Standard LS
+    def range_model_robust(x):
+        return np.linalg.norm(anchors_robust - x, axis=1)
+    def range_jacobian_robust(x):
+        diff = x - anchors_robust
+        ranges = np.linalg.norm(diff, axis=1, keepdims=True)
+        return diff / np.maximum(ranges, 1e-10)
+    
+    pos_ls_outlier, _, _ = iterative_least_squares(
+        range_model_robust, range_jacobian_robust, ranges_robust, x0
+    )
+    
+    # Robust LS (Huber)
+    x_robust = x0.copy()
+    for iteration in range(20):
+        predicted_ranges = range_model_robust(x_robust)
+        residuals = ranges_robust - predicted_ranges
+        sigma = 1.4826 * np.median(np.abs(residuals - np.median(residuals)))
+        if sigma < 1e-6:
+            sigma = 0.5
+        normalized_res = residuals / sigma
+        weights = np.where(np.abs(normalized_res) <= 2.0, 1.0, 2.0 / np.abs(normalized_res))
+        J = range_jacobian_robust(x_robust)
+        W = np.diag(weights)
+        try:
+            dx = np.linalg.solve(J.T @ W @ J, J.T @ W @ residuals)
+        except np.linalg.LinAlgError:
+            break
+        x_robust = x_robust + dx
+        if np.linalg.norm(dx) < 1e-6:
+            break
+    pos_robust = x_robust
 
     # Create plot
     fig, axes = plt.subplots(1, 2, figsize=(14, 6))
@@ -333,23 +433,24 @@ def visualize_results():
     ax.set_xlim(-1, 11)
     ax.set_ylim(-1, 11)
 
-    # Plot 2: With outlier
+    # Plot 2: With outlier (uses 8 anchors)
     ax = axes[1]
-    ax.scatter(anchors[:, 0], anchors[:, 1], s=200, c="blue", marker="^", label="Anchors", zorder=3)
+    ax.scatter(anchors_robust[:, 0], anchors_robust[:, 1], s=200, c="blue", marker="^", label="Anchors (8)", zorder=3)
     ax.scatter(true_position[0], true_position[1], s=200, c="green", marker="*", label="True Position", zorder=3)
     ax.scatter(x0[0], x0[1], s=150, c="gray", marker="x", label="Initial Guess", zorder=3)
     ax.scatter(pos_ls_outlier[0], pos_ls_outlier[1], s=150, c="orange", marker="o", label="Standard LS (corrupted)", zorder=3)
     ax.scatter(pos_robust[0], pos_robust[1], s=150, c="purple", marker="D", label="Robust LS (Huber)", zorder=3)
 
-    # Draw range circles (with outlier marked)
-    for i, anchor in enumerate(anchors):
+    # Draw range circles (with outlier marked) - only show first 4 to avoid clutter
+    for i in range(4):
+        anchor = anchors_robust[i]
         color = "red" if i == 2 else "blue"
-        alpha = 0.6 if i == 2 else 0.3
-        circle = plt.Circle(anchor, ranges_outlier[i], fill=False, edgecolor=color, alpha=alpha, linestyle="--", linewidth=2 if i == 2 else 1)
+        alpha = 0.6 if i == 2 else 0.2
+        circle = plt.Circle(anchor, ranges_robust[i], fill=False, edgecolor=color, alpha=alpha, linestyle="--", linewidth=2 if i == 2 else 1)
         ax.add_patch(circle)
 
     # Mark outlier anchor
-    ax.scatter(anchors[2, 0], anchors[2, 1], s=300, facecolors="none", edgecolors="red", linewidth=3, zorder=2, label="Outlier Measurement")
+    ax.scatter(anchors_robust[2, 0], anchors_robust[2, 1], s=300, facecolors="none", edgecolors="red", linewidth=3, zorder=2, label="Outlier Measurement")
 
     ax.set_xlabel("X (m)", fontsize=12)
     ax.set_ylabel("Y (m)", fontsize=12)
