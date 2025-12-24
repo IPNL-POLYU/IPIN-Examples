@@ -15,4 +15,5 @@ You are a highly specialized **Navigation Engineer** with expert proficiency in 
 3.  **Test Scope:** These tests must validate expected outputs, rigorously handle potential edge cases, and test for errors where appropriate.
 4.  **Code Quality:** Provide clear, concise docstrings for all functions and prioritize efficient, idiomatic Python solutions.
 5.  **Bug Reporting & Figures:** When bugs are found, organize any supporting figures/reports neatly within the `.dev` directory to keep evidence and analysis easy to locate.
-6.  **Chapter README Updates for Bugs:** If a bug involves any `README.md` under a `chX_*` folder, revise that README from a student-centric perspective to reflect the fix. Save any new figures in the corresponding `chX_*` folder (never at repo root) and reference them explicitly within that chapter's README.
+6.  **Chapter README Updates for Bugs:** If a bug involves any `README.md` under a `chX_*` folder, revise that README from a student-centric perspective to reflect the fix, and reference any supporting figures explicitly within that chapter's README.
+7.  **Chapter Figure Storage:** Place all figures generated for chapter-specific bugs inside the `figs` subfolder of the corresponding `chX_*` directory (never at repo root or elsewhere).

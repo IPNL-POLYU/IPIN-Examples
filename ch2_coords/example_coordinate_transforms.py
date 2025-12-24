@@ -10,8 +10,16 @@ Can run with:
     - Pre-generated dataset: python example_coordinate_transforms.py --data ch2_coords_san_francisco
     - Inline data (default): python example_coordinate_transforms.py
 
-Reference: Chapter 2 - Coordinate Systems
-Equations: (2.1)-(2.10)
+Reference: Chapter 2 - IPIN Fundamentals
+    - Section 2.1: Coordinate Systems and Transformations
+        - LLH representation: Eq. (2.8)
+        - LLH→ECEF: Eq. (2.9)
+        - ECEF→ENU: Eq. (2.10)
+        - ECEF→LLH: Iterative method (see [2] in book references)
+    - Section 2.2: Attitude Definition and Representation
+        - Euler→Rotation matrix: Eq. (2.17)
+        - Quaternion→Rotation matrix: Eq. (2.21)
+        - Quaternion↔Euler: Eqs. (2.22)–(2.23)
 """
 
 import argparse

@@ -39,21 +39,21 @@ config = json.load(open(path / "config.json"))
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `llh_to_ecef()` | `core/coords/transforms.py` | Eq. (2.1) | Geodetic (LLH) to ECEF Cartesian coordinates |
-| `ecef_to_llh()` | `core/coords/transforms.py` | Eq. (2.2) | ECEF to Geodetic (LLH) - iterative solution |
-| `ecef_to_enu()` | `core/coords/transforms.py` | Eq. (2.3) | ECEF to local East-North-Up frame |
-| `enu_to_ecef()` | `core/coords/transforms.py` | Eq. (2.4) | Local ENU to ECEF coordinates |
+| `llh_to_ecef()` | `core/coords/transforms.py` | Eq. (2.9) | Geodetic (LLH) to ECEF Cartesian coordinates |
+| `ecef_to_llh()` | `core/coords/transforms.py` | Iterative (see [2]) | ECEF to Geodetic (LLH) - iterative solution |
+| `ecef_to_enu()` | `core/coords/transforms.py` | Eq. (2.10) | ECEF to local East-North-Up frame |
+| `enu_to_ecef()` | `core/coords/transforms.py` | Eq. (2.10) inverse | Local ENU to ECEF coordinates |
 
 ### Rotation Representations
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `euler_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.5) | Euler angles (ZYX) to 3×3 rotation matrix |
-| `rotation_matrix_to_euler()` | `core/coords/rotations.py` | Eq. (2.6) | Rotation matrix to Euler angles |
-| `euler_to_quat()` | `core/coords/rotations.py` | Eq. (2.7) | Euler angles to unit quaternion |
-| `quat_to_euler()` | `core/coords/rotations.py` | Eq. (2.8) | Quaternion to Euler angles |
-| `quat_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.9) | Quaternion to rotation matrix |
-| `rotation_matrix_to_quat()` | `core/coords/rotations.py` | Eq. (2.10) | Rotation matrix to quaternion |
+| `euler_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.17) | Euler angles (ZYX) to 3×3 rotation matrix |
+| `rotation_matrix_to_euler()` | `core/coords/rotations.py` | Eq. (2.17) inverse | Rotation matrix to Euler angles |
+| `euler_to_quat()` | `core/coords/rotations.py` | Eq. (2.23) | Euler angles to unit quaternion |
+| `quat_to_euler()` | `core/coords/rotations.py` | Eq. (2.22) | Quaternion to Euler angles |
+| `quat_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.21) | Quaternion to rotation matrix |
+| `rotation_matrix_to_quat()` | `core/coords/rotations.py` | Eq. (2.21) inverse | Rotation matrix to quaternion |
 
 ### WGS84 Constants
 
@@ -85,7 +85,7 @@ llh_recovered = ecef_to_llh(*xyz)
 print(f"LLH: {np.rad2deg(llh_recovered[:2])}, {llh_recovered[2]:.2f}m")
 ```
 
-**Implements:** Eq. (2.1), Eq. (2.2)
+**Implements:** Eq. (2.9), iterative ECEF→LLH (see [2] in Ch. 2)
 
 ### Example 2: Local ENU Frame
 
@@ -107,7 +107,7 @@ print(f"ENU: East={enu[0]:.2f}m, North={enu[1]:.2f}m, Up={enu[2]:.2f}m")
 # Expected: East≈0m, North≈100m, Up≈0m
 ```
 
-**Implements:** Eq. (2.3)
+**Implements:** Eq. (2.10)
 
 ### Example 3: Rotation Representations
 
@@ -134,7 +134,7 @@ print(f"Quaternion: {q}")
 print(f"||q|| = {np.linalg.norm(q):.6f}")  # Should be 1.0
 ```
 
-**Implements:** Eq. (2.5), Eq. (2.7), Eq. (2.9)
+**Implements:** Eq. (2.17), Eq. (2.23), Eq. (2.21)
 
 ## Expected Output
 
@@ -237,7 +237,6 @@ core/coords/
 
 ## Book References
 
-- **Section 2.2**: Coordinate Frames (ENU, NED, ECEF, LLH, Body, Map)
-- **Section 2.3**: Coordinate Transformations (LLH↔ECEF↔ENU)
-- **Section 2.4**: Rotation Representations (Euler, Quaternion, Matrix)
+- **Section 2.1**: Coordinate Systems and Transformations (LLH, ECEF, ENU, NED, Body, Map frames; Eqs. 2.1–2.10)
+- **Section 2.2**: Attitude Definition and Representation (Euler angles, Rotation matrices, Quaternions; Eqs. 2.11–2.23)
 
