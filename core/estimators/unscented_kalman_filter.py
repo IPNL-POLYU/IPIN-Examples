@@ -51,6 +51,7 @@ class UnscentedKalmanFilter(StateEstimator):
         alpha: float = 1e-3,
         beta: float = 2.0,
         kappa: Optional[float] = None,
+        innovation_func: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None,
     ):
         """
         Initialize Unscented Kalman Filter.
@@ -68,6 +69,9 @@ class UnscentedKalmanFilter(StateEstimator):
             beta: Parameter for incorporating prior knowledge of distribution.
                 For Gaussian distributions, beta = 2 is optimal.
             kappa: Secondary scaling parameter. If None, uses kappa = 3 - n.
+            innovation_func: Optional function to compute innovation nu = f(z, z_pred).
+                Default is simple subtraction (z - z_pred).
+                Use this to handle angle wrapping for bearing measurements.
 
         Raises:
             ValueError: If dimensions are inconsistent.
@@ -79,6 +83,7 @@ class UnscentedKalmanFilter(StateEstimator):
         self.measurement_model = measurement_model
         self.Q = Q
         self.R = R
+        self.innovation_func = innovation_func
 
         self.state = np.asarray(x0, dtype=float).copy()
         self.covariance = np.asarray(P0, dtype=float).copy()
@@ -262,8 +267,11 @@ class UnscentedKalmanFilter(StateEstimator):
         # Eq. (3.30): Kalman gain K_k
         K = Pxz @ np.linalg.inv(Pzz)
 
-        # Innovation
-        innovation = z - z_pred
+        # Innovation (with optional angle wrapping)
+        if self.innovation_func is not None:
+            innovation = self.innovation_func(z, z_pred)
+        else:
+            innovation = z - z_pred
 
         # State update
         self.state = self.state + K @ innovation

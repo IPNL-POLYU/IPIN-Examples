@@ -3,9 +3,11 @@ Unit tests for least squares estimation algorithms.
 
 Tests cover:
     - Linear least squares (LS)
-    - Weighted least squares (WLS)
+    - Weighted least squares (WLS) with diagonal/sigma inputs
     - Iterative least squares (Gauss-Newton)
-    - Robust least squares (IRLS with Huber, Cauchy, Tukey)
+    - Robust least squares (IRLS with L2, Huber, Cauchy, G-M, Tukey)
+
+Book Reference: Chapter 3, Section 3.1 (Table 3.1 for robust estimators)
 """
 
 import unittest
@@ -160,6 +162,79 @@ class TestWeightedLeastSquares(unittest.TestCase):
         # Check positive definite
         eigenvalues = np.linalg.eigvalsh(P)
         self.assertTrue(np.all(eigenvalues > 0))
+
+    def test_diagonal_weights_1d_input(self):
+        """Test WLS with 1D diagonal weights array."""
+        # Synthetic linear system: y = 2x + 1 with varying noise
+        A = np.array([[1, 1], [1, 2], [1, 3], [1, 4]])
+        x_true = np.array([1.0, 2.0])  # intercept=1, slope=2
+        b = A @ x_true  # Clean data
+
+        # 1D diagonal weights
+        weights = np.array([1.0, 1.0, 1.0, 1.0])
+
+        x_hat, P = weighted_least_squares(A, b, weights)
+
+        # Should recover exact parameters
+        assert_allclose(x_hat, x_true, atol=1e-10)
+
+        # Should match full weight matrix approach
+        W_full = np.diag(weights)
+        x_hat_full, _ = weighted_least_squares(A, b, W_full)
+        assert_allclose(x_hat, x_hat_full, atol=1e-10)
+
+    def test_sigma_input_converts_to_weights(self):
+        """Test WLS with sigma input (wᵢ = 1/σᵢ² as per book Section 3.1.1)."""
+        A = np.array([[1, 0], [0, 1], [1, 1]])
+        b = np.array([1.0, 2.0, 3.5])
+
+        # Measurement standard deviations
+        sigma = np.array([0.1, 0.1, 0.5])  # Third is less accurate
+
+        # Using sigma input
+        x_sigma, P_sigma = weighted_least_squares(A, b, sigma, is_sigma=True)
+
+        # Expected weights: wᵢ = 1/σᵢ²
+        expected_weights = 1.0 / sigma**2
+        W_expected = np.diag(expected_weights)
+        x_expected, P_expected = weighted_least_squares(A, b, W_expected)
+
+        # Should match
+        assert_allclose(x_sigma, x_expected, atol=1e-10)
+        assert_allclose(P_sigma, P_expected, atol=1e-10)
+
+    def test_sigma_weighting_favors_accurate_measurements(self):
+        """Test that low sigma (high weight) measurements dominate."""
+        # Two measurements: one accurate, one noisy
+        A = np.array([[1], [1]])
+        b = np.array([1.0, 5.0])  # True value is 1.0, second is way off
+        sigma = np.array([0.1, 10.0])  # First very accurate, second very noisy
+
+        x_hat, _ = weighted_least_squares(A, b, sigma, is_sigma=True)
+
+        # Should be much closer to 1.0 than 5.0
+        self.assertLess(abs(x_hat[0] - 1.0), 0.1)
+        self.assertGreater(abs(x_hat[0] - 5.0), 3.0)
+
+    def test_negative_sigma_raises_error(self):
+        """Test that negative sigma values raise error."""
+        A = np.array([[1], [1]])
+        b = np.array([1.0, 2.0])
+        sigma = np.array([0.1, -0.5])  # Invalid negative sigma
+
+        with self.assertRaises(ValueError) as context:
+            weighted_least_squares(A, b, sigma, is_sigma=True)
+
+        self.assertIn("positive", str(context.exception).lower())
+
+    def test_negative_weights_raise_error(self):
+        """Test that negative weights raise error."""
+        A = np.array([[1], [1]])
+        b = np.array([1.0, 2.0])
+        weights = np.array([1.0, -0.5])  # Invalid negative weight
+
+        with self.assertRaises(ValueError):
+            weighted_least_squares(A, b, weights)
 
 
 class TestIterativeLeastSquares(unittest.TestCase):
@@ -354,6 +429,97 @@ class TestRobustLeastSquares(unittest.TestCase):
 
         # Outlier weight should be < 0.5
         self.assertLess(weights[5], 0.5)
+
+    def test_geman_mcclure_downweights_large_residuals(self):
+        """Test G-M (Geman-McClure) robust LS from Table 3.1.
+
+        G-M loss: e(x) = ½ ‖r(x)‖² / (1 + ‖r(x)‖²)
+        Weight: w = 1 / (1 + r²)²
+
+        This provides even stronger outlier rejection than Cauchy.
+        """
+        # Simple 1D problem with outliers
+        A = np.ones((6, 1))  # 6 measurements of same quantity
+        b = np.array([1.0, 1.1, 0.95, 1.05, 10.0, -5.0])  # Two severe outliers
+
+        x_gm, P_gm, weights_gm = robust_least_squares(
+            A, b, method="gm", threshold=2.0
+        )
+
+        # Outliers (indices 4, 5) should have very low weights
+        self.assertLess(weights_gm[4], 0.1)  # 10.0 outlier
+        self.assertLess(weights_gm[5], 0.1)  # -5.0 outlier
+
+        # Good measurements should have higher weights
+        self.assertGreater(weights_gm[0], weights_gm[4])
+        self.assertGreater(weights_gm[1], weights_gm[5])
+
+        # Estimate should be close to 1.0 (mean of good measurements)
+        self.assertLess(abs(x_gm[0] - 1.0), 0.2)
+
+    def test_geman_mcclure_alias(self):
+        """Test that 'geman_mcclure' is accepted as alias for 'gm'."""
+        A = np.array([[1], [1], [1], [1]])
+        b = np.array([1.0, 1.1, 1.0, 5.0])
+
+        x_gm, _, weights_gm = robust_least_squares(A, b, method="gm")
+        x_geman, _, weights_geman = robust_least_squares(A, b, method="geman_mcclure")
+
+        assert_allclose(x_gm, x_geman, atol=1e-10)
+        assert_allclose(weights_gm, weights_geman, atol=1e-10)
+
+    def test_l2_equivalent_to_standard_ls(self):
+        """Test L2 robust loss is equivalent to standard LS (Table 3.1).
+
+        L2 loss: e(x) = ½‖r(x)‖² (no outlier rejection)
+        """
+        A = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+        b = np.array([5.0, 11.0, 17.1, 23.0])  # Includes slight noise
+
+        x_l2, _, weights_l2 = robust_least_squares(A, b, method="l2")
+        x_ls, _ = linear_least_squares(A, b)
+
+        # L2 should match standard LS exactly
+        assert_allclose(x_l2, x_ls, atol=1e-10)
+
+        # All weights should be 1.0 for L2
+        assert_allclose(weights_l2, np.ones(4), atol=1e-10)
+
+    def test_gm_stronger_than_cauchy_on_outliers(self):
+        """Test G-M provides stronger outlier rejection than Cauchy.
+
+        G-M weight: w = 1/(1+r²)²
+        Cauchy weight: w = 1/(1+r²)
+
+        For same |r| > 1, G-M weight is always smaller.
+        """
+        A = np.ones((5, 1))
+        b = np.array([1.0, 1.0, 1.0, 1.0, 20.0])  # Extreme outlier
+
+        _, _, weights_cauchy = robust_least_squares(
+            A, b, method="cauchy", threshold=1.5
+        )
+        _, _, weights_gm = robust_least_squares(
+            A, b, method="gm", threshold=1.5
+        )
+
+        # G-M should downweight the outlier more than Cauchy
+        self.assertLess(weights_gm[-1], weights_cauchy[-1])
+
+    def test_robust_methods_table_3_1_coverage(self):
+        """Verify all Table 3.1 methods are available: L2, Cauchy, Huber, G-M."""
+        A = np.array([[1], [1], [1]])
+        b = np.array([1.0, 1.1, 5.0])
+
+        # All Table 3.1 methods should work without error
+        for method in ["l2", "cauchy", "huber", "gm"]:
+            x, P, weights = robust_least_squares(A, b, method=method)
+            self.assertEqual(len(x), 1)
+            self.assertEqual(len(weights), 3)
+
+        # Tukey (extra, not in Table 3.1) should also work
+        x, P, weights = robust_least_squares(A, b, method="tukey")
+        self.assertEqual(len(x), 1)
 
 
 if __name__ == "__main__":

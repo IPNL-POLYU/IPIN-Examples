@@ -1,16 +1,28 @@
 """
-Example: Comparison of State Estimation Methods
+Example: Comparison of State Estimation Methods (Chapter 3)
 
 This script compares all state estimation methods from Chapter 3 on the same
-2D tracking problem with nonlinear range measurements.
+2D tracking problem with nonlinear range measurements from multiple anchors.
 
-Compares:
-    - Extended Kalman Filter (EKF)
-    - Unscented Kalman Filter (UKF)
-    - Particle Filter (PF)
-    - Factor Graph Optimization (FGO) - batch smoother
+Run from repository root:
+    python ch3_estimators/example_comparison.py
 
-Demonstrates the relative performance, accuracy, and characteristics of each method.
+Compares (Section 3.5, Table 3.4):
+    - Extended Kalman Filter (EKF) - Section 3.2.2, Eqs. (3.21)-(3.23)
+    - Unscented Kalman Filter (UKF) - Section 3.2.4, Eqs. (3.24)-(3.30)
+    - Particle Filter (PF) - Section 3.3, Eqs. (3.32)-(3.34) SIR algorithm
+    - Factor Graph Optimization (FGO) - Section 3.4, Eqs. (3.35)-(3.41)
+
+Demonstrates the relative performance, accuracy, and computational cost of each.
+
+Particle Filter Algorithm (SIR - Sequential Importance Resampling):
+    1. PROPAGATE: x_k^(i) ~ p(x_k | x_{k-1}^(i)) [Eq. 3.33]
+    2. WEIGHT: w_k^(i) = w_{k-1}^(i) * p(z_k | x_k^(i)) [Eq. 3.34]
+    3. NORMALIZE: w_k^(i) = w_k^(i) / sum(w_k)
+    4. RESAMPLE: If N_eff < threshold
+    5. ESTIMATE: x_hat = sum(w_k^(i) * x_k^(i)) [weighted mean]
+
+Book Reference: Section 3.5 and Table 3.4 provide comparison criteria.
 """
 
 import time
@@ -44,9 +56,9 @@ def setup_scenario():
         [0.0, 20.0],
     ])
 
-    # Generate true trajectory (circular motion)
+    # Generate true trajectory (constant velocity with process noise)
     print("\n--- Setting up scenario ---")
-    true_x0 = np.array([10.0, 10.0, 1.0, 0.5])
+    true_x0 = np.array([10.0, 10.0, 1.0, 0.5])  # [x, y, vx, vy]
 
     def process_model_true(x, u, dt):
         F = np.array([
@@ -154,7 +166,7 @@ def run_ekf(dt, n_steps, anchors, measurements, Q, range_std):
         estimates.append(x_est.copy())
 
     elapsed_time = time.time() - start_time
-    print(f"  ✓ EKF completed in {elapsed_time:.4f}s")
+    print(f"  [OK] EKF completed in {elapsed_time:.4f}s")
 
     return np.array(estimates), elapsed_time
 
@@ -203,17 +215,47 @@ def run_ukf(dt, n_steps, anchors, measurements, Q, range_std):
         estimates.append(x_est.copy())
 
     elapsed_time = time.time() - start_time
-    print(f"  ✓ UKF completed in {elapsed_time:.4f}s")
+    print(f"  [OK] UKF completed in {elapsed_time:.4f}s")
 
     return np.array(estimates), elapsed_time
 
 
 def run_pf(dt, n_steps, anchors, measurements, Q, range_std):
-    """Run Particle Filter."""
-    print("Running PF...")
+    """
+    Run Particle Filter (Sequential Importance Resampling - SIR).
+
+    Implements the Particle Filter algorithm from Section 3.3 (Eqs. 3.32-3.34):
+
+    SIR Algorithm Steps (each time step):
+        1. PROPAGATE: Sample x_k^(i) ~ p(x_k | x_{k-1}^(i)) [Eq. 3.33]
+           - Each particle is propagated through process model with noise
+
+        2. WEIGHT: Update weights w_k^(i) = w_{k-1}^(i) * p(z_k | x_k^(i)) [Eq. 3.34]
+           - Compute likelihood of measurement given each particle's state
+
+        3. NORMALIZE: w_k^(i) = w_k^(i) / sum(w_k)
+           - Ensure weights sum to 1
+
+        4. RESAMPLE: If N_eff < threshold, resample particles
+           - Prevents weight degeneracy by duplicating high-weight particles
+
+        5. ESTIMATE: Compute weighted mean (or MAP particle)
+           - x_hat = sum(w_k^(i) * x_k^(i))
+
+    Book Reference: Eq. (3.32) - Recursive Bayes update
+        p(x_k | z_{1:k}) proportional to p(z_k | x_k) * p(x_k | z_{1:k-1})
+    """
+    print("Running PF (SIR algorithm, Book Eqs. 3.32-3.34)...")
     n_particles = 300
 
+    # Eq. (3.33): Process model with noise for particle propagation
+    # Each particle samples from p(x_k | x_{k-1}^(i))
     def process_model_with_noise(x, u, dt):
+        """
+        Particle propagation: x_k^(i) ~ p(x_k | x_{k-1}^(i))
+
+        Implements Eq. (3.33): Sample from transition prior.
+        """
         F = np.array([
             [1, 0, dt, 0],
             [0, 1, 0, dt],
@@ -223,39 +265,59 @@ def run_pf(dt, n_steps, anchors, measurements, Q, range_std):
         process_noise = np.random.multivariate_normal(np.zeros(4), Q)
         return F @ x + process_noise
 
+    # Eq. (3.34): Likelihood function for weight update
+    # w_k^(i) = w_{k-1}^(i) * p(z_k | x_k^(i))
     def likelihood_func(z, x):
-        # Compute likelihood of measurement z given state x
-        predicted_ranges = []
-        for anchor in anchors:
-            r = np.linalg.norm(x[:2] - anchor)
-            predicted_ranges.append(r)
-        predicted_ranges = np.array(predicted_ranges)
+        """
+        Weight update: w_k^(i) proportional to p(z_k | x_k^(i))
 
-        # Gaussian likelihood
+        Implements Eq. (3.34): Compute measurement likelihood.
+        Uses Gaussian likelihood for range measurements.
+        """
+        # Predicted ranges from particle state
+        predicted_ranges = np.array([
+            np.linalg.norm(x[:2] - anchor) for anchor in anchors
+        ])
+
+        # Gaussian likelihood: p(z | x) = N(z; h(x), R)
         residual = z - predicted_ranges
-        likelihood = np.exp(-0.5 * np.sum((residual / range_std)**2))
+        mahalanobis_sq = np.sum((residual / range_std)**2)
+        likelihood = np.exp(-0.5 * mahalanobis_sq)
+        # Normalize by Gaussian constant (optional for relative weights)
         likelihood /= (range_std * np.sqrt(2 * np.pi))**len(anchors)
         return likelihood
 
     x0 = np.array([10.0, 10.0, 0.0, 0.0])
     P0 = np.diag([4.0, 4.0, 2.0, 2.0])
 
+    # Initialize Particle Filter with N particles
+    # Particles are drawn from N(x0, P0)
     pf = ParticleFilter(
         process_model_with_noise, likelihood_func,
-        n_particles, x0, P0
+        n_particles, x0, P0,
+        resample_threshold=0.5  # Resample when N_eff < 0.5 * N
     )
 
     estimates = [x0.copy()]
     start_time = time.time()
 
     for z in tqdm(measurements, desc=f"PF filtering ({n_particles} particles)", unit="step"):
+        # SIR Algorithm per time step:
+        # Step 1: PROPAGATE - pf.predict() propagates all particles through
+        #         process model with noise [Eq. 3.33]
         pf.predict(dt=dt)
+
+        # Steps 2-5: WEIGHT -> NORMALIZE -> RESAMPLE -> ESTIMATE
+        # pf.update() computes likelihoods [Eq. 3.34], normalizes weights,
+        # resamples if needed, and computes weighted mean estimate
         pf.update(z)
+
+        # Get weighted mean estimate
         x_est, _ = pf.get_state()
         estimates.append(x_est.copy())
 
     elapsed_time = time.time() - start_time
-    print(f"  ✓ PF completed in {elapsed_time:.4f}s")
+    print(f"  [OK] PF completed in {elapsed_time:.4f}s")
 
     return np.array(estimates), elapsed_time
 
@@ -341,7 +403,7 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
     start_time = time.time()
     optimized_vars, _ = graph.optimize(method="gauss_newton", max_iterations=10)
     elapsed_time = time.time() - start_time
-    print(f"  ✓ FGO completed in {elapsed_time:.4f}s")
+    print(f"  [OK] FGO completed in {elapsed_time:.4f}s")
 
     # Extract estimates
     estimates = []
@@ -371,7 +433,7 @@ def main():
 
     # Run all estimators
     print("\n" + "=" * 70)
-    print("RUNNING ESTIMATORS (1/4 → 4/4)")
+    print("RUNNING ESTIMATORS (1/4 to 4/4)")
     print("=" * 70)
 
     results = {}
@@ -480,7 +542,7 @@ def main():
 
     plt.tight_layout()
     plt.savefig("ch3_estimator_comparison.png", dpi=150, bbox_inches="tight")
-    print("✓ Plot saved as: ch3_estimator_comparison.png")
+    print("[OK] Plot saved as: ch3_estimator_comparison.png")
     plt.show()
 
     overall_time = time.time() - overall_start

@@ -4,17 +4,20 @@ Example: Extended Kalman Filter for 2D Range-Bearing Positioning
 This script demonstrates the Extended Kalman Filter applied to 2D positioning
 using nonlinear range and bearing measurements from known landmarks.
 
-Can run with:
-    - Pre-generated dataset: python example_ekf_range_bearing.py --data ch3_estimator_nonlinear
-    - Inline data (default): python example_ekf_range_bearing.py
-    - High nonlinearity: python example_ekf_range_bearing.py --data ch3_estimator_high_nonlinear
+Run from repository root:
+    python ch3_estimators/example_ekf_range_bearing.py
+    python ch3_estimators/example_ekf_range_bearing.py --data ch3_estimator_nonlinear
 
 Demonstrates:
-    - Extended Kalman Filter (EKF) for nonlinear systems
+    - Extended Kalman Filter (EKF) for nonlinear systems (Section 3.2.2)
     - 2D positioning from range-bearing measurements
+    - Proper angle wrapping for bearing innovations (handles pi <-> -pi crossing)
     - Comparison with true trajectory
 
-Implements equations (3.21)-(3.22) from Chapter 3.
+Book Reference (Chapter 3):
+    - Eq. (3.21): Nonlinear models x_k = f(x_{k-1}, u_k) + w_k, z_k = h(x_k) + v_k
+    - Eq. (3.22): EKF prediction x_k^- = f(x_{k-1}), P_k^- = F P_{k-1} F^T + Q
+    - Eq. (3.23): EKF update with Jacobian H_k = dh/dx|_{x_k^-}
 """
 
 import argparse
@@ -25,9 +28,37 @@ from typing import Dict
 import numpy as np
 import matplotlib.pyplot as plt
 from core.estimators import ExtendedKalmanFilter
-from core.utils import angle_diff, normalize_jacobian_singularities
+from core.utils import angle_diff
 from core.utils.geometry import check_anchor_geometry
 from core.utils.observability import check_range_only_observability_2d
+
+
+def create_range_bearing_innovation_func(n_landmarks: int):
+    """
+    Create innovation function that wraps bearing angles properly.
+
+    For range-bearing measurements, the format is:
+        z = [range1, bearing1, range2, bearing2, ...]
+
+    Range innovations use simple subtraction, but bearing innovations
+    must be wrapped to [-pi, pi] to handle the pi <-> -pi discontinuity.
+
+    Args:
+        n_landmarks: Number of landmarks (determines measurement size).
+
+    Returns:
+        innovation_func(z, z_pred) -> innovation vector with wrapped bearings.
+    """
+    def innovation_func(z: np.ndarray, z_pred: np.ndarray) -> np.ndarray:
+        innovation = np.zeros_like(z)
+        for i in range(n_landmarks):
+            # Range innovation (index 2*i): simple subtraction
+            innovation[2 * i] = z[2 * i] - z_pred[2 * i]
+            # Bearing innovation (index 2*i + 1): angle wrapping
+            innovation[2 * i + 1] = angle_diff(z[2 * i + 1], z_pred[2 * i + 1])
+        return innovation
+
+    return innovation_func
 
 
 def load_estimator_dataset(data_dir: str) -> Dict:
@@ -173,12 +204,17 @@ def run_with_dataset(data_dir: str) -> None:
     x0_est = np.array([true_states[0, 0], true_states[0, 1], 0.0, 0.0])
     P0 = np.diag([2.0, 2.0, 2.0, 2.0])
     
+    # Create innovation function with angle wrapping for bearings
+    innovation_func = create_range_bearing_innovation_func(len(landmarks))
+
     # Run EKF
     print(f"\nRunning Extended Kalman Filter...")
+    print(f"  (Using angle wrapping for bearing innovations)")
     ekf = ExtendedKalmanFilter(
         process_model, process_jacobian,
         measurement_model, measurement_jacobian,
-        Q_func, R_func, x0_est, P0
+        Q_func, R_func, x0_est, P0,
+        innovation_func=innovation_func
     )
     
     estimates = [x0_est.copy()]
@@ -418,12 +454,17 @@ def example_2d_range_bearing_positioning():
         noise = np.random.multivariate_normal(np.zeros(len(true_meas)), R_func())
         measurements.append(true_meas + noise)
 
+    # Create innovation function with angle wrapping for bearings
+    innovation_func = create_range_bearing_innovation_func(len(landmarks))
+
     # Run EKF
     print(f"\nRunning Extended Kalman Filter...")
+    print(f"  (Using angle wrapping for bearing innovations)")
     ekf = ExtendedKalmanFilter(
         process_model, process_jacobian,
         measurement_model, measurement_jacobian,
-        Q_func, R_func, x0_est, P0
+        Q_func, R_func, x0_est, P0,
+        innovation_func=innovation_func
     )
 
     estimates = [x0_est.copy()]

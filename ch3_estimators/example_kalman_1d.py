@@ -4,12 +4,19 @@ Example: 1D Kalman Filter Tracking
 This script demonstrates the linear Kalman filter applied to 1D constant
 velocity tracking, comparing it with simple measurements.
 
+Run from repository root:
+    python ch3_estimators/example_kalman_1d.py
+
 Demonstrates:
-    - Linear Kalman Filter (KF) for 1D tracking
+    - Linear Kalman Filter (KF) for 1D tracking (Section 3.2.1)
     - Comparison with raw measurements
     - Visualization of estimation performance
 
-Implements equations (3.8)-(3.20) from Chapter 3.
+Book Reference (Chapter 3, Section 3.2.1):
+    - Eq. (3.8)-(3.10): Measurement model z_k = H_k x_k + w_k and likelihood
+    - Eq. (3.11)-(3.13): Process model x_k = F_k x_{k-1} + u_k + w and prior
+    - Eq. (3.14)-(3.16): Posterior PDF derivation
+    - Eq. (3.17)-(3.20): KF update equations (gain K, state x, covariance P)
 """
 
 import numpy as np
