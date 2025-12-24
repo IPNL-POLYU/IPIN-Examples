@@ -109,7 +109,7 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
     # Run TOA positioning
     if verbose:
         print("\n--- Running TOA Positioning ---")
-    toa_positioner = TOAPositioner(beacons, method="iwls")
+    toa_positioner = TOAPositioner(beacons, method="iterative_ls")
     
     for i in tqdm(range(n_points), desc="TOA", disable=not verbose):
         try:
@@ -283,7 +283,7 @@ def toa_positioning_test(anchors, true_positions, noise_std=0.0):
             ranges += np.random.randn(len(ranges)) * noise_std
 
         try:
-            positioner = TOAPositioner(anchors, method="iwls")
+            positioner = TOAPositioner(anchors, method="iterative_ls")
             est_pos, info = positioner.solve(ranges, initial_guess=np.array([5.0, 5.0]))
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_pos)
@@ -342,26 +342,60 @@ def aoa_positioning_test(anchors, true_positions, noise_std=0.0):
     return np.array(errors)
 
 
-def rss_positioning_test(anchors, true_positions, rss_noise_std=0.0, path_loss_exp=2.5):
-    """Test RSS positioning (inline mode)."""
+def rss_positioning_test(
+    anchors,
+    true_positions,
+    sigma_long_db=0.0,
+    sigma_short_linear=0.0,
+    n_samples_avg=1,
+    short_fading_model="rayleigh",
+    path_loss_exp=2.5,
+):
+    """
+    Test RSS positioning with fading noise per book model (Eqs. 4.10-4.13).
+
+    Args:
+        anchors: Anchor positions.
+        true_positions: True agent positions to test.
+        sigma_long_db: Long-term fading std in dB (per Eq. 4.12).
+                      Typical indoor values: 4-8 dB.
+        sigma_short_linear: Short-term fading parameter (Rayleigh scale sigma).
+                           For Rayleigh: typical σ = 0.5-1.0. Defaults to 0.0.
+        n_samples_avg: Number of samples to average for short-term fading
+                      reduction. Defaults to 1 (no averaging).
+        short_fading_model: Short-term fading model ("rayleigh", "gaussian_db", "none").
+                           Defaults to "rayleigh".
+        path_loss_exp: Path-loss exponent (eta). Defaults to 2.5.
+
+    Returns:
+        Array of position errors.
+    """
+    from core.rf import simulate_rss_measurement
+
     errors = []
-    tx_power_dbm = 0.0
+    p_ref_dbm = -40.0  # Reference RSS at d_ref=1m (typical Wi-Fi beacon)
 
     for true_pos in tqdm(true_positions, desc="  RSS", leave=False, unit="pt"):
-        rss = []
+        ranges = []
         for anchor in anchors:
-            dist = np.linalg.norm(anchor - true_pos)
-            rss_val = rss_pathloss(tx_power_dbm, dist, path_loss_exp)
-            rss.append(rss_val)
-        rss = np.array(rss)
+            # Use simulate_rss_measurement for full fading model (Eq. 4.12)
+            rss_meas, info = simulate_rss_measurement(
+                anchor, true_pos,
+                p_ref_dbm=p_ref_dbm,
+                path_loss_exp=path_loss_exp,
+                sigma_long_db=sigma_long_db,
+                sigma_short_linear=sigma_short_linear,
+                n_samples_avg=n_samples_avg,
+                short_fading_model=short_fading_model,
+            )
+            # Invert RSS to range (Eq. 4.11)
+            range_est = rss_to_distance(rss_meas, p_ref_dbm, path_loss_exp)
+            ranges.append(range_est)
 
-        if rss_noise_std > 0:
-            rss += np.random.randn(len(rss)) * rss_noise_std
-
-        ranges = np.array([rss_to_distance(r, tx_power_dbm, path_loss_exp) for r in rss])
+        ranges = np.array(ranges)
 
         try:
-            positioner = TOAPositioner(anchors, method="iwls")
+            positioner = TOAPositioner(anchors, method="iterative_ls")
             est_pos, info = positioner.solve(ranges, initial_guess=np.array([5.0, 5.0]))
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_pos)
@@ -381,48 +415,109 @@ def run_inline_comparison():
 
     print("\n--- Setting up test scenario ---")
     anchors, true_positions = generate_scenario(seed=42)
-    print(f"✓ Test scenario created:")
+    print(f"Test scenario created:")
     print(f"  Anchors: {len(anchors)}")
     print(f"  Test points: {len(true_positions)}")
     print(f"  Area: 10m x 10m")
 
-    noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]
+    # Noise levels for different methods
+    # TOA/TDOA: range noise in meters
+    # AOA: angle noise in radians
+    # RSS: fading noise in dB (per book Eq. 4.12)
+    toa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]  # meters
+    rss_noise_levels = [0.0, 2.0, 4.0, 6.0, 8.0]   # dB (typical indoor: 4-8 dB)
+
     results = {"TOA": [], "TDOA": [], "AOA": [], "RSS": []}
+
+    print("\nNoise configuration:")
+    print("  TOA/TDOA: Range noise (meters)")
+    print("  AOA: Angle noise (radians) = TOA_noise / 5")
+    print("  RSS: Long-term fading (dB) + Rayleigh short-term fading (Eq. 4.12)")
+    print("       - Long-term fading: Gaussian in dB (location-dependent)")
+    print("       - Short-term fading: Rayleigh amplitude (mitigated by averaging)")
+    print("       - 5 samples averaged to reduce short-term fading variance")
+
+    # RSS fading configuration
+    sigma_short_linear = 0.5  # Rayleigh scale (moderate short-term fading)
+    n_samples_avg = 5  # Average 5 samples to reduce short-term fading
 
     print("\nTesting noise levels...")
     start_time = time.time()
-    
-    for i, noise in enumerate(tqdm(noise_levels, desc="Overall progress", unit="level")):
-        print(f"\n[{i+1}/{len(noise_levels)}] Noise: {noise:.2f}m")
 
-        results["TOA"].append(toa_positioning_test(anchors, true_positions, noise))
-        results["TDOA"].append(tdoa_positioning_test(anchors, true_positions, noise))
-        
-        angle_noise = noise / 5.0
+    for i, (toa_noise, rss_fading_db) in enumerate(
+        tqdm(
+            list(zip(toa_noise_levels, rss_noise_levels)),
+            desc="Overall progress",
+            unit="level",
+        )
+    ):
+        print(f"\n[{i+1}/{len(toa_noise_levels)}] TOA/TDOA: {toa_noise:.2f}m, "
+              f"RSS long-term: {rss_fading_db:.1f}dB")
+
+        results["TOA"].append(toa_positioning_test(anchors, true_positions, toa_noise))
+        results["TDOA"].append(tdoa_positioning_test(anchors, true_positions, toa_noise))
+
+        angle_noise = toa_noise / 5.0  # radians
         results["AOA"].append(aoa_positioning_test(anchors, true_positions, angle_noise))
-        
-        rss_noise = noise * 30
-        results["RSS"].append(rss_positioning_test(anchors, true_positions, rss_noise))
-    
+
+        # RSS uses full fading model per book (Eq. 4.12):
+        # - omega_long: Gaussian in dB (location-dependent shadowing)
+        # - omega_short: Rayleigh amplitude fading (multipath, time-varying)
+        # Averaging n samples reduces short-term fading variance
+        results["RSS"].append(
+            rss_positioning_test(
+                anchors,
+                true_positions,
+                sigma_long_db=rss_fading_db,
+                sigma_short_linear=sigma_short_linear,
+                n_samples_avg=n_samples_avg,
+                short_fading_model="rayleigh",
+            )
+        )
+
     elapsed_time = time.time() - start_time
-    print(f"\n✓ All tests completed in {elapsed_time:.2f}s")
+    print(f"\nAll tests completed in {elapsed_time:.2f}s")
 
     print("\n" + "=" * 70)
     print("Results Summary (RMSE in meters)")
     print("=" * 70)
-    print(f"{'Noise':<12} {'TOA':<12} {'TDOA':<12} {'AOA':<12} {'RSS':<12}")
+    print(f"  RSS config: Rayleigh short-term (sigma={sigma_short_linear}), "
+          f"{n_samples_avg} samples averaged")
+    print(f"{'TOA/TDOA':<12} {'RSS Long':<12} {'TOA':<10} {'TDOA':<10} {'AOA':<10} {'RSS':<10}")
     print("-" * 70)
 
-    for i, noise in enumerate(noise_levels):
-        noise_str = f"{noise:.2f} m"
-        toa_rmse = np.sqrt(np.mean(results["TOA"][i]**2)) if len(results["TOA"][i]) > 0 else np.nan
-        tdoa_rmse = np.sqrt(np.mean(results["TDOA"][i]**2)) if len(results["TDOA"][i]) > 0 else np.nan
-        aoa_rmse = np.sqrt(np.mean(results["AOA"][i]**2)) if len(results["AOA"][i]) > 0 else np.nan
-        rss_rmse = np.sqrt(np.mean(results["RSS"][i]**2)) if len(results["RSS"][i]) > 0 else np.nan
+    for i, (toa_noise, rss_fading_db) in enumerate(
+        zip(toa_noise_levels, rss_noise_levels)
+    ):
+        toa_str = f"{toa_noise:.2f}m"
+        rss_str = f"{rss_fading_db:.1f}dB"
+        toa_rmse = (
+            np.sqrt(np.mean(results["TOA"][i] ** 2))
+            if len(results["TOA"][i]) > 0
+            else np.nan
+        )
+        tdoa_rmse = (
+            np.sqrt(np.mean(results["TDOA"][i] ** 2))
+            if len(results["TDOA"][i]) > 0
+            else np.nan
+        )
+        aoa_rmse = (
+            np.sqrt(np.mean(results["AOA"][i] ** 2))
+            if len(results["AOA"][i]) > 0
+            else np.nan
+        )
+        rss_rmse = (
+            np.sqrt(np.mean(results["RSS"][i] ** 2))
+            if len(results["RSS"][i]) > 0
+            else np.nan
+        )
 
-        print(f"{noise_str:<12} {toa_rmse:<12.3f} {tdoa_rmse:<12.3f} {aoa_rmse:<12.3f} {rss_rmse:<12.3f}")
+        print(
+            f"{toa_str:<12} {rss_str:<12} {toa_rmse:<10.3f} {tdoa_rmse:<10.3f} "
+            f"{aoa_rmse:<10.3f} {rss_rmse:<10.3f}"
+        )
 
-    return noise_levels, results
+    return toa_noise_levels, results
 
 
 def plot_dataset_results(results: Dict, output_file: str = None):

@@ -2,12 +2,18 @@
 Unit tests for DOP (Dilution of Precision) utilities.
 
 Tests geometry matrix computation and DOP metrics.
+Validates book equations 4.103-4.108.
 """
 
 import numpy as np
 import pytest
 
-from core.rf.dop import compute_dop, compute_dop_map, compute_geometry_matrix
+from core.rf.dop import (
+    compute_dop,
+    compute_dop_map,
+    compute_geometry_matrix,
+    position_error_from_dop,
+)
 
 
 class TestGeometryMatrix:
@@ -269,6 +275,116 @@ class TestDOPComparisons:
 
         # Center should have better DOP
         assert dop_center["HDOP"] < dop_edge["HDOP"]
+
+
+class TestBookDOPFormulas:
+    """Test DOP computation matches book equations 4.103-4.108."""
+
+    def test_dop_from_q_matrix_book_eq_4107(self):
+        """Verify GDOP = sqrt(trace(Q)) per book Eq. 4.107."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        position = np.array([5.0, 5.0])
+
+        H = compute_geometry_matrix(anchors, position, "toa")
+
+        # Manually compute Q = (H^T H)^{-1}
+        Q = np.linalg.inv(H.T @ H)
+
+        # GDOP should equal sqrt(trace(Q))
+        expected_gdop = np.sqrt(np.trace(Q))
+        dop = compute_dop(H)
+
+        assert np.isclose(dop["GDOP"], expected_gdop)
+
+    def test_hdop_vdop_book_eq_4108(self):
+        """Verify HDOP = sqrt(κ_ee + κ_nn) and VDOP = sqrt(κ_uu) per Eq. 4.108."""
+        anchors = np.array(
+            [[0, 0, 0], [10, 0, 0], [10, 10, 0], [0, 10, 0], [5, 5, 10]],
+            dtype=float,
+        )
+        position = np.array([5.0, 5.0, 0.0])
+
+        H = compute_geometry_matrix(anchors, position, "toa")
+
+        # Manually compute Q
+        Q = np.linalg.inv(H.T @ H)
+
+        # Book notation: κ_ee = Q[0,0], κ_nn = Q[1,1], κ_uu = Q[2,2]
+        expected_hdop = np.sqrt(Q[0, 0] + Q[1, 1])
+        expected_vdop = np.sqrt(Q[2, 2])
+
+        dop = compute_dop(H)
+
+        assert np.isclose(dop["HDOP"], expected_hdop)
+        assert np.isclose(dop["VDOP"], expected_vdop)
+
+    def test_position_error_from_dop_eq_4107(self):
+        """Verify σ_position = DOP × σ_measurement per book Eq. 4.107."""
+        hdop = 1.5
+        sigma_range = 0.3  # meters
+
+        expected_sigma_horizontal = 0.45  # 1.5 * 0.3
+
+        sigma_horizontal = position_error_from_dop(hdop, sigma_range)
+
+        assert np.isclose(sigma_horizontal, expected_sigma_horizontal)
+
+    def test_dop_covariance_relationship(self):
+        """Verify C(x_a) = Q × σ_z² per book Eq. 4.103."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        position = np.array([5.0, 5.0])
+        sigma_z = 0.3  # measurement noise std
+
+        H = compute_geometry_matrix(anchors, position, "toa")
+        dop = compute_dop(H)
+
+        # Position error should equal HDOP * sigma_z
+        expected_sigma_horizontal = dop["HDOP"] * sigma_z
+        computed_sigma = position_error_from_dop(dop["HDOP"], sigma_z)
+
+        assert np.isclose(computed_sigma, expected_sigma_horizontal)
+
+    def test_pdop_equals_gdop_for_pure_positioning(self):
+        """PDOP = GDOP when no clock bias is estimated."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        position = np.array([5.0, 5.0])
+
+        H = compute_geometry_matrix(anchors, position, "toa")
+        dop = compute_dop(H)
+
+        # For pure positioning, PDOP = GDOP
+        assert dop["PDOP"] == dop["GDOP"]
+
+    def test_2d_hdop_equals_gdop(self):
+        """In 2D, HDOP = GDOP (no vertical component)."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        position = np.array([5.0, 5.0])
+
+        H = compute_geometry_matrix(anchors, position, "toa")
+        dop = compute_dop(H)
+
+        # 2D: HDOP = GDOP (only horizontal components)
+        assert np.isclose(dop["HDOP"], dop["GDOP"])
+        assert dop["VDOP"] is None
+
+    def test_weighted_dop_book_eq_4103(self):
+        """Test DOP with weight matrix W = Σ^{-1}."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        position = np.array([5.0, 5.0])
+
+        H = compute_geometry_matrix(anchors, position, "toa")
+
+        # Different measurement noise per anchor
+        sigmas = np.array([0.2, 0.3, 0.4, 0.5])
+        W = np.diag(1.0 / sigmas**2)
+
+        # Compute Q = (H^T W H)^{-1}
+        Q_weighted = np.linalg.inv(H.T @ W @ H)
+        expected_hdop = np.sqrt(Q_weighted[0, 0] + Q_weighted[1, 1])
+
+        dop = compute_dop(H, weights=W)
+
+        assert np.isclose(dop["HDOP"], expected_hdop)
 
 
 if __name__ == "__main__":
