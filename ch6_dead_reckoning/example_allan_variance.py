@@ -11,7 +11,7 @@ Implements:
 Key Insight: Allan variance reveals ALL IMU noise characteristics on
             a single log-log plot. Essential for system design!
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

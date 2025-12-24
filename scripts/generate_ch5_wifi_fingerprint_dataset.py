@@ -10,7 +10,7 @@ Creates a realistic indoor RSS fingerprint database with:
 
 Saves to: data/sim/ch5_wifi_fingerprint_grid/
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 
@@ -67,6 +67,7 @@ def generate_wifi_fingerprint_database(
     n_floors: int = 3,
     floor_height: float = 3.0,
     n_aps: int = 8,
+    n_samples_per_rp: int = 1,
     seed: int = 42,
 ) -> FingerprintDatabase:
     """
@@ -78,6 +79,10 @@ def generate_wifi_fingerprint_database(
         n_floors: Number of floors.
         floor_height: Height of each floor (meters).
         n_aps: Number of access points.
+        n_samples_per_rp: Number of RSS samples to collect at each RP.
+                          If 1 (default), creates single-sample DB (M, N).
+                          If > 1, creates multi-sample DB (M, S, N) for
+                          proper μ and σ estimation per Eq. 5.6.
         seed: Random seed for reproducibility.
     
     Returns:
@@ -100,6 +105,7 @@ def generate_wifi_fingerprint_database(
     print(f"Floors: {n_floors}")
     print(f"Total reference points: {len(x_coords) * len(y_coords) * n_floors}")
     print(f"Access points: {n_aps}")
+    print(f"Samples per RP: {n_samples_per_rp} {'(multi-sample DB)' if n_samples_per_rp > 1 else '(single-sample DB)'}")
     
     # Generate AP positions (strategic placement on walls/ceiling)
     # APs at corners, mid-walls, and center ceiling of first floor
@@ -137,35 +143,47 @@ def generate_wifi_fingerprint_database(
                 # Reference point location (2D)
                 rp_location = np.array([x, y])
                 
-                # RSS measurements from all APs
-                rss_vector = []
+                # Collect multiple samples at this RP if requested
+                rp_samples = []  # Will be list of S samples, each of shape (N,)
                 
-                for ap_pos in ap_positions:
-                    # 3D distance from RP to AP
-                    rp_3d = np.array([x, y, floor_z])
-                    distance_3d = np.linalg.norm(rp_3d - ap_pos)
+                for sample_idx in range(n_samples_per_rp):
+                    # RSS measurements from all APs for this sample
+                    rss_vector = []
                     
-                    # Floor attenuation factor (if AP on different floor)
-                    ap_floor = int(ap_pos[2] / floor_height)
-                    floor_diff = abs(floor_id - ap_floor)
-                    floor_attenuation = floor_diff * 15.0  # 15 dB per floor
+                    for ap_pos in ap_positions:
+                        # 3D distance from RP to AP
+                        rp_3d = np.array([x, y, floor_z])
+                        distance_3d = np.linalg.norm(rp_3d - ap_pos)
+                        
+                        # Floor attenuation factor (if AP on different floor)
+                        ap_floor = int(ap_pos[2] / floor_height)
+                        floor_diff = abs(floor_id - ap_floor)
+                        floor_attenuation = floor_diff * 15.0  # 15 dB per floor
+                        
+                        # Compute RSS with path-loss model
+                        # Each sample gets independent shadow fading
+                        rss = log_distance_path_loss(
+                            distance_3d,
+                            P0=-30.0,
+                            n=2.5,  # Indoor path-loss exponent
+                            sigma=4.0,  # Shadow fading (varies per sample)
+                        )
+                        
+                        # Apply floor attenuation
+                        rss -= floor_attenuation
+                        
+                        rss_vector.append(rss)
                     
-                    # Compute RSS with path-loss model
-                    rss = log_distance_path_loss(
-                        distance_3d,
-                        P0=-30.0,
-                        n=2.5,  # Indoor path-loss exponent
-                        sigma=4.0,  # Shadow fading
-                    )
-                    
-                    # Apply floor attenuation
-                    rss -= floor_attenuation
-                    
-                    rss_vector.append(rss)
+                    rp_samples.append(np.array(rss_vector))
                 
                 # Store
                 locations_list.append(rp_location)
-                features_list.append(np.array(rss_vector))
+                if n_samples_per_rp == 1:
+                    # Single sample: store as (N,)
+                    features_list.append(rp_samples[0])
+                else:
+                    # Multiple samples: store as (S, N)
+                    features_list.append(np.array(rp_samples))
                 floor_ids_list.append(floor_id)
         
         print(f"OK ({len([f for f in floor_ids_list if f == floor_id])} RPs)")
@@ -179,7 +197,13 @@ def generate_wifi_fingerprint_database(
     print(f"Database Summary:")
     print(f"  Total reference points: {len(locations)}")
     print(f"  Location dimension: {locations.shape[1]}D")
-    print(f"  Features per RP: {features.shape[1]} (APs)")
+    if n_samples_per_rp == 1:
+        print(f"  Features shape: {features.shape} (M, N)")
+        print(f"  Features per RP: {features.shape[1]} (APs)")
+    else:
+        print(f"  Features shape: {features.shape} (M, S, N)")
+        print(f"  Samples per RP: {features.shape[1]}")
+        print(f"  Features per sample: {features.shape[2]} (APs)")
     print(f"  Floors: {sorted(np.unique(floor_ids).tolist())}")
     print(f"  RSS range: [{features.min():.1f}, {features.max():.1f}] dBm")
     print(f"  RSS mean: {features.mean():.1f} dBm")
@@ -197,6 +221,7 @@ def generate_wifi_fingerprint_database(
             "grid_spacing": grid_spacing,
             "floor_height": floor_height,
             "n_floors": n_floors,
+            "n_samples_per_rp": n_samples_per_rp,
             "path_loss_model": {
                 "type": "log_distance",
                 "P0_dBm": -30.0,
@@ -204,8 +229,8 @@ def generate_wifi_fingerprint_database(
                 "shadow_fading_std_dBm": 4.0,
                 "floor_attenuation_dB": 15.0,
             },
-            "description": "Synthetic Wi-Fi RSS fingerprint database for indoor positioning",
-            "generation_date": "2024-12-13",
+            "description": f"Synthetic Wi-Fi RSS fingerprint database ({'multi-sample' if n_samples_per_rp > 1 else 'single-sample'})",
+            "generation_date": "2024-12-24",
         },
     )
     
@@ -221,10 +246,11 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Presets:
-  baseline      Standard 5m grid, 8 APs, 3 floors (100 RPs/floor)
-  dense         Dense 2m grid, 8 APs, 3 floors (676 RPs/floor)
-  sparse        Sparse 10m grid, 8 APs, 3 floors (25 RPs/floor)
-  few_aps       Standard grid, only 4 APs (corner placement)
+  baseline      Standard 5m grid, 8 APs, 3 floors, 1 sample/RP
+  dense         Dense 2m grid, 8 APs, 3 floors, 1 sample/RP
+  sparse        Sparse 10m grid, 8 APs, 3 floors, 1 sample/RP
+  few_aps       Standard grid, only 4 APs, 1 sample/RP
+  multisamples  Standard grid, 8 APs, 10 samples/RP (for μ/σ estimation)
 
 Examples:
   # Generate baseline dataset
@@ -255,7 +281,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     parser.add_argument(
         "--preset",
         type=str,
-        choices=["baseline", "dense", "sparse", "few_aps"],
+        choices=["baseline", "dense", "sparse", "few_aps", "multisamples"],
         help="Use preset configuration (overrides other parameters)",
     )
     parser.add_argument(
@@ -292,6 +318,14 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         "--n-aps", type=int, default=8, help="Number of access points (default: 8)"
     )
     
+    # Survey parameters
+    survey_group = parser.add_argument_group("Survey Parameters")
+    survey_group.add_argument(
+        "--n-samples", type=int, default=1, 
+        help="Number of RSS samples per RP (default: 1). "
+             "Use >1 for multi-sample DB to estimate μ and σ per Eq. 5.6"
+    )
+    
     # Other
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
     
@@ -303,30 +337,42 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         grid_spacing = 5.0
         n_floors = 3
         n_aps = 8
+        n_samples = 1
         output_dir = "data/sim/ch5_wifi_fingerprint_grid"
     elif args.preset == "dense":
         area_size = (50.0, 50.0)
         grid_spacing = 2.0
         n_floors = 3
         n_aps = 8
+        n_samples = 1
         output_dir = "data/sim/ch5_wifi_fingerprint_dense"
     elif args.preset == "sparse":
         area_size = (50.0, 50.0)
         grid_spacing = 10.0
         n_floors = 3
         n_aps = 8
+        n_samples = 1
         output_dir = "data/sim/ch5_wifi_fingerprint_sparse"
     elif args.preset == "few_aps":
         area_size = (50.0, 50.0)
         grid_spacing = 5.0
         n_floors = 3
         n_aps = 4
+        n_samples = 1
         output_dir = "data/sim/ch5_wifi_fingerprint_few_aps"
+    elif args.preset == "multisamples":
+        area_size = (50.0, 50.0)
+        grid_spacing = 5.0
+        n_floors = 3
+        n_aps = 8
+        n_samples = 10  # 10 samples per RP for proper μ/σ estimation
+        output_dir = "data/sim/ch5_wifi_fingerprint_multisamples"
     else:
         area_size = (args.area_width, args.area_height)
         grid_spacing = args.grid_spacing
         n_floors = args.n_floors
         n_aps = args.n_aps
+        n_samples = args.n_samples
         output_dir = args.output
     
     # Generate database
@@ -336,6 +382,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         n_floors=n_floors,
         floor_height=args.floor_height if not args.preset else 3.0,
         n_aps=n_aps,
+        n_samples_per_rp=n_samples,
         seed=args.seed,
     )
     

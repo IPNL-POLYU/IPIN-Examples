@@ -30,10 +30,15 @@ Example usage:
     >>> model = fit_gaussian_naive_bayes(db)
     >>> x_hat_map = map_localize(z_query, model, floor_id=0)
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 
+from .classification import (
+    ClassificationLocalizer,
+    fit_classifier,
+    hierarchical_localize,
+)
 from .dataset import (
     load_fingerprint_database,
     print_database_summary,
@@ -42,6 +47,12 @@ from .dataset import (
 )
 from .deterministic import distance, knn_localize, nn_localize, pairwise_distances
 from .pattern_recognition import LinearRegressionLocalizer
+from .preprocess import (
+    average_scans,
+    compute_normalization_params,
+    normalize_fingerprint,
+    preprocess_query,
+)
 from .probabilistic import (
     NaiveBayesFingerprintModel,
     fit_gaussian_naive_bayes,
@@ -74,8 +85,17 @@ __all__ = [
     "log_posterior",
     "map_localize",
     "posterior_mean_localize",
-    # Pattern recognition methods
+    # Pattern recognition methods (regression)
     "LinearRegressionLocalizer",
+    # Pattern recognition methods (classification)
+    "ClassificationLocalizer",
+    "fit_classifier",
+    "hierarchical_localize",
+    # Preprocessing
+    "average_scans",
+    "normalize_fingerprint",
+    "preprocess_query",
+    "compute_normalization_params",
 ]
 
 __version__ = "0.1.0"

@@ -8,7 +8,7 @@ Usage:
     python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb --output my_plots
     python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb --format png
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2025
 """
 

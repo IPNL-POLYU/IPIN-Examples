@@ -19,7 +19,7 @@ Implements Equations:
     - Eq. (6.54): Barometric altitude from pressure
     - Eq. (6.55): Exponential smoothing filter
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

@@ -12,7 +12,7 @@ State: [x, y, vx, vy, yaw] (5D)
 Process model: Simple constant-velocity + yaw integration
 Measurement model: Direct range h(x) = ||p - anchor_i|| per anchor
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8 - Tightly Coupled Fusion
 """
 

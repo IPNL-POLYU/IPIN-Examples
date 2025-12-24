@@ -8,7 +8,7 @@ References:
     - Eqs. (7.14)-(7.16): NDT score and optimization
     - Section 7.2.2: NDT scan matching
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

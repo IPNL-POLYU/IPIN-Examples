@@ -15,7 +15,7 @@ State: [x, y, vx, vy, yaw] (5D) - same as TC
 Process model: Same as TC (2D IMU dead-reckoning)
 Measurement model: Position fix h(x) = [px, py] (2D)
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8 - Loosely vs Tightly Coupled Fusion
 """
 

@@ -14,7 +14,7 @@ Implements:
 Key Insight: Wheel odometry drift is BOUNDED (proportional to distance,
             not time) but very sensitive to wheel slip!
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

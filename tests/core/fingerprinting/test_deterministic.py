@@ -2,7 +2,7 @@
 
 Tests NN and k-NN fingerprinting algorithms (Eqs. 5.1 and 5.2).
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

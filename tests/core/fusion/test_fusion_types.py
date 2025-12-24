@@ -3,7 +3,7 @@
 Tests StampedMeasurement and TimeSyncModel data structures for Chapter 8
 sensor fusion examples.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8 - Sensor Fusion
 """
 

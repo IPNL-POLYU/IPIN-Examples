@@ -14,7 +14,7 @@ Usage:
         data/sim/ch8_fusion_2d_imu_uwb_nlos \
         --output comparison.svg
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2025
 """
 

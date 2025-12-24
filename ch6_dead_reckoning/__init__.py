@@ -21,7 +21,7 @@ Examples:
     - example_allan_variance.py: IMU noise characterization
     - example_comparison.py: Compare all methods
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

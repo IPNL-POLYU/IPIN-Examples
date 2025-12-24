@@ -8,7 +8,7 @@ This module implements camera models from Chapter 7 of the book, including:
 These models are used for visual odometry, bundle adjustment, and reprojection
 error computation in visual SLAM systems.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

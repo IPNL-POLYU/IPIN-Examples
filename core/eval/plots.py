@@ -6,7 +6,7 @@ and positioning geometry.
 
 All functions return matplotlib Figure objects for flexible display/saving.
 
-Author: Navigation Engineering Team
+Author: Li-Ta Hsu
 Date: December 2025
 """
 

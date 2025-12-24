@@ -19,7 +19,7 @@ References:
     - Eq. (7.10): ICP residual cost function
     - Eq. (7.11): SVD-based alignment solution
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

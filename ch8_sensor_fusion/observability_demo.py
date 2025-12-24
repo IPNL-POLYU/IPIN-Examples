@@ -14,7 +14,7 @@ Key Concepts:
 - Odometry measures relative displacement, not absolute position
 - Absolute measurements (position fixes) make translation observable
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Equations (8.1)-(8.2), Section on Observability
 """
 

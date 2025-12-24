@@ -3,7 +3,7 @@
 Tests chi-square gating and Mahalanobis distance functions
 implementing Eqs. (8.8)-(8.9) from Chapter 8.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Section 8.3 (Tuning and Robustness)
 """
 

@@ -42,7 +42,7 @@ References:
     - Section 7.2: LiDAR SLAM (ICP, NDT, LOAM)
     - Section 7.4: Visual SLAM (camera model, bundle adjustment)
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

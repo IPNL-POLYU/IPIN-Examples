@@ -1,14 +1,15 @@
 """Probabilistic fingerprinting methods for Chapter 5.
 
 This module implements Bayesian fingerprinting using Gaussian Naive Bayes
-models, as described in Section 5.2 of the book.
+models, as described in Section 5.1.3 (Probabilistic Fingerprinting) of the book.
 
 Key equations:
-    - Eq. (5.3): Log-likelihood log p(z | x_i)
-    - Eq. (5.4): MAP estimate i* = argmax_i p(x_i | z)
-    - Eq. (5.5): Posterior mean estimate x̂ = Σ p(x_i | z) x_i
+    - Eq. (5.3): Bayes posterior P(x_i | z) = P(z | x_i) P(x_i) / P(z)
+    - Eq. (5.4): MAP estimate i* = argmax_i P(x_i | z)
+    - Eq. (5.5): Posterior mean estimate x̂ = Σ P(x_i | z) x_i
+    - Eq. (5.6): Gaussian likelihood P(z | x_i) = N(z; μ_i, Σ_i)
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 
@@ -41,7 +42,7 @@ class NaiveBayesFingerprintModel:
         meta: Metadata dictionary from training database.
 
     References:
-        Chapter 5, Section 5.2: Probabilistic fingerprinting with Gaussian models.
+        Chapter 5, Section 5.1.3: Probabilistic fingerprinting with Gaussian models.
     """
 
     means: np.ndarray
@@ -116,19 +117,23 @@ def fit_gaussian_naive_bayes(
         σ_ij = std RSS at RP i from AP j
 
     Under Naive Bayes assumption, the likelihood is:
-        p(z | x_i) = ∏_j N(z_j; μ_ij, σ_ij²)
+        P(z | x_i) = ∏_j N(z_j; μ_ij, σ_ij²)
 
     where N(·; μ, σ²) is the Gaussian density.
 
-    Note: Since the database stores only one fingerprint per RP (no repeated
-    measurements), we cannot estimate variance from data. This function
-    returns a model with std = min_std for all features, which can be
-    updated later if repeated measurements become available.
+    **Behavior depends on database format:**
+    - Single-sample DB (features shape M×N): Sets σ_ij = min_std everywhere.
+    - Multi-sample DB (features shape M×S×N): Computes actual μ and σ from
+      the S samples at each RP, then applies min_std as a numerical floor.
+
+    This aligns with the book's assumption (Eq. 5.6) that sufficient survey
+    samples are available to estimate P(z|x_i) parameters.
 
     Args:
         db: FingerprintDatabase containing reference fingerprints.
-        min_std: Minimum standard deviation to prevent numerical issues.
-                 Default is 1.0 dBm, representing typical RSS variability.
+            Can be single-sample (M, N) or multi-sample (M, S, N) format.
+        min_std: Minimum standard deviation floor to prevent numerical issues.
+                 Default is 1.0 dBm. Applied even when σ is computed from data.
         prior: Prior distribution type. Currently only 'uniform' is supported.
 
     Returns:
@@ -138,28 +143,32 @@ def fit_gaussian_naive_bayes(
         ValueError: If prior type is not supported.
 
     Examples:
+        >>> # Single-sample database (constant std)
         >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> model = fit_gaussian_naive_bayes(db, min_std=2.0)
         >>> print(f"Trained model with {model.n_reference_points} RPs")
+        >>> # All stds will be 2.0 dBm
+        
+        >>> # Multi-sample database (actual variance estimation)
+        >>> db_multi = load_fingerprint_database('data/sim/ch5_wifi_fp_multisamples')
+        >>> model = fit_gaussian_naive_bayes(db_multi, min_std=1.0)
+        >>> # stds vary by RP and feature, floor at 1.0 dBm
 
     References:
-        Chapter 5, Eq. (5.3): Gaussian likelihood model.
+        Chapter 5, Eq. (5.6): Gaussian likelihood model for P(z | x_i).
+        Chapter 5, Section 5.1.3: Probabilistic fingerprinting with statistics.
     """
     M = db.n_reference_points
     N = db.n_features
 
-    # Means are simply the reference fingerprints
-    # μ_ij = RSS at RP i from AP j
-    means = db.features.copy()
-
-    # Standard deviations: since we have only one sample per RP,
-    # we use a constant std (could be updated with more data)
-    # σ_ij = min_std for all i, j
-    stds = np.full((M, N), min_std)
+    # Compute mean and std from database
+    # These methods handle both single-sample and multi-sample formats
+    means = db.get_mean_features()  # Shape: (M, N)
+    stds = db.get_std_features(min_std=min_std)  # Shape: (M, N)
 
     # Prior probabilities
     if prior == "uniform":
-        # Uniform prior: p(x_i) = 1/M for all i
+        # Uniform prior: P(x_i) = 1/M for all i
         prior_probs = np.ones(M) / M
     else:
         raise ValueError(f"Unsupported prior type: '{prior}'. Use 'uniform'.")
@@ -180,23 +189,29 @@ def log_likelihood(
     floor_id: Optional[int] = None,
 ) -> np.ndarray:
     """
-    Compute log-likelihood log p(z | x_i) for all reference points.
+    Compute log-likelihood log P(z | x_i) for all reference points.
 
-    Implements Eq. (5.3) in Chapter 5. Under Gaussian Naive Bayes:
-        log p(z | x_i) = Σ_j log N(z_j; μ_ij, σ_ij²)
+    This function computes the likelihood term P(z | x_i) that appears in
+    Bayes' rule (Eq. 5.3). Under Gaussian Naive Bayes (Eq. 5.6):
+        log P(z | x_i) = Σ_j log N(z_j; μ_ij, σ_ij²)
                        = Σ_j [-0.5 log(2π σ_ij²) - 0.5 (z_j - μ_ij)² / σ_ij²]
 
     where the sum is over all features j = 1, ..., N.
+    
+    **Missing AP Handling:**
+    If z contains NaN values (representing missing AP readings), the sum
+    includes only terms for observed (non-NaN) features. If no observed
+    features exist for a particular RP, returns -inf for that RP.
 
     Args:
-        z: Query fingerprint vector, shape (N,).
+        z: Query fingerprint vector, shape (N,). May contain NaN for missing APs.
         model: Trained NaiveBayesFingerprintModel.
         floor_id: Optional floor constraint. If provided, returns log-likelihoods
                   only for RPs on that floor (others set to -inf).
 
     Returns:
         Log-likelihood values, shape (M,), where M is number of RPs.
-        Element i is log p(z | x_i).
+        Element i is log P(z | x_i). Returns -inf for RPs with no observed features.
 
     Raises:
         ValueError: If query dimension doesn't match model or floor doesn't exist.
@@ -206,9 +221,16 @@ def log_likelihood(
         >>> z_query = np.array([-51, -61, -71])
         >>> log_probs = log_likelihood(z_query, model, floor_id=0)
         >>> print(f"Log-likelihoods: {log_probs}")
+        
+        >>> # With missing values (NaN)
+        >>> z_missing = np.array([-51, np.nan, -71])  # AP2 missing
+        >>> log_probs_missing = log_likelihood(z_missing, model, floor_id=0)
+        >>> # Likelihood computed only using AP1 and AP3
 
     References:
-        Chapter 5, Eq. (5.3): Log-likelihood under Gaussian Naive Bayes.
+        Chapter 5, Eq. (5.6): Gaussian likelihood model.
+        Chapter 5, Eq. (5.3): Bayes posterior uses this likelihood term.
+        Chapter 5, Section 5.1: Handling missing AP readings (dropout).
     """
     # Validate query dimension
     if z.shape[0] != model.n_features:
@@ -241,10 +263,19 @@ def log_likelihood(
     # Shape: (M, N)
     log_gaussian = log_norm - 0.5 * normalized_sq_errors
 
-    # Sum over features (axis=1) to get log p(z | x_i)
-    # Implements: Σ_j log N(z_j; μ_ij, σ_ij²) from Eq. (5.3)
-    # Shape: (M,)
-    log_likelihoods = np.sum(log_gaussian, axis=1)
+    # Handle missing values: identify observed (non-NaN) features
+    observed_mask = ~np.isnan(z)  # Shape: (N,)
+    n_observed = np.sum(observed_mask)
+    
+    if n_observed == 0:
+        # No observed features: return -inf for all RPs
+        log_likelihoods = np.full(M, -np.inf)
+    else:
+        # Sum only over observed features (axis=1)
+        # Use nansum to ignore NaN contributions in log_gaussian
+        # Shape: (M,)
+        # Note: where z is NaN, log_gaussian will be NaN, and nansum ignores it
+        log_likelihoods = np.nansum(log_gaussian, axis=1)
 
     # Apply floor constraint if specified
     if floor_id is not None:
@@ -263,19 +294,19 @@ def log_posterior(
     floor_id: Optional[int] = None,
 ) -> np.ndarray:
     """
-    Compute log-posterior log p(x_i | z) for all reference points.
+    Compute log-posterior log P(x_i | z) for all reference points.
 
-    Uses Bayes' rule:
-        p(x_i | z) ∝ p(z | x_i) p(x_i)
+    Implements Eq. (5.3) using Bayes' rule:
+        P(x_i | z) = P(z | x_i) P(x_i) / P(z)
 
     In log space:
-        log p(x_i | z) = log p(z | x_i) + log p(x_i) - log p(z)
+        log P(x_i | z) = log P(z | x_i) + log P(x_i) - log P(z)
 
-    Since log p(z) is constant for all i, we compute unnormalized log-posterior:
-        log p̃(x_i | z) = log p(z | x_i) + log p(x_i)
+    Since log P(z) is constant for all i, we compute unnormalized log-posterior:
+        log P̃(x_i | z) = log P(z | x_i) + log P(x_i)
 
     and normalize afterward:
-        p(x_i | z) = exp(log p̃(x_i | z)) / Σ_k exp(log p̃(x_k | z))
+        P(x_i | z) = exp(log P̃(x_i | z)) / Σ_k exp(log P̃(x_k | z))
 
     Args:
         z: Query fingerprint vector, shape (N,).
@@ -297,12 +328,13 @@ def log_posterior(
         >>> print(f"Posterior probabilities: {posteriors}")
 
     References:
-        Chapter 5, Eqs. (5.4)-(5.5): Bayesian inference for localization.
+        Chapter 5, Eq. (5.3): Bayes posterior P(x_i | z) = P(z | x_i) P(x_i) / P(z).
+        Chapter 5, Eqs. (5.4)-(5.5): Used in MAP and posterior mean estimation.
     """
-    # Compute log-likelihood: log p(z | x_i)
+    # Compute log-likelihood: log P(z | x_i) using Eq. (5.6)
     log_like = log_likelihood(z, model, floor_id=floor_id)
 
-    # Compute unnormalized log-posterior: log p(z | x_i) + log p(x_i)
+    # Compute unnormalized log-posterior: log P(z | x_i) + log P(x_i)
     # Handle floor constraint: prior_probs already has proper shape (M,)
     if floor_id is not None:
         mask = model.get_floor_mask(floor_id)
@@ -314,12 +346,12 @@ def log_posterior(
     log_unnorm = log_like + log_prior
 
     # Normalize using log-sum-exp trick for numerical stability
-    # log p(z) = log Σ_i p(z | x_i) p(x_i)
-    #          = log Σ_i exp(log p(z | x_i) + log p(x_i))
+    # log P(z) = log Σ_i P(z | x_i) P(x_i)
+    #          = log Σ_i exp(log P(z | x_i) + log P(x_i))
     log_evidence = _log_sum_exp(log_unnorm)
 
-    # Compute normalized log-posterior
-    # log p(x_i | z) = log p̃(x_i | z) - log p(z)
+    # Compute normalized log-posterior (Eq. 5.3)
+    # log P(x_i | z) = log P̃(x_i | z) - log P(z)
     log_post = log_unnorm - log_evidence
 
     return log_post
@@ -404,6 +436,7 @@ def posterior_mean_localize(
     z: Fingerprint,
     model: NaiveBayesFingerprintModel,
     floor_id: Optional[int] = None,
+    top_k: Optional[int] = None,
 ) -> Location:
     """
     Posterior mean (Bayesian) probabilistic fingerprinting.
@@ -414,41 +447,90 @@ def posterior_mean_localize(
 
     where the expectation is with respect to the posterior distribution.
 
+    **Practical optimization (book guidance):** The sum often includes many
+    negligible probabilities and only a few dominant ones. Setting `top_k`
+    computes the posterior mean using only the k highest posterior candidates,
+    which is typically sufficient and more efficient.
+
     Args:
         z: Query fingerprint vector, shape (N,).
         model: Trained NaiveBayesFingerprintModel.
         floor_id: Optional floor constraint. If None, searches all floors.
+        top_k: Optional. If set, compute posterior mean using only the top-k
+               candidates with highest posterior probabilities. If None (default),
+               uses all RPs. Book guidance: k=10-20 typically sufficient.
 
     Returns:
-        Estimated location x̂, shape (d,), weighted average of all RPs
-        according to their posterior probabilities.
+        Estimated location x̂, shape (d,), weighted average of RPs
+        according to their posterior probabilities (all RPs or top-k subset).
 
     Raises:
-        ValueError: If query dimension doesn't match model or floor doesn't exist.
+        ValueError: If query dimension doesn't match model, floor doesn't exist,
+                    or top_k is invalid.
 
     Examples:
         >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> model = fit_gaussian_naive_bayes(db, min_std=2.0)
         >>> z_query = np.array([-51, -61, -71])
-        >>> x_hat = posterior_mean_localize(z_query, model, floor_id=0)
-        >>> print(f"Posterior mean estimate: {x_hat}")
+        
+        >>> # Full posterior mean (all RPs)
+        >>> x_hat_full = posterior_mean_localize(z_query, model, floor_id=0)
+        
+        >>> # Top-k posterior mean (faster, typically sufficient)
+        >>> x_hat_topk = posterior_mean_localize(z_query, model, floor_id=0, top_k=10)
+        >>> # Results are nearly identical but top-k is faster
 
     References:
         Chapter 5, Eq. (5.5): Posterior mean estimate for probabilistic fingerprinting.
+        Chapter 5, Section 5.1.2: "...a calculation based on the top k candidates
+                                    is typically sufficient."
     """
     # Compute log-posterior for all RPs
     log_post = log_posterior(z, model, floor_id=floor_id)
 
     # Convert to probability space
-    # p(x_i | z) = exp(log p(x_i | z))
+    # P(x_i | z) = exp(log P(x_i | z))
     posteriors = np.exp(log_post)
 
-    # Compute posterior mean
-    # Implements: x̂ = Σ_i p(x_i | z) x_i from Eq. (5.5)
-    # posteriors shape: (M,)
-    # model.locations shape: (M, d)
-    # Result shape: (d,)
-    x_hat = np.sum(posteriors[:, np.newaxis] * model.locations, axis=0)
+    # Apply top-k filtering if requested
+    if top_k is not None:
+        # Validate top_k
+        n_valid = np.sum(np.isfinite(posteriors))  # Count valid (non-inf) posteriors
+        if top_k < 1:
+            raise ValueError(f"top_k must be >= 1, got {top_k}")
+        if top_k > n_valid:
+            raise ValueError(
+                f"top_k={top_k} exceeds number of valid candidates ({n_valid})"
+            )
+
+        # Find indices of top-k highest posteriors
+        # Use np.argpartition for efficient top-k selection (O(n) vs O(n log n))
+        # Note: argpartition doesn't sort, just partitions around k-th element
+        top_k_indices = np.argpartition(posteriors, -top_k)[-top_k:]
+
+        # Extract top-k posteriors and locations
+        top_k_posteriors = posteriors[top_k_indices]
+        top_k_locations = model.locations[top_k_indices]
+
+        # Renormalize probabilities on top-k subset
+        # Sum may not be exactly 1.0 due to truncation
+        posterior_sum = np.sum(top_k_posteriors)
+        if posterior_sum > 0:
+            top_k_posteriors = top_k_posteriors / posterior_sum
+        else:
+            # All top-k posteriors are zero (shouldn't happen in practice)
+            raise ValueError("All top-k posterior probabilities are zero")
+
+        # Compute posterior mean using only top-k candidates
+        # x̂ = Σ_{i in top-k} P(x_i | z) x_i
+        x_hat = np.sum(top_k_posteriors[:, np.newaxis] * top_k_locations, axis=0)
+    else:
+        # Full posterior mean (all RPs)
+        # Implements: x̂ = Σ_i P(x_i | z) x_i from Eq. (5.5)
+        # posteriors shape: (M,)
+        # model.locations shape: (M, d)
+        # Result shape: (d,)
+        x_hat = np.sum(posteriors[:, np.newaxis] * model.locations, axis=0)
 
     return x_hat
 

@@ -17,7 +17,7 @@ Implements:
 Key Insight: Heading errors DOMINATE PDR accuracy. 1° heading error
             causes ~1.7% position error per step!
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

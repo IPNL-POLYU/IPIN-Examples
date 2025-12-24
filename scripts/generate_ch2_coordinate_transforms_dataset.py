@@ -17,7 +17,7 @@ Implements Equations:
     - Eq. (2.3): ECEF → ENU transformation
     - Eqs. (2.5-2.10): Rotation representations
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

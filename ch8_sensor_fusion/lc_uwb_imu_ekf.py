@@ -14,7 +14,7 @@ Features:
 - Chi-square innovation gating (Eq. 8.9)
 - Innovation monitoring (Eqs. 8.5-8.6)
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Section 8.2 (Loosely vs Tightly Coupled Fusion)
 """
 

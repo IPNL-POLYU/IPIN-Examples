@@ -11,7 +11,7 @@ References:
     - Section 7.4: Visual SLAM
     - Example: ch7_slam/example_bundle_adjustment.py
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

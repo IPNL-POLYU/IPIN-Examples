@@ -7,7 +7,7 @@ Key equations:
     - Eq. (5.1): NN decision rule i* = argmin_i D(z, f_i)
     - Eq. (5.2): k-NN weighted average x̂ = Σ w_i x_i / Σ w_i
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 
@@ -24,6 +24,11 @@ def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
 
     This function implements the distance metric D(·, ·) used in Eq. (5.1)
     and Eq. (5.2) of Chapter 5.
+    
+    **Missing AP Handling:**
+    If either z or f contains NaN values (representing missing AP readings),
+    the distance is computed only over dimensions where both values are present.
+    If no overlapping dimensions exist, returns +inf.
 
     Args:
         z: Query fingerprint vector, shape (N,).
@@ -31,7 +36,7 @@ def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
         metric: Distance metric, either 'euclidean' or 'manhattan'.
 
     Returns:
-        Distance value D(z, f) as a scalar float.
+        Distance value D(z, f) as a scalar float. Returns +inf if no overlapping dims.
 
     Raises:
         ValueError: If metric is not supported or if z and f have different shapes.
@@ -43,9 +48,17 @@ def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
         >>> d_manh = distance(z, f, metric='manhattan')
         >>> print(f"Euclidean: {d_eucl:.2f}, Manhattan: {d_manh:.2f}")
         Euclidean: 3.46, Manhattan: 6.00
+        
+        >>> # With missing values (NaN)
+        >>> z_missing = np.array([-50, np.nan, -70])
+        >>> f_missing = np.array([-52, -58, np.nan])
+        >>> d = distance(z_missing, f_missing, metric='euclidean')
+        >>> print(f"Distance (only AP1 valid): {d:.2f}")
+        Distance (only AP1 valid): 2.00
 
     References:
         Chapter 5, Eqs. (5.1)-(5.2): Distance metrics for fingerprinting.
+        Chapter 5, Section 5.1: Discusses handling missing AP readings (dropout).
     """
     # Validate inputs
     if z.shape != f.shape:
@@ -54,11 +67,23 @@ def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
             f"z.shape={z.shape}, f.shape={f.shape}"
         )
 
-    # Compute distance based on metric
+    # Find valid (non-NaN) dimensions in both z and f
+    valid_mask = ~(np.isnan(z) | np.isnan(f))
+    n_valid = np.sum(valid_mask)
+    
+    # If no overlapping valid dimensions, return infinity
+    if n_valid == 0:
+        return np.inf
+    
+    # Extract valid dimensions
+    z_valid = z[valid_mask]
+    f_valid = f[valid_mask]
+
+    # Compute distance based on metric using only valid dimensions
     if metric == "euclidean":
-        return float(np.linalg.norm(z - f))
+        return float(np.linalg.norm(z_valid - f_valid))
     elif metric == "manhattan":
-        return float(np.sum(np.abs(z - f)))
+        return float(np.sum(np.abs(z_valid - f_valid)))
     else:
         raise ValueError(
             f"Unsupported metric: '{metric}'. Use 'euclidean' or 'manhattan'."
@@ -73,6 +98,11 @@ def pairwise_distances(
 
     This function evaluates the distance metric required in Eq. (5.1)
     across all reference fingerprints i = 1, ..., M.
+    
+    **Missing AP Handling:**
+    If z or any row of F contains NaN values, distances are computed only
+    over dimensions where both values are present. If no overlapping dimensions
+    exist for a particular RP, that distance is set to +inf.
 
     Args:
         z: Query fingerprint vector, shape (N,).
@@ -82,6 +112,7 @@ def pairwise_distances(
 
     Returns:
         Array of distances, shape (M,), where element i is D(z, f_i).
+        Distances are +inf for RPs with no overlapping valid dimensions.
 
     Raises:
         ValueError: If z and F have incompatible dimensions or metric is invalid.
@@ -94,9 +125,18 @@ def pairwise_distances(
         >>> distances = pairwise_distances(z, F, metric='euclidean')
         >>> print(distances)
         [3.46 4.47 7.07]
+        
+        >>> # With missing values
+        >>> z_missing = np.array([-50, np.nan, -70])
+        >>> F_missing = np.array([[-52, -58, np.nan],  # Only AP1 overlaps
+        ...                       [-48, np.nan, -68],  # AP1 and AP3 overlap
+        ...                       [np.nan, np.nan, np.nan]])  # No overlap -> inf
+        >>> distances = pairwise_distances(z_missing, F_missing, metric='euclidean')
+        >>> # [2.0, sqrt(4+4)=2.83, inf]
 
     References:
         Chapter 5, Eq. (5.1): Distance computation for all reference points.
+        Chapter 5, Section 5.1: Handling missing AP readings (dropout).
     """
     # Validate dimensions
     if z.ndim != 1:
@@ -109,17 +149,28 @@ def pairwise_distances(
             f"F has {F.shape[1]} features per row"
         )
 
-    # Compute pairwise distances efficiently
-    if metric == "euclidean":
-        # Vectorized Euclidean distance: ||z - f_i||_2 for all i
-        return np.linalg.norm(F - z, axis=1)
-    elif metric == "manhattan":
-        # Vectorized Manhattan distance: Σ |z_j - f_i,j| for all i
-        return np.sum(np.abs(F - z), axis=1)
-    else:
-        raise ValueError(
-            f"Unsupported metric: '{metric}'. Use 'euclidean' or 'manhattan'."
-        )
+    M = F.shape[0]
+    
+    # Check if there are any NaN values
+    has_missing = np.any(np.isnan(z)) or np.any(np.isnan(F))
+    
+    if not has_missing:
+        # Fast path: no missing values, use vectorized computation
+        if metric == "euclidean":
+            return np.linalg.norm(F - z, axis=1)
+        elif metric == "manhattan":
+            return np.sum(np.abs(F - z), axis=1)
+        else:
+            raise ValueError(
+                f"Unsupported metric: '{metric}'. Use 'euclidean' or 'manhattan'."
+            )
+    
+    # Slow path: handle missing values per RP
+    distances = np.zeros(M)
+    for i in range(M):
+        distances[i] = distance(z, F[i], metric=metric)
+    
+    return distances
 
 
 def nn_localize(
@@ -171,11 +222,14 @@ def nn_localize(
             f"but database expects {db.n_features} features"
         )
 
+    # Get mean features (handles both single and multi-sample formats)
+    mean_features = db.get_mean_features()  # Shape: (M, N)
+
     # Filter by floor if specified
     if floor_id is not None:
         mask = db.get_floor_mask(floor_id)
         locations = db.locations[mask]
-        features = db.features[mask]
+        features = mean_features[mask]
 
         if len(locations) == 0:
             raise ValueError(
@@ -184,7 +238,7 @@ def nn_localize(
             )
     else:
         locations = db.locations
-        features = db.features
+        features = mean_features
 
     # Compute distances to all reference points
     # Implements: D(z, f_i) for i = 1, ..., M
@@ -262,11 +316,14 @@ def knn_localize(
     if k < 1:
         raise ValueError(f"k must be >= 1, got k={k}")
 
+    # Get mean features (handles both single and multi-sample formats)
+    mean_features = db.get_mean_features()  # Shape: (M, N)
+
     # Filter by floor if specified
     if floor_id is not None:
         mask = db.get_floor_mask(floor_id)
         locations = db.locations[mask]
-        features = db.features[mask]
+        features = mean_features[mask]
 
         if len(locations) == 0:
             raise ValueError(
@@ -275,7 +332,7 @@ def knn_localize(
             )
     else:
         locations = db.locations
-        features = db.features
+        features = mean_features
 
     # Check that k doesn't exceed available reference points
     M = len(locations)

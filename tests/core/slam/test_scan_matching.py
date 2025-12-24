@@ -3,7 +3,7 @@
 Tests ICP (Iterative Closest Point) scan matching algorithms used in
 Chapter 7 for 2D LiDAR SLAM.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

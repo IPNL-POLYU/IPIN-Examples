@@ -14,7 +14,7 @@ specifically Eqs. (7.68)-(7.70).
 Usage:
     python -m ch7_slam.example_bundle_adjustment
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

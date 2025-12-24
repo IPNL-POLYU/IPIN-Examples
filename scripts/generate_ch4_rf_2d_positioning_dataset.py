@@ -18,7 +18,7 @@ Implements Equations:
     - Eq. (4.63-4.66): AOA angle measurements
     - Section 4.5: DOP calculations
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

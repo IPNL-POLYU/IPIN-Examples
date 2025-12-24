@@ -7,7 +7,7 @@ This package demonstrates practical sensor fusion concepts from Chapter 8:
 - Temporal calibration and synchronization
 - Observability analysis
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8 - Sensor Fusion
 """
 

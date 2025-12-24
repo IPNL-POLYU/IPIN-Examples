@@ -3,7 +3,7 @@
 This module implements innovation monitoring, covariance tuning, and robust
 measurement weighting as described in Chapter 8, Section 8.3.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Section 8.3 (Tuning and Robustness)
 """
 

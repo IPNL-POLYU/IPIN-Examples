@@ -20,7 +20,7 @@ Dependencies:
     - matplotlib: Visualization
     - numpy: Numerical operations
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

@@ -16,7 +16,7 @@ Implements Equations:
     - Section 7.3: Pose graph construction and optimization
     - Factor graph with odometry + loop closure constraints
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

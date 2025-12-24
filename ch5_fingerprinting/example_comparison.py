@@ -11,7 +11,7 @@ Evaluates under various conditions:
     - Multi-floor scenarios
     - Sparse vs dense reference points
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 
@@ -177,13 +177,36 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     })
     print(f"RMSE={results[-1]['rmse']:.2f}m")
     
-    # Posterior Mean
+    # Posterior Mean (Full)
     method_name = "Posterior Mean"
     print(f"  {method_name}...", end=" ", flush=True)
     errors, times = [], []
     for query, true_loc in zip(queries, true_locs):
         t_start = time.perf_counter()
         est_loc = posterior_mean_localize(query, model_bayes, floor_id=floor_id)
+        t_end = time.perf_counter()
+        errors.append(np.linalg.norm(est_loc - true_loc))
+        times.append((t_end - t_start) * 1000)
+    
+    results.append({
+        "method": method_name,
+        "category": "Probabilistic",
+        "errors": np.array(errors),
+        "times": np.array(times),
+        "rmse": np.sqrt(np.mean(np.array(errors)**2)),
+        "median": np.median(errors),
+        "p90": np.percentile(errors, 90),
+        "mean_time_ms": np.mean(times),
+    })
+    print(f"RMSE={results[-1]['rmse']:.2f}m")
+    
+    # Posterior Mean (Top-k) - Book guidance: typically sufficient
+    method_name = "Post.Mean (k=10)"
+    print(f"  {method_name}...", end=" ", flush=True)
+    errors, times = [], []
+    for query, true_loc in zip(queries, true_locs):
+        t_start = time.perf_counter()
+        est_loc = posterior_mean_localize(query, model_bayes, floor_id=floor_id, top_k=10)
         t_end = time.perf_counter()
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
@@ -256,7 +279,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=1.0, seed=42
     )
     all_results["Baseline"] = evaluate_scenario(
-        "Baseline (σ=1dBm, Floor 0)", db, queries1, true_locs1, floor_id=0
+        "Baseline (sigma=1dBm, Floor 0)", db, queries1, true_locs1, floor_id=0
     )
     
     # Scenario 2: Moderate noise
@@ -268,7 +291,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=2.0, seed=43
     )
     all_results["Moderate Noise"] = evaluate_scenario(
-        "Moderate Noise (σ=2dBm, Floor 0)", db, queries2, true_locs2, floor_id=0
+        "Moderate Noise (sigma=2dBm, Floor 0)", db, queries2, true_locs2, floor_id=0
     )
     
     # Scenario 3: High noise
@@ -280,7 +303,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=5.0, seed=44
     )
     all_results["High Noise"] = evaluate_scenario(
-        "High Noise (σ=5dBm, Floor 0)", db, queries3, true_locs3, floor_id=0
+        "High Noise (sigma=5dBm, Floor 0)", db, queries3, true_locs3, floor_id=0
     )
     
     # Print summary table
@@ -450,7 +473,9 @@ def main():
     plt.tight_layout()
     
     # Save
-    output_file = Path("ch5_fingerprinting/comparison_all_methods.png")
+    figs_dir = Path(__file__).parent / "figs"
+    figs_dir.mkdir(exist_ok=True)
+    output_file = figs_dir / "comparison_all_methods.png"
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
     print(f"Saved: {output_file}")
     
@@ -458,10 +483,10 @@ def main():
     print("COMPARISON COMPLETE!")
     print("="*70)
     print("\nKey Insights:")
-    print("  1. Speed: Linear Regression >> NN > k-NN ≈ MAP ≈ Posterior Mean")
-    print("  2. Accuracy (low noise): Probabilistic ≈ k-NN > NN > Linear Reg")
+    print("  1. Speed: Linear Regression >> NN > k-NN ~= MAP ~= Posterior Mean")
+    print("  2. Accuracy (low noise): Probabilistic ~= k-NN > NN > Linear Reg")
     print("  3. Robustness: k-NN and Posterior Mean most stable with noise")
-    print("  4. Smoothness: Posterior Mean > k-NN > Linear Reg > MAP ≈ NN")
+    print("  4. Smoothness: Posterior Mean > k-NN > Linear Reg > MAP ~= NN")
     print("  5. Training: Linear Reg requires training, others just use database")
     print("\nRecommendations:")
     print("  - Real-time apps: Use NN or Linear Regression for speed")

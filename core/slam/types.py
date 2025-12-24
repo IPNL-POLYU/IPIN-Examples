@@ -10,7 +10,7 @@ Key types:
     - PointCloud2D: Type alias for 2D point clouds
     - VoxelGrid: Type alias for NDT voxel maps
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

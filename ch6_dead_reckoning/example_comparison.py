@@ -10,7 +10,7 @@ Compares all Chapter 6 dead reckoning approaches on a common trajectory:
 Demonstrates the trade-offs between different approaches and the critical
 importance of drift correction.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

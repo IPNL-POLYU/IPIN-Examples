@@ -3,7 +3,7 @@
 This module defines the core data structures used across Chapter 8 sensor fusion
 examples, including time-stamped measurements and temporal synchronization models.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8 - Sensor Fusion
 """
 

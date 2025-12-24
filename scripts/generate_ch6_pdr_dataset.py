@@ -18,7 +18,7 @@ Implements Equations:
     - Eq. (6.49): Step length (Weinberg model)
     - Eq. (6.50): 2D position update from step
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

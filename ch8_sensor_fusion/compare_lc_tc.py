@@ -6,7 +6,7 @@ dataset and generates comprehensive comparison visualizations and metrics.
 This script demonstrates the architectural trade-offs between LC and TC
 fusion approaches discussed in Chapter 8.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Section 8.2 (Loosely vs Tightly Coupled Fusion)
 """
 

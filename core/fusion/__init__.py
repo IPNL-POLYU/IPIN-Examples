@@ -9,7 +9,7 @@ These utilities support the Chapter 8 examples demonstrating loosely vs
 tightly coupled fusion, observability, tuning, calibration, and temporal
 synchronization.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8 - Sensor Fusion
 """
 

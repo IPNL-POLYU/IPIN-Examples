@@ -12,7 +12,7 @@ Implements:
 
 Key Insight: IMU drift is UNBOUNDED without external corrections!
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

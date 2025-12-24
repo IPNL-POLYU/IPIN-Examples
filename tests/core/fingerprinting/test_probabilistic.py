@@ -2,7 +2,7 @@
 
 Tests Naive Bayes fingerprinting algorithms (Eqs. 5.3-5.5).
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

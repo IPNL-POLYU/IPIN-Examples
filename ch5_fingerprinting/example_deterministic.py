@@ -8,7 +8,7 @@ Implements:
     - NN positioning (Eq. 5.1): i* = argmin_i D(z, f_i)
     - k-NN positioning (Eq. 5.2): x̂ = Σ w_i x_i / Σ w_i
 
-Author: Navigation Engineer  
+Author: Li-Ta Hsu  
 Date: December 2024
 """
 
@@ -306,7 +306,9 @@ def main():
     plt.tight_layout()
     
     # Save figure
-    output_file = Path("ch5_fingerprinting/deterministic_positioning.png")
+    figs_dir = Path(__file__).parent / "figs"
+    figs_dir.mkdir(exist_ok=True)
+    output_file = figs_dir / "deterministic_positioning.png"
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
     print(f"   Saved: {output_file}")
     

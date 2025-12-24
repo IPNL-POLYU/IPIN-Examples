@@ -3,7 +3,7 @@
 This module provides I/O functions for FingerprintDatabase objects, supporting
 multiple file formats (NPZ, HDF5) and validation utilities for data quality checks.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 
@@ -181,7 +181,9 @@ def validate_database(db: FingerprintDatabase, strict: bool = True) -> dict:
             )
 
     # Check 2: Feature variance (detect constant features)
-    feature_std = np.std(db.features, axis=0)
+    # Use mean features for variance check (works for both single and multi-sample)
+    mean_features = db.get_mean_features()
+    feature_std = np.std(mean_features, axis=0)
     constant_features = np.where(feature_std < 1e-6)[0]
     if len(constant_features) > 0:
         warnings.append(
@@ -190,23 +192,29 @@ def validate_database(db: FingerprintDatabase, strict: bool = True) -> dict:
         )
     stats["feature_std_min"] = float(np.min(feature_std))
     stats["feature_std_max"] = float(np.max(feature_std))
+    stats["has_multiple_samples"] = db.has_multiple_samples
+    if db.has_multiple_samples:
+        stats["n_samples_per_rp"] = db.n_samples_per_rp
 
     # Check 3: Duplicate locations
     unique_locations = np.unique(db.locations, axis=0)
     n_duplicates = db.n_reference_points - len(unique_locations)
     if n_duplicates > 0:
-        warnings.append(
-            f"Found {n_duplicates} duplicate location(s); "
-            f"multiple RPs at same coordinates"
-        )
+        # Note: For multi-sample DBs, this is expected (same location, multiple samples)
+        if not db.has_multiple_samples:
+            warnings.append(
+                f"Found {n_duplicates} duplicate location(s); "
+                f"multiple RPs at same coordinates"
+            )
 
     # Check 4: Strict value range checks (optional)
     if strict:
         # RSS values typically in range [-100, 0] dBm
+        # Check mean features (works for both formats)
         if "unit" in db.meta and db.meta["unit"] == "dBm":
-            if np.any(db.features > 0):
+            if np.any(mean_features > 0):
                 warnings.append("Some RSS values are positive (unusual for dBm)")
-            if np.any(db.features < -120):
+            if np.any(mean_features < -120):
                 warnings.append("Some RSS values below -120 dBm (very weak signal)")
 
         # Location coordinates should be finite
@@ -257,9 +265,16 @@ def print_database_summary(db: FingerprintDatabase) -> None:
     print()
 
     # Feature statistics
+    mean_features = db.get_mean_features()
     print("Feature Statistics:")
-    print(f"  Mean (across all RPs): {np.mean(db.features, axis=0)}")
-    print(f"  Std  (across all RPs): {np.std(db.features, axis=0)}")
+    print(f"  Mean (across all RPs): {np.mean(mean_features, axis=0)}")
+    print(f"  Std  (across all RPs): {np.std(mean_features, axis=0)}")
+    if db.has_multiple_samples:
+        print(f"  Samples per RP: {db.n_samples_per_rp}")
+        # Show within-RP variability
+        within_rp_stds = db.get_std_features(min_std=0.0)
+        print(f"  Within-RP Std (mean): {np.mean(within_rp_stds):.2f}")
+        print(f"  Within-RP Std (range): [{np.min(within_rp_stds):.2f}, {np.max(within_rp_stds):.2f}]")
     print()
 
     # Location bounds

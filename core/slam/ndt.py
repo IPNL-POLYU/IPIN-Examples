@@ -21,7 +21,7 @@ References:
     - Eq. (7.14): Negative log-likelihood formulation
     - Eqs. (7.15)-(7.16): Gradient and Hessian
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

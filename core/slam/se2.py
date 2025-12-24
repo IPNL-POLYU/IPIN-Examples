@@ -13,7 +13,7 @@ Key functions:
 
 SE(2) representation: poses are NumPy arrays [x, y, yaw] of shape (3,).
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

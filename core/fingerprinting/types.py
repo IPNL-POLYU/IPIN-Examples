@@ -4,7 +4,7 @@ This module defines the core data structures used throughout Chapter 5
 (Fingerprinting) of the book, including the FingerprintDatabase class
 and related type aliases.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 
@@ -33,10 +33,13 @@ class FingerprintDatabase:
         locations: Reference point coordinates, shape (M, d).
                    Each row is a location vector x_i where i=1..M.
                    Typically d=2 for (x, y) or d=3 for (x, y, z).
-        features: Fingerprint feature vectors, shape (M, N).
-                  Each row is a feature vector f_i corresponding to location x_i.
+        features: Fingerprint feature vectors. Supports two formats:
+                  - Single sample: shape (M, N) - one fingerprint per RP
+                  - Multiple samples: shape (M, S, N) - S samples per RP
+                  Each feature vector corresponds to location x_i.
                   Typically N = number of access points (APs) or signal sources.
                   Example: RSS values [RSSI_AP1, RSSI_AP2, ..., RSSI_APN].
+                  For multiple samples, axis 1 indexes repeated measurements.
         floor_ids: Floor labels for each reference point, shape (M,).
                    Integer floor identifiers (e.g., 0, 1, 2 for floors 0-2).
                    Used to constrain searches to specific floors in multi-floor
@@ -52,7 +55,7 @@ class FingerprintDatabase:
                   - 'unit': 'dBm' for RSS, 'm' for locations, etc.
 
     Examples:
-        >>> # Create a simple 2D database with 3 RPs on floor 0
+        >>> # Create a simple 2D database with 3 RPs on floor 0 (single sample)
         >>> db = FingerprintDatabase(
         ...     locations=np.array([[0, 0], [10, 0], [10, 10]]),
         ...     features=np.array([[-50, -60, -70], [-60, -50, -80], [-70, -80, -50]]),
@@ -61,13 +64,27 @@ class FingerprintDatabase:
         ... )
         >>> print(f"Database has {db.n_reference_points} RPs on {db.n_floors} floor(s)")
         Database has 3 RPs on 1 floor(s)
+        
+        >>> # Create database with multiple samples per RP (shape: M, S, N)
+        >>> features_multi = np.array([
+        ...     [[-50, -60, -70], [-51, -59, -71], [-49, -61, -69]],  # RP1: 3 samples
+        ...     [[-60, -50, -80], [-61, -51, -79], [-59, -49, -81]],  # RP2: 3 samples
+        ... ])  # shape: (2, 3, 3) = (2 RPs, 3 samples, 3 APs)
+        >>> db_multi = FingerprintDatabase(
+        ...     locations=np.array([[0, 0], [10, 0]]),
+        ...     features=features_multi,
+        ...     floor_ids=np.array([0, 0]),
+        ...     meta={'ap_ids': ['AP1', 'AP2', 'AP3'], 'unit': 'dBm', 'n_samples_per_rp': 3}
+        ... )
 
     Notes:
         - All reference points must have the same dimensionality d.
         - All fingerprints must have the same number of features N.
+        - For multi-sample format, all RPs must have same number of samples S.
         - floor_ids are required (not optional) to support multi-floor scenarios.
-        - Missing or unavailable AP measurements should NOT be represented as NaN;
-          the current implementation assumes complete fingerprints.
+        - Missing or unavailable AP measurements can be represented as NaN.
+          Distance and likelihood computations will handle missing values by
+          computing only over overlapping (non-NaN) dimensions.
     """
 
     locations: np.ndarray
@@ -90,9 +107,10 @@ class FingerprintDatabase:
             raise ValueError(
                 f"locations must be 2D array (M, d), got shape {self.locations.shape}"
             )
-        if self.features.ndim != 2:
+        if self.features.ndim not in [2, 3]:
             raise ValueError(
-                f"features must be 2D array (M, N), got shape {self.features.shape}"
+                f"features must be 2D (M, N) or 3D (M, S, N) array, "
+                f"got shape {self.features.shape}"
             )
         if self.floor_ids.ndim != 1:
             raise ValueError(
@@ -116,11 +134,11 @@ class FingerprintDatabase:
                 f"floor_ids must have integer dtype, got {self.floor_ids.dtype}"
             )
 
-        # Check for NaN values (not supported in current design)
+        # Check for NaN values in locations (not allowed)
         if np.any(np.isnan(self.locations)):
-            raise ValueError("locations contain NaN values (not supported)")
-        if np.any(np.isnan(self.features)):
-            raise ValueError("features contain NaN values (not supported)")
+            raise ValueError("locations contain NaN values (not allowed)")
+        
+        # Note: NaN values in features are allowed (represent missing AP readings)
 
     @property
     def n_reference_points(self) -> int:
@@ -130,7 +148,23 @@ class FingerprintDatabase:
     @property
     def n_features(self) -> int:
         """Number of features (N) per fingerprint (e.g., number of APs)."""
-        return self.features.shape[1]
+        return self.features.shape[-1]  # Last dimension is always N
+
+    @property
+    def n_samples_per_rp(self) -> Optional[int]:
+        """
+        Number of samples (S) per reference point.
+        
+        Returns:
+            int: Number of samples if features is 3D (M, S, N).
+            None: If features is 2D (M, N) indicating single sample.
+        """
+        return self.features.shape[1] if self.features.ndim == 3 else None
+
+    @property
+    def has_multiple_samples(self) -> bool:
+        """True if database contains multiple samples per RP (3D features)."""
+        return self.features.ndim == 3
 
     @property
     def location_dim(self) -> int:
@@ -192,12 +226,57 @@ class FingerprintDatabase:
             meta=self.meta.copy(),  # Shallow copy of metadata
         )
 
+    def get_mean_features(self) -> np.ndarray:
+        """
+        Get mean features across samples.
+        
+        Handles NaN values (missing AP readings) using nanmean, which
+        computes the mean while ignoring NaN values.
+        
+        Returns:
+            Mean feature array of shape (M, N).
+            If single-sample format, returns features as-is.
+            If multi-sample format, returns mean over samples axis (ignoring NaN).
+        """
+        if self.has_multiple_samples:
+            return np.nanmean(self.features, axis=1)  # Average over S, ignore NaN
+        else:
+            return self.features
+
+    def get_std_features(self, min_std: float = 0.0) -> np.ndarray:
+        """
+        Get standard deviation of features across samples.
+        
+        Handles NaN values (missing AP readings) using nanstd, which
+        computes the standard deviation while ignoring NaN values.
+        
+        Args:
+            min_std: Minimum std to return (floor for numerical stability).
+        
+        Returns:
+            Std array of shape (M, N).
+            If single-sample format, returns array filled with min_std.
+            If multi-sample format, returns std over samples axis (ignoring NaN).
+        """
+        if self.has_multiple_samples:
+            stds = np.nanstd(self.features, axis=1, ddof=1)  # Sample std over S, ignore NaN
+            # Apply floor
+            stds = np.maximum(stds, min_std)
+            # If all samples at an RP for a feature are NaN, nanstd returns NaN
+            # Replace those with min_std
+            stds = np.where(np.isnan(stds), min_std, stds)
+            return stds
+        else:
+            # Single sample: return min_std everywhere
+            return np.full((self.n_reference_points, self.n_features), min_std)
+
     def __repr__(self) -> str:
         """Readable string representation."""
+        samples_str = f", samples_per_rp={self.n_samples_per_rp}" if self.has_multiple_samples else ""
         return (
             f"FingerprintDatabase("
             f"n_rps={self.n_reference_points}, "
-            f"n_features={self.n_features}, "
+            f"n_features={self.n_features}{samples_str}, "
             f"location_dim={self.location_dim}, "
             f"floors={self.floor_list.tolist()})"
         )

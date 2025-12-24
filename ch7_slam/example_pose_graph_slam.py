@@ -18,7 +18,7 @@ This implements the pose graph SLAM approach from Section 7.3 of Chapter 7.
 Usage:
     python -m ch7_slam.example_pose_graph_slam
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

@@ -13,7 +13,7 @@ Implements:
 Key Insight: Environmental sensors provide absolute references to bound
             drift, but suffer from indoor disturbances (magnetic, weather).
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

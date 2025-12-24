@@ -10,7 +10,7 @@ Implements:
     - Fang's TOA closed-form (Eqs. 4.43-4.49)
     - Chan's TDOA closed-form (Eqs. 4.50-4.62)
 
-Author: Navigation Engineering Team
+Author: Li-Ta Hsu
 Date: December 2025
 """
 

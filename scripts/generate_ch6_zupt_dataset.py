@@ -9,7 +9,7 @@ Creates walking trajectory with stance phases for Zero-Velocity UPdaTe (ZUPT):
 
 Saves to: data/sim/ch6_foot_zupt_walk/
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2025
 References: Chapter 6 - Dead Reckoning (Sections 6.3, Eqs. 6.44-6.45)
 """

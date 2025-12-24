@@ -7,7 +7,7 @@ Key concept:
     Learn mapping f: z → x where z is RSS fingerprint and x is location.
     Use linear model: x̂ = Wz + b
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

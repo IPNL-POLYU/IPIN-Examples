@@ -2,15 +2,15 @@
 Example: Probabilistic Fingerprinting (Bayesian Methods)
 
 Demonstrates Bayesian fingerprinting using Gaussian Naive Bayes model
-from Chapter 5.
+from Chapter 5, Section 5.1.3.
 
 Implements:
-    - Gaussian Naive Bayes model fitting
-    - Log-likelihood computation (Eq. 5.3): log p(z|x_i)
-    - MAP estimation (Eq. 5.4): i* = argmax_i p(x_i|z)
-    - Posterior mean estimation (Eq. 5.5): x̂ = Σ p(x_i|z) x_i
+    - Gaussian Naive Bayes model fitting (Eq. 5.6)
+    - Bayes posterior computation (Eq. 5.3): P(x_i|z) = P(z|x_i)P(x_i)/P(z)
+    - MAP estimation (Eq. 5.4): i* = argmax_i P(x_i|z)
+    - Posterior mean estimation (Eq. 5.5): x̂ = Σ P(x_i|z) x_i
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 
@@ -198,7 +198,7 @@ def main():
     
     # Evaluate methods
     print("\n4. Evaluating probabilistic methods...")
-    print("   (Equations 5.3, 5.4, 5.5 from Chapter 5)")
+    print("   (Eqs. 5.3-5.6 from Chapter 5, Section 5.1.3)")
     
     results = []
     
@@ -335,7 +335,9 @@ def main():
     plt.tight_layout()
     
     # Save
-    output_file = Path("ch5_fingerprinting/probabilistic_positioning.png")
+    figs_dir = Path(__file__).parent / "figs"
+    figs_dir.mkdir(exist_ok=True)
+    output_file = figs_dir / "probabilistic_positioning.png"
     plt.savefig(output_file, dpi=150, bbox_inches='tight')
     print(f"   Saved: {output_file}")
     
@@ -349,9 +351,10 @@ def main():
     print("  - Larger std = more smooth but potentially less accurate")
     print("  - Smaller std = sharper posterior but sensitive to noise")
     print("\nReferences:")
-    print("  - Equation 5.3: Log-likelihood log p(z|x_i)")
-    print("  - Equation 5.4: MAP estimate")
-    print("  - Equation 5.5: Posterior mean estimate")
+    print("  - Equation 5.3: Bayes posterior P(x_i|z) = P(z|x_i)P(x_i)/P(z)")
+    print("  - Equation 5.4: MAP estimate i* = argmax_i P(x_i|z)")
+    print("  - Equation 5.5: Posterior mean x̂ = Σ P(x_i|z) x_i")
+    print("  - Equation 5.6: Gaussian likelihood P(z|x_i) = N(z; μ_i, Σ_i)")
 
 
 if __name__ == "__main__":

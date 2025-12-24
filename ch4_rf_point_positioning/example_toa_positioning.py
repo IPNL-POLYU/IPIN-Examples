@@ -11,7 +11,7 @@ Implements:
     - Eq. (4.14)-(4.23): Nonlinear TOA I-WLS positioning
     - Eq. (4.24)-(4.26): Joint position + clock bias estimation
 
-Author: Navigation Engineering Team
+Author: Li-Ta Hsu
 Date: December 2025
 """
 

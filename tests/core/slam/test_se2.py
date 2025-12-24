@@ -4,7 +4,7 @@ Tests SE(2) operations (Special Euclidean group in 2D) used throughout
 Chapter 7 for scan matching, pose graph optimization, and trajectory
 representation.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

@@ -9,7 +9,7 @@ Provides examples comparing:
     - Probabilistic methods (Bayesian, MAP, Posterior Mean)
     - Pattern recognition (Linear Regression)
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

@@ -3,7 +3,7 @@
 Tests innovation monitoring and robust covariance tuning functions
 implementing Eqs. (8.5)-(8.7) from Chapter 8.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Section 8.3 (Tuning and Robustness)
 """
 

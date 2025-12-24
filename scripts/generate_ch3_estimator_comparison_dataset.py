@@ -17,7 +17,7 @@ Implements Equations:
     - Eqs. (3.24-3.30): Unscented Kalman Filter
     - Eqs. (3.32-3.34): Particle Filter
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

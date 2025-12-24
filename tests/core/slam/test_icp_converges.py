@@ -7,7 +7,7 @@ References:
     - Eqs. (7.10)-(7.11): ICP algorithm
     - Section 7.2.1: ICP scan matching
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

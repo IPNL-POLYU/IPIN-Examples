@@ -17,7 +17,7 @@ Implements Equations:
     - Eq. (6.14): Attitude to map frame velocity transform
     - Eq. (6.15): Position update from wheel odometry
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

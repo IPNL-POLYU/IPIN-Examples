@@ -2,7 +2,7 @@
 
 Tests load/save functions and database validation.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

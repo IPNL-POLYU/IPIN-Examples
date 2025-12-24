@@ -12,7 +12,7 @@ Implements:
 Key Insight: ZUPT eliminates velocity drift during stops, preventing
             unbounded position drift. Essential for foot-mounted IMU!
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

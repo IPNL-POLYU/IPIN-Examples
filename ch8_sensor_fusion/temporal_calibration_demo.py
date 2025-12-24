@@ -15,7 +15,7 @@ Key Concepts:
 - Clock drift: Relative rate difference between clocks
 - Time synchronization: t_fusion = (1 + drift) * t_sensor + offset
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Section on Temporal Calibration
 """
 

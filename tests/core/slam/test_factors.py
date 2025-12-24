@@ -3,7 +3,7 @@
 Tests SLAM-specific factor graph factors for pose graph optimization
 used in Chapter 7.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

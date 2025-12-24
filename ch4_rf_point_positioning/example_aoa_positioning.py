@@ -18,7 +18,7 @@ ENU Convention:
     - psi = atan2(dE, dN) where dE = anchor_E - agent_E, dN = anchor_N - agent_N
     - Elevation theta is positive when anchor is above agent
 
-Author: Navigation Engineering Team
+Author: Li-Ta Hsu
 Date: December 2025
 """
 

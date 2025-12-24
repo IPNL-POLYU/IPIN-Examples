@@ -9,7 +9,7 @@ Creates pure IMU trajectory to demonstrate unbounded drift from inertial integra
 
 Saves to: data/sim/ch6_strapdown_basic/
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2025
 References: Chapter 6 - Dead Reckoning (Sections 6.1-6.2)
 """

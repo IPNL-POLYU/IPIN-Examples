@@ -15,7 +15,7 @@ Implements:
     - AOA positioning (Eqs. 4.63-4.67)
     - DOP analysis (Section 4.5)
 
-Author: Navigation Engineering Team
+Author: Li-Ta Hsu
 Date: December 2025
 """
 

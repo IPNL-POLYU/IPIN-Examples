@@ -16,7 +16,7 @@ References:
     - Eqs. (7.68)-(7.70): Reprojection factors (visual SLAM)
     - Factor graphs build on Chapter 3 FGO framework
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

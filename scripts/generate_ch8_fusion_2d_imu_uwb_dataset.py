@@ -9,7 +9,7 @@ Creates a realistic indoor fusion scenario with:
 
 Saves to: data/sim/ch8_fusion_2d_imu_uwb/
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2025
 References: Chapter 8 - Sensor Fusion
 """

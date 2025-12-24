@@ -3,7 +3,7 @@
 Tests camera projection, distortion, and reprojection error functions
 from Chapter 7, Section 7.4 (Visual SLAM).
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

@@ -10,7 +10,7 @@ Features:
 - Innovation monitoring (Eqs. 8.5-8.6)
 - Comparison with IMU-only dead reckoning
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Section 8.2 (Tightly Coupled Fusion)
 """
 

@@ -9,7 +9,7 @@ References:
     - Section 7.3: Pose Graph Optimization
     - Example: ch7_slam/example_pose_graph_slam.py
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

@@ -15,7 +15,7 @@ Key Equations:
 - Eq. (8.7): Robust R scaling: R_k <- w(y_k) * R_k
 - Eq. (8.9): Chi-square gating: accept if d^2 < chi2(m, alpha)
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 References: Chapter 8, Section on Tuning and Robust Estimation
 """
 

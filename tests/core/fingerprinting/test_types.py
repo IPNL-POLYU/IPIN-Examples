@@ -2,7 +2,7 @@
 
 Tests the FingerprintDatabase dataclass and its validation logic.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 
@@ -115,7 +115,7 @@ class TestFingerprintDatabase:
 
     def test_validation_dimension_error_features(self):
         """Test that 1D features array raises ValueError."""
-        with pytest.raises(ValueError, match="features must be 2D array"):
+        with pytest.raises(ValueError, match="features must be 2D .* or 3D .* array"):
             FingerprintDatabase(
                 locations=np.array([[0, 0], [10, 0]]),
                 features=np.array([-50, -60, -60, -50]),  # 1D
@@ -164,14 +164,17 @@ class TestFingerprintDatabase:
             )
 
     def test_validation_nan_in_features(self):
-        """Test that NaN in features raises ValueError."""
-        with pytest.raises(ValueError, match="features contain NaN values"):
-            FingerprintDatabase(
-                locations=np.array([[0, 0], [10, 0]]),
-                features=np.array([[-50, np.nan], [-60, -50]]),
-                floor_ids=np.array([0, 0]),
-                meta={},
-            )
+        """Test that NaN in features is now allowed (missing AP support)."""
+        # This should NOT raise an error anymore - NaN represents missing APs
+        db = FingerprintDatabase(
+            locations=np.array([[0, 0], [10, 0]]),
+            features=np.array([[-50, np.nan], [-60, -50]]),
+            floor_ids=np.array([0, 0]),
+            meta={},
+        )
+        # Verify database was created successfully
+        assert db.n_reference_points == 2
+        assert db.n_features == 2
 
     def test_get_floor_mask_valid(self):
         """Test getting a floor mask for an existing floor."""

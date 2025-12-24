@@ -9,7 +9,7 @@ Usage:
     python tools/test_all_datasets.py --chapter 8   # Test specific chapter
     python tools/test_all_datasets.py --verbose     # Detailed output
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: December 2024
 """
 

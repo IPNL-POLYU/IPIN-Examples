@@ -2,7 +2,7 @@
 
 Tests linear regression-based fingerprinting.
 
-Author: Navigation Engineer
+Author: Li-Ta Hsu
 Date: 2024
 """
 

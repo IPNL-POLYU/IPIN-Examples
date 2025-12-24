@@ -8,7 +8,7 @@ Usage:
     python tools/validate_dataset_docs.py fusion_2d_imu_uwb  # Check specific dataset
     python tools/validate_dataset_docs.py --fix              # Auto-create missing READMEs
 
-Author: Software Engineer
+Author: Li-Ta Hsu
 Date: December 2025
 """
 

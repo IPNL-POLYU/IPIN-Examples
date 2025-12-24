@@ -4,7 +4,7 @@ Evaluation Metrics for Indoor Positioning.
 This module provides functions to compute error metrics and consistency
 statistics for positioning algorithms.
 
-Author: Navigation Engineering Team
+Author: Li-Ta Hsu
 Date: December 2025
 """
 
