@@ -117,7 +117,7 @@ The Kalman filter achieves MAP estimation for linear-Gaussian systems. The five 
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `KalmanFilter.predict()` | `core/estimators/kalman_filter.py` | Eq. (3.11)–(3.13) | State prediction: x̂ₖ₍ₖ₋₁₎ = Fₖx̂ₖ₋₁ + uₖ |
+| `KalmanFilter.predict()` | `core/estimators/kalman_filter.py` | Eq. (3.11) | State prediction: x̂ₖ₍ₖ₋₁₎ = Fₖx̂ₖ₋₁ + uₖ |
 | — | — | Eq. (3.12) | Covariance prediction: Pₖ₍ₖ₋₁₎ = FₖΣₓₖ₋₁Fₖ' + Σwᵤₖ |
 | `KalmanFilter.update()` | `core/estimators/kalman_filter.py` | Eq. (3.17)–(3.18) | Kalman gain: Kₖ = Pₖ₍ₖ₋₁₎Hₖ'(HₖPₖ₍ₖ₋₁₎Hₖ' + Σwzₖ)⁻¹ |
 | — | — | Eq. (3.17) | State update: x̂ₖ₍MAP₎ = x̂ₖ₍ₖ₋₁₎ + Kₖ(zₖ - Hₖx̂ₖ₍ₖ₋₁₎) |
