@@ -18,7 +18,7 @@ Key Insight: Heading errors DOMINATE PDR accuracy. 1° heading error
             causes ~1.7% position error per step!
 
 Author: Li-Ta Hsu
-Date: December 2024
+Date: December 2025
 """
 
 import argparse
@@ -30,14 +30,19 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from core.sensors import (
+    FrameConvention,
+    IMUNoiseParams,
     total_accel_magnitude,
+    detect_steps_peak_detector,
     step_length,
     pdr_step_update,
     detect_step_simple,
     integrate_gyro_heading,
     wrap_heading,
     mag_heading,
+    units,
 )
+from core.sim import generate_imu_from_trajectory
 
 
 def load_pdr_dataset(data_dir: str) -> Dict:
@@ -280,12 +285,16 @@ def run_with_dataset(data_dir: str, height: float = 1.75) -> None:
     print("="*70)
 
 
-def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0):
+def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     """
-    Generate rectangular corridor walk with turns.
+    Generate rectangular corridor walk with turns and synthetic walking dynamics.
+    Uses correct IMU forward model with added vertical oscillations for step detection.
     
-    Returns: t, pos_true, accel_true, gyro_true, mag_true, step_events_true
+    Returns: t, pos_true, heading_true, accel_body, gyro_body, mag_body, expected_steps
     """
+    if frame is None:
+        frame = FrameConvention.create_enu()
+    
     t = np.arange(0, duration, dt)
     N = len(t)
     
@@ -297,14 +306,13 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0):
     # Walking speed
     v_walk = 1.4  # m/s (typical walking speed)
     
-    # Generate trajectory
-    pos_true = np.zeros((N, 2))
+    # Generate trajectory (2D horizontal + z=0)
+    pos_2d = np.zeros((N, 2))
     heading_true = np.zeros(N)
-    vel_true = np.zeros((N, 2))
+    vel_2d = np.zeros((N, 2))
     
     # Distribute time across segments
     segment_lengths = np.linalg.norm(np.diff(waypoints, axis=0), axis=1)
-    total_length = np.sum(segment_lengths)
     segment_times = segment_lengths / v_walk
     
     current_time = 0
@@ -313,7 +321,7 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0):
     for k in range(N):
         if current_wp >= len(waypoints) - 1:
             # Finished, stay at final position
-            pos_true[k] = waypoints[-1]
+            pos_2d[k] = waypoints[-1]
             heading_true[k] = heading_true[k-1] if k > 0 else 0
             continue
         
@@ -325,63 +333,89 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0):
             current_time += segment_times[current_wp]
             current_wp += 1
             if current_wp >= len(waypoints) - 1:
-                pos_true[k] = waypoints[-1]
+                pos_2d[k] = waypoints[-1]
                 continue
             t_seg = 0
         
         # Interpolate along current segment
         alpha = t_seg / segment_times[current_wp]
-        pos_true[k] = (1-alpha) * waypoints[current_wp] + alpha * waypoints[current_wp+1]
+        pos_2d[k] = (1-alpha) * waypoints[current_wp] + alpha * waypoints[current_wp+1]
         
         # Heading
         delta = waypoints[current_wp+1] - waypoints[current_wp]
         heading_true[k] = np.arctan2(delta[1], delta[0])
         
         # Velocity
-        vel_true[k] = v_walk * np.array([np.cos(heading_true[k]), np.sin(heading_true[k])])
+        vel_2d[k] = v_walk * np.array([np.cos(heading_true[k]), np.sin(heading_true[k])])
     
-    # Generate IMU signals
-    accel_true = np.zeros((N, 3))
-    gyro_true = np.zeros((N, 3))
-    mag_true = np.zeros((N, 3))
-    step_events_true = np.zeros(N, dtype=bool)
+    # Convert to 3D trajectory (z=0, vz=0)
+    pos_map = np.column_stack([pos_2d, np.zeros(N)])
+    vel_map = np.column_stack([vel_2d, np.zeros(N)])
     
-    # Vertical oscillation from gait
+    # Create quaternion trajectory (yaw only, roll/pitch = 0)
+    quat_b_to_m = np.column_stack([
+        np.cos(heading_true / 2),
+        np.zeros(N),
+        np.zeros(N),
+        np.sin(heading_true / 2)
+    ])
+    
+    # Add synthetic walking accelerations (vertical oscillations for step detection)
+    # Walking creates periodic vertical accelerations at step frequency
+    # Amplitude: ~2-3 m/s² (typical for walking)
+    walking_accel_amplitude = 2.5  # m/s²
+    walking_accel_z = walking_accel_amplitude * np.sin(2 * np.pi * step_freq * t)
+    
+    # Modify velocity to include these oscillations (integrate accel)
+    # This is a simplified model - real walking has complex 3D motion
+    vel_map_with_steps = vel_map.copy()
+    vel_map_with_steps[:, 2] += walking_accel_amplitude / (2 * np.pi * step_freq) * np.cos(2 * np.pi * step_freq * t)
+    
+    # Generate IMU measurements using correct forward model
+    accel_body, gyro_body = generate_imu_from_trajectory(
+        pos_map=pos_map,
+        vel_map=vel_map_with_steps,
+        quat_b_to_m=quat_b_to_m,
+        dt=dt,
+        frame=frame,
+        g=9.81
+    )
+    
+    # Generate magnetometer measurements (points to magnetic north in body frame)
+    mag_body = np.zeros((N, 3))
+    mag_north_map = np.array([1.0, 0.0, 0.0])  # North = x-axis in ENU map frame (conventionally)
+    
     for k in range(N):
-        phase = 2 * np.pi * step_freq * t[k]
-        accel_true[k, 2] = 2.0 * np.sin(phase)  # Vertical accel
-        
-        # Step events (peaks in vertical accel)
-        if k > 0 and accel_true[k-1, 2] < 0 and accel_true[k, 2] >= 0:
-            step_events_true[k] = True
-        
-        # Gyro (heading rate)
-        if k > 0:
-            gyro_true[k, 2] = (heading_true[k] - heading_true[k-1]) / dt
-        
-        # Magnetometer (points north in horizontal plane)
-        roll, pitch = 0, 0  # Assume level
-        mag_north = np.array([1.0, 0.0, 0.0])  # North = [1,0,0] in map frame
-        # Rotate to body frame
-        R_yaw = np.array([
-            [np.cos(heading_true[k]), np.sin(heading_true[k]), 0],
-            [-np.sin(heading_true[k]), np.cos(heading_true[k]), 0],
+        # Rotate north vector from map to body frame
+        # C_M^B = (C_B^M)^T
+        yaw = heading_true[k]
+        C_yaw = np.array([
+            [np.cos(yaw), np.sin(yaw), 0],
+            [-np.sin(yaw), np.cos(yaw), 0],
             [0, 0, 1]
         ])
-        mag_true[k] = R_yaw.T @ mag_north
+        mag_body[k] = C_yaw.T @ mag_north_map
     
-    return t, pos_true, heading_true, accel_true, gyro_true, mag_true, step_events_true
+    # Compute expected number of steps based on trajectory
+    # Total walking time * step frequency = number of steps
+    total_distance = np.sum(segment_lengths)
+    walking_time = total_distance / v_walk
+    expected_steps = int(walking_time * step_freq)
+    
+    return t, pos_2d, heading_true, accel_body, gyro_body, mag_body, expected_steps
 
 
-def add_sensor_noise(accel_true, gyro_true, mag_true, dt):
-    """Add realistic sensor noise."""
-    N = len(accel_true)
+def add_sensor_noise(accel_body, gyro_body, mag_body, dt, imu_params: IMUNoiseParams):
+    """Add realistic sensor noise with explicit units."""
+    N = len(accel_body)
     
-    # IMU noise
-    gyro_bias = np.random.randn(3) * np.deg2rad(50.0)  # High drift for consumer
-    gyro_noise = np.random.randn(N, 3) * np.deg2rad(0.5) * np.sqrt(1/dt)
+    # IMU noise and biases
+    gyro_bias = np.random.randn(3) * imu_params.gyro_bias_rad_s
+    gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    gyro_noise = np.random.randn(N, 3) * gyro_noise_std
     
-    accel_noise = np.random.randn(N, 3) * 0.01 * np.sqrt(1/dt)
+    accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    accel_noise = np.random.randn(N, 3) * accel_noise_std
     
     # Magnetometer noise + disturbances
     mag_noise = np.random.randn(N, 3) * 0.05
@@ -392,39 +426,58 @@ def add_sensor_noise(accel_true, gyro_true, mag_true, dt):
         mask = (np.arange(N)*dt >= start) & (np.arange(N)*dt < end)
         mag_disturbance[mask] = np.random.randn(np.sum(mask), 3) * 0.3
     
-    gyro_meas = gyro_true + gyro_bias + gyro_noise
-    accel_meas = accel_true + accel_noise
-    mag_meas = mag_true + mag_noise + mag_disturbance
+    gyro_meas = gyro_body + gyro_bias + gyro_noise
+    accel_meas = accel_body + accel_noise
+    mag_meas = mag_body + mag_noise + mag_disturbance
     
     return accel_meas, gyro_meas, mag_meas
 
 
 def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75):
-    """Run PDR with gyro-integrated heading (drifts)."""
+    """
+    Run PDR with gyro-integrated heading (drifts).
+    
+    Uses proper peak detection (Eqs. 6.46-6.47) instead of threshold crossing.
+    """
     N = len(t)
     dt = t[1] - t[0]
     
     pos_est = np.zeros((N, 2))
     heading_est = np.zeros(N)
-    step_count = 0
     
-    last_step_time = 0
-    last_a_mag = 10.0
+    # Step detection using peak detector (Eqs. 6.46-6.47)
+    print("  Detecting steps using peak detector (Eqs. 6.46-6.47)...")
+    step_indices, accel_processed = detect_steps_peak_detector(
+        accel_meas,
+        dt=dt,
+        g=9.81,
+        min_peak_height=1.0,  # 1 m/s² above gravity
+        min_peak_distance=0.3,  # 0.3s between steps (max ~3.3 steps/s)
+        lowpass_cutoff=5.0  # 5 Hz low-pass filter
+    )
     
+    step_count = len(step_indices)
+    print(f"  Detected {step_count} steps using peak detection")
+    
+    # Initialize heading
+    heading_est[0] = 0.0
+    
+    # Process time series
     for k in range(1, N):
-        # Step detection (Eq. 6.46) - simple peak crossing
-        a_mag = total_accel_magnitude(accel_meas[k])
-        is_step = (last_a_mag < 11.0 and a_mag >= 11.0)
-        last_a_mag = a_mag
+        # Integrate gyro heading
+        heading_est[k] = integrate_gyro_heading(heading_est[k-1], gyro_meas[k, 2], dt)
+        heading_est[k] = wrap_heading(heading_est[k])
         
-        if is_step and (t[k] - last_step_time) > 0.3:  # Minimum 0.3s between steps
-            # Step detected!
-            step_count += 1
-            delta_t = t[k] - last_step_time
-            last_step_time = t[k]
-            
-            # Step frequency (Eq. 6.48)
-            f_step = 1.0 / delta_t if delta_t > 0 else 2.0
+        # Update position on step events
+        if k in step_indices:
+            # Find previous step for delta_t calculation
+            prev_steps = step_indices[step_indices < k]
+            if len(prev_steps) > 0:
+                last_step_idx = prev_steps[-1]
+                delta_t = t[k] - t[last_step_idx]
+                f_step = 1.0 / delta_t if delta_t > 0 else 2.0
+            else:
+                f_step = 2.0  # Default for first step
             
             # Step length (Eq. 6.49 - Weinberg model)
             L = step_length(height, f_step)
@@ -433,47 +486,63 @@ def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75):
             pos_est[k] = pdr_step_update(pos_est[k-1], L, heading_est[k-1])
         else:
             pos_est[k] = pos_est[k-1]
-        
-        # Integrate gyro heading
-        heading_est[k] = integrate_gyro_heading(heading_est[k-1], gyro_meas[k, 2], dt)
-        heading_est[k] = wrap_heading(heading_est[k])
     
     return pos_est, heading_est, step_count
 
 
 def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75):
-    """Run PDR with magnetometer heading (absolute but noisy)."""
+    """
+    Run PDR with magnetometer heading (absolute but noisy).
+    
+    Uses proper peak detection (Eqs. 6.46-6.47) instead of threshold crossing.
+    """
     N = len(t)
     dt = t[1] - t[0]
     
     pos_est = np.zeros((N, 2))
     heading_est = np.zeros(N)
-    step_count = 0
     
-    last_step_time = 0
-    last_a_mag = 10.0
+    # Step detection using peak detector (Eqs. 6.46-6.47)
+    print("  Detecting steps using peak detector (Eqs. 6.46-6.47)...")
+    step_indices, accel_processed = detect_steps_peak_detector(
+        accel_meas,
+        dt=dt,
+        g=9.81,
+        min_peak_height=1.0,  # 1 m/s² above gravity
+        min_peak_distance=0.3,  # 0.3s between steps
+        lowpass_cutoff=5.0  # 5 Hz low-pass filter
+    )
     
+    step_count = len(step_indices)
+    print(f"  Detected {step_count} steps using peak detection")
+    
+    # Initialize heading
+    heading_est[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)
+    
+    # Process time series
     for k in range(1, N):
-        # Step detection - simple peak crossing
-        a_mag = total_accel_magnitude(accel_meas[k])
-        is_step = (last_a_mag < 11.0 and a_mag >= 11.0)
-        last_a_mag = a_mag
-        
-        if is_step and (t[k] - last_step_time) > 0.3:
-            step_count += 1
-            delta_t = t[k] - last_step_time
-            last_step_time = t[k]
-            
-            f_step = 1.0 / delta_t if delta_t > 0 else 2.0
-            L = step_length(height, f_step)
-            
-            pos_est[k] = pdr_step_update(pos_est[k-1], L, heading_est[k-1])
-        else:
-            pos_est[k] = pos_est[k-1]
-        
         # Magnetometer heading (Eqs. 6.51-6.53)
         # Assume level (roll=pitch=0 for simplicity)
         heading_est[k] = mag_heading(mag_meas[k], roll=0.0, pitch=0.0, declination=0.0)
+        
+        # Update position on step events
+        if k in step_indices:
+            # Find previous step for delta_t calculation
+            prev_steps = step_indices[step_indices < k]
+            if len(prev_steps) > 0:
+                last_step_idx = prev_steps[-1]
+                delta_t = t[k] - t[last_step_idx]
+                f_step = 1.0 / delta_t if delta_t > 0 else 2.0
+            else:
+                f_step = 2.0  # Default for first step
+            
+            # Step length (Eq. 6.49)
+            L = step_length(height, f_step)
+            
+            # Update position (Eq. 6.50)
+            pos_est[k] = pdr_step_update(pos_est[k-1], L, heading_est[k-1])
+        else:
+            pos_est[k] = pos_est[k-1]
     
     return pos_est, heading_est, step_count
 
@@ -559,22 +628,38 @@ def run_with_inline_data():
     duration = 120.0
     dt = 0.01
     height = 1.75  # meters
+    frame = FrameConvention.create_enu()  # Use ENU frame
+    # Use higher gyro bias for PDR to show heading drift
+    imu_params = IMUNoiseParams(
+        gyro_bias_rad_s=units.deg_per_hour_to_rad_per_sec(50.0),  # 50 deg/hr
+        gyro_arw_rad_sqrt_s=units.deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.5),
+        gyro_rrw_rad_s_sqrt_s=0.0,
+        accel_bias_mps2=units.mg_to_mps2(10.0),
+        accel_vrw_mps_sqrt_s=units.mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.01),
+        grade='consumer (high gyro drift)'
+    )
     
     print(f"Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  User Height:     {height} m")
-    print(f"  Trajectory:      40m x 20m rectangular corridor\n")
+    print(f"  Trajectory:      40m x 20m rectangular corridor")
+    print(f"  Frame:           {frame.map_frame}\n")
     
-    print("Generating trajectory...")
-    t, pos_true, heading_true, accel_true, gyro_true, mag_true, steps_true = generate_corridor_walk(duration, dt)
+    # Print IMU specifications
+    print(imu_params.format_specs())
+    print()
+    
+    print("Generating trajectory with correct IMU forward model...")
+    t, pos_true, heading_true, accel_body, gyro_body, mag_body, expected_steps = generate_corridor_walk(
+        duration, dt, step_freq=2.0, frame=frame
+    )
     
     total_dist = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
-    n_steps_true = np.sum(steps_true)
     print(f"  Total distance:  {total_dist:.1f} m")
-    print(f"  True steps:      {n_steps_true}")
+    print(f"  Expected steps:  {expected_steps} (at 2.0 Hz step frequency)")
     
     print("\nAdding sensor noise...")
-    accel_meas, gyro_meas, mag_meas = add_sensor_noise(accel_true, gyro_true, mag_true, dt)
+    accel_meas, gyro_meas, mag_meas = add_sensor_noise(accel_body, gyro_body, mag_body, dt, imu_params)
     
     print("\nRunning PDR with gyro heading...")
     start = time.time()

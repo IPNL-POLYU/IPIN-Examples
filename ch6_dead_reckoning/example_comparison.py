@@ -11,7 +11,7 @@ Demonstrates the trade-offs between different approaches and the critical
 importance of drift correction.
 
 Author: Li-Ta Hsu
-Date: December 2024
+Date: December 2025
 """
 
 import time
@@ -20,8 +20,10 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 from core.sensors import (
+    FrameConvention,
+    IMUNoiseParams,
     strapdown_update,
-    detect_zupt,
+    detect_zupt_windowed,
     wheel_odom_update,
     total_accel_magnitude,
     step_length,
@@ -29,14 +31,20 @@ from core.sensors import (
     detect_step_simple,
     mag_heading,
     NavStateQPVP,
+    units,
 )
+from core.sim import generate_imu_from_trajectory
 
 
-def generate_mixed_trajectory(duration=120.0, dt=0.01):
+def generate_mixed_trajectory(duration=120.0, dt=0.01, frame=None):
     """
     Generate trajectory suitable for multiple DR methods.
     Walking-style motion with periodic stops.
+    Uses correct IMU forward model.
     """
+    if frame is None:
+        frame = FrameConvention.create_enu()
+    
     t = np.arange(0, duration, dt)
     N = len(t)
     
@@ -53,10 +61,7 @@ def generate_mixed_trajectory(duration=120.0, dt=0.01):
     
     pos_true = np.zeros((N, 3))
     vel_true = np.zeros((N, 3))
-    accel_true = np.zeros((N, 3))
-    gyro_true = np.zeros((N, 3))
     heading_true = np.zeros(N)
-    mag_true = np.zeros((N, 3))
     stance_mask = np.zeros(N, dtype=bool)
     wheel_speed_true = np.zeros((N, 3))
     
@@ -64,7 +69,6 @@ def generate_mixed_trajectory(duration=120.0, dt=0.01):
     current_wp = 0
     in_stop = False
     stop_start = 0
-    step_freq = 2.0
     
     for k in range(N):
         if current_wp >= len(waypoints) - 1:
@@ -119,45 +123,63 @@ def generate_mixed_trajectory(duration=120.0, dt=0.01):
         # Velocity
         vel_true[k, :2] = v_walk * np.array([np.cos(heading_true[k]), np.sin(heading_true[k])])
         
-        # Vertical oscillation (gait)
-        phase = 2 * np.pi * step_freq * t[k]
-        accel_true[k, 2] = 2.0 * np.sin(phase)
-        
-        # Gyro
-        if k > 0:
-            gyro_true[k, 2] = (heading_true[k] - heading_true[k-1]) / dt
-        
         # Wheel speed (for vehicle scenario)
         wheel_speed_true[k] = np.array([v_walk, 0, 0])
-        
-        # Magnetometer
-        R_yaw = np.array([
-            [np.cos(heading_true[k]), np.sin(heading_true[k]), 0],
-            [-np.sin(heading_true[k]), np.cos(heading_true[k]), 0],
+    
+    # Create quaternion trajectory (yaw only, roll/pitch = 0)
+    quat_true = np.column_stack([
+        np.cos(heading_true / 2),
+        np.zeros(N),
+        np.zeros(N),
+        np.sin(heading_true / 2)
+    ])
+    
+    # Generate IMU measurements using correct forward model
+    accel_body, gyro_body = generate_imu_from_trajectory(
+        pos_map=pos_true,
+        vel_map=vel_true,
+        quat_b_to_m=quat_true,
+        dt=dt,
+        frame=frame,
+        g=9.81
+    )
+    
+    # Generate magnetometer measurements (points to magnetic north in body frame)
+    mag_body = np.zeros((N, 3))
+    mag_north_map = np.array([1.0, 0.0, 0.0])  # North = x-axis in ENU (conventionally)
+    
+    for k in range(N):
+        # Rotate north vector from map to body frame
+        yaw = heading_true[k]
+        C_yaw = np.array([
+            [np.cos(yaw), np.sin(yaw), 0],
+            [-np.sin(yaw), np.cos(yaw), 0],
             [0, 0, 1]
         ])
-        mag_north = np.array([1.0, 0.0, 0.0])
-        mag_true[k] = R_yaw.T @ mag_north
+        mag_body[k] = C_yaw.T @ mag_north_map
     
-    return t, pos_true, vel_true, accel_true, gyro_true, heading_true, mag_true, stance_mask, wheel_speed_true
+    return t, pos_true, vel_true, accel_body, gyro_body, heading_true, mag_body, stance_mask, wheel_speed_true
 
 
-def add_sensor_noise(accel_true, gyro_true, mag_true, wheel_true, dt):
-    """Add noise to all sensors."""
-    N = len(accel_true)
+def add_sensor_noise(accel_body, gyro_body, mag_body, wheel_true, dt, imu_params: IMUNoiseParams):
+    """Add noise to all sensors with explicit units."""
+    N = len(accel_body)
     
-    # IMU noise (consumer grade)
-    gyro_bias = np.random.randn(3) * np.deg2rad(10.0)
-    gyro_noise = np.random.randn(N, 3) * np.deg2rad(0.1) * np.sqrt(1/dt)
-    accel_noise = np.random.randn(N, 3) * 0.001 * np.sqrt(1/dt)
-    accel_bias = np.random.randn(3) * 0.01
+    # IMU noise and biases
+    gyro_bias = np.random.randn(3) * imu_params.gyro_bias_rad_s
+    gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    gyro_noise = np.random.randn(N, 3) * gyro_noise_std
     
-    gyro_meas = gyro_true + gyro_bias + gyro_noise
-    accel_meas = accel_true + accel_bias + accel_noise
+    accel_bias = np.random.randn(3) * imu_params.accel_bias_mps2
+    accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    accel_noise = np.random.randn(N, 3) * accel_noise_std
+    
+    gyro_meas = gyro_body + gyro_bias + gyro_noise
+    accel_meas = accel_body + accel_bias + accel_noise
     
     # Magnetometer noise
     mag_noise = np.random.randn(N, 3) * 0.05
-    mag_meas = mag_true + mag_noise
+    mag_meas = mag_body + mag_noise
     
     # Wheel encoder noise
     wheel_noise = np.random.randn(N, 3) * 0.05
@@ -166,7 +188,7 @@ def add_sensor_noise(accel_true, gyro_true, mag_true, wheel_true, dt):
     return accel_meas, gyro_meas, mag_meas, wheel_meas
 
 
-def run_imu_only(t, accel, gyro, initial):
+def run_imu_only(t, accel, gyro, initial, frame):
     """Method 1: Pure IMU strapdown."""
     N, dt = len(t), t[1] - t[0]
     q, v, p = initial.q.copy(), initial.v.copy(), initial.p.copy()
@@ -174,22 +196,35 @@ def run_imu_only(t, accel, gyro, initial):
     pos[0] = p
     
     for k in range(1, N):
-        q, v, p = strapdown_update(q, v, p, gyro[k-1], accel[k-1], dt)
+        q, v, p = strapdown_update(q, v, p, gyro[k-1], accel[k-1], dt, frame=frame)
         pos[k] = p
     return pos
 
 
-def run_imu_zupt(t, accel, gyro, initial):
-    """Method 2: IMU + ZUPT."""
+def run_imu_zupt(t, accel, gyro, initial, frame, imu_params, window_size=10, gamma=1e6):
+    """Method 2: IMU + ZUPT (windowed detector, Eq. 6.44)."""
     N, dt = len(t), t[1] - t[0]
     q, v, p = initial.q.copy(), initial.v.copy(), initial.p.copy()
     pos = np.zeros((N, 3))
     pos[0] = p
     
+    # Compute noise std devs for ZUPT detector
+    sigma_a = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    sigma_g = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    
     for k in range(1, N):
-        q, v, p = strapdown_update(q, v, p, gyro[k-1], accel[k-1], dt)
-        if detect_zupt(gyro[k], accel[k], 0.05, 0.5):
-            v = np.zeros(3)
+        q, v, p = strapdown_update(q, v, p, gyro[k-1], accel[k-1], dt, frame=frame)
+        
+        # Windowed ZUPT detection
+        window_start = max(0, k - window_size // 2)
+        window_end = min(N, k + window_size // 2 + 1)
+        accel_window = accel[window_start:window_end]
+        gyro_window = gyro[window_start:window_end]
+        
+        if len(accel_window) >= window_size // 2:
+            if detect_zupt_windowed(accel_window, gyro_window, sigma_a, sigma_g, gamma):
+                v = np.zeros(3)
+        
         pos[k] = p
     return pos
 
@@ -344,22 +379,29 @@ def main():
     duration = 120.0
     dt = 0.01
     height = 1.75
+    frame = FrameConvention.create_enu()  # Use ENU frame
+    imu_params = IMUNoiseParams.consumer_grade()  # Consumer-grade IMU
     
     print(f"Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  Trajectory:      30m x 20m rectangular path with stops")
-    print(f"  IMU Rate:        {1/dt:.0f} Hz\n")
+    print(f"  IMU Rate:        {1/dt:.0f} Hz")
+    print(f"  Frame:           {frame.map_frame}\n")
     
-    print("Generating trajectory...")
-    t, pos_true, vel_true, accel_true, gyro_true, heading_true, mag_true, stance, wheel_true = \
-        generate_mixed_trajectory(duration, dt)
+    # Print IMU specifications
+    print(imu_params.format_specs())
+    print()
+    
+    print("Generating trajectory with correct IMU forward model...")
+    t, pos_true, vel_true, accel_body, gyro_body, heading_true, mag_body, stance, wheel_true = \
+        generate_mixed_trajectory(duration, dt, frame)
     
     total_dist = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
     print(f"  Total distance:  {total_dist:.1f} m")
     
     print("\nAdding sensor noise...")
     accel_meas, gyro_meas, mag_meas, wheel_meas = add_sensor_noise(
-        accel_true, gyro_true, mag_true, wheel_true, dt)
+        accel_body, gyro_body, mag_body, wheel_true, dt, imu_params)
     
     initial = NavStateQPVP(q=np.array([1, 0, 0, 0]), v=vel_true[0], p=pos_true[0])
     lever_arm = np.array([1.0, 0, -0.2])
@@ -370,12 +412,12 @@ def main():
     
     print("  1. IMU only (pure strapdown)...")
     start = time.time()
-    methods['IMU Only'] = run_imu_only(t, accel_meas, gyro_meas, initial)
+    methods['IMU Only'] = run_imu_only(t, accel_meas, gyro_meas, initial, frame)
     print(f"     Time: {time.time()-start:.3f} s")
     
-    print("  2. IMU + ZUPT...")
+    print("  2. IMU + ZUPT (windowed, Eq. 6.44)...")
     start = time.time()
-    methods['IMU + ZUPT'] = run_imu_zupt(t, accel_meas, gyro_meas, initial)
+    methods['IMU + ZUPT'] = run_imu_zupt(t, accel_meas, gyro_meas, initial, frame, imu_params)
     print(f"     Time: {time.time()-start:.3f} s")
     
     print("  3. Wheel Odometry...")

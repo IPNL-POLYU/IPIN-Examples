@@ -31,6 +31,207 @@ from typing import Optional
 import numpy as np
 
 
+def zupt_test_statistic(
+    accel_window: np.ndarray,
+    gyro_window: np.ndarray,
+    sigma_a: float,
+    sigma_g: float,
+    g: float = 9.81,
+) -> float:
+    """
+    Compute ZUPT test statistic over a window (Eq. 6.44).
+    
+    Implements the SHOE-style (Zero-velocity update aided Inertial Navigation)
+    windowed test statistic from Equation (6.44):
+    
+        T_k = (1/N) * Σ_(l∈W_k) [ (1/σ_A) * ||ã_l - g*(ā_k)/||ā_k|| ||
+                                  + (1/σ_G) * ||ω̃_l||² ]
+    
+    where:
+        - N: window length (number of samples)
+        - W_k: time window of measurements
+        - ā_k: average accelerometer measurement over window
+        - σ_A: accelerometer noise standard deviation
+        - σ_G: gyroscope noise standard deviation
+        - g: gravity magnitude
+        - ã_l: accelerometer measurement at sample l
+        - ω̃_l: gyroscope measurement at sample l
+    
+    The test statistic measures deviation from the expected stationary
+    condition (constant gravity, zero angular rate). Lower values indicate
+    more likely stationary behavior.
+    
+    Args:
+        accel_window: Accelerometer measurements in window.
+                      Shape: (N, 3). Units: m/s².
+                      Specific force measurements (NOT gravity-removed).
+        gyro_window: Gyroscope measurements in window.
+                     Shape: (N, 3). Units: rad/s.
+                     Angular velocity measurements.
+        sigma_a: Accelerometer noise standard deviation.
+                 Units: m/s². Typical: 0.01-0.1 m/s² (from VRW).
+        sigma_g: Gyroscope noise standard deviation.
+                 Units: rad/s. Typical: 1e-4 to 1e-3 rad/s (from ARW).
+        g: Gravity magnitude. Default: 9.81 m/s². Units: m/s².
+    
+    Returns:
+        Test statistic T_k. Units: dimensionless.
+        Lower values indicate more stationary behavior.
+        Typical threshold γ: 1e5 to 1e7 (depends on noise parameters).
+    
+    Notes:
+        - Window length N typically 5-20 samples (50-200ms at 100Hz).
+        - Longer windows: more robust, but slower response to stance transitions.
+        - The term ||ã_l - g*(ā_k)/||ā_k|| || measures deviation from constant gravity.
+        - The term ||ω̃_l||² measures rotation (should be near zero when stationary).
+        - Noise parameters (σ_A, σ_G) should match IMU specifications.
+    
+    Example:
+        >>> # Window of stationary measurements
+        >>> accel = np.array([[0, 0, 9.8], [0.1, 0, 9.9], [-0.1, 0, 9.7]])
+        >>> gyro = np.array([[0.01, 0, 0], [0, 0.01, 0], [0, 0, -0.01]])
+        >>> T_k = zupt_test_statistic(accel, gyro, sigma_a=0.05, sigma_g=1e-3)
+        >>> print(f"Test statistic: {T_k:.2e}")
+        >>> 
+        >>> # Check against threshold
+        >>> gamma = 1e6
+        >>> is_stationary = (T_k < gamma)
+        >>> print(f"Stationary: {is_stationary}")
+    
+    Related Equations:
+        - Eq. (6.44): ZUPT test statistic (THIS FUNCTION)
+        - Eq. (6.45): ZUPT pseudo-measurement (velocity = 0)
+    
+    References:
+        [19] Foxlin, E. (2005). "Pedestrian tracking with shoe-mounted inertial
+             sensors." IEEE Computer Graphics and Applications, 25(6), 38-46.
+    """
+    if accel_window.shape[0] != gyro_window.shape[0]:
+        raise ValueError(
+            f"accel_window and gyro_window must have same length, "
+            f"got {accel_window.shape[0]} and {gyro_window.shape[0]}"
+        )
+    if accel_window.shape[1] != 3:
+        raise ValueError(f"accel_window must have shape (N, 3), got {accel_window.shape}")
+    if gyro_window.shape[1] != 3:
+        raise ValueError(f"gyro_window must have shape (N, 3), got {gyro_window.shape}")
+    if sigma_a <= 0:
+        raise ValueError(f"sigma_a must be positive, got {sigma_a}")
+    if sigma_g <= 0:
+        raise ValueError(f"sigma_g must be positive, got {sigma_g}")
+    
+    N = accel_window.shape[0]
+    
+    # Compute average accelerometer measurement over window: ā_k
+    accel_mean = np.mean(accel_window, axis=0)  # Shape: (3,)
+    accel_mean_norm = np.linalg.norm(accel_mean)
+    
+    # Avoid division by zero (shouldn't happen with real IMU data)
+    if accel_mean_norm < 1e-6:
+        accel_mean_norm = 1e-6
+    
+    # Expected gravity direction: g * (ā_k / ||ā_k||)
+    gravity_direction = g * (accel_mean / accel_mean_norm)  # Shape: (3,)
+    
+    # Compute test statistic: sum over window samples
+    T_k = 0.0
+    for i in range(N):
+        # Accelerometer term: (1/σ_A) * ||ã_l - g*(ā_k)/||ā_k|| ||
+        accel_deviation = np.linalg.norm(accel_window[i] - gravity_direction)
+        accel_term = accel_deviation / sigma_a
+        
+        # Gyroscope term: (1/σ_G) * ||ω̃_l||²
+        # Note: Eq. 6.44 has (1/σ_G) * ||ω||², not (1/σ_G²) * ||ω||²
+        gyro_norm_sq = np.sum(gyro_window[i]**2)  # ||ω||²
+        gyro_term = gyro_norm_sq / sigma_g
+        
+        # Sum both terms
+        T_k += accel_term + gyro_term
+    
+    # Normalize by window length: T_k = (1/N) * Σ(...)
+    T_k /= N
+    
+    return T_k
+
+
+def detect_zupt_windowed(
+    accel_window: np.ndarray,
+    gyro_window: np.ndarray,
+    sigma_a: float,
+    sigma_g: float,
+    gamma: float,
+    g: float = 9.81,
+) -> bool:
+    """
+    Detect zero velocity (ZUPT) using windowed test statistic (Eq. 6.44).
+    
+    This is the proper SHOE-style ZUPT detector that uses a window of
+    measurements to compute a test statistic and compares it to a threshold.
+    
+    The detector returns True if:
+        T_k < γ (test statistic below threshold)
+    
+    where T_k is computed by zupt_test_statistic().
+    
+    Args:
+        accel_window: Accelerometer measurements in window.
+                      Shape: (N, 3). Units: m/s².
+        gyro_window: Gyroscope measurements in window.
+                     Shape: (N, 3). Units: rad/s.
+        sigma_a: Accelerometer noise std dev. Units: m/s².
+        sigma_g: Gyroscope noise std dev. Units: rad/s.
+        gamma: ZUPT detection threshold. Units: dimensionless.
+               Typical values: 1e5 to 1e7.
+               Lower γ = stricter detection (fewer false positives).
+               Higher γ = more sensitive (more detections).
+        g: Gravity magnitude. Default: 9.81 m/s². Units: m/s².
+    
+    Returns:
+        True if ZUPT detected (stationary), False otherwise.
+    
+    Notes:
+        - This is the recommended ZUPT detector (more robust than instantaneous).
+        - Window length: typically 5-20 samples (50-200ms at 100Hz).
+        - Tune γ based on IMU noise and application requirements.
+        - For foot-mounted INS: γ ≈ 1e6 works well for consumer IMUs.
+    
+    Example:
+        >>> # Collect window of measurements (e.g., last 10 samples)
+        >>> accel_window = accel_buffer[-10:]  # Shape: (10, 3)
+        >>> gyro_window = gyro_buffer[-10:]    # Shape: (10, 3)
+        >>> 
+        >>> # Detect ZUPT using windowed test
+        >>> from core.sensors import units, IMUNoiseParams
+        >>> params = IMUNoiseParams.consumer_grade()
+        >>> 
+        >>> is_stationary = detect_zupt_windowed(
+        ...     accel_window, gyro_window,
+        ...     sigma_a=params.accel_vrw_mps_sqrt_s * np.sqrt(100),  # Scale for sample rate
+        ...     sigma_g=params.gyro_arw_rad_sqrt_s * np.sqrt(100),
+        ...     gamma=1e6
+        ... )
+        >>> 
+        >>> if is_stationary:
+        ...     # Apply ZUPT correction
+        ...     pass
+    
+    Related Functions:
+        - zupt_test_statistic(): Computes T_k
+        - detect_zupt(): Simple instantaneous detector (deprecated)
+    
+    Related Equations:
+        - Eq. (6.44): ZUPT test statistic (THIS FUNCTION)
+        - Eq. (6.45): ZUPT pseudo-measurement
+    """
+    # Compute test statistic
+    T_k = zupt_test_statistic(accel_window, gyro_window, sigma_a, sigma_g, g)
+    
+    # Compare to threshold
+    is_stationary = (T_k < gamma)
+    
+    return is_stationary
+
+
 def detect_zupt(
     gyro_b: np.ndarray,
     accel_b: np.ndarray,
@@ -38,9 +239,12 @@ def detect_zupt(
     delta_f: float,
 ) -> bool:
     """
-    Detect zero velocity (stationary) condition for ZUPT.
+    Detect zero velocity (stationary) condition for ZUPT (DEPRECATED).
+    
+    **DEPRECATED**: Use `detect_zupt_windowed()` instead for proper Eq. (6.44)
+    implementation with windowed test statistic.
 
-    Implements Eq. (6.44) in Chapter 6:
+    This is a simple instantaneous threshold test:
         ZUPT if: ||ω_B|| < δ_ω  AND  ||f_B - g|| < δ_f
 
     where:

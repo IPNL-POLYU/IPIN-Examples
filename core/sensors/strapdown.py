@@ -12,13 +12,16 @@ to propagate the navigation state (attitude, velocity, position) over time.
 
 Frame Conventions:
     - B: Body frame (IMU/sensor frame)
-    - M: Map frame (navigation frame, typically ENU or NED)
+    - M: Map frame (navigation frame, ENU or NED defined by FrameConvention)
     - Quaternion q represents rotation from B to M: v_M = C_B^M(q) @ v_B
 
 Quaternion Convention:
     - Scalar-first: q = [q0, q1, q2, q3] where q0 is scalar, [q1,q2,q3] is vector
     - Unit quaternion: ||q|| = 1
     - Identity quaternion: [1, 0, 0, 0] (body aligned with map)
+
+All functions accept an optional FrameConvention parameter to ensure consistency
+across different coordinate systems (ENU vs NED).
 
 References:
     Chapter 6, Section 6.1: Strapdown integration
@@ -30,7 +33,11 @@ References:
     Eq. (6.10): Position update
 """
 
+from typing import Optional
 import numpy as np
+
+# Import FrameConvention for type hints (avoid circular import)
+from core.sensors.types import FrameConvention
 
 
 def omega_matrix(omega_b: np.ndarray) -> np.ndarray:
@@ -244,7 +251,10 @@ def quat_to_rotmat(q: np.ndarray) -> np.ndarray:
     return C
 
 
-def gravity_vector(g: float = 9.81) -> np.ndarray:
+def gravity_vector(
+    g: float = 9.81,
+    frame: Optional[FrameConvention] = None,
+) -> np.ndarray:
     """
     Gravity vector in map frame (downward).
 
@@ -252,38 +262,48 @@ def gravity_vector(g: float = 9.81) -> np.ndarray:
         g_M = [0, 0, -g]^T    (for ENU frame)
         g_M = [0, 0, +g]^T    (for NED frame)
 
-    This function assumes ENU (East-North-Up) convention, where gravity
-    points downward (negative z-direction). For NED (North-East-Down),
-    flip the sign.
-
     Args:
         g: Gravitational acceleration magnitude.
            Default: 9.81 m/s² (standard gravity).
            Can be adjusted for local gravity variations (±0.05 m/s²).
+        frame: Frame convention defining gravity direction.
+               Default: None (creates ENU).
+               Use FrameConvention.create_enu() or .create_ned().
 
     Returns:
         Gravity vector in map frame M.
         Shape: (3,). Units: m/s².
-        Convention: [0, 0, -g] for ENU, [0, 0, +g] for NED.
+        For ENU: [0, 0, -g] (downward = negative z)
+        For NED: [0, 0, +g] (downward = positive z)
 
     Notes:
         - Standard gravity: g = 9.80665 m/s² (exact)
         - Typical approximation: g = 9.81 m/s²
         - Local variations: ±0.05 m/s² depending on latitude and altitude
         - For indoor positioning, constant g is sufficient
-        - Gravity acts downward in ENU (negative z) and downward in NED (positive z)
+        - Gravity direction determined by frame.gravity_direction (-1 or +1)
 
     Example:
         >>> import numpy as np
-        >>> g_enu = gravity_vector(g=9.81)
+        >>> from core.sensors import FrameConvention
+        >>> # ENU frame (default)
+        >>> frame_enu = FrameConvention.create_enu()
+        >>> g_enu = gravity_vector(g=9.81, frame=frame_enu)
         >>> print(g_enu)  # [0, 0, -9.81]
+        >>> # NED frame
+        >>> frame_ned = FrameConvention.create_ned()
+        >>> g_ned = gravity_vector(g=9.81, frame=frame_ned)
+        >>> print(g_ned)  # [0, 0, +9.81]
 
     Related Equations:
         - Eq. (6.7): Velocity update (v += (C_B^M @ f + g) * dt)
         - Eq. (6.8): Gravity vector definition (THIS FUNCTION)
     """
-    # ENU convention: gravity points downward (negative z)
-    g_map = np.array([0.0, 0.0, -g])
+    if frame is None:
+        frame = FrameConvention.create_enu()
+
+    # Use frame convention to determine gravity direction
+    g_map = frame.gravity_vector(g)
     return g_map
 
 
@@ -293,6 +313,7 @@ def vel_update(
     f_b: np.ndarray,
     dt: float,
     g: float = 9.81,
+    frame: Optional[FrameConvention] = None,
 ) -> np.ndarray:
     """
     Velocity update with gravity compensation.
@@ -304,7 +325,7 @@ def vel_update(
         v^M: velocity in map frame M [m/s]
         C_B^M(q): rotation matrix from body to map (from quaternion q)
         f_b: specific force in body frame B (corrected accel) [m/s²]
-        g_M: gravity vector in map frame [0, 0, -9.81] for ENU [m/s²]
+        g_M: gravity vector in map frame [m/s²]
         Δt: time step [s]
 
     This equation integrates the corrected accelerometer measurement (specific force)
@@ -322,6 +343,8 @@ def vel_update(
             Units: seconds. Typically 0.001 to 0.01 s.
         g: Gravitational acceleration magnitude (optional).
            Default: 9.81 m/s².
+        frame: Frame convention defining gravity direction.
+               Default: None (creates ENU).
 
     Returns:
         Updated velocity v_k in map frame M.
@@ -329,18 +352,20 @@ def vel_update(
 
     Notes:
         - Specific force f_b includes all non-gravitational accelerations.
-        - Gravity g_M is added in map frame (Eq. 6.8).
+        - Gravity g_M direction determined by frame convention (Eq. 6.8).
         - Rotation C_B^M converts body-frame f to map frame.
         - First-order Euler integration: adequate for small dt.
         - Assumes constant f_b over interval [t_{k-1}, t_k].
 
     Example:
         >>> import numpy as np
+        >>> from core.sensors import FrameConvention
         >>> v0 = np.zeros(3)  # stationary
         >>> q = np.array([1.0, 0.0, 0.0, 0.0])  # identity (body = map)
         >>> f_b = np.array([1.0, 0.0, 0.0])  # 1 m/s² accel in x (body)
         >>> dt = 0.01
-        >>> v1 = vel_update(v0, q, f_b, dt)
+        >>> frame = FrameConvention.create_enu()
+        >>> v1 = vel_update(v0, q, f_b, dt, frame=frame)
         >>> print(v1)  # ≈ [0.01, 0, -0.0981] (accel + gravity effect)
 
     Related Equations:
@@ -362,9 +387,15 @@ def vel_update(
     C_B_M = quat_to_rotmat(q_prev)
 
     # Gravity vector in map frame (Eq. 6.8)
-    g_M = gravity_vector(g)
+    # For ENU: g_M = [0, 0, -g] (downward)
+    # For NED: g_M = [0, 0, +g] (downward)
+    g_M = gravity_vector(g, frame)
 
-    # Acceleration in map frame: a_M = C_B^M @ f_b + g_M
+    # Acceleration in map frame (Eq. 6.7): a_M = C_B^M @ f_b + g_M
+    # Note: f_b is specific force measured by accelerometer (reaction force)
+    # For stationary: f_b = -g_M (upward reaction = opposite of gravity)
+    # True acceleration: a = f + g_gravity
+    # For stationary: 0 = f + g → f = -g (reaction opposes gravity)
     a_M = C_B_M @ f_b + g_M
 
     # Velocity update (Eq. 6.7): v_k = v_{k-1} + a_M * Δt
@@ -446,6 +477,7 @@ def strapdown_update(
     f_b: np.ndarray,
     dt: float,
     g: float = 9.81,
+    frame: Optional[FrameConvention] = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Complete strapdown integration step (attitude, velocity, position).
@@ -472,6 +504,8 @@ def strapdown_update(
             Units: seconds.
         g: Gravitational acceleration magnitude (optional).
            Default: 9.81 m/s².
+        frame: Frame convention defining gravity direction.
+               Default: None (creates ENU).
 
     Returns:
         Tuple (q_next, v_next, p_next):
@@ -484,9 +518,11 @@ def strapdown_update(
         - Update order matters: q → v → p (standard mechanization).
         - This function encapsulates the core strapdown loop.
         - For EKF-based INS, use this as the process model f(x, u, dt).
+        - Frame convention ensures consistent gravity handling across systems.
 
     Example:
         >>> import numpy as np
+        >>> from core.sensors import FrameConvention
         >>> # Initial state: origin, stationary, level attitude
         >>> q0 = np.array([1.0, 0.0, 0.0, 0.0])
         >>> v0 = np.zeros(3)
@@ -495,7 +531,8 @@ def strapdown_update(
         >>> omega = np.array([0.0, 0.0, 0.1])  # 0.1 rad/s yaw rate
         >>> f = np.array([1.0, 0.0, 0.0])  # 1 m/s² forward accel
         >>> dt = 0.01
-        >>> q1, v1, p1 = strapdown_update(q0, v0, p0, omega, f, dt)
+        >>> frame = FrameConvention.create_enu()
+        >>> q1, v1, p1 = strapdown_update(q0, v0, p0, omega, f, dt, frame=frame)
 
     Related Equations:
         - Eqs. (6.2)-(6.4): Quaternion integration
@@ -506,7 +543,7 @@ def strapdown_update(
     q_next = quat_integrate(q, omega_b, dt)
 
     # Step 2: Update velocity
-    v_next = vel_update(v, q, f_b, dt, g)
+    v_next = vel_update(v, q, f_b, dt, g, frame)
 
     # Step 3: Update position
     p_next = pos_update(p, v_next, dt)

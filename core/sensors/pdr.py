@@ -15,8 +15,11 @@ PDR is a lightweight dead reckoning approach for pedestrians that uses:
 
 Frame Conventions:
     - B: Body frame (IMU/phone frame)
-    - M: Map frame (horizontal plane, typically ENU)
+    - M: Map frame (horizontal plane, ENU or NED defined by FrameConvention)
     - PDR operates primarily in 2D horizontal plane
+    - Heading convention must match frame (0=East for ENU, 0=North for NED)
+
+All position update functions accept an optional FrameConvention parameter.
 
 References:
     Chapter 6, Section 6.3: Pedestrian dead reckoning
@@ -27,8 +30,12 @@ References:
     Eq. (6.50): 2D position update
 """
 
-from typing import Optional
+from typing import Optional, Tuple
 import numpy as np
+from scipy import signal
+
+# Import FrameConvention for type hints
+from core.sensors.types import FrameConvention
 
 
 def total_accel_magnitude(accel_b: np.ndarray) -> float:
@@ -137,6 +144,131 @@ def remove_gravity_from_magnitude(a_mag: float, g: float = 9.81) -> float:
     a_dynamic = a_mag - g
 
     return a_dynamic
+
+
+def detect_steps_peak_detector(
+    accel_series: np.ndarray,
+    dt: float,
+    g: float = 9.81,
+    min_peak_height: float = 1.0,
+    min_peak_distance: float = 0.3,
+    lowpass_cutoff: Optional[float] = 5.0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """
+    Detect steps using peak detection on gravity-removed acceleration magnitude.
+    
+    Implements the book's approach (Eqs. 6.46-6.47):
+    1. Compute total acceleration magnitude (Eq. 6.46)
+    2. Remove gravity (Eq. 6.47)
+    3. Optionally apply low-pass filter
+    4. Find peaks with minimum height and distance constraints
+    
+    This is the proper peak detection method described in Chapter 6, Section 6.3.2.
+    
+    Args:
+        accel_series: Accelerometer time series in body frame.
+                      Shape: (N, 3). Units: m/s².
+                      Must include gravity (raw measurements).
+        dt: Time step between samples. Units: seconds.
+        g: Gravity magnitude. Default: 9.81 m/s². Units: m/s².
+        min_peak_height: Minimum height of peaks above zero (after gravity removal).
+                         Units: m/s². Default: 1.0 m/s².
+                         Typical range: 0.5-2.0 m/s².
+        min_peak_distance: Minimum time between peaks (refractory period).
+                           Units: seconds. Default: 0.3 s.
+                           Typical range: 0.2-0.5 s (corresponds to 2-5 steps/s).
+        lowpass_cutoff: Low-pass filter cutoff frequency. Units: Hz.
+                        Default: 5.0 Hz. Set to None to disable filtering.
+                        Typical range: 3-10 Hz.
+    
+    Returns:
+        Tuple of (step_indices, accel_mag_filtered):
+            step_indices: Indices of detected steps in accel_series.
+                          Shape: (n_steps,). These are the peak locations.
+            accel_mag_filtered: Processed acceleration magnitude time series.
+                                Shape: (N,). Units: m/s².
+                                After gravity removal and optional filtering.
+    
+    Notes:
+        - Follows Eq. (6.46): Compute ||a|| = sqrt(ax² + ay² + az²)
+        - Follows Eq. (6.47): Remove gravity: a_dynamic = ||a|| - g
+        - Uses scipy.signal.find_peaks for robust peak detection
+        - min_peak_distance prevents detecting same step multiple times
+        - Low-pass filter reduces high-frequency noise from sensors
+        - Peaks correspond to foot strikes or hand swings (device-dependent)
+    
+    Example:
+        >>> import numpy as np
+        >>> # Synthetic walking: 60s at 2 Hz step frequency
+        >>> t = np.arange(0, 60, 0.01)  # 100 Hz sampling
+        >>> # Simulate vertical acceleration with steps
+        >>> accel_z = -9.81 + 2.0 * np.sin(2 * np.pi * 2.0 * t)  # 2 Hz steps
+        >>> accel = np.column_stack([np.zeros_like(t), np.zeros_like(t), accel_z])
+        >>> 
+        >>> step_indices, accel_processed = detect_steps_peak_detector(
+        ...     accel, dt=0.01, min_peak_height=0.5, min_peak_distance=0.4
+        ... )
+        >>> print(f"Detected {len(step_indices)} steps in 60s")
+        >>> print(f"Expected ~120 steps (2 steps/s * 60s)")
+    
+    Related Equations:
+        - Eq. (6.46): Total acceleration magnitude
+        - Eq. (6.47): Gravity removal
+        - Eq. (6.48): Step frequency (computed from detected peaks)
+    
+    References:
+        Chapter 6, Section 6.3.2: Pedestrian Dead Reckoning
+        Figure 6.12: Total accelerations during walking (shows peak pattern)
+    """
+    if accel_series.ndim != 2 or accel_series.shape[1] != 3:
+        raise ValueError(
+            f"accel_series must have shape (N, 3), got {accel_series.shape}"
+        )
+    if dt <= 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    if min_peak_distance <= 0:
+        raise ValueError(f"min_peak_distance must be positive, got {min_peak_distance}")
+    
+    N = len(accel_series)
+    
+    # Step 1: Compute total acceleration magnitude (Eq. 6.46)
+    # a_mag[k] = ||a_k|| = sqrt(ax² + ay² + az²)
+    accel_mag = np.linalg.norm(accel_series, axis=1)  # Shape: (N,)
+    
+    # Step 2: Remove gravity (Eq. 6.47)
+    # a_dynamic[k] = a_mag[k] - g
+    accel_dynamic = accel_mag - g  # Shape: (N,)
+    
+    # Step 3: Optional low-pass filter to reduce noise
+    if lowpass_cutoff is not None:
+        # Design Butterworth low-pass filter
+        fs = 1.0 / dt  # Sampling frequency
+        nyquist = fs / 2.0
+        normalized_cutoff = lowpass_cutoff / nyquist
+        
+        # Ensure cutoff is valid
+        if normalized_cutoff >= 1.0:
+            # Cutoff too high, skip filtering
+            accel_filtered = accel_dynamic
+        else:
+            # Apply 4th order Butterworth filter
+            b, a = signal.butter(4, normalized_cutoff, btype='low')
+            accel_filtered = signal.filtfilt(b, a, accel_dynamic)
+    else:
+        accel_filtered = accel_dynamic
+    
+    # Step 4: Find peaks using scipy.signal.find_peaks
+    # Convert min_peak_distance from seconds to samples
+    min_distance_samples = int(min_peak_distance / dt)
+    
+    # Find peaks with constraints
+    peak_indices, peak_properties = signal.find_peaks(
+        accel_filtered,
+        height=min_peak_height,  # Minimum peak height
+        distance=min_distance_samples,  # Minimum distance between peaks
+    )
+    
+    return peak_indices, accel_filtered
 
 
 def step_frequency(delta_t: float) -> float:
@@ -270,6 +402,7 @@ def pdr_step_update(
     p_prev_xy: np.ndarray,
     step_len: float,
     heading_rad: float,
+    frame: Optional[FrameConvention] = None,
 ) -> np.ndarray:
     """
     Update 2D position from a detected step (step-and-heading PDR).
@@ -292,7 +425,12 @@ def pdr_step_update(
         step_len: Step length (from step_length()).
                   Units: meters. Typical: 0.5-1.0 m.
         heading_rad: Current heading (yaw angle) in horizontal plane.
-                     Units: radians. Convention: 0 = East, π/2 = North (ENU).
+                     Units: radians.
+                     Convention determined by frame:
+                         ENU: 0 = East, π/2 = North (default)
+                         NED: 0 = North, π/2 = East
+        frame: Frame convention defining heading interpretation.
+               Default: None (creates ENU).
 
     Returns:
         Updated 2D position p_k after the step.
@@ -332,8 +470,16 @@ def pdr_step_update(
     if step_len < 0:
         raise ValueError(f"step_len must be non-negative, got {step_len}")
 
+    if frame is None:
+        frame = FrameConvention.create_enu()
+
     # Eq. (6.50) in 2D: p_k = p_{k-1} + L * [cos(ψ), sin(ψ)]
-    displacement = step_len * np.array([np.cos(heading_rad), np.sin(heading_rad)])
+    # The direction vector is determined by the frame convention:
+    # - ENU: heading 0 = East (+x), π/2 = North (+y)
+    # - NED: heading 0 = North (+x), π/2 = East (+y)
+    # Both follow the same formula: [cos(ψ), sin(ψ)] by design
+    direction = frame.heading_to_unit_vector(heading_rad)
+    displacement = step_len * direction
     p_next_xy = p_prev_xy + displacement
 
     return p_next_xy

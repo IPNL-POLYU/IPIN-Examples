@@ -112,6 +112,8 @@ Example:
 """
 
 from core.sensors.types import (
+    FrameConvention,
+    IMUNoiseParams,
     ImuSeries,
     WheelSpeedSeries,
     MagnetometerSeries,
@@ -146,7 +148,9 @@ from core.sensors.wheel_odometry import (
 )
 
 from core.sensors.constraints import (
-    detect_zupt,
+    zupt_test_statistic,
+    detect_zupt_windowed,
+    detect_zupt,  # Deprecated, use detect_zupt_windowed instead
     ZuptMeasurementModel,
     ZaruMeasurementModel,
     NhcMeasurementModel,
@@ -155,6 +159,7 @@ from core.sensors.constraints import (
 from core.sensors.pdr import (
     total_accel_magnitude,
     remove_gravity_from_magnitude,
+    detect_steps_peak_detector,
     step_frequency,
     step_length,
     pdr_step_update,
@@ -166,6 +171,7 @@ from core.sensors.pdr import (
 from core.sensors.environment import (
     mag_tilt_compensate,
     mag_heading,
+    wrap_angle_diff,
     pressure_to_altitude,
     detect_floor_change,
     smooth_measurement_simple,
@@ -180,7 +186,14 @@ from core.sensors.calibration import (
     characterize_imu_noise,
 )
 
+# Import units module (provides explicit unit conversions)
+from core.sensors import units
+
 __all__ = [
+    # Frame convention
+    "FrameConvention",
+    # IMU noise parameters
+    "IMUNoiseParams",
     # Data types
     "ImuSeries",
     "WheelSpeedSeries",
@@ -208,22 +221,26 @@ __all__ = [
     "odom_pos_update",
     "wheel_odom_update",
     # Drift correction constraints
-    "detect_zupt",
+    "zupt_test_statistic",
+    "detect_zupt_windowed",
+    "detect_zupt",  # Deprecated
     "ZuptMeasurementModel",
     "ZaruMeasurementModel",
     "NhcMeasurementModel",
     # Pedestrian Dead Reckoning (PDR)
     "total_accel_magnitude",
     "remove_gravity_from_magnitude",
+    "detect_steps_peak_detector",
     "step_frequency",
     "step_length",
     "pdr_step_update",
-    "detect_step_simple",
+    "detect_step_simple",  # Deprecated, use detect_steps_peak_detector
     "integrate_gyro_heading",
     "wrap_heading",
     # Environmental sensors (magnetometer + barometer)
     "mag_tilt_compensate",
     "mag_heading",
+    "wrap_angle_diff",
     "pressure_to_altitude",
     "detect_floor_change",
     "smooth_measurement_simple",
@@ -234,6 +251,8 @@ __all__ = [
     "identify_random_walk",
     "identify_rate_random_walk",
     "characterize_imu_noise",
+    # Unit conversions
+    "units",
 ]
 
 __version__ = "1.0.0"

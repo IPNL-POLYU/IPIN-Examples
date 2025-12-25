@@ -14,6 +14,30 @@ The module provides simulation-based examples of:
 
 **Key Insight:** Dead reckoning drifts unbounded without corrections. Examples demonstrate both the drift problem and solutions.
 
+## ⚙️ Frame Conventions (IMPORTANT!)
+
+All Chapter 6 algorithms use **explicit frame conventions** via the `FrameConvention` dataclass. This ensures:
+- ✅ Correct gravity handling (no drift for stationary IMU)
+- ✅ Consistent heading definitions (0° = East in ENU, 0° = North in NED)
+- ✅ Support for both ENU and NED coordinate systems
+
+**Default:** ENU (East-North-Up) where:
+- x = East, y = North, z = Up
+- Heading 0° = East, 90° = North
+- Gravity: [0, 0, -9.81] m/s²
+
+```python
+from core.sensors import FrameConvention, strapdown_update
+
+# Explicit frame convention (recommended)
+frame = FrameConvention.create_enu()
+q, v, p = strapdown_update(q, v, p, omega_b, f_b, dt, frame=frame)
+```
+
+**📖 See detailed documentation:** [`docs/ch6_frame_conventions.md`](../docs/ch6_frame_conventions.md)
+
+**✅ Validated:** All conventions are tested in `tests/core/test_strapdown_stationary_imu.py` (stationary IMU produces **zero drift**).
+
 ## Quick Start
 
 ```bash
@@ -120,14 +144,14 @@ Scenario: Figure-8 trajectory (100 seconds, 100 Hz IMU)
 
 Configuration:
   IMU Grade:       Consumer (ARW=0.1 deg/sqrt(hr), BI=10 deg/hr)
-  Initial State:   [0, 0, 0] m, [0, 0, 0] rad
-  Trajectory:      50.2 m total distance
+  Frame:           ENU (East-North-Up)
+  Trajectory:      267.9 m total distance
 
 Results (IMU-only, no corrections):
-  Final Position Error:  15.3 m (30.5% of distance)
-  Max Velocity Error:    2.4 m/s
-  Max Attitude Error:    45.2 deg (yaw)
-  Drift Rate:            0.153 m/s (unbounded)
+  Final Position Error:  252.0 m (94.1% of distance)
+  Max Velocity Error:    5.04 m/s
+  Max Attitude Error (Yaw): 359.7 deg
+  Drift Rate:            2.520 m/s (UNBOUNDED!)
 
 Key Insight: IMU drift is UNBOUNDED without corrections!
 ```
@@ -138,6 +162,37 @@ Key Insight: IMU drift is UNBOUNDED without corrections!
 
 *Shows the growing position error over time - IMU alone drifts unboundedly.*
 
+### ZUPT Example (Zero-Velocity Update)
+
+Running `python ch6_dead_reckoning/example_zupt.py` produces:
+
+```
+=== Chapter 6: Zero-Velocity Update (ZUPT) ===
+Scenario: Walking with stops (60 seconds, 61.6m total distance)
+Walking Pattern: 5s walk + 2s stop (repeated)
+Stance time: 26.7% of trajectory
+
+Results:
+  IMU-only RMSE:     110.49 m (179% of distance)
+  IMU + ZUPT RMSE:     9.22 m (15% of distance)
+  
+  Improvement:       91.7% reduction in RMSE
+
+Method: ZUPT-EKF with proper Kalman filter measurement update
+        (Eqs. 6.40-6.43 for Kalman filter + Eq. 6.45 for ZUPT)
+        Detection: Windowed test statistic (Eq. 6.44)
+
+Key Insight: ZUPT-EKF corrects velocity drift during stance phases!
+             Essential for foot-mounted IMU navigation.
+             Achieves >90% error reduction.
+```
+
+**Important Notes:**
+- Uses proper EKF measurement update (not hard-coded v=0)
+- Windowed ZUPT detector (Eq. 6.44) for robust detection
+- State vector includes biases: [q, v, p, b_g, b_a] (16 states total)
+- Covariance properly tracked and updated
+
 ### Comprehensive Comparison
 
 Running `python ch6_dead_reckoning/example_comparison.py` generates:
@@ -147,20 +202,21 @@ Running `python ch6_dead_reckoning/example_comparison.py` generates:
 RESULTS - Performance Comparison
 ===========================================================================
 
-Method                 RMSE [m]  Final [m]    % Dist
+Method                 RMSE [m]  Final [m] Median [m]    90% [m]   % Dist
 ---------------------------------------------------------------------------
-IMU Only               31572.16   70599.33  31572.2%
-IMU + ZUPT                 2.34       1.23     2.3%
-Wheel Odom                24.19      37.92    24.2%
-PDR (Mag)                 20.87       0.00    20.9%
+IMU Only                 722.40    1613.46     408.01    1306.61   722.4%
+IMU + ZUPT                20.78       0.51      19.32      32.64    20.8%
+Wheel Odom                31.86      47.85      22.84      47.85    31.9%
+PDR (Mag)                 20.03       2.91      19.27      31.06    20.0%
 
 KEY INSIGHTS:
   1. IMU-only: UNBOUNDED drift (unusable without corrections)
-  2. IMU+ZUPT: Dramatic improvement (~90-95% error reduction)
-  3. Wheel Odom: BOUNDED drift (~1-5% of distance)
-  4. PDR: BOUNDED, heading-limited (~2-5% of distance)
+  2. IMU+ZUPT: Dramatic improvement (97.1% RMSE reduction: 722.4m -> 20.8m)
+  3. Wheel Odom: BOUNDED drift (~30% of distance)
+  4. PDR: BOUNDED, heading-limited (~20% of distance)
 
 Conclusion: Dead reckoning REQUIRES corrections or fusion!
+           ZUPT-EKF provides >95% error reduction for foot-mounted IMU.
 ```
 
 **Visual Outputs:**
@@ -196,14 +252,49 @@ Accelerometer Noise Parameters:
 
 *Allan deviation plot showing noise sources at different averaging times.*
 
+### Environmental Sensors Example
+
+Running `python ch6_dead_reckoning/example_environment.py` produces:
+
+```
+=== Chapter 6: Environmental Sensors ===
+Scenario: Multi-floor building walk (180 seconds, 3 floors)
+
+Magnetometer Heading:
+  RMSE:             103.2 deg
+  Max error:        180.0 deg
+  Note: Large errors during magnetic disturbances (30-50s, 100-120s)
+
+Barometric Altitude:
+  RMSE:             3.04 m
+  Floor Accuracy:   44.4%
+
+Key Insight: Environmental sensors provide absolute references!
+             Magnetometer bounds heading drift (when clean).
+             Barometer provides floor-level positioning.
+             BUT sensitive to indoor disturbances (steel, weather).
+```
+
+**Notes:**
+- High heading RMSE (103°) reflects severe magnetic disturbances in test scenario
+- In clean environments, magnetometer RMSE is typically 5-10°
+- Barometer provides ~3m accuracy (suitable for floor detection with multi-sensor fusion)
+
 ## Performance Summary
 
-| Method | RMSE | Drift Type | Best For |
-|--------|------|------------|----------|
-| **IMU Only** | >1000% | Unbounded | Never use alone |
-| **IMU + ZUPT** | ~2% | Bounded | Foot-mounted systems |
-| **Wheel Odometry** | ~1-5% | Bounded | Vehicles |
-| **PDR** | ~2-5% | Bounded | Smartphones |
+Based on actual outputs from `example_comparison.py` (100m trajectory, consumer-grade IMU):
+
+| Method | RMSE | Final Error | Drift Type | Best For |
+|--------|------|-------------|------------|----------|
+| **IMU Only** | 722.4 m (722%) | 1613.5 m | Unbounded | Never use alone |
+| **IMU + ZUPT** | 20.8 m (21%) | 0.5 m | Bounded | Foot-mounted systems |
+| **Wheel Odometry** | 31.9 m (32%) | 47.9 m | Bounded | Vehicles |
+| **PDR (Mag)** | 20.0 m (20%) | 2.9 m | Bounded | Smartphones |
+
+**Key Findings:**
+- ZUPT provides **97.1% RMSE reduction** over IMU-only
+- Wheel odometry and PDR both achieve ~20-30% error (bounded drift)
+- All corrections dramatically outperform pure IMU integration
 
 ## File Structure
 

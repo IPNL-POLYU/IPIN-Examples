@@ -11,8 +11,11 @@ providing absolute measurements (heading, altitude) that can reduce drift.
 
 Frame Conventions:
     - B: Body frame (sensor/device frame)
-    - M: Map frame (typically ENU with z = Up)
+    - M: Map frame (ENU or NED, defined by FrameConvention)
     - Magnetic field is measured in body frame, heading computed in horizontal plane
+    - Heading convention must match the frame (0=East for ENU, 0=North for NED)
+
+All functions accept an optional FrameConvention parameter to ensure consistency.
 
 References:
     Chapter 6, Section 6.4: Environmental sensors
@@ -26,6 +29,39 @@ References:
 from typing import Optional
 import numpy as np
 
+# Import FrameConvention for type hints
+from core.sensors.types import FrameConvention
+
+
+def wrap_angle_diff(angle1: float, angle2: float) -> float:
+    """
+    Compute the smallest signed difference between two angles.
+    
+    Returns angle1 - angle2 wrapped to [-π, π].
+    This ensures the result is always the shortest angular distance.
+    
+    Args:
+        angle1: First angle (radians).
+        angle2: Second angle (radians).
+    
+    Returns:
+        Signed difference angle1 - angle2 in range [-π, π].
+        Positive means angle1 is counter-clockwise from angle2.
+    
+    Example:
+        >>> # 350° - 10° should give -20° (not +340°)
+        >>> diff = wrap_angle_diff(np.deg2rad(350), np.deg2rad(10))
+        >>> print(f"{np.rad2deg(diff):.1f}°")  # -20.0°
+        
+        >>> # 10° - 350° should give +20° (not -340°)
+        >>> diff = wrap_angle_diff(np.deg2rad(10), np.deg2rad(350))
+        >>> print(f"{np.rad2deg(diff):.1f}°")  # 20.0°
+    """
+    diff = angle1 - angle2
+    # Wrap to [-π, π] using atan2 trick
+    wrapped_diff = np.arctan2(np.sin(diff), np.cos(diff))
+    return wrapped_diff
+
 
 def mag_tilt_compensate(
     mag_b: np.ndarray,
@@ -36,12 +72,16 @@ def mag_tilt_compensate(
     Apply tilt compensation to magnetometer measurement.
 
     Implements Eq. (6.52) in Chapter 6:
-        mag_h = R_y(-pitch) @ R_x(-roll) @ mag_b
-
-    where:
-        mag_b: magnetic field in body frame [μT]
-        roll, pitch: attitude angles [radians]
-        mag_h: magnetic field projected to horizontal plane [μT]
+        M_x = m̃_x cos(θ) + m̃_z sin(θ)
+        M_y = m̃_y cos(ϕ) + m̃_x sin(θ)sin(ϕ) - m̃_z cos(θ)sin(ϕ)
+    
+    where θ = pitch, ϕ = roll, and [m̃_x, m̃_y, m̃_z] = mag_b.
+    
+    In matrix form: mag_h = R_x(-roll) @ R_y(-pitch) @ mag_b
+    
+    Note the rotation order: pitch rotation FIRST (applied closest to mag_b),
+    then roll rotation. This ensures M_y contains pitch-dependent terms as
+    shown in Eq. (6.52).
 
     Tilt compensation rotates the magnetic field vector from the tilted
     body frame to the horizontal plane, removing the effect of device
@@ -52,22 +92,22 @@ def mag_tilt_compensate(
         mag_b: Magnetic field vector in body frame B.
                Shape: (3,). Units: μT (microtesla) or normalized.
                Components: [mx, my, mz] measured by magnetometer.
-        roll: Roll angle (rotation about x-axis).
+        roll: Roll angle ϕ (rotation about x-axis).
               Units: radians. Positive = right wing down.
               Typically from IMU attitude estimation.
-        pitch: Pitch angle (rotation about y-axis).
+        pitch: Pitch angle θ (rotation about y-axis).
                Units: radians. Positive = nose up.
                Typically from IMU attitude estimation.
 
     Returns:
-        Tilt-compensated magnetic field in horizontal plane.
+        Tilt-compensated magnetic field in horizontal plane [M_x, M_y, M_z].
         Shape: (3,). Units match input (μT or normalized).
         The z-component (vertical) should be small after compensation.
 
     Notes:
         - Requires accurate roll and pitch from IMU.
         - Yaw (heading) is what we're solving for, so it's not an input.
-        - Rotation order: roll first, then pitch (R_y(-pitch) @ R_x(-roll)).
+        - Rotation order: R_x @ R_y (pitch first, then roll).
         - Sign convention: negative angles undo the body tilt.
         - Indoor magnetic disturbances (steel, electronics) can corrupt results.
 
@@ -104,8 +144,10 @@ def mag_tilt_compensate(
     s_pitch = np.sin(-pitch)
     R_y = np.array([[c_pitch, 0, s_pitch], [0, 1, 0], [-s_pitch, 0, c_pitch]])
 
-    # Tilt compensation (Eq. 6.52): mag_h = R_y @ R_x @ mag_b
-    mag_compensated = R_y @ R_x @ mag_b
+    # Tilt compensation (Eq. 6.52): mag_h = R_x @ R_y @ mag_b
+    # Rotation order: pitch first (R_y), then roll (R_x)
+    # This ensures M_y contains pitch-dependent terms as in Eq. 6.52
+    mag_compensated = R_x @ R_y @ mag_b
 
     return mag_compensated
 
@@ -115,6 +157,7 @@ def mag_heading(
     roll: float,
     pitch: float,
     declination: float = 0.0,
+    frame: Optional[FrameConvention] = None,
 ) -> float:
     """
     Compute heading (yaw) from magnetometer with tilt compensation.
@@ -143,43 +186,60 @@ def mag_heading(
         declination: Magnetic declination (magnetic north → true north offset).
                      Units: radians. Default: 0.0 (assume magnetic = true north).
                      Varies by location: -25° to +25° (≈ ±0.44 rad) globally.
+        frame: Frame convention defining heading zero direction.
+               Default: None (creates ENU: 0 = East).
+               For ENU: 0 = East, π/2 = North
+               For NED: 0 = North, π/2 = East
 
     Returns:
         Heading ψ (yaw angle) in horizontal plane.
         Units: radians. Range: [-π, π].
-        Convention: 0 = North, π/2 = East (ENU), or depends on frame.
+        Convention determined by frame:
+            ENU: 0 = East, π/2 = North (default)
+            NED: 0 = North, π/2 = East
 
     Notes:
         - Indoor magnetic disturbances (steel, electronics) can corrupt heading.
         - Should be fused with gyro (complementary filter) for stability.
         - Declination varies by location; use IGRF model or local lookup.
         - Requires accurate roll/pitch from IMU (attitude estimation).
-        - Sign conventions depend on sensor frame and map frame choice.
+        - Heading convention MUST match frame used in strapdown/PDR.
 
     Example:
         >>> import numpy as np
+        >>> from core.sensors import FrameConvention
         >>> # Magnetic field pointing north (horizontal) in level device
         >>> mag = np.array([20.0, 0.0, -40.0])  # north + downward (typical)
         >>> roll = 0.0
         >>> pitch = 0.0
-        >>> heading = mag_heading(mag, roll, pitch)
-        >>> print(f"Heading: {np.rad2deg(heading):.1f}°")  # Should be near 0° (north)
+        >>> frame_enu = FrameConvention.create_enu()
+        >>> heading = mag_heading(mag, roll, pitch, frame=frame_enu)
+        >>> print(f"Heading: {np.rad2deg(heading):.1f}°")
 
     Related Equations:
         - Eq. (6.51): Magnetometer heading definition (with declination)
         - Eq. (6.52): Tilt compensation (see mag_tilt_compensate)
         - Eq. (6.53): Heading computation (THIS FUNCTION)
+        - Eq. (6.50): PDR update (heading convention must match)
     """
     if mag_b.shape != (3,):
         raise ValueError(f"mag_b must have shape (3,), got {mag_b.shape}")
+
+    if frame is None:
+        frame = FrameConvention.create_enu()
 
     # Step 1: Tilt compensation (Eq. 6.52)
     mag_h = mag_tilt_compensate(mag_b, roll, pitch)
 
     # Step 2: Heading from horizontal components (Eq. 6.53)
-    # Heading: ψ = atan2(mag_hy, mag_hx)
-    # Convention: depends on sensor/map frame alignment
-    # Typical: atan2(y, x) gives angle from x-axis (east) counter-clockwise
+    # The interpretation depends on the frame convention:
+    # For ENU: x=East, y=North → heading 0 = East, increases toward North
+    # For NED: x=North, y=East → heading 0 = North, increases toward East
+    #
+    # In both cases, atan2(y, x) gives the angle from +x axis,
+    # which matches the frame convention by design:
+    # - ENU: atan2(mag_N, mag_E) → 0 when pointing East (+x)
+    # - NED: atan2(mag_E, mag_N) → 0 when pointing North (+x)
     psi = np.arctan2(mag_h[1], mag_h[0])
 
     # Step 3: Apply magnetic declination correction (Eq. 6.51)

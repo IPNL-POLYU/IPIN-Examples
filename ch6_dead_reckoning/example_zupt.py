@@ -13,7 +13,7 @@ Key Insight: ZUPT eliminates velocity drift during stops, preventing
             unbounded position drift. Essential for foot-mounted IMU!
 
 Author: Li-Ta Hsu
-Date: December 2024
+Date: December 2025
 """
 
 import time
@@ -22,25 +22,38 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 from core.sensors import (
+    FrameConvention,
+    IMUNoiseParams,
     strapdown_update,
-    detect_zupt,
+    detect_zupt_windowed,
+    zupt_test_statistic,
     NavStateQPVP,
+    units,
 )
+from core.sensors.ins_ekf import ZUPT_EKF, INSState
+from core.sim import generate_imu_from_trajectory
 
 
-def generate_walking_trajectory(duration=60.0, dt=0.01, step_freq=2.0, step_length=0.7):
+def generate_walking_trajectory(
+    duration=60.0, dt=0.01, step_freq=2.0, step_length=0.7, frame=None
+):
     """
     Generate walking trajectory with periodic stops (stance phases).
+    Uses correct IMU forward model.
     
     Args:
         duration: Total duration [s].
         dt: Time step [s].
         step_freq: Steps per second when walking.
         step_length: Length per step [m].
+        frame: Frame convention (default: ENU).
     
     Returns:
-        Tuple of (t, pos_true, vel_true, accel_true, gyro_true, stance_mask).
+        Tuple of (t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask).
     """
+    if frame is None:
+        frame = FrameConvention.create_enu()
+    
     t = np.arange(0, duration, dt)
     N = len(t)
     
@@ -50,65 +63,90 @@ def generate_walking_trajectory(duration=60.0, dt=0.01, step_freq=2.0, step_leng
     
     pos_true = np.zeros((N, 3))
     vel_true = np.zeros((N, 3))
-    accel_true = np.zeros((N, 3))
-    gyro_true = np.zeros((N, 3))
     stance_mask = np.zeros(N, dtype=bool)
     
     current_pos = np.array([0.0, 0.0, 0.0])
-    current_heading = 0.0  # Forward (north)
+    current_heading = 0.0  # Forward (ENU: 0=East)
     
     for k in range(N):
         t_cycle = t[k] % cycle_duration
         
         if t_cycle < 5.0:  # Walking phase
-            # Walking velocity
+            # Walking velocity (horizontal)
             v_forward = step_length * step_freq
-            vel_true[k] = v_forward * np.array([np.cos(current_heading), np.sin(current_heading), 0.0])
+            vel_true[k, 0] = v_forward * np.cos(current_heading)
+            vel_true[k, 1] = v_forward * np.sin(current_heading)
             
-            # Vertical oscillation (simulates gait)
-            phase = 2 * np.pi * step_freq * t[k]
-            accel_z = 2.0 * np.sin(phase)  # Vertical acceleration
-            accel_true[k] = np.array([0.0, 0.0, accel_z])
+            # No vertical motion (z velocity is 0)
+            vel_true[k, 2] = 0.0
             
             stance_mask[k] = False
             
+            # Heading changes slightly (curved path)
+            heading_rate = 0.05  # rad/s (slight turn)
+            current_heading += heading_rate * dt
+            
         else:  # Stance phase (stopped)
             vel_true[k] = np.array([0.0, 0.0, 0.0])
-            accel_true[k] = np.array([0.0, 0.0, 0.0])
             stance_mask[k] = True
         
         # Update position
         if k > 0:
             current_pos += vel_true[k] * dt
         pos_true[k] = current_pos
-        
-        # Heading changes slightly (curved path)
-        if t_cycle < 5.0:
-            heading_rate = 0.05  # rad/s (slight turn)
-            gyro_true[k, 2] = heading_rate
-            current_heading += heading_rate * dt
     
-    return t, pos_true, vel_true, accel_true, gyro_true, stance_mask
+    # Create quaternion trajectory (yaw follows heading, roll/pitch = 0)
+    # Compute yaw from velocity
+    yaw = np.zeros(N)
+    for k in range(N):
+        if np.linalg.norm(vel_true[k, :2]) > 0.01:
+            yaw[k] = np.arctan2(vel_true[k, 1], vel_true[k, 0])
+        elif k > 0:
+            yaw[k] = yaw[k - 1]  # Maintain previous heading during stance
+    
+    # Convert to quaternions (scalar-first, body-to-map)
+    quat_true = np.column_stack([
+        np.cos(yaw / 2),
+        np.zeros(N),
+        np.zeros(N),
+        np.sin(yaw / 2)
+    ])
+    
+    # Generate IMU measurements using correct forward model
+    accel_body, gyro_body = generate_imu_from_trajectory(
+        pos_map=pos_true,
+        vel_map=vel_true,
+        quat_b_to_m=quat_true,
+        dt=dt,
+        frame=frame,
+        g=9.81
+    )
+    
+    return t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask
 
 
-def add_imu_noise(accel_true, gyro_true, dt):
-    """Add realistic foot-mounted IMU noise."""
-    N = len(accel_true)
+def add_imu_noise(accel_body, gyro_body, dt, imu_params: IMUNoiseParams):
+    """Add realistic foot-mounted IMU noise with explicit units."""
+    N = len(accel_body)
     
-    # Consumer-grade foot IMU
-    gyro_bias = np.random.randn(3) * np.deg2rad(10.0)
-    gyro_noise = np.random.randn(N, 3) * np.deg2rad(0.1) * np.sqrt(1/dt)
+    # Biases
+    gyro_bias = np.random.randn(3) * imu_params.gyro_bias_rad_s
+    accel_bias = np.random.randn(3) * imu_params.accel_bias_mps2
     
-    accel_bias = np.random.randn(3) * 0.01  # 10 mg
-    accel_noise = np.random.randn(N, 3) * 0.001 * np.sqrt(1/dt)
+    # White noise
+    gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
     
-    gyro_meas = gyro_true + gyro_bias + gyro_noise
-    accel_meas = accel_true + accel_bias + accel_noise
+    gyro_noise = np.random.randn(N, 3) * gyro_noise_std
+    accel_noise = np.random.randn(N, 3) * accel_noise_std
+    
+    gyro_meas = gyro_body + gyro_bias + gyro_noise
+    accel_meas = accel_body + accel_bias + accel_noise
     
     return accel_meas, gyro_meas
 
 
-def run_imu_only(t, accel_meas, gyro_meas, initial_state):
+def run_imu_only(t, accel_meas, gyro_meas, initial_state, frame):
     """Run pure IMU (no ZUPT)."""
     N = len(t)
     dt = t[1] - t[0]
@@ -121,14 +159,32 @@ def run_imu_only(t, accel_meas, gyro_meas, initial_state):
     pos_est[0], vel_est[0] = p, v
     
     for k in range(1, N):
-        q, v, p = strapdown_update(q, v, p, gyro_meas[k-1], accel_meas[k-1], dt)
+        q, v, p = strapdown_update(q, v, p, gyro_meas[k-1], accel_meas[k-1], dt, frame=frame)
         pos_est[k], vel_est[k] = p, v
     
     return pos_est, vel_est
 
 
-def run_imu_with_zupt(t, accel_meas, gyro_meas, initial_state, delta_omega=0.05, delta_f=0.5):
-    """Run IMU with ZUPT corrections."""
+def run_imu_with_zupt(
+    t, accel_meas, gyro_meas, initial_state, frame, imu_params,
+    window_size=10, gamma=1e6
+):
+    """
+    Run IMU with ZUPT corrections using windowed detector (Eq. 6.44).
+    
+    Args:
+        t: Time array [s].
+        accel_meas: Measured acceleration [m/s²], shape (N, 3).
+        gyro_meas: Measured angular velocity [rad/s], shape (N, 3).
+        initial_state: Initial NavStateQPVP.
+        frame: FrameConvention.
+        imu_params: IMUNoiseParams with noise specifications.
+        window_size: ZUPT detector window size (samples). Default: 10.
+        gamma: ZUPT detection threshold. Default: 1e6.
+    
+    Returns:
+        Tuple of (pos_est, vel_est, zupt_detections).
+    """
     N = len(t)
     dt = t[1] - t[0]
     
@@ -140,12 +196,35 @@ def run_imu_with_zupt(t, accel_meas, gyro_meas, initial_state, delta_omega=0.05,
     
     pos_est[0], vel_est[0] = p, v
     
+    # Compute noise std devs for ZUPT detector (scale by sample rate)
+    # IMU noise parameters are in continuous time, need to scale for discrete time
+    sigma_a = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    sigma_g = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    
     for k in range(1, N):
         # Propagate
-        q, v, p = strapdown_update(q, v, p, gyro_meas[k-1], accel_meas[k-1], dt)
+        q, v, p = strapdown_update(q, v, p, gyro_meas[k-1], accel_meas[k-1], dt, frame=frame)
         
-        # ZUPT detection (Eq. 6.44)
-        is_stationary = detect_zupt(gyro_meas[k], accel_meas[k], delta_omega, delta_f)
+        # ZUPT detection using windowed test statistic (Eq. 6.44)
+        # Build window centered at current sample
+        window_start = max(0, k - window_size // 2)
+        window_end = min(N, k + window_size // 2 + 1)
+        
+        accel_window = accel_meas[window_start:window_end]
+        gyro_window = gyro_meas[window_start:window_end]
+        
+        # Detect ZUPT if window has enough samples
+        if len(accel_window) >= window_size // 2:
+            is_stationary = detect_zupt_windowed(
+                accel_window, gyro_window,
+                sigma_a=sigma_a,
+                sigma_g=sigma_g,
+                gamma=gamma,
+                g=9.81
+            )
+        else:
+            is_stationary = False
+        
         zupt_detections[k] = is_stationary
         
         # Apply ZUPT correction (Eq. 6.45): force velocity to zero
@@ -153,6 +232,84 @@ def run_imu_with_zupt(t, accel_meas, gyro_meas, initial_state, delta_omega=0.05,
             v = np.zeros(3)  # Simple implementation: just zero velocity
         
         pos_est[k], vel_est[k] = p, v
+    
+    return pos_est, vel_est, zupt_detections
+
+
+def run_imu_with_zupt_ekf(
+    t, accel_meas, gyro_meas, initial_state, frame, imu_params,
+    window_size=10, gamma=10.0
+):
+    """
+    Run IMU with ZUPT corrections using EKF (Eqs. 6.40-6.43 + 6.45).
+    
+    This is the proper implementation that uses Kalman filter measurement
+    update instead of hard-coding v=0.
+    
+    Args:
+        t: Time array [s].
+        accel_meas: Measured acceleration [m/s²], shape (N, 3).
+        gyro_meas: Measured angular velocity [rad/s], shape (N, 3).
+        initial_state: Initial NavStateQPVP.
+        frame: FrameConvention.
+        imu_params: IMUNoiseParams with noise specifications.
+        window_size: ZUPT detector window size (samples). Default: 10.
+        gamma: ZUPT detection threshold. Default: 10.0.
+    
+    Returns:
+        Tuple of (pos_est, vel_est, zupt_detections).
+    """
+    N = len(t)
+    dt = t[1] - t[0]
+    
+    # Initialize EKF  (sigma_zupt = 0.001 makes ZUPT measurements highly trusted)
+    ekf = ZUPT_EKF(frame=frame, imu_params=imu_params, sigma_zupt=0.001)
+    state = ekf.initialize(
+        q0=initial_state.q.copy(),
+        v0=initial_state.v.copy(),
+        p0=initial_state.p.copy()
+    )
+    
+    pos_est = np.zeros((N, 3))
+    vel_est = np.zeros((N, 3))
+    zupt_detections = np.zeros(N, dtype=bool)
+    
+    pos_est[0], vel_est[0] = state.p, state.v
+    
+    # Compute noise std devs for ZUPT detector
+    sigma_a = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    sigma_g = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    
+    for k in range(1, N):
+        # EKF Prediction Step
+        state = ekf.predict(state, gyro_meas[k-1], accel_meas[k-1], dt)
+        
+        # ZUPT detection using raw measurements (bias-agnostic detector)
+        window_start = max(0, k - window_size // 2)
+        window_end = min(N, k + window_size // 2 + 1)
+        
+        accel_window = accel_meas[window_start:window_end]
+        gyro_window = gyro_meas[window_start:window_end]
+        
+        # Detect ZUPT if window has enough samples
+        if len(accel_window) >= window_size // 2:
+            is_stationary = detect_zupt_windowed(
+                accel_window, gyro_window,
+                sigma_a=sigma_a,
+                sigma_g=sigma_g,
+                gamma=gamma,
+                g=9.81
+            )
+        else:
+            is_stationary = False
+        
+        zupt_detections[k] = is_stationary
+        
+        # EKF Update Step (Eqs. 6.40-6.43 + 6.45)
+        if is_stationary:
+            state = ekf.update_zupt(state)
+        
+        pos_est[k], vel_est[k] = state.p, state.v
     
     return pos_est, vel_est, zupt_detections
 
@@ -239,6 +396,9 @@ def plot_results(t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
 
 def main():
     """Main execution function."""
+    # Set random seed for reproducibility
+    np.random.seed(42)
+    
     print("\n" + "="*70)
     print("Chapter 6: Zero-Velocity Update (ZUPT) for Foot-Mounted IMU")
     print("="*70)
@@ -250,18 +410,25 @@ def main():
     dt = 0.01  # 100 Hz IMU
     step_freq = 2.0  # steps/second when walking
     step_length = 0.7  # meters per step
+    frame = FrameConvention.create_enu()  # Use ENU frame
+    imu_params = IMUNoiseParams.consumer_grade()  # Consumer-grade IMU
     
     print(f"Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  IMU Rate:        {1/dt:.0f} Hz")
     print(f"  Walking Pattern: 5s walk + 2s stop (repeated)")
     print(f"  Step Rate:       {step_freq} Hz")
-    print(f"  Step Length:     {step_length} m\n")
+    print(f"  Step Length:     {step_length} m")
+    print(f"  Frame:           {frame.map_frame}\n")
     
-    # Generate trajectory
+    # Print IMU specifications
+    print(imu_params.format_specs())
+    print()
+    
+    # Generate trajectory with correct IMU forward model
     print("Generating walking trajectory with stance phases...")
-    t, pos_true, vel_true, accel_true, gyro_true, stance_mask = generate_walking_trajectory(
-        duration, dt, step_freq, step_length
+    t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask = generate_walking_trajectory(
+        duration, dt, step_freq, step_length, frame
     )
     
     total_distance = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
@@ -271,33 +438,34 @@ def main():
     
     # Add IMU noise
     print("\nAdding IMU noise...")
-    accel_meas, gyro_meas = add_imu_noise(accel_true, gyro_true, dt)
+    accel_meas, gyro_meas = add_imu_noise(accel_body, gyro_body, dt, imu_params)
     
-    # Initial state
+    # Initial state (perfect knowledge)
     initial_state = NavStateQPVP(
-        q=np.array([1.0, 0.0, 0.0, 0.0]),
-        v=vel_true[0],
-        p=pos_true[0],
+        q=quat_true[0].copy(),
+        v=vel_true[0].copy(),
+        p=pos_true[0].copy(),
     )
     
     # Run IMU-only (no ZUPT)
     print("\nRunning IMU-only integration (no ZUPT)...")
     start = time.time()
-    pos_imu, vel_imu = run_imu_only(t, accel_meas, gyro_meas, initial_state)
+    pos_imu, vel_imu = run_imu_only(t, accel_meas, gyro_meas, initial_state, frame)
     elapsed_imu = time.time() - start
     print(f"  Computation time: {elapsed_imu:.3f} s")
     
-    # Run IMU with ZUPT
-    print("\nRunning IMU + ZUPT integration...")
+    # Run IMU with ZUPT-EKF (proper Kalman update, Eqs. 6.40-6.43 + 6.45)
+    print("\nRunning IMU + ZUPT-EKF (Kalman filter update)...")
     start = time.time()
-    pos_zupt, vel_zupt, zupt_detections = run_imu_with_zupt(
-        t, accel_meas, gyro_meas, initial_state,
-        delta_omega=0.05, delta_f=0.5
+    pos_zupt, vel_zupt, zupt_detections = run_imu_with_zupt_ekf(
+        t, accel_meas, gyro_meas, initial_state, frame, imu_params,
+        window_size=10, gamma=1000.0  # Much higher threshold for noisy consumer IMU
     )
     elapsed_zupt = time.time() - start
     detection_rate = np.sum(zupt_detections) / len(zupt_detections) * 100
     print(f"  Computation time: {elapsed_zupt:.3f} s")
     print(f"  ZUPT detections:  {detection_rate:.1f}% of samples")
+    print(f"  Method:           EKF measurement update (not hard-coded v=0)")
     
     # Create output directory
     figs_dir = Path(__file__).parent / 'figs'
@@ -334,7 +502,8 @@ def main():
     print(f"Figures saved to: {figs_dir}/")
     print()
     print("="*70)
-    print("KEY INSIGHT: ZUPT eliminates velocity drift during stops!")
+    print("KEY INSIGHT: ZUPT-EKF corrects velocity drift using Kalman updates!")
+    print("             Eqs. 6.40-6.43 (Kalman filter) + Eq. 6.45 (ZUPT measurement)")
     print("             Essential for foot-mounted IMU navigation.")
     print("             Typical improvement: >90% error reduction.")
     print("="*70)

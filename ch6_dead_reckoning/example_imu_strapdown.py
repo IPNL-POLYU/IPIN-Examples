@@ -13,7 +13,7 @@ Implements:
 Key Insight: IMU drift is UNBOUNDED without external corrections!
 
 Author: Li-Ta Hsu
-Date: December 2024
+Date: December 2025
 """
 
 import time
@@ -23,24 +23,34 @@ from pathlib import Path
 
 # Import Chapter 6 sensor algorithms
 from core.sensors import (
+    FrameConvention,
+    IMUNoiseParams,
     strapdown_update,
     correct_gyro,
     correct_accel,
     NavStateQPVP,
+    units,
 )
 
+# Import IMU forward model
+from core.sim import generate_imu_from_trajectory
 
-def generate_figure8_trajectory(duration=100.0, dt=0.01):
+
+def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None):
     """
-    Generate a figure-8 trajectory with stops.
+    Generate a figure-8 trajectory with correct IMU forward model.
     
     Args:
         duration: Total duration [s].
         dt: Time step [s].
+        frame: Frame convention (default: ENU).
     
     Returns:
-        Tuple of (t, pos_true, vel_true, att_true, accel_true, gyro_true).
+        Tuple of (t, pos_true, vel_true, quat_true, accel_body, gyro_body).
     """
+    if frame is None:
+        frame = FrameConvention.create_enu()
+    
     t = np.arange(0, duration, dt)
     N = len(t)
     
@@ -61,75 +71,66 @@ def generate_figure8_trajectory(duration=100.0, dt=0.01):
     vz = np.zeros_like(t)
     vel_true = np.column_stack([vx, vy, vz])
     
-    # Acceleration (derivative)
-    ax = -A * omega**2 * np.sin(omega * t)
-    ay = -4 * B * omega**2 * np.sin(2 * omega * t)
-    az = np.zeros_like(t)
-    accel_true = np.column_stack([ax, ay, az])
-    
     # Attitude (yaw follows velocity direction, roll/pitch = 0)
     yaw = np.arctan2(vy, vx)
-    roll = np.zeros_like(t)
-    pitch = np.zeros_like(t)
-    att_true = np.column_stack([roll, pitch, yaw])
     
-    # Angular velocity (yaw rate)
-    # ω_z = dψ/dt
-    yaw_rate = np.gradient(yaw, dt)
-    gyro_true = np.column_stack([np.zeros_like(t), np.zeros_like(t), yaw_rate])
+    # Convert to quaternions (scalar-first, body-to-map)
+    quat_true = np.column_stack([
+        np.cos(yaw / 2),
+        np.zeros_like(t),
+        np.zeros_like(t),
+        np.sin(yaw / 2)
+    ])
     
-    return t, pos_true, vel_true, att_true, accel_true, gyro_true
+    # Generate IMU measurements using correct forward model
+    accel_body, gyro_body = generate_imu_from_trajectory(
+        pos_map=pos_true,
+        vel_map=vel_true,
+        quat_b_to_m=quat_true,
+        dt=dt,
+        frame=frame,
+        g=9.81
+    )
+    
+    return t, pos_true, vel_true, quat_true, accel_body, gyro_body
 
 
-def add_imu_noise(accel_true, gyro_true, dt, imu_grade='consumer'):
+def add_imu_noise(accel_true, gyro_true, dt, imu_params: IMUNoiseParams):
     """
-    Add realistic IMU noise and biases.
+    Add realistic IMU noise and biases using explicit unit conversions.
     
     Args:
         accel_true: True acceleration [m/s²], shape (N, 3).
         gyro_true: True angular velocity [rad/s], shape (N, 3).
         dt: Time step [s].
-        imu_grade: 'consumer', 'tactical', or 'navigation'.
+        imu_params: IMU noise parameters with explicit units.
     
     Returns:
         Tuple of (accel_meas, gyro_meas, accel_bias, gyro_bias).
     """
     N = len(accel_true)
     
-    # IMU specifications (typical values)
-    specs = {
-        'consumer': {
-            'gyro_bias': np.deg2rad(10.0),  # 10 deg/hr = 0.0029 rad/s
-            'gyro_noise': np.deg2rad(0.1) * np.sqrt(1/dt),  # ARW: 0.1 deg/√hr
-            'accel_bias': 0.01,  # 10 mg = 0.01 m/s²
-            'accel_noise': 0.001 * np.sqrt(1/dt),  # VRW
-        },
-        'tactical': {
-            'gyro_bias': np.deg2rad(1.0),
-            'gyro_noise': np.deg2rad(0.01) * np.sqrt(1/dt),
-            'accel_bias': 0.001,
-            'accel_noise': 0.0001 * np.sqrt(1/dt),
-        },
-    }
-    
-    spec = specs.get(imu_grade, specs['consumer'])
-    
     # Constant biases (slowly varying in reality, but constant for this example)
-    gyro_bias = np.random.randn(3) * spec['gyro_bias']
-    accel_bias = np.random.randn(3) * spec['accel_bias']
+    # Sample from zero-mean Gaussian with std = bias_instability
+    gyro_bias = np.random.randn(3) * imu_params.gyro_bias_rad_s
+    accel_bias = np.random.randn(3) * imu_params.accel_bias_mps2
     
-    # White noise
-    gyro_noise = np.random.randn(N, 3) * spec['gyro_noise']
-    accel_noise = np.random.randn(N, 3) * spec['accel_noise']
+    # White noise (scale with sqrt(1/dt) for discrete-time PSD)
+    # For continuous-time noise with PSD σ², discrete noise std is σ/√dt
+    gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
     
-    # Measured = true + bias + noise
+    gyro_noise = np.random.randn(N, 3) * gyro_noise_std
+    accel_noise = np.random.randn(N, 3) * accel_noise_std
+    
+    # Measured = true + bias + noise (Eq. 6.5, Eq. 6.9)
     gyro_meas = gyro_true + gyro_bias + gyro_noise
     accel_meas = accel_true + accel_bias + accel_noise
     
     return accel_meas, gyro_meas, accel_bias, gyro_bias
 
 
-def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state):
+def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state, frame):
     """
     Run pure IMU strapdown integration (no corrections).
     
@@ -138,6 +139,7 @@ def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state):
         accel_meas: Measured acceleration [m/s²], shape (N, 3).
         gyro_meas: Measured angular velocity [rad/s], shape (N, 3).
         initial_state: Initial NavStateQPVP.
+        frame: Frame convention.
     
     Returns:
         Tuple of (pos_est, vel_est, quat_est).
@@ -172,7 +174,8 @@ def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state):
             p=p,
             omega_b=omega_b,
             f_b=f_b,
-            dt=dt
+            dt=dt,
+            frame=frame
         )
         
         # Store
@@ -205,7 +208,7 @@ def quat_to_euler(q):
     roll = np.arctan2(2*(q0*q1 + q2*q3), 1 - 2*(q1**2 + q2**2))
     
     # Pitch (y-axis rotation)
-    pitch = np.arcsin(2*(q0*q2 - q3*q1))
+    pitch = np.arcsin(np.clip(2*(q0*q2 - q3*q1), -1.0, 1.0))
     
     # Yaw (z-axis rotation)
     yaw = np.arctan2(2*(q0*q3 + q1*q2), 1 - 2*(q2**2 + q3**2))
@@ -217,7 +220,7 @@ def quat_to_euler(q):
     return euler
 
 
-def plot_results(t, pos_true, pos_est, vel_true, vel_est, att_true, quat_est, figs_dir):
+def plot_results(t, pos_true, pos_est, vel_true, vel_est, quat_true, quat_est, figs_dir):
     """
     Generate publication-quality plots.
     
@@ -227,11 +230,12 @@ def plot_results(t, pos_true, pos_est, vel_true, vel_est, att_true, quat_est, fi
         pos_est: Estimated position [m], shape (N, 3).
         vel_true: True velocity [m/s], shape (N, 3).
         vel_est: Estimated velocity [m/s], shape (N, 3).
-        att_true: True attitude [rad], shape (N, 3) as (roll, pitch, yaw).
+        quat_true: True quaternion, shape (N, 4).
         quat_est: Estimated quaternion, shape (N, 4).
         figs_dir: Directory to save figures.
     """
-    # Convert quaternion to Euler
+    # Convert quaternions to Euler
+    att_true = quat_to_euler(quat_true)
     att_est = quat_to_euler(quat_est)
     
     # Compute errors
@@ -315,18 +319,24 @@ def main():
     # Configuration
     duration = 100.0  # seconds
     dt = 0.01  # 100 Hz IMU
-    imu_grade = 'consumer'  # consumer, tactical, or navigation
+    imu_params = IMUNoiseParams.consumer_grade()  # Use consumer-grade IMU
+    frame = FrameConvention.create_enu()  # Use ENU frame
     
     print(f"Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  IMU Rate:        {1/dt:.0f} Hz")
-    print(f"  IMU Grade:       {imu_grade}")
-    print(f"  Trajectory:      Figure-8 pattern\n")
+    print(f"  IMU Grade:       {imu_params.grade}")
+    print(f"  Trajectory:      Figure-8 pattern")
+    print(f"  Frame:           {frame.map_frame}\n")
     
-    # Generate true trajectory
+    # Print IMU specifications with explicit units
+    print(imu_params.format_specs())
+    print()
+    
+    # Generate true trajectory with correct IMU forward model
     print("Generating trajectory...")
-    t, pos_true, vel_true, att_true, accel_true, gyro_true = generate_figure8_trajectory(
-        duration=duration, dt=dt
+    t, pos_true, vel_true, quat_true, accel_body, gyro_body = generate_figure8_trajectory(
+        duration=duration, dt=dt, frame=frame
     )
     
     total_distance = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
@@ -335,23 +345,24 @@ def main():
     # Add IMU noise
     print("\nAdding IMU noise and biases...")
     accel_meas, gyro_meas, accel_bias, gyro_bias = add_imu_noise(
-        accel_true, gyro_true, dt, imu_grade=imu_grade
+        accel_body, gyro_body, dt, imu_params
     )
-    print(f"  Gyro bias:       {np.rad2deg(gyro_bias)} deg/s")
-    print(f"  Accel bias:      {accel_bias*1000} mg")
+    # Print realized bias values (random samples from the bias distribution)
+    print(f"  Gyro bias (realized):  {units.format_gyro_bias(np.linalg.norm(gyro_bias))}")
+    print(f"  Accel bias (realized): {units.format_accel_bias(np.linalg.norm(accel_bias))}")
     
     # Initial state (perfect knowledge)
     initial_state = NavStateQPVP(
-        q=np.array([1.0, 0.0, 0.0, 0.0]),  # identity quaternion
-        v=vel_true[0],
-        p=pos_true[0],
+        q=quat_true[0].copy(),
+        v=vel_true[0].copy(),
+        p=pos_true[0].copy(),
     )
     
     # Run IMU strapdown integration
     print("\nRunning IMU strapdown integration (no corrections)...")
     start_time = time.time()
     pos_est, vel_est, quat_est = run_imu_strapdown(
-        t, accel_meas, gyro_meas, initial_state
+        t, accel_meas, gyro_meas, initial_state, frame
     )
     elapsed = time.time() - start_time
     print(f"  Computation time: {elapsed:.3f} s ({len(t)/elapsed:.0f}x real-time)")
@@ -363,7 +374,7 @@ def main():
     # Generate plots
     print("\nGenerating plots...")
     pos_error, vel_error, att_error = plot_results(
-        t, pos_true, pos_est, vel_true, vel_est, att_true, quat_est, figs_dir
+        t, pos_true, pos_est, vel_true, vel_est, quat_true, quat_est, figs_dir
     )
     
     # Compute metrics

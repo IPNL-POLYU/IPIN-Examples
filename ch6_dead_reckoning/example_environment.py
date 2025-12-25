@@ -25,6 +25,7 @@ from pathlib import Path
 from core.sensors import (
     mag_heading,
     mag_tilt_compensate,
+    wrap_angle_diff,
     pressure_to_altitude,
     detect_floor_change,
     smooth_measurement_simple,
@@ -173,8 +174,11 @@ def plot_results(t, att_true, mag_meas, heading_est, pressure_meas, alt_est,
     ax1.legend(fontsize=11)
     ax1.grid(True, alpha=0.3)
     
-    heading_error = np.abs(np.rad2deg(heading_est - heading_true))
-    heading_error = np.minimum(heading_error, 360 - heading_error)  # Wrap
+    # Compute heading error with proper angle wrapping
+    heading_error_rad = np.array([wrap_angle_diff(heading_est[i], heading_true[i]) 
+                                   for i in range(len(heading_est))])
+    heading_error = np.abs(np.rad2deg(heading_error_rad))  # Absolute error in degrees
+    # Note: By using wrap_angle_diff, heading_error is guaranteed to be <= 180°
     ax2.plot(t, heading_error, 'r-', linewidth=2)
     ax2.axhline(10, color='orange', linestyle='--', label='10° threshold')
     ax2.fill_between(t, 0, 100, where=(t>=30) & (t<50), alpha=0.2, color='red', label='Disturbance zone')
