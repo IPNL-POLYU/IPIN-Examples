@@ -214,3 +214,4 @@ x = np.concatenate([p, v_map, q])  # ✅ Correct order
 
 **Status:** ✅ **COMPLETE** - Prompt 7 acceptance criteria met, plus bonus fixes for Prompt 1 test failures!
 
+

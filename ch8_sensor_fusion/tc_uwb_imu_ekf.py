@@ -11,7 +11,7 @@ Features:
 - Comparison with IMU-only dead reckoning
 
 Author: Li-Ta Hsu
-References: Chapter 8, Section 8.2 (Tightly Coupled Fusion)
+References: Chapter 8, Section 8.1.2 (Tightly Coupled)
 """
 
 import argparse
@@ -24,10 +24,13 @@ import numpy as np
 
 from core.eval import compute_position_errors, compute_rmse
 from core.fusion import (
+    AdaptiveGatingManager,
     StampedMeasurement,
     chi_square_gate,
+    create_adaptive_manager_for_tc,
     innovation,
     innovation_covariance,
+    mahalanobis_distance_squared,
 )
 
 from ch8_sensor_fusion.tc_models import (
@@ -88,7 +91,8 @@ def load_fusion_dataset(data_dir: str) -> Dict:
 def run_tc_fusion(
     dataset: Dict,
     use_gating: bool = True,
-    gate_alpha: float = 0.05,
+    gate_confidence: float = 0.95,
+    batch_update: bool = False,
     verbose: bool = True
 ) -> Dict:
     """Run tightly coupled IMU + UWB fusion.
@@ -96,7 +100,9 @@ def run_tc_fusion(
     Args:
         dataset: Dataset dictionary from load_fusion_dataset
         use_gating: Whether to apply chi-square gating
-        gate_alpha: Gating significance level (default 0.05 for 95% confidence)
+        gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
+        batch_update: If True, batch all UWB ranges at same timestamp (book's "m+n" mode);
+                      If False, sequential per-anchor updates (baseline)
         verbose: Print progress
     
     Returns:
@@ -131,7 +137,9 @@ def run_tc_fusion(
         truth['yaw'][0]        # yaw
     ])
     
-    P0 = np.diag([0.1, 0.1, 0.5, 0.5, 0.1])**2  # Initial uncertainty
+    # Increase initial uncertainty to be more conservative (per book guidance on P0)
+    # This prevents overconfidence in early stages before sufficient observations
+    P0 = np.diag([1.0, 1.0, 1.0, 1.0, 0.5])**2  # Larger initial uncertainty
     
     ekf = create_tc_fusion_ekf(
         initial_state=x0,
@@ -143,7 +151,7 @@ def run_tc_fusion(
         print(f"  State: {x0}")
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
         if use_gating:
-            print(f"  Alpha: {gate_alpha} ({(1-gate_alpha)*100:.0f}% confidence)")
+            print(f"  Confidence: {gate_confidence} ({gate_confidence*100:.0f}% confidence)")
     
     # Create measurement model functions for each anchor
     meas_models = [
@@ -167,18 +175,34 @@ def run_tc_fusion(
             meta={}
         ))
     
-    # Add UWB measurements (per anchor)
-    for i in range(len(uwb['t'])):
-        for anchor_idx in range(anchors.shape[0]):
-            range_meas = uwb['ranges'][i, anchor_idx]
-            if not np.isnan(range_meas):  # Skip dropouts
+    # Add UWB measurements
+    if batch_update:
+        # Batch mode: group all ranges at each timestamp together
+        for i in range(len(uwb['t'])):
+            ranges_at_epoch = uwb['ranges'][i, :]
+            valid_mask = ~np.isnan(ranges_at_epoch)
+            
+            if np.any(valid_mask):  # At least one valid range
                 measurements.append(StampedMeasurement(
                     t=uwb['t'][i],
-                    sensor='uwb',
-                    z=np.array([range_meas]),
-                    R=np.array([[config['uwb']['range_noise_std_m']**2]]),
-                    meta={'anchor_idx': anchor_idx}
+                    sensor='uwb_batch',
+                    z=ranges_at_epoch[valid_mask],  # Only valid ranges
+                    R=np.eye(np.sum(valid_mask)) * config['uwb']['range_noise_std_m']**2,
+                    meta={'valid_anchors': np.where(valid_mask)[0]}  # Indices of valid anchors
                 ))
+    else:
+        # Sequential mode: one measurement per anchor (baseline)
+        for i in range(len(uwb['t'])):
+            for anchor_idx in range(anchors.shape[0]):
+                range_meas = uwb['ranges'][i, anchor_idx]
+                if not np.isnan(range_meas):  # Skip dropouts
+                    measurements.append(StampedMeasurement(
+                        t=uwb['t'][i],
+                        sensor='uwb',
+                        z=np.array([range_meas]),
+                        R=np.array([[config['uwb']['range_noise_std_m']**2]]),
+                        meta={'anchor_idx': anchor_idx}
+                    ))
     
     # Sort by timestamp
     measurements.sort(key=lambda m: m.t)
@@ -186,8 +210,25 @@ def run_tc_fusion(
     if verbose:
         print(f"\nMeasurements:")
         print(f"  IMU samples: {len(imu['t'])}")
-        print(f"  UWB samples: {len([m for m in measurements if m.sensor == 'uwb'])}")
+        if batch_update:
+            print(f"  UWB epochs: {len([m for m in measurements if m.sensor == 'uwb_batch'])}")
+            print(f"  Update mode: Batch (all ranges at once)")
+        else:
+            print(f"  UWB samples: {len([m for m in measurements if m.sensor == 'uwb'])}")
+            print(f"  Update mode: Sequential (per-anchor)")
         print(f"  Total: {len(measurements)}")
+    
+    # Create adaptive gating manager (if gating enabled)
+    adaptive_mgr = None
+    if use_gating:
+        adaptive_mgr = create_adaptive_manager_for_tc(
+            n_anchors=anchors.shape[0],
+            consecutive_reject_limit=3,  # Lower limit for faster adaptation
+            nis_window_size=20,
+            nis_scale_threshold=2.0,  # More tolerant threshold (allow 2x NIS before scaling)
+            P_inflation_factor=2.0,  # Larger inflation for faster recovery
+            R_scale_factor=1.5,  # Larger R scaling steps
+        )
     
     # Run fusion
     history = {
@@ -196,7 +237,8 @@ def run_tc_fusion(
         'P_trace': [],
         'innovations': [],
         'nis': [],
-        'gated': []
+        'gated': [],
+        'R_scales': [],
     }
     
     n_uwb_accepted = 0
@@ -222,13 +264,35 @@ def run_tc_fusion(
             
             # Compute innovation covariance
             H = H_func(ekf.state)
-            R = R_func()
+            R_base = R_func()
+            
+            # Apply adaptive R scaling if using adaptive gating
+            if adaptive_mgr is not None:
+                R_scale = adaptive_mgr.get_R_scale()
+                R = R_scale * R_base
+            else:
+                R = R_base
+                R_scale = 1.0
+            
             S = innovation_covariance(H, ekf.covariance, R)
             
-            # Gating
+            # Compute NIS for monitoring
+            nis_value = mahalanobis_distance_squared(y, S)
+            
+            # Gating with adaptive management
             accept = True
             if use_gating:
-                accept = chi_square_gate(y, S, alpha=gate_alpha)
+                # First check with chi-square gate
+                gate_accept = chi_square_gate(y, S, confidence=gate_confidence)
+                
+                # Update adaptive manager (may override decision or request action)
+                accept, action = adaptive_mgr.update(nis_value, gate_accept)
+                
+                # Handle adaptive actions
+                if action == 'inflate_P':
+                    # Apply covariance inflation to prevent filter starvation
+                    ekf.covariance = adaptive_mgr.inflate_covariance(ekf.covariance)
+                # 'scale_R' action is handled automatically via get_R_scale()
             
             if accept:
                 # Manually perform EKF update
@@ -241,9 +305,80 @@ def run_tc_fusion(
             
             # Log
             history['innovations'].append(y[0])
-            nis_value = float(y @ np.linalg.inv(S) @ y)
             history['nis'].append(nis_value)
             history['gated'].append(accept)
+            history['R_scales'].append(R_scale)
+        
+        elif meas.sensor == 'uwb_batch':
+            # Batch UWB range update (all ranges at this timestamp)
+            valid_anchor_indices = meas.meta['valid_anchors']
+            n_ranges = len(valid_anchor_indices)
+            
+            # Build combined measurement vector and model
+            z_batch = meas.z  # Already contains only valid ranges
+            z_pred_batch = np.zeros(n_ranges)
+            H_batch = np.zeros((n_ranges, 5))
+            
+            for i, anchor_idx in enumerate(valid_anchor_indices):
+                h, H_func, R_func = meas_models[anchor_idx]
+                z_pred_batch[i] = h(ekf.state)[0]  # Predicted range
+                H_batch[i, :] = H_func(ekf.state)[0, :]  # Jacobian row
+            
+            # Compute innovation (full measurement vector)
+            y_batch = innovation(z_batch, z_pred_batch)
+            
+            # Compute innovation covariance
+            R_base_batch = meas.R  # Already diagonal for independent ranges
+            
+            # Apply adaptive R scaling if using adaptive gating
+            if adaptive_mgr is not None:
+                R_scale = adaptive_mgr.get_R_scale()
+                R_batch = R_scale * R_base_batch
+            else:
+                R_batch = R_base_batch
+                R_scale = 1.0
+            
+            S_batch = innovation_covariance(H_batch, ekf.covariance, R_batch)
+            
+            # Compute NIS for monitoring (DOF = n_ranges)
+            nis_value = mahalanobis_distance_squared(y_batch, S_batch)
+            
+            # Gating with adaptive management
+            accept = True
+            if use_gating:
+                # Chi-square gate with DOF = n_ranges
+                gate_accept = chi_square_gate(y_batch, S_batch, confidence=gate_confidence)
+                
+                # Update adaptive manager
+                # Note: For batch mode, we need to create a temporary manager with correct DOF
+                # or modify the existing one. For simplicity, we'll use the same manager
+                # but the NIS interpretation will be different (higher expected value)
+                if adaptive_mgr is not None:
+                    # Normalize NIS by expected value for fair comparison
+                    # Expected NIS for batch = n_ranges (DOF)
+                    # Expected NIS for sequential = 1 (single range)
+                    # Scale NIS to "per-range" equivalent for adaptive manager
+                    nis_normalized = nis_value / n_ranges
+                    accept, action = adaptive_mgr.update(nis_normalized, gate_accept)
+                    
+                    # Handle adaptive actions
+                    if action == 'inflate_P':
+                        ekf.covariance = adaptive_mgr.inflate_covariance(ekf.covariance)
+            
+            if accept:
+                # Manually perform batch EKF update
+                K_batch = ekf.covariance @ H_batch.T @ np.linalg.inv(S_batch)
+                ekf.state = ekf.state + (K_batch @ y_batch).flatten()
+                ekf.covariance = (np.eye(5) - K_batch @ H_batch) @ ekf.covariance
+                n_uwb_accepted += 1
+            else:
+                n_uwb_rejected += 1
+            
+            # Log (use norm of innovation vector for history)
+            history['innovations'].append(np.linalg.norm(y_batch))
+            history['nis'].append(nis_value)
+            history['gated'].append(accept)
+            history['R_scales'].append(R_scale)
         
         # Record state
         history['t'].append(meas.t)
@@ -265,6 +400,14 @@ def run_tc_fusion(
         print(f"  UWB rejected: {n_uwb_rejected}")
         if n_uwb_accepted + n_uwb_rejected > 0:
             print(f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%")
+        
+        # Print adaptive gating stats if enabled
+        if adaptive_mgr is not None:
+            stats = adaptive_mgr.get_stats()
+            print(f"\nAdaptive Gating Stats:")
+            print(f"  Mean NIS: {stats['mean_nis']:.2f} (expected: {stats['expected_nis']:.0f})")
+            print(f"  Final R scale: {stats['current_R_scale']:.2f}x")
+            print(f"  Covariance inflations: {stats['total_adaptations']}")
     
     return history
 
@@ -356,8 +499,8 @@ def plot_results(dataset: Dict, history: Dict, save_path: str = None) -> None:
         
         # Chi-square bounds for m=1 DOF
         from core.fusion import chi_square_bounds
-        lower, upper = chi_square_bounds(dof=1, alpha=0.05)
-        ax.axhline(upper, color='r', linestyle='--', label=f'95% bounds')
+        lower, upper = chi_square_bounds(dof=1, confidence=0.95)
+        ax.axhline(upper, color='r', linestyle='--', label='95% bounds')
         ax.axhline(lower, color='r', linestyle='--')
         
         ax.set_xlabel('UWB Update Index')
@@ -400,10 +543,15 @@ def main():
         help="Disable chi-square gating"
     )
     parser.add_argument(
-        "--alpha",
+        "--confidence",
         type=float,
-        default=0.05,
-        help="Gating significance level (default: 0.05)"
+        default=0.95,
+        help="Gating confidence level (default: 0.95 for 95%% confidence)"
+    )
+    parser.add_argument(
+        "--batch-update",
+        action="store_true",
+        help="Use batch update mode (all ranges at same timestamp together)"
     )
     parser.add_argument(
         "--save",
@@ -422,7 +570,8 @@ def main():
     history = run_tc_fusion(
         dataset,
         use_gating=not args.no_gating,
-        gate_alpha=args.alpha,
+        gate_confidence=args.confidence,
+        batch_update=args.batch_update,
         verbose=True
     )
     

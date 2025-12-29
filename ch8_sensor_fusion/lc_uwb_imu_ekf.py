@@ -15,7 +15,7 @@ Features:
 - Innovation monitoring (Eqs. 8.5-8.6)
 
 Author: Li-Ta Hsu
-References: Chapter 8, Section 8.2 (Loosely vs Tightly Coupled Fusion)
+References: Chapter 8, Section 8.1.1 (Loosely Coupled)
 """
 
 import argparse
@@ -28,10 +28,13 @@ import numpy as np
 
 from core.eval import compute_position_errors, compute_rmse
 from core.fusion import (
+    AdaptiveGatingManager,
     StampedMeasurement,
     chi_square_gate,
+    create_adaptive_manager_for_lc,
     innovation,
     innovation_covariance,
+    mahalanobis_distance_squared,
 )
 
 from ch8_sensor_fusion.lc_models import (
@@ -50,7 +53,7 @@ def load_fusion_dataset(data_dir: str) -> Dict:
 def run_lc_fusion(
     dataset: Dict,
     use_gating: bool = True,
-    gate_alpha: float = 0.05,
+    gate_confidence: float = 0.95,
     verbose: bool = True
 ) -> Dict:
     """Run loosely coupled IMU + UWB fusion.
@@ -58,7 +61,7 @@ def run_lc_fusion(
     Args:
         dataset: Dataset dictionary from load_fusion_dataset
         use_gating: Whether to apply chi-square gating
-        gate_alpha: Gating significance level (default 0.05)
+        gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
         verbose: Print progress
     
     Returns:
@@ -94,7 +97,9 @@ def run_lc_fusion(
         truth['yaw'][0]        # yaw
     ])
     
-    P0 = np.diag([0.1, 0.1, 0.5, 0.5, 0.1])**2  # Initial uncertainty
+    # Increase initial uncertainty to be more conservative (per book guidance on P0)
+    # This prevents overconfidence in early stages before sufficient observations
+    P0 = np.diag([1.0, 1.0, 1.0, 1.0, 0.5])**2  # Larger initial uncertainty
     
     ekf = create_lc_fusion_ekf(
         initial_state=x0,
@@ -106,7 +111,7 @@ def run_lc_fusion(
         print(f"  State: {x0}")
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
         if use_gating:
-            print(f"  Alpha: {gate_alpha} ({(1-gate_alpha)*100:.0f}% confidence)")
+            print(f"  Confidence: {gate_confidence} ({gate_confidence*100:.0f}% confidence)")
     
     # Create position measurement model
     h, H_func, R_func = create_lc_position_measurement_model()
@@ -143,6 +148,17 @@ def run_lc_fusion(
         print(f"  UWB epochs: {len([m for m in measurements if m.sensor == 'uwb'])}")
         print(f"  Total: {len(measurements)}")
     
+    # Create adaptive gating manager (if gating enabled)
+    adaptive_mgr = None
+    if use_gating:
+        adaptive_mgr = create_adaptive_manager_for_lc(
+            consecutive_reject_limit=3,  # Lower limit for faster adaptation
+            nis_window_size=20,
+            nis_scale_threshold=2.0,  # More tolerant threshold (allow 2x NIS before scaling)
+            P_inflation_factor=2.0,  # Larger inflation for faster recovery
+            R_scale_factor=1.5,  # Larger R scaling steps
+        )
+    
     # Run fusion
     history = {
         't': [],
@@ -152,6 +168,7 @@ def run_lc_fusion(
         'nis': [],
         'gated': [],
         'uwb_positions': [],  # Store solved UWB positions for analysis
+        'R_scales': [],
     }
     
     n_uwb_accepted = 0
@@ -177,7 +194,9 @@ def run_lc_fusion(
             pos_uwb, cov_uwb, converged = solve_uwb_position_wls(
                 ranges=ranges,
                 anchor_positions=anchors,
-                initial_guess=initial_guess
+                initial_guess=initial_guess,
+                range_noise_std=0.1,  # Slightly conservative estimate
+                cov_floor_std=0.5,  # Conservative floor to account for unmodeled errors
             )
             
             if pos_uwb is None or not converged:
@@ -195,13 +214,35 @@ def run_lc_fusion(
             # Compute innovation covariance
             # Use WLS covariance + state covariance
             H = H_func(ekf.state)
-            R = cov_uwb  # Use WLS-computed covariance
+            R_base = cov_uwb  # Use WLS-computed covariance
+            
+            # Apply adaptive R scaling if using adaptive gating
+            if adaptive_mgr is not None:
+                R_scale = adaptive_mgr.get_R_scale()
+                R = R_scale * R_base
+            else:
+                R = R_base
+                R_scale = 1.0
+            
             S = innovation_covariance(H, ekf.covariance, R)
             
-            # Gating
+            # Compute NIS for monitoring
+            nis_value = mahalanobis_distance_squared(y, S)
+            
+            # Gating with adaptive management
             accept = True
             if use_gating:
-                accept = chi_square_gate(y, S, alpha=gate_alpha)
+                # First check with chi-square gate
+                gate_accept = chi_square_gate(y, S, confidence=gate_confidence)
+                
+                # Update adaptive manager (may override decision or request action)
+                accept, action = adaptive_mgr.update(nis_value, gate_accept)
+                
+                # Handle adaptive actions
+                if action == 'inflate_P':
+                    # Apply covariance inflation to prevent filter starvation
+                    ekf.covariance = adaptive_mgr.inflate_covariance(ekf.covariance)
+                # 'scale_R' action is handled automatically via get_R_scale()
             
             if accept:
                 # Perform EKF update with position fix
@@ -214,9 +255,9 @@ def run_lc_fusion(
             
             # Log
             history['innovations'].append(np.linalg.norm(y))  # 2D innovation norm
-            nis_value = float(y @ np.linalg.inv(S) @ y)
             history['nis'].append(nis_value)
             history['gated'].append(accept)
+            history['R_scales'].append(R_scale)
         
         # Record state
         history['t'].append(meas.t)
@@ -243,6 +284,14 @@ def run_lc_fusion(
         print(f"  UWB solver failures: {n_uwb_failed}")
         if n_uwb_accepted + n_uwb_rejected > 0:
             print(f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%")
+        
+        # Print adaptive gating stats if enabled
+        if adaptive_mgr is not None:
+            stats = adaptive_mgr.get_stats()
+            print(f"\nAdaptive Gating Stats:")
+            print(f"  Mean NIS: {stats['mean_nis']:.2f} (expected: {stats['expected_nis']:.0f})")
+            print(f"  Final R scale: {stats['current_R_scale']:.2f}x")
+            print(f"  Covariance inflations: {stats['total_adaptations']}")
     
     return history
 
@@ -328,8 +377,8 @@ def plot_results(dataset: Dict, history: Dict, save_path: str = None) -> None:
         
         # Chi-square bounds for m=2 DOF (position is 2D)
         from core.fusion import chi_square_bounds
-        lower, upper = chi_square_bounds(dof=2, alpha=0.05)
-        ax.axhline(upper, color='r', linestyle='--', label=f'95% bounds')
+        lower, upper = chi_square_bounds(dof=2, confidence=0.95)
+        ax.axhline(upper, color='r', linestyle='--', label='95% bounds')
         ax.axhline(lower, color='r', linestyle='--')
         
         ax.set_xlabel('UWB Update Index')
@@ -372,10 +421,10 @@ def main():
         help="Disable chi-square gating"
     )
     parser.add_argument(
-        "--alpha",
+        "--confidence",
         type=float,
-        default=0.05,
-        help="Gating significance level (default: 0.05)"
+        default=0.95,
+        help="Gating confidence level (default: 0.95 for 95%% confidence)"
     )
     parser.add_argument(
         "--save",
@@ -394,7 +443,7 @@ def main():
     history = run_lc_fusion(
         dataset,
         use_gating=not args.no_gating,
-        gate_alpha=args.alpha,
+        gate_confidence=args.confidence,
         verbose=True
     )
     

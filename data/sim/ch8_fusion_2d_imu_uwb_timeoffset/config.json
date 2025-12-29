@@ -28,13 +28,13 @@
     "n_anchors": 4,
     "range_noise_std_m": 0.05,
     "nlos_anchors": [],
-    "nlos_bias_m": 0.5,
+    "nlos_bias_m": 0.0,
     "dropout_rate": 0.05
   },
   "temporal_calibration": {
     "time_offset_sec": -0.05,
     "clock_drift": 0.0001,
-    "note": "Use TimeSyncModel to apply these during fusion"
+    "note": "UWB timestamps are in SENSOR time. Use TimeSyncModel.to_fusion_time() to convert to fusion time (truth/IMU time). Formula: t_fusion = (1 + drift) * t_sensor + offset"
   },
   "coordinate_frame": {
     "description": "ENU (East-North-Up)",

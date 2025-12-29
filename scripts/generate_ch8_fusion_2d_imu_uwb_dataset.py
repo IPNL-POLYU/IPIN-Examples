@@ -222,11 +222,23 @@ def generate_uwb_measurements(
     nlos_anchors: list = None,
     nlos_bias: float = 0.5,
     dropout_rate: float = 0.05,
+    time_offset_sec: float = 0.0,
+    clock_drift: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    """Generate synthetic UWB range measurements.
+    """Generate synthetic UWB range measurements with temporal calibration.
+    
+    Time Model (matches TimeSyncModel from core/fusion/types.py):
+        - Fusion time (truth/IMU): t_fusion
+        - UWB sensor time: t_uwb_sensor = (t_fusion - offset) / (1 + drift)
+    
+    Where:
+        - offset < 0: UWB sensor clock is behind fusion time (typical case)
+        - offset > 0: UWB sensor clock is ahead of fusion time
+        - drift > 0: UWB clock runs faster than fusion clock
+        - drift < 0: UWB clock runs slower than fusion clock
     
     Args:
-        t: Ground truth timestamps (N,)
+        t: Ground truth timestamps in FUSION time (N,)
         p_xy: Ground truth positions (N, 2)
         anchor_positions: Anchor positions (A, 2)
         uwb_rate: UWB measurement rate (Hz)
@@ -234,47 +246,55 @@ def generate_uwb_measurements(
         nlos_anchors: List of anchor indices with NLOS bias (default: [])
         nlos_bias: NLOS bias added to ranges (meters)
         dropout_rate: Probability of measurement dropout per anchor
+        time_offset_sec: Time offset in seconds (negative = UWB behind)
+        clock_drift: Relative clock drift (e.g., 0.0001 = 100 ppm)
     
     Returns:
-        Tuple of (t_uwb, ranges):
-            t_uwb: UWB timestamps (M,)
+        Tuple of (t_uwb_sensor, ranges):
+            t_uwb_sensor: UWB timestamps in SENSOR time (M,)
             ranges: Range measurements (M, A) with NaN for dropouts
     """
     if nlos_anchors is None:
         nlos_anchors = []
     
-    # Subsample to UWB rate
+    # 1. Generate timestamps in FUSION time (same as truth/IMU)
     dt_uwb = 1.0 / uwb_rate
-    t_uwb = np.arange(t[0], t[-1], dt_uwb)
-    M = len(t_uwb)
+    t_uwb_fusion = np.arange(t[0], t[-1], dt_uwb)
+    M = len(t_uwb_fusion)
     
-    # Interpolate positions at UWB timestamps
+    # 2. Convert to UWB SENSOR time using inverse of TimeSyncModel
+    #    t_fusion = (1 + drift) * t_sensor + offset
+    #    => t_sensor = (t_fusion - offset) / (1 + drift)
+    t_uwb_sensor = (t_uwb_fusion - time_offset_sec) / (1.0 + clock_drift)
+    
+    # 3. Interpolate positions at FUSION timestamps (ranges are measured in fusion time)
     p_xy_uwb = np.column_stack([
-        np.interp(t_uwb, t, p_xy[:, 0]),
-        np.interp(t_uwb, t, p_xy[:, 1])
+        np.interp(t_uwb_fusion, t, p_xy[:, 0]),
+        np.interp(t_uwb_fusion, t, p_xy[:, 1])
     ])
     
-    # Compute true ranges
+    # 4. Compute true ranges
     A = anchor_positions.shape[0]
     ranges_true = np.zeros((M, A))
     
     for i, anchor in enumerate(anchor_positions):
         ranges_true[:, i] = np.linalg.norm(p_xy_uwb - anchor, axis=1)
     
-    # Add noise
+    # 5. Add noise
     ranges = ranges_true + np.random.randn(M, A) * range_noise_std
     
-    # Add NLOS bias
+    # 6. Add NLOS bias
     for anchor_idx in nlos_anchors:
         if 0 <= anchor_idx < A:
             ranges[:, anchor_idx] += nlos_bias
     
-    # Add dropouts
+    # 7. Add dropouts
     for i in range(A):
         dropout_mask = np.random.rand(M) < dropout_rate
         ranges[dropout_mask, i] = np.nan
     
-    return t_uwb, ranges
+    # Return SENSOR timestamps (not fusion timestamps)
+    return t_uwb_sensor, ranges
 
 
 def generate_fusion_2d_imu_uwb_dataset(
@@ -390,6 +410,10 @@ def generate_fusion_2d_imu_uwb_dataset(
     print(f"   Range noise: {range_noise_std} m")
     if nlos_anchors:
         print(f"   NLOS anchors: {nlos_anchors} (bias +{nlos_bias} m)")
+    if time_offset_sec != 0.0 or clock_drift != 0.0:
+        print(f"   Time offset: {time_offset_sec*1000:.1f} ms")
+        print(f"   Clock drift: {clock_drift*1e6:.1f} ppm")
+        print(f"   NOTE: UWB timestamps are in SENSOR time, not fusion time")
     
     t_uwb, ranges = generate_uwb_measurements(
         t, p_xy, anchor_positions,
@@ -397,7 +421,9 @@ def generate_fusion_2d_imu_uwb_dataset(
         range_noise_std=range_noise_std,
         nlos_anchors=nlos_anchors,
         nlos_bias=nlos_bias,
-        dropout_rate=dropout_rate
+        dropout_rate=dropout_rate,
+        time_offset_sec=time_offset_sec,
+        clock_drift=clock_drift
     )
     
     np.savez(
@@ -449,7 +475,7 @@ def generate_fusion_2d_imu_uwb_dataset(
         "temporal_calibration": {
             "time_offset_sec": time_offset_sec,
             "clock_drift": clock_drift,
-            "note": "Use TimeSyncModel to apply these during fusion"
+            "note": "UWB timestamps are in SENSOR time. Use TimeSyncModel.to_fusion_time() to convert to fusion time (truth/IMU time). Formula: t_fusion = (1 + drift) * t_sensor + offset"
         },
         "coordinate_frame": {
             "description": "ENU (East-North-Up)",

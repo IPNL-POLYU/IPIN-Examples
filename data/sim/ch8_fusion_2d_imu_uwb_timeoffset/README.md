@@ -42,11 +42,18 @@
 ## Files and Data Structure
 
 Same structure as baseline - see `fusion_2d_imu_uwb/README.md`:
-- `truth.npz`: Ground truth (t, p_xy, v_xy, yaw)
-- `imu.npz`: IMU measurements (timestamps are "correct")
-- `uwb_ranges.npz`: UWB ranges (timestamps are 50ms behind + drift)
+- `truth.npz`: Ground truth (t, p_xy, v_xy, yaw) - **timestamps in FUSION time**
+- `imu.npz`: IMU measurements (t, accel_xy, gyro_z) - **timestamps in FUSION time**
+- `uwb_ranges.npz`: UWB ranges (t, ranges) - **timestamps in UWB SENSOR time** ⚠️
 - `uwb_anchors.npy`: Anchor positions
 - `config.json`: Configuration with temporal calibration parameters
+
+**Important Time Semantics:**
+- **Fusion time** = Ground truth timeline (IMU and truth use this)
+- **UWB sensor time** = UWB's local clock (50ms behind fusion time + drift)
+- To use UWB measurements: Convert `t_uwb_sensor` → `t_fusion` using `TimeSyncModel`
+- Formula: `t_fusion = (1 + drift) * t_uwb_sensor + offset`
+- With offset=-0.05, drift=0.0001: `t_fusion = 1.0001 * t_sensor + (-0.05)`
 
 ---
 
@@ -77,19 +84,22 @@ print(f"  Accumulated drift: {60*clock_drift*1000:.1f} ms")
 print(f"  Total offset: {(time_offset + 60*clock_drift)*1000:.1f} ms")
 
 # Demonstrate misalignment
-t_imu = imu['t']
-t_uwb = uwb['t']  # These are the reported (incorrect) timestamps
+t_imu = imu['t']  # In fusion time
+t_uwb_sensor = uwb['t']  # In UWB sensor time (DIFFERENT from fusion time)
 
 print(f"\nFirst UWB measurement:")
-print(f"  Reported timestamp: {t_uwb[0]:.4f} s")
-print(f"  True timestamp: {t_uwb[0] - time_offset:.4f} s")
-print(f"  Misalignment: {time_offset*1000:.1f} ms")
+print(f"  UWB sensor timestamp: {t_uwb_sensor[0]:.4f} s")
+print(f"  IMU fusion timestamp: {t_imu[0]:.4f} s")
+print(f"  Raw difference: {(t_uwb_sensor[0] - t_imu[0])*1000:.1f} ms")
 
-# Apply correction manually
-t_uwb_corrected = t_uwb - time_offset  # First-order correction (ignoring drift)
+# Apply correction: Convert UWB sensor time → fusion time
+from core.fusion import TimeSyncModel
+time_sync = TimeSyncModel(offset=-time_offset, drift=-clock_drift)
+t_uwb_fusion = time_sync.to_fusion_time(t_uwb_sensor[0])
 
-print(f"\nAfter simple offset correction:")
-print(f"  Corrected timestamp: {t_uwb_corrected[0]:.4f} s")
+print(f"\nAfter TimeSyncModel correction:")
+print(f"  UWB in fusion time: {t_uwb_fusion:.4f} s")
+print(f"  Now aligned with IMU: {abs(t_uwb_fusion - t_imu[0])*1000:.2f} ms error")
 ```
 
 ---

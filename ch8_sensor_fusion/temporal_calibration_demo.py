@@ -16,7 +16,7 @@ Key Concepts:
 - Time synchronization: t_fusion = (1 + drift) * t_sensor + offset
 
 Author: Li-Ta Hsu
-References: Chapter 8, Section on Temporal Calibration
+References: Chapter 8, Section 8.5 (Temporal Calibration)
 """
 
 import argparse
@@ -36,6 +36,7 @@ from ch8_sensor_fusion.tc_models import (
     tc_process_noise_covariance,
     tc_uwb_measurement_model,
     tc_uwb_measurement_jacobian,
+    interpolate_imu_measurements,
 )
 from core.estimators import ExtendedKalmanFilter
 
@@ -44,7 +45,7 @@ def run_fusion_with_time_sync(
     dataset: Dict,
     apply_correction: bool = False,
     use_gating: bool = True,
-    gate_alpha: float = 0.05,
+    gate_confidence: float = 0.95,
     verbose: bool = False
 ) -> Dict:
     """Run TC fusion with or without temporal calibration.
@@ -53,7 +54,7 @@ def run_fusion_with_time_sync(
         dataset: Dataset dictionary
         apply_correction: Whether to apply TimeSyncModel correction
         use_gating: Enable chi-square gating
-        gate_alpha: Gating significance level
+        gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
         verbose: Print progress
     
     Returns:
@@ -79,21 +80,27 @@ def run_fusion_with_time_sync(
         print(f"  Clock drift: {clock_drift*1e6:.1f} ppm")
     
     # Create TimeSyncModel for UWB (IMU is reference)
+    # The config specifies the sensor's time parameters:
+    #   t_sensor = (t_fusion - offset) / (1 + drift)
+    # To convert sensor time TO fusion time, TimeSyncModel inverts this:
+    #   t_fusion = (1 + drift) * t_sensor + offset
+    # So we use the SAME offset and drift from config (not negated).
     if apply_correction:
         uwb_time_sync = TimeSyncModel(offset=time_offset, drift=clock_drift)
     else:
         uwb_time_sync = TimeSyncModel(offset=0.0, drift=0.0)
     
-    # Initial state
+    # Initial state: [px, py, vx, vy, yaw] (follows StateIndex convention)
     x0 = np.array([
-        truth['p_xy'][0, 0],
-        truth['p_xy'][0, 1],
-        truth['yaw'][0],
-        truth['v_xy'][0, 0],
-        truth['v_xy'][0, 1]
+        truth['p_xy'][0, 0],   # px
+        truth['p_xy'][0, 1],   # py
+        truth['v_xy'][0, 0],   # vx
+        truth['v_xy'][0, 1],   # vy
+        truth['yaw'][0]        # yaw
     ])
     
-    P0 = np.diag([0.1, 0.1, 0.1, 0.5, 0.5])**2
+    # P0: covariances for [px, py, vx, vy, yaw]
+    P0 = np.diag([0.1, 0.1, 0.5, 0.5, 0.1])**2
     
     # Process and measurement noise
     accel_noise_std = 0.1
@@ -112,18 +119,13 @@ def run_fusion_with_time_sync(
         P0=P0
     )
     
-    # Prepare measurements
-    measurements: List[StampedMeasurement] = []
+    # Prepare IMU data arrays (for interpolation)
+    t_imu_all = imu['t']
+    accel_xy_all = imu['accel_xy']
+    gyro_z_all = imu['gyro_z']
     
-    # Add IMU (reference time)
-    for i in range(len(imu['t'])):
-        measurements.append(StampedMeasurement(
-            t=imu['t'][i],
-            sensor='imu',
-            z=np.hstack([imu['accel_xy'][i], imu['gyro_z'][i]]),
-            R=np.eye(3),
-            meta={}
-        ))
+    # Prepare UWB measurements with corrected timestamps
+    uwb_measurements: List[StampedMeasurement] = []
     
     # Add UWB (apply time sync correction if requested)
     for i in range(len(uwb['t'])):
@@ -135,7 +137,7 @@ def run_fusion_with_time_sync(
         
         for j in range(anchors.shape[0]):
             if not np.isnan(uwb['ranges'][i, j]):
-                measurements.append(StampedMeasurement(
+                uwb_measurements.append(StampedMeasurement(
                     t=t_fusion,
                     sensor='uwb',
                     z=np.array([uwb['ranges'][i, j]]),
@@ -143,10 +145,10 @@ def run_fusion_with_time_sync(
                     meta={'anchor_id': j, 'anchor_pos': anchors[j]}
                 ))
     
-    # Sort by timestamp
-    measurements.sort(key=lambda m: m.t)
+    # Sort UWB by timestamp
+    uwb_measurements.sort(key=lambda m: m.t)
     
-    # Run fusion
+    # Run fusion with asynchronous measurement handling (Section 8.5.2)
     from core.fusion import chi_square_gate, innovation, innovation_covariance
     
     history = {
@@ -160,60 +162,97 @@ def run_fusion_with_time_sync(
     
     n_uwb_accepted = 0
     n_uwb_rejected = 0
-    t_prev = measurements[0].t
     
-    for meas in measurements:
-        dt = meas.t - t_prev
+    # Current state time (starts at initial time)
+    t_state = t_imu_all[0]
+    imu_idx = 0
+    
+    # Process IMU and UWB measurements with proper timing
+    for uwb_meas in uwb_measurements:
+        t_uwb = uwb_meas.t
         
-        if meas.sensor == 'imu':
-            # Propagate
-            u = meas.z
+        # Propagate through IMU samples up to (but not past) UWB time
+        while imu_idx < len(t_imu_all) - 1 and t_imu_all[imu_idx + 1] <= t_uwb:
+            # Propagate using this IMU sample
+            dt = t_imu_all[imu_idx + 1] - t_state
+            u = np.array([
+                accel_xy_all[imu_idx + 1, 0],
+                accel_xy_all[imu_idx + 1, 1],
+                gyro_z_all[imu_idx + 1]
+            ])
             ekf.predict(u=u, dt=dt)
+            t_state = t_imu_all[imu_idx + 1]
+            imu_idx += 1
         
-        elif meas.sensor == 'uwb':
-            # UWB range update
-            anchor_id = meas.meta['anchor_id']
-            anchor_pos = meas.meta['anchor_pos']
-            
-            # Predict range
-            state_pos = ekf.state[:2]
-            z_pred = np.array([np.linalg.norm(state_pos - anchor_pos)])
-            
-            # Innovation
-            y = innovation(meas.z, z_pred)
-            
-            # Jacobian
-            H_single = tc_uwb_measurement_jacobian(ekf.state, np.array([anchor_pos]))
-            
-            # Innovation covariance
-            R = np.array([[uwb_range_noise_std**2]])
-            S = innovation_covariance(H_single, ekf.covariance, R)
-            
-            # Gating
-            accept = True
-            if use_gating:
-                accept = chi_square_gate(y, S, alpha=gate_alpha)
-            
-            if accept:
-                # Perform update
-                K = ekf.covariance @ H_single.T @ np.linalg.inv(S)
-                ekf.state = ekf.state + (K @ y).flatten()
-                ekf.covariance = (np.eye(5) - K @ H_single) @ ekf.covariance
-                n_uwb_accepted += 1
-            else:
-                n_uwb_rejected += 1
-            
-            # Log
-            history['innovations'].append(float(np.abs(y[0])))
-            history['nis'].append(float(y @ np.linalg.inv(S) @ y))
-            history['gated'].append(accept)
+        # Check if UWB measurement time is within IMU data range
+        if t_uwb < t_imu_all[0] or t_uwb > t_imu_all[-1]:
+            continue  # Skip UWB measurements outside IMU range
         
-        # Record state
-        history['t'].append(meas.t)
+        # Now propagate from t_state to t_uwb using interpolated IMU
+        if t_uwb > t_state:
+            try:
+                u_interp, dt_interp = interpolate_imu_measurements(
+                    t_uwb, t_imu_all, accel_xy_all, gyro_z_all
+                )
+                ekf.predict(u=u_interp, dt=dt_interp)
+                t_state = t_uwb
+            except ValueError:
+                # If interpolation fails, skip this measurement
+                continue
+        
+        # UWB range update
+        anchor_id = uwb_meas.meta['anchor_id']
+        anchor_pos = uwb_meas.meta['anchor_pos']
+        
+        # Predict range
+        state_pos = ekf.state[:2]
+        z_pred = np.array([np.linalg.norm(state_pos - anchor_pos)])
+        
+        # Innovation
+        y = innovation(uwb_meas.z, z_pred)
+        
+        # Jacobian
+        H_single = tc_uwb_measurement_jacobian(ekf.state, np.array([anchor_pos]))
+        
+        # Innovation covariance
+        R = np.array([[uwb_range_noise_std**2]])
+        S = innovation_covariance(H_single, ekf.covariance, R)
+        
+        # Gating
+        accept = True
+        if use_gating:
+            accept = chi_square_gate(y, S, confidence=gate_confidence)
+        
+        if accept:
+            # Perform update
+            K = ekf.covariance @ H_single.T @ np.linalg.inv(S)
+            ekf.state = ekf.state + (K @ y).flatten()
+            ekf.covariance = (np.eye(5) - K @ H_single) @ ekf.covariance
+            n_uwb_accepted += 1
+        else:
+            n_uwb_rejected += 1
+        
+        # Log
+        history['innovations'].append(float(np.abs(y[0])))
+        history['nis'].append(float(y @ np.linalg.inv(S) @ y))
+        history['gated'].append(accept)
+        
+        # Record state at UWB measurement time
+        history['t'].append(t_uwb)
         history['x_est'].append(ekf.state.copy())
         history['P_trace'].append(np.trace(ekf.covariance))
-        
-        t_prev = meas.t
+    
+    # Propagate through remaining IMU samples
+    while imu_idx < len(t_imu_all) - 1:
+        dt = t_imu_all[imu_idx + 1] - t_state
+        u = np.array([
+            accel_xy_all[imu_idx + 1, 0],
+            accel_xy_all[imu_idx + 1, 1],
+            gyro_z_all[imu_idx + 1]
+        ])
+        ekf.predict(u=u, dt=dt)
+        t_state = t_imu_all[imu_idx + 1]
+        imu_idx += 1
     
     # Convert to arrays
     history['t'] = np.array(history['t'])
@@ -350,9 +389,9 @@ def plot_temporal_calibration(
         
         # Chi-square bound
         from core.fusion import chi_square_threshold
-        threshold = chi_square_threshold(dof=1, alpha=0.05)
+        threshold = chi_square_threshold(dof=1, confidence=0.95)
         ax5.axhline(threshold, color='r', linestyle='--',
-                   linewidth=1.5, label=f'95% bound (χ²={threshold:.2f})')
+                   linewidth=1.5, label=f'95% bound (chi^2={threshold:.2f})')
         
         ax5.set_xlabel('UWB Update Index')
         ax5.set_ylabel('NIS (1 DOF)')

@@ -3,11 +3,19 @@
 This module implements innovation monitoring, covariance tuning, and robust
 measurement weighting as described in Chapter 8, Section 8.3.
 
+Robust Covariance Scaling (Eq. 8.7):
+    R_k ← w_R(y_k) * R_k
+    
+    Where w_R >= 1 is a covariance scale factor that **inflates** R for outliers.
+    This reduces the influence of measurements with large innovations without
+    completely rejecting them.
+
 Author: Li-Ta Hsu
-References: Chapter 8, Section 8.3 (Tuning and Robustness)
+References: Chapter 8, Section 8.3 (Tuning and Robustness), Equation 8.7
 """
 
 from typing import Callable
+import warnings
 
 import numpy as np
 
@@ -125,50 +133,55 @@ def innovation_covariance(
 
 def scale_measurement_covariance(
     R: np.ndarray,
-    weight: float
+    scale_factor: float
 ) -> np.ndarray:
-    """Apply robust scaling to measurement covariance.
+    """Apply robust scaling to measurement covariance (Eq. 8.7).
     
     Implements Eq. (8.7) in Chapter 8:
-        R_k ← w(y_k) * R_k
+        R_k ← w_R(y_k) * R_k
     
-    Robust weighting down-weights measurements with large innovations,
-    reducing their influence on the estimate. This is an alternative to
-    hard gating (rejection).
+    where w_R >= 1 is a covariance scale factor that **inflates** R for outliers.
+    This reduces the influence of measurements with large innovations without
+    completely rejecting them (softer alternative to chi-square gating).
     
     Args:
         R: Original measurement covariance (m × m).
-        weight: Scalar weight w(y_k) ∈ [0, ∞). Values > 1 inflate the
-                covariance (reduce measurement confidence). Typical robust
-                loss functions produce weights in (0, 1] for inliers and
-                weights >> 1 for outliers.
+        scale_factor: Covariance inflation factor w_R >= 1.
+                      - w_R = 1: no inflation (inlier)
+                      - w_R > 1: inflate covariance (outlier)
+                      Typical robust functions return values in [1, ∞).
     
     Returns:
-        Scaled covariance R_scaled = w * R (m × m).
+        Scaled covariance R_scaled = w_R * R (m × m).
     
     Raises:
-        ValueError: If weight is negative or R is not 2D.
+        ValueError: If scale_factor < 1 or R is not 2D.
     
     Example:
         >>> R = np.diag([0.1, 0.2])
-        >>> weight = 2.0  # reduce confidence by 2x
-        >>> R_scaled = scale_measurement_covariance(R, weight)
+        
+        >>> # Inlier: no scaling
+        >>> R_inlier = scale_measurement_covariance(R, 1.0)
+        >>> np.allclose(R_inlier, R)
+        True
+        
+        >>> # Moderate outlier: inflate by 2x
+        >>> R_scaled = scale_measurement_covariance(R, 2.0)
         >>> np.allclose(R_scaled, [[0.2, 0.0], [0.0, 0.4]])
         True
         
-        >>> # Outlier case: inflate covariance by 100x
+        >>> # Strong outlier: inflate by 100x (nearly reject)
         >>> R_outlier = scale_measurement_covariance(R, 100.0)
         >>> np.allclose(R_outlier, [[10.0, 0.0], [0.0, 20.0]])
         True
     
     Notes:
-        Common robust weight functions include:
-        - Huber: w = 1 if |y| < k, else k/|y|
-        - Cauchy: w = 1 + (y/c)^2
-        - Tukey: w = (1 - (y/c)^2)^2 if |y| < c, else 0 (hard rejection)
+        **Key Point:** Outliers get **larger** covariance (inflated R), which
+        reduces their weight in the Kalman gain K = P H^T S^{-1}.
         
-        These are typically applied element-wise to normalized innovations
-        and then combined into a scalar weight.
+        Use the companion functions to compute scale factors:
+        - `huber_R_scale(r, delta)` for Huber robust loss
+        - `cauchy_R_scale(r, c)` for Cauchy robust loss
     
     References:
         Eq. (8.7) in Chapter 8
@@ -178,16 +191,127 @@ def scale_measurement_covariance(
     if R.ndim != 2:
         raise ValueError(f"R must be 2D matrix, got shape {R.shape}")
     
-    if not isinstance(weight, (int, float, np.number)):
-        raise TypeError(f"Weight must be numeric, got {type(weight)}")
+    if not isinstance(scale_factor, (int, float, np.number)):
+        raise TypeError(f"Scale factor must be numeric, got {type(scale_factor)}")
     
-    if weight < 0:
-        raise ValueError(f"Weight must be non-negative, got {weight}")
+    if scale_factor < 1.0:
+        raise ValueError(
+            f"Scale factor must be >= 1 (inflate covariance for outliers), "
+            f"got {scale_factor}"
+        )
     
-    # Eq. (8.7): R_k ← w(y_k) * R_k
-    R_scaled = weight * R
+    # Eq. (8.7): R_k ← w_R(y_k) * R_k
+    R_scaled = scale_factor * R
     
     return R_scaled
+
+
+def huber_R_scale(
+    residual: float,
+    delta: float = 1.345
+) -> float:
+    """Compute Huber covariance scale factor for Eq. 8.7.
+    
+    Returns a scale factor w_R >= 1 that inflates measurement covariance R
+    for large residuals (outliers). Implements the Huber robust loss function
+    as a covariance inflation strategy.
+    
+    Scale factor:
+        w_R(r) = 1                if |r| ≤ δ  (inlier: no inflation)
+        w_R(r) = |r| / δ          if |r| > δ  (outlier: inflate by ratio)
+    
+    Args:
+        residual: Normalized residual r (e.g., innovation / sqrt(variance)).
+        delta: Huber threshold δ (default 1.345 for 95% efficiency on
+               Gaussian data). Common values: 1.345 (standard), 2.0-3.0
+               (more tolerant).
+    
+    Returns:
+        Covariance scale factor w_R >= 1.
+    
+    Example:
+        >>> # Inlier: no inflation
+        >>> huber_R_scale(0.5, delta=1.345)
+        1.0
+        
+        >>> # Moderate outlier: inflate proportionally
+        >>> huber_R_scale(2.69, delta=1.345)
+        2.0
+        
+        >>> # Strong outlier: large inflation
+        >>> scale = huber_R_scale(10.0, delta=1.345)
+        >>> scale > 7.0
+        True
+    
+    Notes:
+        For Eq. 8.7 application: R_robust = huber_R_scale(r, delta) * R
+        
+        The Huber function provides a **linear** inflation for outliers,
+        making it less aggressive than Cauchy.
+    
+    References:
+        Chapter 8, Section 8.3.2 (Robust Loss Functions)
+        Eq. (8.7): R_k ← w_R(y_k) * R_k
+    """
+    abs_residual = abs(residual)
+    
+    if abs_residual <= delta:
+        return 1.0
+    else:
+        # Outliers: inflate R proportional to residual magnitude
+        return abs_residual / delta
+
+
+def cauchy_R_scale(
+    residual: float,
+    c: float = 2.385
+) -> float:
+    """Compute Cauchy covariance scale factor for Eq. 8.7.
+    
+    Returns a scale factor w_R >= 1 that inflates measurement covariance R
+    for large residuals (outliers). Implements the Cauchy robust loss function
+    as a covariance inflation strategy.
+    
+    Scale factor:
+        w_R(r) = 1 + (r / c)²
+    
+    Args:
+        residual: Normalized residual r (e.g., innovation / sqrt(variance)).
+        c: Cauchy scale parameter (default 2.385 for 95% efficiency on
+           Gaussian data). Larger values are more tolerant of outliers.
+    
+    Returns:
+        Covariance scale factor w_R >= 1.
+    
+    Example:
+        >>> # Inlier: minimal inflation
+        >>> cauchy_R_scale(0.0, c=2.385)
+        1.0
+        
+        >>> # Moderate outlier
+        >>> scale = cauchy_R_scale(2.385, c=2.385)
+        >>> np.isclose(scale, 2.0)
+        True
+        
+        >>> # Strong outlier: quadratic inflation
+        >>> scale = cauchy_R_scale(10.0, c=2.385)
+        >>> scale > 17.0
+        True
+    
+    Notes:
+        For Eq. 8.7 application: R_robust = cauchy_R_scale(r, c) * R
+        
+        The Cauchy function provides **quadratic** inflation for outliers,
+        making it more aggressive than Huber. It strongly down-weights
+        measurements with large innovations.
+    
+    References:
+        Chapter 8, Section 8.3.2 (Robust Loss Functions)
+        Eq. (8.7): R_k ← w_R(y_k) * R_k
+    """
+    normalized = residual / c
+    # Outliers: inflate R quadratically
+    return 1.0 + normalized**2
 
 
 def huber_weight(
@@ -196,30 +320,43 @@ def huber_weight(
 ) -> float:
     """Compute Huber robust weight for a scalar residual.
     
-    The Huber weight function provides robust down-weighting for outliers:
-        w(r) = 1                if |r| ≤ k
-        w(r) = k / |r|          if |r| > k
+    **DEPRECATED:** Use `huber_R_scale()` for Eq. 8.7 covariance inflation.
     
-    This is a helper function for computing the weight in Eq. (8.7).
+    This function returns IRLS-style weights w ∈ (0, 1] that are used in
+    iterative optimization. For Kalman filtering with Eq. 8.7, use the
+    inverse relationship: R_scale = 1 / w, which gives inflation factors >= 1.
+    
+    The Huber weight function:
+        w(r) = 1                if |r| ≤ k  (inlier)
+        w(r) = k / |r|          if |r| > k  (outlier: weight < 1)
     
     Args:
         residual: Normalized residual (e.g., innovation / sqrt(variance)).
         threshold: Huber threshold k (typical values: 1.345 for 95% efficiency
-                   on Gaussian data, or 2.0-3.0 for more aggressive downweighting).
+                   on Gaussian data, or 2.0-3.0 for more tolerant).
     
     Returns:
-        Weight w(r) ∈ (0, 1].
+        IRLS weight w(r) ∈ (0, 1]. For Eq. 8.7, use R_scale = 1/w.
     
     Example:
         >>> huber_weight(0.5, threshold=1.345)  # inlier
         1.0
-        >>> huber_weight(3.0, threshold=1.345)  # outlier
-        0.448...
+        >>> w = huber_weight(3.0, threshold=1.345)  # outlier
+        >>> np.isclose(w, 0.448, atol=0.01)
+        True
+        >>> # For Eq. 8.7: R_scale = 1/w ≈ 2.23 (inflate R)
     
     References:
         Chapter 8, Section 8.3 (Robust Loss Functions)
-        Related to Eq. (8.7)
     """
+    warnings.warn(
+        "huber_weight() returns IRLS weights (0,1] which can be confusing for "
+        "covariance inflation. Use huber_R_scale() instead for Eq. 8.7, which "
+        "returns scale factors >= 1 that directly inflate R.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     abs_residual = abs(residual)
     
     if abs_residual <= threshold:
@@ -234,31 +371,43 @@ def cauchy_weight(
 ) -> float:
     """Compute Cauchy robust weight for a scalar residual.
     
-    The Cauchy weight function provides stronger outlier rejection than Huber:
-        w(r) = 1 / (1 + (r/c)^2)
+    **DEPRECATED:** Use `cauchy_R_scale()` for Eq. 8.7 covariance inflation.
     
-    This is a helper function for computing the weight in Eq. (8.7).
-    As an inflation factor for R (Eq. 8.7), use 1/w(r).
+    This function returns IRLS-style weights w ∈ (0, 1] that are used in
+    iterative optimization. For Kalman filtering with Eq. 8.7, use the
+    inverse relationship: R_scale = 1 / w, which gives inflation factors >= 1.
+    
+    The Cauchy weight function:
+        w(r) = 1 / (1 + (r/c)²)  (outliers get weight << 1)
     
     Args:
         residual: Normalized residual (e.g., innovation / sqrt(variance)).
         scale: Cauchy scale parameter c (typical values: 2.385 for 95% efficiency).
     
     Returns:
-        Weight w(r) ∈ (0, 1].
+        IRLS weight w(r) ∈ (0, 1]. For Eq. 8.7, use R_scale = 1/w.
     
     Example:
         >>> cauchy_weight(0.0, scale=2.385)
         1.0
         >>> cauchy_weight(2.385, scale=2.385)
         0.5
-        >>> cauchy_weight(10.0, scale=2.385)  # strong outlier
-        0.053...
+        >>> w = cauchy_weight(10.0, scale=2.385)  # strong outlier
+        >>> w < 0.06
+        True
+        >>> # For Eq. 8.7: R_scale = 1/w ≈ 18.6 (strongly inflate R)
     
     References:
         Chapter 8, Section 8.3 (Robust Loss Functions)
-        Related to Eq. (8.7)
     """
+    warnings.warn(
+        "cauchy_weight() returns IRLS weights (0,1] which can be confusing for "
+        "covariance inflation. Use cauchy_R_scale() instead for Eq. 8.7, which "
+        "returns scale factors >= 1 that directly inflate R.",
+        DeprecationWarning,
+        stacklevel=2
+    )
+    
     normalized = residual / scale
     return 1.0 / (1.0 + normalized**2)
 

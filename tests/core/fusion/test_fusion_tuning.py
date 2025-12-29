@@ -12,8 +12,10 @@ import unittest
 import numpy as np
 
 from core.fusion.tuning import (
+    cauchy_R_scale,
     cauchy_weight,
     compute_normalized_innovation,
+    huber_R_scale,
     huber_weight,
     innovation,
     innovation_covariance,
@@ -152,63 +154,53 @@ class TestInnovationCovariance(unittest.TestCase):
 class TestScaleMeasurementCovariance(unittest.TestCase):
     """Test suite for scale_measurement_covariance function (Eq. 8.7)."""
     
-    def test_unit_weight(self) -> None:
-        """Test that weight=1 leaves covariance unchanged."""
+    def test_unit_scale(self) -> None:
+        """Test that scale_factor=1 leaves covariance unchanged (inlier)."""
         R = np.diag([0.1, 0.2])
-        R_scaled = scale_measurement_covariance(R, weight=1.0)
+        R_scaled = scale_measurement_covariance(R, scale_factor=1.0)
         
         np.testing.assert_array_almost_equal(R_scaled, R)
     
-    def test_upweighting(self) -> None:
-        """Test that weight > 1 inflates covariance (reduces confidence)."""
+    def test_inflation(self) -> None:
+        """Test that scale_factor > 1 inflates covariance (outlier)."""
         R = np.diag([0.1, 0.2])
-        weight = 2.0
+        scale_factor = 2.0
         
-        R_scaled = scale_measurement_covariance(R, weight)
+        R_scaled = scale_measurement_covariance(R, scale_factor)
         
         expected = np.diag([0.2, 0.4])
         np.testing.assert_array_almost_equal(R_scaled, expected)
     
-    def test_downweighting(self) -> None:
-        """Test that weight < 1 reduces covariance (increases confidence)."""
-        R = np.diag([1.0, 2.0])
-        weight = 0.5
-        
-        R_scaled = scale_measurement_covariance(R, weight)
-        
-        expected = np.diag([0.5, 1.0])
-        np.testing.assert_array_almost_equal(R_scaled, expected)
-    
-    def test_outlier_case(self) -> None:
-        """Test aggressive outlier down-weighting (inflate by 100x)."""
+    def test_strong_outlier_inflation(self) -> None:
+        """Test aggressive outlier inflation (100x)."""
         R = np.diag([0.1, 0.1])
-        weight = 100.0
+        scale_factor = 100.0
         
-        R_scaled = scale_measurement_covariance(R, weight)
+        R_scaled = scale_measurement_covariance(R, scale_factor)
         
         expected = np.diag([10.0, 10.0])
         np.testing.assert_array_almost_equal(R_scaled, expected)
     
-    def test_zero_weight(self) -> None:
-        """Test that zero weight gives zero covariance."""
-        R = np.diag([1.0, 2.0])
-        R_scaled = scale_measurement_covariance(R, weight=0.0)
-        
-        np.testing.assert_array_almost_equal(R_scaled, np.zeros((2, 2)))
-    
-    def test_negative_weight_raises(self) -> None:
-        """Test that negative weight raises ValueError."""
+    def test_scale_below_one_raises(self) -> None:
+        """Test that scale_factor < 1 raises ValueError (never shrink R)."""
         R = np.eye(2)
         
         with self.assertRaises(ValueError):
-            scale_measurement_covariance(R, weight=-1.0)
+            scale_measurement_covariance(R, scale_factor=0.5)
+    
+    def test_negative_scale_raises(self) -> None:
+        """Test that negative scale_factor raises ValueError."""
+        R = np.eye(2)
+        
+        with self.assertRaises(ValueError):
+            scale_measurement_covariance(R, scale_factor=-1.0)
     
     def test_non_diagonal_covariance(self) -> None:
         """Test scaling works for non-diagonal covariance."""
         R = np.array([[1.0, 0.5], [0.5, 2.0]])
-        weight = 3.0
+        scale_factor = 3.0
         
-        R_scaled = scale_measurement_covariance(R, weight)
+        R_scaled = scale_measurement_covariance(R, scale_factor)
         
         expected = np.array([[3.0, 1.5], [1.5, 6.0]])
         np.testing.assert_array_almost_equal(R_scaled, expected)
@@ -216,37 +208,143 @@ class TestScaleMeasurementCovariance(unittest.TestCase):
     def test_invalid_dimension_raises(self) -> None:
         """Test that 1D input raises ValueError."""
         with self.assertRaises(ValueError):
-            scale_measurement_covariance(np.array([1.0, 2.0]), weight=2.0)
+            scale_measurement_covariance(np.array([1.0, 2.0]), scale_factor=2.0)
+
+
+class TestHuberRScale(unittest.TestCase):
+    """Test suite for Huber covariance scale factor (Eq. 8.7)."""
+    
+    def test_inlier_no_inflation(self) -> None:
+        """Test that inliers (|r| <= δ) get scale=1 (no inflation)."""
+        self.assertEqual(huber_R_scale(0.0, delta=1.345), 1.0)
+        self.assertEqual(huber_R_scale(0.5, delta=1.345), 1.0)
+        self.assertEqual(huber_R_scale(1.0, delta=1.345), 1.0)
+        self.assertEqual(huber_R_scale(1.345, delta=1.345), 1.0)
+    
+    def test_outlier_linear_inflation(self) -> None:
+        """Test that outliers (|r| > δ) get scale = |r|/δ > 1."""
+        # Residual = 2*delta -> scale = 2.0
+        scale = huber_R_scale(2.69, delta=1.345)
+        self.assertAlmostEqual(scale, 2.0, places=10)
+        
+        # Larger outlier -> larger scale
+        scale_large = huber_R_scale(13.45, delta=1.345)
+        self.assertAlmostEqual(scale_large, 10.0, places=10)
+    
+    def test_scale_always_gte_one(self) -> None:
+        """Test that scale factor is always >= 1."""
+        for residual in [0.0, 0.1, 0.5, 1.0, 1.345, 2.0, 5.0, 10.0]:
+            scale = huber_R_scale(residual, delta=1.345)
+            self.assertGreaterEqual(scale, 1.0)
+    
+    def test_negative_residual(self) -> None:
+        """Test that negative residuals work correctly (absolute value)."""
+        scale_pos = huber_R_scale(3.0, delta=1.345)
+        scale_neg = huber_R_scale(-3.0, delta=1.345)
+        
+        self.assertEqual(scale_pos, scale_neg)
+    
+    def test_threshold_effect(self) -> None:
+        """Test that higher delta is more tolerant (smaller scale for same r)."""
+        residual = 2.0
+        
+        scale_strict = huber_R_scale(residual, delta=1.0)   # strict
+        scale_loose = huber_R_scale(residual, delta=3.0)    # loose
+        
+        # Strict: 2.0/1.0 = 2.0, Loose: 2.0 < 3.0 -> 1.0
+        self.assertAlmostEqual(scale_strict, 2.0, places=10)
+        self.assertEqual(scale_loose, 1.0)
+
+
+class TestCauchyRScale(unittest.TestCase):
+    """Test suite for Cauchy covariance scale factor (Eq. 8.7)."""
+    
+    def test_zero_residual_no_inflation(self) -> None:
+        """Test that zero residual gives scale=1 (no inflation)."""
+        self.assertEqual(cauchy_R_scale(0.0, c=2.385), 1.0)
+    
+    def test_scale_at_c(self) -> None:
+        """Test that scale at r=c is 1 + 1 = 2."""
+        scale = cauchy_R_scale(2.385, c=2.385)
+        self.assertAlmostEqual(scale, 2.0, places=10)
+    
+    def test_outlier_quadratic_inflation(self) -> None:
+        """Test that large residuals get quadratic inflation."""
+        # r = 10, c = 2.385 -> scale = 1 + (10/2.385)^2 ≈ 18.6
+        scale = cauchy_R_scale(10.0, c=2.385)
+        self.assertGreater(scale, 17.0)
+        self.assertLess(scale, 19.0)
+    
+    def test_scale_always_gte_one(self) -> None:
+        """Test that scale factor is always >= 1."""
+        for residual in [0.0, 0.1, 0.5, 1.0, 2.385, 5.0, 10.0]:
+            scale = cauchy_R_scale(residual, c=2.385)
+            self.assertGreaterEqual(scale, 1.0)
+    
+    def test_negative_residual(self) -> None:
+        """Test that negative residuals work correctly."""
+        scale_pos = cauchy_R_scale(5.0, c=2.385)
+        scale_neg = cauchy_R_scale(-5.0, c=2.385)
+        
+        self.assertAlmostEqual(scale_pos, scale_neg, places=10)
+    
+    def test_cauchy_more_aggressive_than_huber(self) -> None:
+        """Test that Cauchy inflates more aggressively than Huber for large outliers."""
+        residual = 10.0
+        
+        scale_huber = huber_R_scale(residual, delta=1.345)
+        scale_cauchy = cauchy_R_scale(residual, c=2.385)
+        
+        # Huber: 10.0/1.345 ≈ 7.4, Cauchy: 1 + (10/2.385)^2 ≈ 18.6
+        # Cauchy should inflate more
+        self.assertGreater(scale_cauchy, scale_huber)
+    
+    def test_scale_parameter_effect(self) -> None:
+        """Test that larger c is more tolerant (smaller scale for same r)."""
+        residual = 3.0
+        
+        scale_small_c = cauchy_R_scale(residual, c=1.0)
+        scale_large_c = cauchy_R_scale(residual, c=5.0)
+        
+        # Small c: 1 + (3/1)^2 = 10, Large c: 1 + (3/5)^2 = 1.36
+        self.assertLess(scale_large_c, scale_small_c)
 
 
 class TestHuberWeight(unittest.TestCase):
-    """Test suite for Huber robust weight function."""
+    """Test suite for Huber robust weight function (DEPRECATED)."""
     
     def test_inlier_weight_is_one(self) -> None:
         """Test that inliers (|r| <= k) get weight 1."""
-        self.assertEqual(huber_weight(0.0, threshold=1.345), 1.0)
-        self.assertEqual(huber_weight(0.5, threshold=1.345), 1.0)
-        self.assertEqual(huber_weight(1.0, threshold=1.345), 1.0)
-        self.assertEqual(huber_weight(1.345, threshold=1.345), 1.0)
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(huber_weight(0.0, threshold=1.345), 1.0)
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(huber_weight(0.5, threshold=1.345), 1.0)
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(huber_weight(1.0, threshold=1.345), 1.0)
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(huber_weight(1.345, threshold=1.345), 1.0)
     
     def test_outlier_weight_decreases(self) -> None:
         """Test that outliers (|r| > k) get weight < 1."""
-        w = huber_weight(3.0, threshold=1.345)
+        with self.assertWarns(DeprecationWarning):
+            w = huber_weight(3.0, threshold=1.345)
         self.assertLess(w, 1.0)
         self.assertGreater(w, 0.0)
         self.assertAlmostEqual(w, 1.345 / 3.0, places=10)
     
     def test_larger_outlier_smaller_weight(self) -> None:
         """Test that larger residuals get smaller weights."""
-        w1 = huber_weight(2.0, threshold=1.345)
-        w2 = huber_weight(5.0, threshold=1.345)
+        with self.assertWarns(DeprecationWarning):
+            w1 = huber_weight(2.0, threshold=1.345)
+            w2 = huber_weight(5.0, threshold=1.345)
         
         self.assertLess(w2, w1)
     
     def test_negative_residual(self) -> None:
         """Test that negative residuals work correctly (absolute value)."""
-        w_pos = huber_weight(3.0, threshold=1.345)
-        w_neg = huber_weight(-3.0, threshold=1.345)
+        with self.assertWarns(DeprecationWarning):
+            w_pos = huber_weight(3.0, threshold=1.345)
+            w_neg = huber_weight(-3.0, threshold=1.345)
         
         self.assertEqual(w_pos, w_neg)
     
@@ -254,8 +352,9 @@ class TestHuberWeight(unittest.TestCase):
         """Test that higher threshold is more permissive."""
         residual = 2.0
         
-        w_strict = huber_weight(residual, threshold=1.0)   # strict
-        w_loose = huber_weight(residual, threshold=3.0)    # loose
+        with self.assertWarns(DeprecationWarning):
+            w_strict = huber_weight(residual, threshold=1.0)   # strict
+            w_loose = huber_weight(residual, threshold=3.0)    # loose
         
         # Strict threshold treats 2.0 as outlier, loose treats as inlier
         self.assertLess(w_strict, 1.0)
@@ -263,27 +362,31 @@ class TestHuberWeight(unittest.TestCase):
 
 
 class TestCauchyWeight(unittest.TestCase):
-    """Test suite for Cauchy robust weight function."""
+    """Test suite for Cauchy robust weight function (DEPRECATED)."""
     
     def test_zero_residual_weight_is_one(self) -> None:
         """Test that zero residual gets weight 1."""
-        self.assertEqual(cauchy_weight(0.0, scale=2.385), 1.0)
+        with self.assertWarns(DeprecationWarning):
+            self.assertEqual(cauchy_weight(0.0, scale=2.385), 1.0)
     
     def test_weight_at_scale(self) -> None:
         """Test that weight at r=c is 0.5."""
-        w = cauchy_weight(2.385, scale=2.385)
+        with self.assertWarns(DeprecationWarning):
+            w = cauchy_weight(2.385, scale=2.385)
         self.assertAlmostEqual(w, 0.5, places=10)
     
     def test_outlier_weight_decreases(self) -> None:
         """Test that large residuals get small weights."""
-        w = cauchy_weight(10.0, scale=2.385)
+        with self.assertWarns(DeprecationWarning):
+            w = cauchy_weight(10.0, scale=2.385)
         self.assertLess(w, 0.2)
         self.assertGreater(w, 0.0)
     
     def test_negative_residual(self) -> None:
         """Test that negative residuals work correctly."""
-        w_pos = cauchy_weight(5.0, scale=2.385)
-        w_neg = cauchy_weight(-5.0, scale=2.385)
+        with self.assertWarns(DeprecationWarning):
+            w_pos = cauchy_weight(5.0, scale=2.385)
+            w_neg = cauchy_weight(-5.0, scale=2.385)
         
         self.assertAlmostEqual(w_pos, w_neg, places=10)
     
@@ -291,8 +394,9 @@ class TestCauchyWeight(unittest.TestCase):
         """Test that Cauchy down-weights outliers more aggressively than Huber."""
         residual = 5.0
         
-        w_huber = huber_weight(residual, threshold=1.345)
-        w_cauchy = cauchy_weight(residual, scale=2.385)
+        with self.assertWarns(DeprecationWarning):
+            w_huber = huber_weight(residual, threshold=1.345)
+            w_cauchy = cauchy_weight(residual, scale=2.385)
         
         # Cauchy should give smaller weight for large outliers
         self.assertLess(w_cauchy, w_huber)
@@ -301,8 +405,9 @@ class TestCauchyWeight(unittest.TestCase):
         """Test that larger scale is more permissive."""
         residual = 3.0
         
-        w_small_scale = cauchy_weight(residual, scale=1.0)
-        w_large_scale = cauchy_weight(residual, scale=5.0)
+        with self.assertWarns(DeprecationWarning):
+            w_small_scale = cauchy_weight(residual, scale=1.0)
+            w_large_scale = cauchy_weight(residual, scale=5.0)
         
         self.assertLess(w_small_scale, w_large_scale)
 

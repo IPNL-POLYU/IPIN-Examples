@@ -16,7 +16,7 @@ Process model: Same as TC (2D IMU dead-reckoning)
 Measurement model: Position fix h(x) = [px, py] (2D)
 
 Author: Li-Ta Hsu
-References: Chapter 8 - Loosely vs Tightly Coupled Fusion
+References: Chapter 8, Section 8.1.1 (Loosely Coupled)
 """
 
 from typing import Callable, Optional, Tuple
@@ -27,21 +27,34 @@ import numpy as np
 def solve_uwb_position_wls(
     ranges: np.ndarray,
     anchor_positions: np.ndarray,
-    initial_guess: np.ndarray = None,
+    range_noise_std: float = 0.05,
+    anchor_noise_std: Optional[np.ndarray] = None,
+    initial_guess: Optional[np.ndarray] = None,
     max_iterations: int = 10,
-    tolerance: float = 0.01
-) -> Tuple[np.ndarray, np.ndarray, bool]:
+    tolerance: float = 0.01,
+    cov_floor_std: float = 0.2,
+) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], bool]:
     """Solve for 2D position from UWB ranges using Weighted Least Squares.
     
     This implements the iterative WLS position solver from Chapter 4,
-    adapted for the LC fusion pipeline.
+    with proper measurement covariance handling for LC fusion.
+    
+    Key improvements over naive WLS:
+    - Uses proper measurement covariance: W = R^{-1} where R = diag(σ_i²)
+    - Supports anchor-dependent noise levels (e.g., based on SNR, NLOS flags)
+    - Enforces covariance floor to prevent absurd certainty
     
     Args:
         ranges: Range measurements to each anchor (A,), NaN for dropouts
         anchor_positions: Anchor positions (A, 2)
+        range_noise_std: Nominal range measurement noise std (meters, default 0.05)
+        anchor_noise_std: Per-anchor noise std (A,), overrides range_noise_std if provided
+                          Use this for anchor-dependent quality (e.g., NLOS, SNR)
         initial_guess: Initial position guess (2,), default is anchor centroid
-        max_iterations: Maximum WLS iterations
-        tolerance: Convergence tolerance (meters)
+        max_iterations: Maximum WLS iterations (default 10)
+        tolerance: Convergence tolerance (meters, default 0.01)
+        cov_floor_std: Minimum position std (meters, default 0.2)
+                       Prevents overconfident covariance estimates
     
     Returns:
         Tuple of (position, covariance, converged):
@@ -50,9 +63,14 @@ def solve_uwb_position_wls(
             converged: True if solver converged
     
     Example:
-        >>> ranges = np.array([5.0, 7.0, 8.5, 6.2])  # 4 anchors
+        >>> ranges = np.array([5.0, 7.0, 8.5, 6.2])
         >>> anchors = np.array([[0, 0], [20, 0], [20, 15], [0, 15]])
-        >>> pos, cov, ok = solve_uwb_position_wls(ranges, anchors)
+        >>> # Uniform noise
+        >>> pos, cov, ok = solve_uwb_position_wls(ranges, anchors, range_noise_std=0.05)
+        >>> 
+        >>> # Anchor-dependent noise (e.g., anchor 1 has NLOS)
+        >>> anchor_stds = np.array([0.05, 0.5, 0.05, 0.05])  # Anchor 1 degraded
+        >>> pos, cov, ok = solve_uwb_position_wls(ranges, anchors, anchor_noise_std=anchor_stds)
     
     References:
         Chapter 4, Section 4.2: TOA Positioning with Iterative WLS
@@ -68,6 +86,18 @@ def solve_uwb_position_wls(
     anchors_valid = anchor_positions[valid_mask]
     n_anchors = len(ranges_valid)
     
+    # Determine per-measurement noise std
+    if anchor_noise_std is not None:
+        noise_std_valid = anchor_noise_std[valid_mask]
+    else:
+        noise_std_valid = np.full(n_anchors, range_noise_std)
+    
+    # Measurement covariance R = diag(σ_i²)
+    R = np.diag(noise_std_valid**2)
+    
+    # Weight matrix W = R^{-1}
+    W = np.diag(1.0 / (noise_std_valid**2))
+    
     # Initial guess: centroid of valid anchors
     if initial_guess is None:
         pos = np.mean(anchors_valid, axis=0)
@@ -75,14 +105,11 @@ def solve_uwb_position_wls(
         pos = initial_guess.copy()
     
     # Iterative WLS
+    converged = False
     for iteration in range(max_iterations):
         # Compute predicted ranges and residuals
         ranges_pred = np.linalg.norm(anchors_valid - pos, axis=1)
         residuals = ranges_valid - ranges_pred
-        
-        # Check convergence
-        if np.linalg.norm(residuals) < tolerance:
-            break
         
         # Build measurement matrix H (Jacobian)
         # H[i, :] = -(anchor[i] - pos) / range_pred[i]
@@ -91,10 +118,6 @@ def solve_uwb_position_wls(
             if ranges_pred[i] > 1e-6:  # Avoid singularity
                 diff = anchors_valid[i] - pos
                 H[i, :] = -diff / ranges_pred[i]
-        
-        # Weight matrix (inverse range for simplicity)
-        # In practice, use measurement covariance
-        W = np.diag(1.0 / (ranges_valid + 0.1))  # Avoid division by zero
         
         # WLS update: Δp = (H^T W H)^{-1} H^T W r
         try:
@@ -108,8 +131,13 @@ def solve_uwb_position_wls(
         # Update position
         pos = pos + delta_pos
         
+        # Check convergence based on position update magnitude
+        # (more robust than residual norm, which is biased by noise)
+        if np.linalg.norm(delta_pos) < tolerance:
+            converged = True
+            break
+        
         # Check for reasonable position (within reasonable bounds)
-        # Allow position anywhere within or near the anchor convex hull
         anchor_min = np.min(anchors_valid, axis=0)
         anchor_max = np.max(anchors_valid, axis=0)
         margin = 50.0  # meters margin around anchors
@@ -117,9 +145,18 @@ def solve_uwb_position_wls(
             # Position diverged outside reasonable bounds
             return None, None, False
     
-    # Compute covariance (simplified)
-    # Proper covariance: (H^T W H)^{-1} * sigma^2
-    # For simplicity, use diagonal approximation
+    # If we reached max iterations without diverging, consider it converged
+    # (even if delta_pos was still above tolerance on the last iteration)
+    if not converged and iteration == max_iterations - 1:
+        # Check that final position is reasonable
+        anchor_min = np.min(anchors_valid, axis=0)
+        anchor_max = np.max(anchors_valid, axis=0)
+        margin = 50.0
+        if np.all(pos >= anchor_min - margin) and np.all(pos <= anchor_max + margin):
+            converged = True
+    
+    # Compute covariance: Cov(p) = (H^T W H)^{-1}
+    # This is the Cramér-Rao lower bound for unbiased estimators
     ranges_pred_final = np.linalg.norm(anchors_valid - pos, axis=1)
     H_final = np.zeros((n_anchors, 2))
     for i in range(n_anchors):
@@ -127,20 +164,26 @@ def solve_uwb_position_wls(
             diff = anchors_valid[i] - pos
             H_final[i, :] = -diff / ranges_pred_final[i]
     
-    # Assume range noise std = 0.05m
-    range_variance = 0.05**2
-    W_final = np.eye(n_anchors) / range_variance
-    
     try:
-        HTW_final = H_final.T @ W_final
-        cov = np.linalg.inv(HTW_final @ H_final)
+        HTW_final = H_final.T @ W
+        HTWH_final = HTW_final @ H_final
+        cov = np.linalg.inv(HTWH_final)
     except np.linalg.LinAlgError:
-        # Default to conservative covariance
+        # Default to conservative covariance if inversion fails
         cov = np.eye(2) * 1.0  # 1m std
+        converged = False
     
-    # Consider converged if we completed iterations without diverging
-    # (solution is "good enough" even if not perfectly converged)
-    converged = True
+    # Apply covariance floor to prevent overconfidence
+    # This accounts for unmodeled errors (multipath, NLOS, anchor position errors, etc.)
+    cov_floor = np.eye(2) * (cov_floor_std**2)
+    
+    # For each diagonal element, enforce minimum variance
+    for i in range(2):
+        if cov[i, i] < cov_floor[i, i]:
+            # Scale covariance to meet floor (preserve correlation structure)
+            scale_factor = cov_floor[i, i] / cov[i, i]
+            cov[i, :] *= np.sqrt(scale_factor)
+            cov[:, i] *= np.sqrt(scale_factor)
     
     return pos, cov, converged
 

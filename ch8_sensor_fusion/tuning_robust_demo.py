@@ -16,7 +16,7 @@ Key Equations:
 - Eq. (8.9): Chi-square gating: accept if d^2 < chi2(m, alpha)
 
 Author: Li-Ta Hsu
-References: Chapter 8, Section on Tuning and Robust Estimation
+References: Chapter 8, Section 8.3 (Tuning of Sensor Fusion)
 """
 
 import argparse
@@ -30,8 +30,8 @@ from matplotlib.gridspec import GridSpec
 from core.eval import compute_position_errors, compute_rmse
 from core.fusion import (
     chi_square_gate,
-    huber_weight,
-    cauchy_weight,
+    huber_R_scale,
+    cauchy_R_scale,
     innovation,
     innovation_covariance,
     mahalanobis_distance_squared,
@@ -52,7 +52,7 @@ def run_fusion_with_strategy(
     strategy: str = "baseline",
     R_scale: float = 1.0,
     use_gating: bool = False,
-    gate_alpha: float = 0.05,
+    gate_confidence: float = 0.95,
     robust_threshold: float = 2.0,
     verbose: bool = False
 ) -> Dict:
@@ -63,7 +63,7 @@ def run_fusion_with_strategy(
         strategy: One of 'baseline', 'gating', 'huber', 'cauchy'
         R_scale: Scale factor for R (e.g., 0.5 = under-estimate, 2.0 = over-estimate)
         use_gating: Enable chi-square gating
-        gate_alpha: Gating significance level
+        gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
         robust_threshold: Threshold for robust loss (Huber/Cauchy)
         verbose: Print progress
     
@@ -82,16 +82,17 @@ def run_fusion_with_strategy(
     uwb = dataset['uwb']
     anchors = dataset['uwb_anchors']
     
-    # Initial state
+    # Initial state: [px, py, vx, vy, yaw] (follows StateIndex convention)
     x0 = np.array([
-        truth['p_xy'][0, 0],
-        truth['p_xy'][0, 1],
-        truth['yaw'][0],
-        truth['v_xy'][0, 0],
-        truth['v_xy'][0, 1]
+        truth['p_xy'][0, 0],   # px
+        truth['p_xy'][0, 1],   # py
+        truth['v_xy'][0, 0],   # vx
+        truth['v_xy'][0, 1],   # vy
+        truth['yaw'][0]        # yaw
     ])
     
-    P0 = np.diag([0.1, 0.1, 0.1, 0.5, 0.5])**2
+    # P0: covariances for [px, py, vx, vy, yaw]
+    P0 = np.diag([0.1, 0.1, 0.5, 0.5, 0.1])**2
     
     # Process noise
     accel_noise_std = 0.1
@@ -150,7 +151,7 @@ def run_fusion_with_strategy(
         'innovations': [],
         'nis': [],
         'gated': [],
-        'robust_weights': [],
+        'robust_scales': [],  # Renamed from robust_weights for clarity
     }
     
     n_uwb_accepted = 0
@@ -183,14 +184,15 @@ def run_fusion_with_strategy(
             # Base R
             R_base = np.array([[uwb_range_noise_std**2]])
             
-            # Apply robust weighting if requested
-            robust_weight = 1.0
+            # Apply robust covariance inflation if requested (Eq. 8.7)
+            # Outliers get INFLATED covariance (R_scale >= 1)
+            R_scale = 1.0
             if strategy == 'huber':
-                robust_weight = huber_weight(y[0], threshold=robust_threshold)
-                R_robust = R_base / robust_weight
+                R_scale = huber_R_scale(y[0], delta=robust_threshold)
+                R_robust = R_scale * R_base  # Eq. 8.7: R <- w_R * R
             elif strategy == 'cauchy':
-                robust_weight = cauchy_weight(y[0], threshold=robust_threshold)
-                R_robust = R_base / robust_weight
+                R_scale = cauchy_R_scale(y[0], c=robust_threshold)
+                R_robust = R_scale * R_base  # Eq. 8.7: R <- w_R * R
             else:
                 R_robust = R_base
             
@@ -200,7 +202,7 @@ def run_fusion_with_strategy(
             # Gating
             accept = True
             if use_gating or strategy == 'gating':
-                accept = chi_square_gate(y, S, alpha=gate_alpha)
+                accept = chi_square_gate(y, S, confidence=gate_confidence)
             
             if accept:
                 # Perform update
@@ -215,7 +217,7 @@ def run_fusion_with_strategy(
             history['innovations'].append(float(np.abs(y[0])))
             history['nis'].append(mahalanobis_distance_squared(y, S))
             history['gated'].append(accept)
-            history['robust_weights'].append(robust_weight)
+            history['robust_scales'].append(R_scale)
         
         # Record state
         history['t'].append(meas.t)
@@ -366,9 +368,9 @@ def plot_tuning_comparison(
         
         # Chi-square bound
         from core.fusion import chi_square_threshold
-        threshold = chi_square_threshold(dof=1, alpha=0.05)
+        threshold = chi_square_threshold(dof=1, confidence=0.95)
         ax5.axhline(threshold, color='r', linestyle='--',
-                   linewidth=1.5, label=f'95% bound (χ²={threshold:.2f})')
+                   linewidth=1.5, label=f'95% bound (chi^2={threshold:.2f})')
         
         ax5.set_xlabel('UWB Update Index')
         ax5.set_ylabel('NIS (1 DOF)')
@@ -377,23 +379,24 @@ def plot_tuning_comparison(
         ax5.legend()
         ax5.grid(True, alpha=0.3)
     
-    # 6. Robust weights
+    # 6. Robust covariance scales
     ax6 = fig.add_subplot(gs[1, 2])
-    if len(huber['robust_weights']) > 0:
-        weights_huber = np.array(huber['robust_weights'])
-        weights_cauchy = np.array(cauchy['robust_weights'])
+    if len(huber['robust_scales']) > 0:
+        scales_huber = np.array(huber['robust_scales'])
+        scales_cauchy = np.array(cauchy['robust_scales'])
         
-        step = max(1, len(weights_huber) // 500)
-        ax6.plot(weights_huber[::step], color=color_huber,
+        step = max(1, len(scales_huber) // 500)
+        ax6.plot(scales_huber[::step], color=color_huber,
                 linewidth=0.5, alpha=0.7, label='Huber')
-        ax6.plot(weights_cauchy[::step], color=color_cauchy,
+        ax6.plot(scales_cauchy[::step], color=color_cauchy,
                 linewidth=0.5, alpha=0.7, label='Cauchy')
         
-        ax6.axhline(1.0, color='gray', linestyle='--', linewidth=1, alpha=0.5)
+        ax6.axhline(1.0, color='gray', linestyle='--', linewidth=1, alpha=0.5,
+                   label='No inflation (inlier)')
         ax6.set_xlabel('UWB Update Index')
-        ax6.set_ylabel('Robust Weight')
-        ax6.set_title('Robust Loss Weights (lower = more downweighting)')
-        ax6.set_ylim([0, 1.1])
+        ax6.set_ylabel('R Scale Factor w_R')
+        ax6.set_title('Robust Covariance Inflation (Eq. 8.7): higher = more inflation')
+        ax6.set_ylim([0.5, max(10, np.percentile(scales_cauchy, 95))])
         ax6.legend()
         ax6.grid(True, alpha=0.3)
     
@@ -498,11 +501,13 @@ def main():
     print("\n" + "="*70)
     print("Tuning and Robust Loss Demo (Chapter 8)")
     print("="*70)
-    print("\nKey Concepts:")
+    print("\nKey Concepts (Eq. 8.7: R_k <- w_R * R_k):")
     print("  1. Baseline (no gating): Accepts all measurements (including outliers)")
-    print("  2. Chi-square gating: Rejects outliers based on Mahalanobis distance")
-    print("  3. Huber loss: Soft down-weighting of outliers (linear tail)")
-    print("  4. Cauchy loss: Strong down-weighting of outliers (bounded influence)")
+    print("  2. Chi-square gating: Hard rejection based on Mahalanobis distance")
+    print("  3. Huber loss: Soft inflation of R for outliers (w_R = |r|/delta for |r|>delta)")
+    print("  4. Cauchy loss: Strong inflation of R for outliers (w_R = 1+(r/c)^2)")
+    print("\n  Note: Outliers get INFLATED covariance (w_R >= 1), reducing their")
+    print("        influence in the Kalman gain without complete rejection.")
     print("")
     
     # Load NLOS dataset
@@ -524,7 +529,7 @@ def main():
     
     print("[2/4] Running with chi-square gating...")
     gating = run_fusion_with_strategy(
-        dataset, strategy='gating', use_gating=True, gate_alpha=0.05, verbose=True
+        dataset, strategy='gating', use_gating=True, gate_confidence=0.95, verbose=True
     )
     
     print("[3/4] Running with Huber robust loss...")
@@ -576,8 +581,9 @@ def main():
     print(f"\nKey Findings:")
     print(f"  * Best method: {best_method}")
     print(f"  * Improvement over baseline: {improvement:.1f}%")
-    print(f"  * Gating rejects {gating['n_uwb_rejected']} outliers")
-    print(f"  * Robust losses downweight outliers (softer than gating)")
+    print(f"  * Gating rejects {gating['n_uwb_rejected']} outliers (hard rejection)")
+    print(f"  * Robust losses inflate R for outliers (soft rejection via Eq. 8.7)")
+    print(f"  * Huber: linear inflation, Cauchy: quadratic inflation")
     print("")
     
     # Plot

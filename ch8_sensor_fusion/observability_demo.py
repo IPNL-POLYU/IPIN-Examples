@@ -15,7 +15,7 @@ Key Concepts:
 - Absolute measurements (position fixes) make translation observable
 
 Author: Li-Ta Hsu
-References: Chapter 8, Equations (8.1)-(8.2), Section on Observability
+References: Chapter 8, Section 8.2 (Observability in Sensor Fusion), Equations (8.1)-(8.3)
 """
 
 import argparse
@@ -133,6 +133,138 @@ def generate_absolute_fixes(
     }
 
 
+def compute_observability_matrix(
+    H_sequence: list,
+    F_sequence: list,
+    max_steps: int = None
+) -> Tuple[np.ndarray, int, np.ndarray]:
+    """Compute EKF observability matrix per Equation 8.3.
+    
+    Implements the discrete-time EKF observability matrix:
+        O_EKF = [H_0;
+                 H_1 * Φ(1,0);
+                 H_2 * Φ(2,0);
+                 ...
+                 H_k * Φ(k,0)]
+    
+    where H_i is the measurement Jacobian at step i and
+    Φ(k,0) is the state transition matrix from step 0 to k.
+    
+    Args:
+        H_sequence: List of measurement Jacobians H_i (each m_i x n)
+        F_sequence: List of state transition Jacobians F_i (each n x n)
+        max_steps: Maximum number of steps to include (default: all)
+    
+    Returns:
+        Tuple of (O_EKF, rank, singular_values):
+            O_EKF: Observability matrix (stacked rows)
+            rank: Numerical rank of O_EKF
+            singular_values: Singular values for analysis
+    
+    References:
+        Chapter 8, Equation (8.3): EKF Observability Matrix
+    """
+    if max_steps is None:
+        max_steps = len(H_sequence)
+    else:
+        max_steps = min(max_steps, len(H_sequence))
+    
+    if max_steps == 0:
+        raise ValueError("Need at least one measurement")
+    
+    n_states = F_sequence[0].shape[0]  # State dimension
+    
+    # Build observability matrix row by row
+    O_rows = []
+    
+    # Φ(k,0) = state transition from time 0 to k
+    # Φ(k,0) = F_k * F_{k-1} * ... * F_1
+    Phi_k_0 = np.eye(n_states)  # Φ(0,0) = I
+    
+    for k in range(max_steps):
+        H_k = H_sequence[k]
+        
+        # Add H_k * Φ(k,0) to observability matrix
+        O_rows.append(H_k @ Phi_k_0)
+        
+        # Update state transition matrix for next iteration
+        # Φ(k+1,0) = F_{k+1} * Φ(k,0)
+        if k < len(F_sequence):
+            Phi_k_0 = F_sequence[k] @ Phi_k_0
+    
+    # Stack all rows
+    O_EKF = np.vstack(O_rows)
+    
+    # Compute rank using SVD
+    U, s, Vt = np.linalg.svd(O_EKF, full_matrices=False)
+    
+    # Numerical rank (count singular values above threshold)
+    tol = max(O_EKF.shape) * np.spacing(s[0])
+    rank = np.sum(s > tol)
+    
+    return O_EKF, rank, s
+
+
+def analyze_unobservable_states(
+    O_EKF: np.ndarray,
+    rank: int,
+    state_names: list = None,
+    tolerance: float = None
+) -> Dict:
+    """Analyze unobservable states from observability matrix.
+    
+    Uses SVD to identify the null space of O_EKF, which corresponds
+    to unobservable directions in the state space.
+    
+    Args:
+        O_EKF: Observability matrix
+        rank: Numerical rank of O_EKF
+        state_names: Names of state variables (default: x0, x1, ...)
+        tolerance: Threshold for determining zero singular values
+    
+    Returns:
+        Dictionary with:
+            - 'n_states': Total number of states
+            - 'n_observable': Number of observable states
+            - 'n_unobservable': Number of unobservable states
+            - 'unobservable_modes': Null space basis vectors (each column is a mode)
+            - 'state_names': Names of state variables
+    
+    References:
+        Chapter 8, Section 8.2: Observability Analysis
+    """
+    n_states = O_EKF.shape[1]
+    
+    if state_names is None:
+        state_names = [f'x{i}' for i in range(n_states)]
+    
+    # Perform SVD to find null space
+    U, s, Vt = np.linalg.svd(O_EKF, full_matrices=True)
+    
+    # Determine tolerance
+    if tolerance is None:
+        tolerance = max(O_EKF.shape) * np.spacing(s[0])
+    
+    # Null space = columns of V corresponding to zero singular values
+    # These are the unobservable directions
+    n_unobservable = n_states - rank
+    
+    if n_unobservable > 0:
+        # Last n_unobservable columns of Vt are the null space
+        unobservable_modes = Vt[-n_unobservable:, :].T
+    else:
+        unobservable_modes = np.array([]).reshape(n_states, 0)
+    
+    return {
+        'n_states': n_states,
+        'n_observable': rank,
+        'n_unobservable': n_unobservable,
+        'unobservable_modes': unobservable_modes,
+        'singular_values': s,
+        'state_names': state_names,
+    }
+
+
 def run_odometry_only_fusion(
     trajectory: Dict,
     odometry: Dict,
@@ -222,7 +354,13 @@ def run_odometry_only_fusion(
     
     # Run fusion
     dt = trajectory['t'][1] - trajectory['t'][0]
-    history = {'t': [], 'x_est': [], 'P_trace': []}
+    history = {
+        't': [],
+        'x_est': [],
+        'P_trace': [],
+        'H_sequence': [],  # For observability analysis
+        'F_sequence': []   # For observability analysis
+    }
     
     # Initial state
     history['t'].append(trajectory['t'][0])
@@ -231,10 +369,14 @@ def run_odometry_only_fusion(
     
     for i, delta_p in enumerate(odometry['delta_p']):
         # Predict
+        F = process_jacobian(ekf.state, None, dt)
+        history['F_sequence'].append(F)
         ekf.predict(u=None, dt=dt)
         
         # Update with odometry (velocity measurement as proxy for increment)
         z = delta_p / dt  # Convert increment to velocity
+        H = measurement_jacobian(ekf.state)
+        history['H_sequence'].append(H)
         ekf.update(z)
         
         # Log
@@ -373,7 +515,14 @@ def run_odometry_with_fixes_fusion(
     
     # Run fusion
     dt = trajectory['t'][1] - trajectory['t'][0]
-    history = {'t': [], 'x_est': [], 'P_trace': [], 'fix_times': []}
+    history = {
+        't': [],
+        'x_est': [],
+        'P_trace': [],
+        'fix_times': [],
+        'H_sequence': [],  # For observability analysis
+        'F_sequence': []   # For observability analysis
+    }
     
     # Initial state
     history['t'].append(trajectory['t'][0])
@@ -386,6 +535,8 @@ def run_odometry_with_fixes_fusion(
         dt_step = meas.t - t_prev
         
         # Predict
+        F = process_jacobian(ekf.state, None, dt_step)
+        history['F_sequence'].append(F)
         ekf.predict(u=None, dt=dt_step)
         
         # Update based on sensor type
@@ -393,6 +544,7 @@ def run_odometry_with_fixes_fusion(
             # Odometry update (velocity)
             z_odom = meas.z / dt_step
             H_odom = odom_measurement_jacobian(ekf.state)
+            history['H_sequence'].append(H_odom)
             R_odom = odom_measurement_noise_cov()
             
             # Manual update (simpler than switching models)
@@ -406,6 +558,7 @@ def run_odometry_with_fixes_fusion(
             # Position fix update (absolute position)
             z_pos = meas.z
             H_pos = pos_measurement_jacobian(ekf.state)
+            history['H_sequence'].append(H_pos)
             R_pos = pos_measurement_noise_cov()
             
             y = z_pos - pos_measurement_model(ekf.state)
@@ -640,6 +793,86 @@ def main():
     odom_with_fixes = run_odometry_with_fixes_fusion(
         trajectory, odometry, absolute_fixes, translation_offset=translation_offset
     )
+    
+    # Perform observability analysis (Eq. 8.3)
+    print("\n" + "="*70)
+    print("Observability Analysis (Equation 8.3)")
+    print("="*70)
+    
+    state_names = ['px', 'py', 'vx', 'vy']
+    
+    print("\n[A] Odometry-Only System:")
+    print("-" * 70)
+    
+    # Limit analysis to first 50 steps for computational efficiency
+    max_steps = min(50, len(odom_only_1['H_sequence']))
+    
+    O_odom, rank_odom, s_odom = compute_observability_matrix(
+        odom_only_1['H_sequence'],
+        odom_only_1['F_sequence'],
+        max_steps=max_steps
+    )
+    
+    obs_analysis_odom = analyze_unobservable_states(
+        O_odom, rank_odom, state_names=state_names
+    )
+    
+    print(f"  State dimension: {obs_analysis_odom['n_states']}")
+    print(f"  Observable states: {obs_analysis_odom['n_observable']}")
+    print(f"  Unobservable states: {obs_analysis_odom['n_unobservable']}")
+    print(f"  Observability matrix shape: {O_odom.shape}")
+    print(f"  Rank: {rank_odom} / {obs_analysis_odom['n_states']}")
+    
+    if obs_analysis_odom['n_unobservable'] > 0:
+        print(f"\n  Unobservable modes (null space basis):")
+        for i in range(obs_analysis_odom['n_unobservable']):
+            mode = obs_analysis_odom['unobservable_modes'][:, i]
+            print(f"    Mode {i+1}: {dict(zip(state_names, mode))}")
+            # Identify dominant components
+            dominant_idx = np.argsort(np.abs(mode))[-2:]
+            dominant_states = [state_names[j] for j in dominant_idx]
+            print(f"              (dominant: {', '.join(dominant_states)})")
+    
+    print(f"\n  Singular values (first 5): {s_odom[:5]}")
+    
+    print("\n[B] Odometry + Absolute Fixes System:")
+    print("-" * 70)
+    
+    max_steps_fixes = min(50, len(odom_with_fixes['H_sequence']))
+    
+    O_fixes, rank_fixes, s_fixes = compute_observability_matrix(
+        odom_with_fixes['H_sequence'],
+        odom_with_fixes['F_sequence'],
+        max_steps=max_steps_fixes
+    )
+    
+    obs_analysis_fixes = analyze_unobservable_states(
+        O_fixes, rank_fixes, state_names=state_names
+    )
+    
+    print(f"  State dimension: {obs_analysis_fixes['n_states']}")
+    print(f"  Observable states: {obs_analysis_fixes['n_observable']}")
+    print(f"  Unobservable states: {obs_analysis_fixes['n_unobservable']}")
+    print(f"  Observability matrix shape: {O_fixes.shape}")
+    print(f"  Rank: {rank_fixes} / {obs_analysis_fixes['n_states']}")
+    
+    if obs_analysis_fixes['n_unobservable'] > 0:
+        print(f"\n  Unobservable modes:")
+        for i in range(obs_analysis_fixes['n_unobservable']):
+            mode = obs_analysis_fixes['unobservable_modes'][:, i]
+            print(f"    Mode {i+1}: {dict(zip(state_names, mode))}")
+    else:
+        print(f"\n  System is FULLY OBSERVABLE!")
+    
+    print(f"\n  Singular values (first 5): {s_fixes[:5]}")
+    
+    print("\n[C] Key Observation:")
+    print("-" * 70)
+    if obs_analysis_odom['n_unobservable'] > obs_analysis_fixes['n_unobservable']:
+        print(f"  * Odometry-only has {obs_analysis_odom['n_unobservable']} unobservable directions")
+        print(f"  * Adding absolute fixes reduces this to {obs_analysis_fixes['n_unobservable']}")
+        print(f"  * The unobservable directions correspond to constant translation")
+        print(f"  * This matches the book's observability analysis (Section 8.2)")
     
     # Compute final errors
     def final_error(history):

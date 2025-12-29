@@ -7,7 +7,7 @@ This script demonstrates the architectural trade-offs between LC and TC
 fusion approaches discussed in Chapter 8.
 
 Author: Li-Ta Hsu
-References: Chapter 8, Section 8.2 (Loosely vs Tightly Coupled Fusion)
+References: Chapter 8, Section 8.1 (Loosely Coupled and Tightly Coupled)
 """
 
 import argparse
@@ -27,7 +27,7 @@ from ch8_sensor_fusion.tc_uwb_imu_ekf import run_tc_fusion
 def run_both_fusions(
     dataset: Dict,
     use_gating: bool = True,
-    gate_alpha: float = 0.05,
+    gate_confidence: float = 0.95,
     verbose: bool = True
 ) -> Tuple[Dict, Dict]:
     """Run both LC and TC fusion on the same dataset.
@@ -35,7 +35,7 @@ def run_both_fusions(
     Args:
         dataset: Dataset dictionary
         use_gating: Whether to apply chi-square gating
-        gate_alpha: Gating significance level
+        gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
         verbose: Print progress
     
     Returns:
@@ -52,7 +52,7 @@ def run_both_fusions(
     lc_results = run_lc_fusion(
         dataset,
         use_gating=use_gating,
-        gate_alpha=gate_alpha,
+        gate_confidence=gate_confidence,
         verbose=verbose
     )
     
@@ -62,7 +62,7 @@ def run_both_fusions(
     tc_results = run_tc_fusion(
         dataset,
         use_gating=use_gating,
-        gate_alpha=gate_alpha,
+        gate_confidence=gate_confidence,
         verbose=verbose
     )
     
@@ -352,7 +352,7 @@ def plot_comparison(
         
         # Chi-square bounds for m=2 DOF (position)
         from core.fusion import chi_square_bounds
-        lower, upper = chi_square_bounds(dof=2, alpha=0.05)
+        lower, upper = chi_square_bounds(dof=2, confidence=0.95)
         ax7.axhline(upper, color='r', linestyle='--', linewidth=1.5, label='95% bounds')
         ax7.axhline(lower, color='r', linestyle='--', linewidth=1.5)
         
@@ -375,7 +375,7 @@ def plot_comparison(
         
         # Chi-square bounds for m=1 DOF (range)
         from core.fusion import chi_square_bounds
-        lower, upper = chi_square_bounds(dof=1, alpha=0.05)
+        lower, upper = chi_square_bounds(dof=1, confidence=0.95)
         ax8.axhline(upper, color='r', linestyle='--', linewidth=1.5, label='95% bounds')
         ax8.axhline(lower, color='r', linestyle='--', linewidth=1.5)
         
@@ -488,10 +488,10 @@ def main():
         help="Disable chi-square gating"
     )
     parser.add_argument(
-        "--alpha",
+        "--confidence",
         type=float,
-        default=0.05,
-        help="Gating significance level (default: 0.05)"
+        default=0.95,
+        help="Gating confidence level (default: 0.95 for 95%% confidence)"
     )
     parser.add_argument(
         "--save",
@@ -517,7 +517,7 @@ def main():
     lc_results, tc_results = run_both_fusions(
         dataset,
         use_gating=not args.no_gating,
-        gate_alpha=args.alpha,
+        gate_confidence=args.confidence,
         verbose=True
     )
     
