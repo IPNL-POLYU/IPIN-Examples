@@ -27,8 +27,20 @@ def extract_python_blocks(readme_path):
     return blocks
 
 
-def test_code_block(code, dataset_name, block_num):
-    """Test a single code block."""
+def _run_code_block(code, dataset_name, block_num):
+    """
+    Execute a single code block from documentation.
+    
+    Helper function (not a test) - prefixed with underscore to avoid pytest collection.
+    
+    Args:
+        code: Python code string to execute
+        dataset_name: Name of the dataset being tested
+        block_num: Block number (for identification)
+    
+    Returns:
+        Tuple of (success: bool, message: str)
+    """
     # Skip blocks that are just examples (contain plt.show() or are incomplete)
     if 'plt.show()' in code or '# ... rest is' in code or '...' in code:
         return True, "Skipped (plotting or incomplete example)"
@@ -87,7 +99,7 @@ def main():
         
         for i, block in enumerate(blocks, 1):
             total_tests += 1
-            success, message = test_code_block(block, dataset, i)
+            success, message = _run_code_block(block, dataset, i)
             
             if success:
                 if "Skipped" in message:

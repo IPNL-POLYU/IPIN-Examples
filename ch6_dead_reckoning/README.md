@@ -38,6 +38,24 @@ q, v, p = strapdown_update(q, v, p, omega_b, f_b, dt, frame=frame)
 
 **✅ Validated:** All conventions are tested in `tests/core/test_strapdown_stationary_imu.py` (stationary IMU produces **zero drift**).
 
+## 📐 EKF State Vector (Eq. 6.16)
+
+The Extended Kalman Filter uses a **16-element state vector** ordered as:
+
+```
+x = [p, v, q, b_g, b_a]
+```
+
+| Component | Indices | Size | Description |
+|-----------|---------|------|-------------|
+| **p** | 0:3 | 3 | Position in map frame (m) |
+| **v** | 3:6 | 3 | Velocity in map frame (m/s) |
+| **q** | 6:10 | 4 | Quaternion (body-to-map, scalar-first) |
+| **b_g** | 10:13 | 3 | Gyroscope bias (rad/s) |
+| **b_a** | 13:16 | 3 | Accelerometer bias (m/s²) |
+
+This ordering matches **Eq. (6.16)** in the book and is used consistently across all EKF-related code.
+
 ## Quick Start
 
 ```bash
@@ -45,6 +63,7 @@ q, v, p = strapdown_update(q, v, p, omega_b, f_b, dt, frame=frame)
 python -m ch6_dead_reckoning.example_imu_strapdown
 python -m ch6_dead_reckoning.example_zupt
 python -m ch6_dead_reckoning.example_wheel_odometry
+python -m ch6_dead_reckoning.example_pdr
 python -m ch6_dead_reckoning.example_environment
 python -m ch6_dead_reckoning.example_allan_variance
 
@@ -89,7 +108,7 @@ config = json.load(open(path / "config.json"))
 |----------|----------|----------|-------------|
 | `omega_matrix()` | `core/sensors/strapdown.py` | Eq. (6.3) | Skew-symmetric matrix for quaternion kinematics |
 | `quat_integrate()` | `core/sensors/strapdown.py` | Eq. (6.2-6.4) | Discrete quaternion integration |
-| `vel_update()` | `core/sensors/strapdown.py` | Eq. (6.7) | Velocity update |
+| `vel_update()` | `core/sensors/strapdown.py` | Eq. (6.7) | Velocity update with specific force |
 | `pos_update()` | `core/sensors/strapdown.py` | Eq. (6.10) | Position update |
 | `strapdown_update()` | `core/sensors/strapdown.py` | Eq. (6.2-6.10) | Full strapdown loop |
 
@@ -97,24 +116,27 @@ config = json.load(open(path / "config.json"))
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `wheel_speed_to_attitude_velocity()` | `core/sensors/wheel_odometry.py` | Eq. (6.11) | Lever arm compensation |
+| `wheel_speed_to_attitude_velocity()` | `core/sensors/wheel_odometry.py` | Eq. (6.11) | Lever arm compensation with C_S^A rotation |
 | `attitude_to_map_velocity()` | `core/sensors/wheel_odometry.py` | Eq. (6.14) | Frame transform |
 | `odom_pos_update()` | `core/sensors/wheel_odometry.py` | Eq. (6.15) | Position update |
+
+**Note:** Speed frame convention follows book: x-right, y-forward, z-up.
 
 ### Drift Correction Constraints
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `detect_zupt()` | `core/sensors/constraints.py` | Eq. (6.44) | Zero velocity detector |
-| `ZuptMeasurementModel.h()` | `core/sensors/constraints.py` | Eq. (6.45) | ZUPT pseudo-measurement |
-| `ZaruMeasurementModel.h()` | `core/sensors/constraints.py` | Eq. (6.60) | ZARU pseudo-measurement |
-| `NhcMeasurementModel.h()` | `core/sensors/constraints.py` | Eq. (6.61) | NHC pseudo-measurement |
+| `detect_zupt_windowed()` | `core/sensors/constraints.py` | Eq. (6.44) | ZUPT windowed test statistic |
+| `ZuptMeasurementModel` | `core/sensors/constraints.py` | Eq. (6.45) | ZUPT pseudo-measurement |
+| `ZaruMeasurementModelPlaceholder` | `core/sensors/constraints.py` | ⚠️ INCOMPLETE | ZARU placeholder (see class docs) |
+| `NhcMeasurementModel` | `core/sensors/constraints.py` | Eq. (6.61) | NHC pseudo-measurement |
 
 ### Pedestrian Dead Reckoning (PDR)
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
 | `total_accel_magnitude()` | `core/sensors/pdr.py` | Eq. (6.46) | Total acceleration magnitude |
+| `detect_steps_peak_detector()` | `core/sensors/pdr.py` | Eq. (6.46-6.47) | Peak-based step detection |
 | `step_length()` | `core/sensors/pdr.py` | Eq. (6.49) | Weinberg step length model |
 | `pdr_step_update()` | `core/sensors/pdr.py` | Eq. (6.50) | 2D position update |
 
@@ -126,17 +148,21 @@ config = json.load(open(path / "config.json"))
 | `mag_heading()` | `core/sensors/environment.py` | Eq. (6.51-6.53) | Heading from magnetometer |
 | `pressure_to_altitude()` | `core/sensors/environment.py` | Eq. (6.54) | Barometric altitude |
 
-### Allan Variance
+### Allan Variance / IMU Calibration
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `allan_variance()` | `core/sensors/calibration.py` | Eq. (6.56-6.58) | IMU noise characterization |
+| `allan_variance()` | `core/sensors/calibration.py` | IEEE Std 952-1997 | Standard Allan variance computation |
+| `identify_random_walk()` | `core/sensors/calibration.py` | Eq. (6.56) | ARW/VRW extraction from slope=-0.5 region |
+| `arw_to_noise_std()` | `core/sensors/calibration.py` | Eq. (6.58) | Convert ARW to per-sample noise: σ = ARW × √Δt |
 
-## Expected Output
+---
 
-### IMU Strapdown Example
+## Example Outputs & Figures
 
-Running `python ch6_dead_reckoning/example_imu_strapdown.py` produces:
+### 1. IMU Strapdown Integration
+
+Running `python -m ch6_dead_reckoning.example_imu_strapdown` demonstrates pure IMU integration without any corrections.
 
 ```
 === Chapter 6: IMU Strapdown Integration ===
@@ -156,15 +182,22 @@ Results (IMU-only, no corrections):
 Key Insight: IMU drift is UNBOUNDED without corrections!
 ```
 
-**Visual Output:**
+#### IMU Strapdown Figures
 
-![IMU Strapdown Trajectory](figs/imu_strapdown_trajectory.svg)
+| Figure | Description |
+|--------|-------------|
+| ![IMU Strapdown Trajectory](figs/imu_strapdown_trajectory.svg) | **Trajectory comparison** showing ground truth (blue) vs. IMU-integrated path (red). Demonstrates how quickly position drifts without corrections. |
+| ![Strapdown Trajectory](figs/strapdown_trajectory.svg) | **Alternative trajectory view** for strapdown integration results. |
+| ![IMU Strapdown Attitude](figs/imu_strapdown_attitude.svg) | **Attitude (Euler angles) over time** showing roll, pitch, and yaw. Yaw drifts unboundedly due to gyroscope bias. |
+| ![IMU Strapdown Error](figs/imu_strapdown_error_time.svg) | **Position error vs. time** showing error growth. Note the quadratic growth pattern typical of double-integrated bias. |
 
-*Shows the growing position error over time - IMU alone drifts unboundedly.*
+**Key Insight:** IMU-only integration is **unusable** for navigation beyond a few seconds. Gyroscope bias causes yaw drift, which then corrupts velocity and position.
 
-### ZUPT Example (Zero-Velocity Update)
+---
 
-Running `python ch6_dead_reckoning/example_zupt.py` produces:
+### 2. ZUPT (Zero-Velocity Update)
+
+Running `python -m ch6_dead_reckoning.example_zupt` demonstrates ZUPT-EKF for foot-mounted navigation.
 
 ```
 === Chapter 6: Zero-Velocity Update (ZUPT) ===
@@ -187,15 +220,143 @@ Key Insight: ZUPT-EKF corrects velocity drift during stance phases!
              Achieves >90% error reduction.
 ```
 
-**Important Notes:**
+**Implementation Notes:**
 - Uses proper EKF measurement update (not hard-coded v=0)
 - Windowed ZUPT detector (Eq. 6.44) for robust detection
-- State vector includes biases: [q, v, p, b_g, b_a] (16 states total)
+- State vector: **[p, v, q, b_g, b_a]** (16 states, per Eq. 6.16)
 - Covariance properly tracked and updated
 
-### Comprehensive Comparison
+#### ZUPT Figures
 
-Running `python ch6_dead_reckoning/example_comparison.py` generates:
+| Figure | Description |
+|--------|-------------|
+| ![ZUPT Trajectory](figs/zupt_trajectory.svg) | **Trajectory comparison** showing IMU-only (red, drifts badly) vs. ZUPT-corrected (green, bounded error). |
+| ![ZUPT Trajectory with Stance](figs/zupt_trajectory_stance.svg) | **Trajectory with stance phases highlighted.** Blue markers show detected stance phases where ZUPT corrections are applied. |
+| ![ZUPT Detector Timeline](figs/zupt_detector_timeline.svg) | **ZUPT detector output over time.** Shows the windowed test statistic (Eq. 6.44) and threshold crossings that trigger ZUPT updates. |
+| ![ZUPT Error Time](figs/zupt_error_time.svg) | **Position error vs. time** comparing IMU-only (growing unboundedly) vs. ZUPT-corrected (bounded). Each ZUPT update "resets" velocity error. |
+
+**Key Insight:** ZUPT provides **>90% error reduction** by exploiting the fact that the foot is stationary during stance phases. Essential for foot-mounted INS.
+
+---
+
+### 3. Wheel Odometry
+
+Running `python -m ch6_dead_reckoning.example_wheel_odometry` demonstrates vehicle dead reckoning.
+
+#### Wheel Odometry Figures
+
+| Figure | Description |
+|--------|-------------|
+| ![Wheel Odometry Trajectory](figs/wheel_odom_trajectory.svg) | **Vehicle trajectory** showing ground truth vs. wheel odometry estimate. Includes lever arm compensation (Eq. 6.11). |
+| ![Wheel Odometry Error](figs/wheel_odom_error.svg) | **Position error over time** for wheel odometry. Error is bounded but grows due to heading drift. |
+
+**Key Insight:** Wheel odometry provides **bounded drift** (~30% of distance traveled) but suffers from heading drift over long distances. Best combined with absolute heading sensors.
+
+**Speed Frame Convention:** Following the book, the speed frame uses:
+- x-axis: right
+- y-axis: **forward** (vehicle motion direction)
+- z-axis: up
+
+---
+
+### 4. Pedestrian Dead Reckoning (PDR)
+
+Running `python -m ch6_dead_reckoning.example_pdr` demonstrates step-and-heading navigation.
+
+#### PDR Figures
+
+| Figure | Description |
+|--------|-------------|
+| ![PDR Trajectory](figs/pdr_trajectory.svg) | **PDR trajectory** comparing gyro-based heading (green) vs. magnetometer-based heading (blue) against ground truth (black). |
+| ![PDR Heading](figs/pdr_heading.svg) | **Heading comparison over time** showing gyro-integrated heading (drifts) vs. magnetometer heading (noisy but bounded) vs. ground truth. |
+| ![PDR Error](figs/pdr_error.svg) | **Position error over time** for both PDR methods. Magnetometer-based PDR typically has bounded error; gyro-based drifts over long walks. |
+
+**Key Insight:** PDR provides **~20% of distance** error with good step detection. Heading source is critical: magnetometer bounds drift but is noisy; gyro is smooth but drifts.
+
+**Step Detection:** Uses peak detection (Eqs. 6.46-6.47) with:
+- Gravity subtraction: `a_tot = ||a|| - g`
+- Low-pass filtering (5 Hz cutoff)
+- Peak detection with minimum step interval (0.3s)
+
+---
+
+### 5. Environmental Sensors
+
+Running `python -m ch6_dead_reckoning.example_environment` demonstrates magnetometer and barometer usage.
+
+```
+=== Chapter 6: Environmental Sensors ===
+Scenario: Multi-floor building walk (180 seconds, 3 floors)
+
+Magnetometer Heading:
+  RMSE:             103.2 deg
+  Max error:        180.0 deg
+  Note: Large errors during magnetic disturbances (30-50s, 100-120s)
+
+Barometric Altitude:
+  RMSE:             3.04 m
+  Floor Accuracy:   44.4%
+
+Key Insight: Environmental sensors provide absolute references!
+             Magnetometer bounds heading drift (when clean).
+             Barometer provides floor-level positioning.
+             BUT sensitive to indoor disturbances (steel, weather).
+```
+
+#### Environmental Sensor Figures
+
+| Figure | Description |
+|--------|-------------|
+| ![Magnetometer Heading](figs/environment_mag_heading.svg) | **Magnetometer heading over time** showing true heading (blue) vs. magnetometer estimate (red). Shaded regions indicate magnetic disturbances. |
+| ![Barometric Altitude](figs/environment_baro_altitude.svg) | **Barometric altitude over time** showing true altitude (blue) vs. barometer estimate (red). Floor transitions are visible as step changes. |
+
+**Notes:**
+- High heading RMSE (103°) reflects **severe magnetic disturbances** in the test scenario
+- In clean environments, magnetometer RMSE is typically 5-10°
+- Barometer provides ~3m accuracy (suitable for floor detection with multi-sensor fusion)
+
+---
+
+### 6. Allan Variance Analysis
+
+Running `python -m ch6_dead_reckoning.example_allan_variance` characterizes IMU noise.
+
+```
+=== Allan Variance Analysis ===
+
+Gyroscope Noise Parameters:
+  Angle Random Walk:   0.10 deg/sqrt(hr)
+  Bias Instability:    10.0 deg/hr
+  Rate Random Walk:    0.02 deg/hr/sqrt(hr)
+
+Accelerometer Noise Parameters:
+  Velocity Random Walk: 0.05 m/s/sqrt(hr)
+  Bias Instability:     0.1 mg
+```
+
+#### Allan Variance Figures
+
+| Figure | Description |
+|--------|-------------|
+| ![Allan Variance Gyroscope](figs/allan_gyroscope_consumer.svg) | **Gyroscope Allan deviation** showing characteristic noise regions: white noise (slope -0.5), bias instability (minimum), and random walk (slope +0.5). |
+| ![Allan Variance Accelerometer](figs/allan_accelerometer_consumer.svg) | **Accelerometer Allan deviation** with similar noise structure. VRW is extracted from the slope=-0.5 region at τ=1s. |
+
+**Interpretation:**
+- **Slope = -0.5 region:** White noise (ARW/VRW) - Eq. (6.56): ARW = σ(τ=1s)
+- **Minimum point:** Bias instability - lowest achievable averaging error
+- **Slope = +0.5 region:** Rate random walk - long-term drift
+
+**Converting ARW to per-sample noise (Eq. 6.58):**
+```python
+from core.sensors.calibration import arw_to_noise_std
+sigma_gyro = arw_to_noise_std(arw=0.1, dt=0.01)  # 100 Hz
+```
+
+---
+
+### 7. Comprehensive Comparison
+
+Running `python -m ch6_dead_reckoning.example_comparison` compares all methods.
 
 ```
 ===========================================================================
@@ -219,66 +380,15 @@ Conclusion: Dead reckoning REQUIRES corrections or fusion!
            ZUPT-EKF provides >95% error reduction for foot-mounted IMU.
 ```
 
-**Visual Outputs:**
+#### Comparison Figures
 
-![Comparison Trajectories](figs/comparison_trajectories.svg)
+| Figure | Description |
+|--------|-------------|
+| ![Comparison Trajectories](figs/comparison_trajectories.svg) | **Side-by-side trajectory comparison** of all DR methods on the same trajectory. IMU-only (red) drifts away; corrected methods stay close to ground truth. |
+| ![Comparison Error Time](figs/comparison_error_time.svg) | **Position error vs. time** for all methods. IMU-only grows unboundedly; others are bounded. |
+| ![Comparison Error CDF](figs/comparison_error_cdf.svg) | **Cumulative distribution of position errors.** Shows what percentage of time each method achieves a given error level. |
 
-*Side-by-side comparison of all DR methods on the same trajectory.*
-
-![Error CDF](figs/comparison_error_cdf.svg)
-
-*Cumulative distribution of position errors for each method.*
-
-### Allan Variance Example
-
-Running `python ch6_dead_reckoning/example_allan_variance.py` produces:
-
-```
-=== Allan Variance Analysis ===
-
-Gyroscope Noise Parameters:
-  Angle Random Walk:   0.10 deg/sqrt(hr)
-  Bias Instability:    10.0 deg/hr
-  Rate Random Walk:    0.02 deg/hr/sqrt(hr)
-
-Accelerometer Noise Parameters:
-  Velocity Random Walk: 0.05 m/s/sqrt(hr)
-  Bias Instability:     0.1 mg
-```
-
-**Visual Output:**
-
-![Allan Variance](figs/allan_gyroscope_consumer.svg)
-
-*Allan deviation plot showing noise sources at different averaging times.*
-
-### Environmental Sensors Example
-
-Running `python ch6_dead_reckoning/example_environment.py` produces:
-
-```
-=== Chapter 6: Environmental Sensors ===
-Scenario: Multi-floor building walk (180 seconds, 3 floors)
-
-Magnetometer Heading:
-  RMSE:             103.2 deg
-  Max error:        180.0 deg
-  Note: Large errors during magnetic disturbances (30-50s, 100-120s)
-
-Barometric Altitude:
-  RMSE:             3.04 m
-  Floor Accuracy:   44.4%
-
-Key Insight: Environmental sensors provide absolute references!
-             Magnetometer bounds heading drift (when clean).
-             Barometer provides floor-level positioning.
-             BUT sensitive to indoor disturbances (steel, weather).
-```
-
-**Notes:**
-- High heading RMSE (103°) reflects severe magnetic disturbances in test scenario
-- In clean environments, magnetometer RMSE is typically 5-10°
-- Barometer provides ~3m accuracy (suitable for floor detection with multi-sensor fusion)
+---
 
 ## Performance Summary
 
@@ -296,36 +406,52 @@ Based on actual outputs from `example_comparison.py` (100m trajectory, consumer-
 - Wheel odometry and PDR both achieve ~20-30% error (bounded drift)
 - All corrections dramatically outperform pure IMU integration
 
+---
+
 ## File Structure
 
 ```
 ch6_dead_reckoning/
 ├── README.md                      # This file (student documentation)
 ├── example_imu_strapdown.py       # Pure IMU integration
-├── example_zupt.py                # Zero-velocity updates
+├── example_zupt.py                # Zero-velocity updates (EKF)
 ├── example_pdr.py                 # Pedestrian dead reckoning
 ├── example_wheel_odometry.py      # Vehicle odometry
 ├── example_environment.py         # Magnetometer, barometer
 ├── example_allan_variance.py      # IMU calibration
 ├── example_comparison.py          # All methods comparison
-└── figs/                          # Generated figures (SVG/PDF)
+└── figs/                          # Generated figures (SVG)
+    ├── imu_strapdown_*.svg        # IMU strapdown figures
+    ├── zupt_*.svg                 # ZUPT figures
+    ├── wheel_odom_*.svg           # Wheel odometry figures
+    ├── pdr_*.svg                  # PDR figures
+    ├── environment_*.svg          # Environmental sensor figures
+    ├── allan_*.svg                # Allan variance figures
+    └── comparison_*.svg           # Comparison figures
 
 core/sensors/
 ├── strapdown.py                   # IMU strapdown integration
-├── wheel_odometry.py              # Wheel odometry
-├── constraints.py                 # ZUPT, ZARU, NHC
-├── pdr.py                         # Pedestrian DR
+├── wheel_odometry.py              # Wheel odometry (Eq. 6.11 with C_S^A)
+├── constraints.py                 # ZUPT, ZARU (placeholder), NHC
+├── pdr.py                         # Pedestrian DR (peak detection)
 ├── environment.py                 # Magnetometer, barometer
-└── calibration.py                 # Allan variance
+├── calibration.py                 # Allan variance (Eq. 6.56-6.58)
+└── ins_ekf.py                     # EKF for INS (Eq. 6.16 state ordering)
 ```
+
+---
 
 ## References
 
 - **Chapter 6**: Dead Reckoning and Sensor Fusion
   - Section 6.1: IMU error models and strapdown integration
-  - Section 6.2: Wheel odometry
-  - Section 6.3: Pedestrian dead reckoning
-  - Section 6.4: Environmental sensors
-  - Section 6.5: IMU calibration (Allan variance)
-  - Section 6.6: Drift correction constraints
+  - Section 6.2: Wheel odometry (Eq. 6.11 lever arm, Eq. 6.14 frame transform)
+  - Section 6.3: Pedestrian dead reckoning (Eqs. 6.46-6.50)
+  - Section 6.4: Environmental sensors (Eqs. 6.51-6.54)
+  - Section 6.5: IMU calibration - Allan variance (Eqs. 6.56-6.58)
+  - Section 6.6: Drift correction constraints (Eqs. 6.44-6.45 ZUPT, Eq. 6.61 NHC)
 
+**Related Documentation:**
+- [`docs/ch6_frame_conventions.md`](../docs/ch6_frame_conventions.md) - Frame conventions (ENU/NED)
+- [`docs/ch6_zupt_ekf.md`](../docs/ch6_zupt_ekf.md) - ZUPT-EKF implementation details
+- [`docs/ch6_zupt_windowed_detector.md`](../docs/ch6_zupt_windowed_detector.md) - Windowed ZUPT detector

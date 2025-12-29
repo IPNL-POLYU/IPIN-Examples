@@ -185,3 +185,10 @@ The windowed test statistic (Eq. 6.44) has several advantages over simple thresh
 4. **Monitor detection rate**: Should match expected stance ratio
 5. **Avoid false positives**: Better to miss some stance phases than apply ZUPT during motion
 
+
+
+
+
+
+
+

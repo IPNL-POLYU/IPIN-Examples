@@ -262,12 +262,12 @@ def run_imu_with_zupt_ekf(
     N = len(t)
     dt = t[1] - t[0]
     
-    # Initialize EKF  (sigma_zupt = 0.001 makes ZUPT measurements highly trusted)
+    # Initialize EKF (sigma_zupt = 0.001 makes ZUPT measurements highly trusted)
     ekf = ZUPT_EKF(frame=frame, imu_params=imu_params, sigma_zupt=0.001)
     state = ekf.initialize(
-        q0=initial_state.q.copy(),
+        p0=initial_state.p.copy(),
         v0=initial_state.v.copy(),
-        p0=initial_state.p.copy()
+        q0=initial_state.q.copy()
     )
     
     pos_est = np.zeros((N, 3))

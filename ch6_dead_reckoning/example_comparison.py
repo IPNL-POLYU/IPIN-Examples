@@ -123,8 +123,8 @@ def generate_mixed_trajectory(duration=120.0, dt=0.01, frame=None):
         # Velocity
         vel_true[k, :2] = v_walk * np.array([np.cos(heading_true[k]), np.sin(heading_true[k])])
         
-        # Wheel speed (for vehicle scenario)
-        wheel_speed_true[k] = np.array([v_walk, 0, 0])
+        # Wheel speed (for vehicle scenario, book convention: y=forward)
+        wheel_speed_true[k] = np.array([0, v_walk, 0])
     
     # Create quaternion trajectory (yaw only, roll/pitch = 0)
     quat_true = np.column_stack([

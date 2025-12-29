@@ -2,13 +2,18 @@
 Drift correction constraints for INS (Chapter 6).
 
 This module implements constraint-based drift reduction techniques:
-    - ZUPT: Zero velocity update (Eq. (6.44)-(6.45))
-    - ZARU: Zero angular rate update (Eq. (6.60))
-    - NHC: Nonholonomic constraint (Eq. (6.61))
+    - ZUPT: Zero velocity update (Eq. (6.44)-(6.45)) [FULLY IMPLEMENTED]
+    - ZARU: Zero angular rate update [PLACEHOLDER - see ZaruMeasurementModelPlaceholder]
+    - NHC: Nonholonomic constraint (Eq. (6.61)) [FULLY IMPLEMENTED]
 
 These constraints provide pseudo-measurements that can be integrated into
 an EKF to correct IMU drift when specific motion assumptions hold (e.g.,
 foot on ground, vehicle not sliding sideways).
+
+Implementation Status:
+    - ZuptMeasurementModel: Fully implements Eq. (6.45) ✓
+    - ZaruMeasurementModelPlaceholder: Incomplete (interface limitation) ⚠
+    - NhcMeasurementModel: Fully implements Eq. (6.61) ✓
 
 Design Note:
     These are MeasurementModel classes compatible with core/estimators/ExtendedKalmanFilter.
@@ -20,10 +25,10 @@ Frame Conventions:
     - Constraints operate on velocity in specific frames
 
 References:
-    Chapter 6, Section 6.2: Drift correction constraints
+    Chapter 6, Section 6.6.2: Motion constraints for drift mitigation
     Eq. (6.44): ZUPT detector (stationary detection)
     Eq. (6.45): ZUPT pseudo-measurement (v = 0)
-    Eq. (6.60): ZARU pseudo-measurement (ω = 0)
+    Eq. (6.60): ZARU concept (ω = 0) - NOT fully implemented here
     Eq. (6.61): NHC pseudo-measurement (lateral/vertical velocity = 0)
 """
 
@@ -356,7 +361,7 @@ class ZuptMeasurementModel:
         >>> import numpy as np
         >>> from core.sensors.constraints import ZuptMeasurementModel, detect_zupt
         >>> 
-        >>> # Assume we have an EKF with state [q, v, p, b_g, b_a]
+        >>> # Assume we have an EKF with state [p, v, q, b_g, b_a] (Eq. 6.16)
         >>> zupt_model = ZuptMeasurementModel(sigma_zupt=0.05)
         >>> 
         >>> # Check if stationary
@@ -384,48 +389,51 @@ class ZuptMeasurementModel:
         """
         Measurement function: h(x) = v (extract velocity from state).
 
-        Assumes state vector x = [q (4), v (3), p (3), ...] where velocity
-        is at indices 4:7.
+        Assumes state vector x = [p (3), v (3), q (4), ...] where velocity
+        is at indices 3:6 (Eq. 6.16).
 
         Args:
-            x: State vector. Shape: (n,) where n >= 7.
-               Expected: [q0, q1, q2, q3, vx, vy, vz, px, py, pz, ...]
+            x: State vector. Shape: (n,) where n >= 6.
+               Expected: [px, py, pz, vx, vy, vz, q0, q1, q2, q3, ...]
 
         Returns:
             Predicted measurement (velocity).
             Shape: (3,). Units: m/s.
         """
-        if x.shape[0] < 7:
+        if x.shape[0] < 6:
             raise ValueError(
-                f"State vector must have at least 7 elements, got {x.shape[0]}"
+                f"State vector must have at least 6 elements, got {x.shape[0]}"
             )
 
-        # Extract velocity (indices 4:7)
-        v = x[4:7]
+        # Extract velocity (indices 3:6)
+        v = x[3:6]
         return v
 
     def H(self, x: np.ndarray) -> np.ndarray:
         """
-        Measurement Jacobian: H = ∂h/∂x (ZUPT measurement).
+        Measurement Jacobian: H = ∂h/∂x (ZUPT measurement, Eq. 6.45).
 
         For ZUPT, h(x) = v, so:
-            ∂h/∂q = 0 (3×4)
-            ∂h/∂v = I (3×3)
             ∂h/∂p = 0 (3×3)
+            ∂h/∂v = I (3×3)
+            ∂h/∂q = 0 (3×4)
             ∂h/∂(rest) = 0
 
+        State ordering (Eq. 6.16): x = [p (3), v (3), q (4), b_g (3), b_a (3)]
+
         Args:
-            x: State vector. Shape: (n,) where n >= 7.
+            x: State vector. Shape: (n,) where n >= 6.
 
         Returns:
             Measurement Jacobian H.
             Shape: (3, n). Selects velocity components from state.
+            H = [0_3x3, I_3, 0_3x4, 0_3x3, 0_3x3] for full 16-state vector.
         """
         n = x.shape[0]
         H = np.zeros((3, n))
 
-        # ∂h/∂v = I at indices 4:7
-        H[:, 4:7] = np.eye(3)
+        # ∂h/∂v = I at indices 3:6
+        H[:, 3:6] = np.eye(3)
 
         return H
 
@@ -446,52 +454,79 @@ class ZuptMeasurementModel:
         return R
 
 
-class ZaruMeasurementModel:
+class ZaruMeasurementModelPlaceholder:
     """
-    Zero angular rate update (ZARU) pseudo-measurement model.
+    PLACEHOLDER: Zero angular rate update (ZARU) pseudo-measurement model.
 
-    Implements Eq. (6.60) in Chapter 6:
-        z_ZARU = 0 (expected measurement when not rotating)
-        h(x) = ω (angular velocity, if estimated in state)
-        Innovation: ν = 0 - ω = -ω
+    **INCOMPLETE IMPLEMENTATION** - This class does NOT properly implement
+    the book's Eq. (6.60) and is provided as a placeholder for future work.
 
-    ZARU provides an angular velocity measurement of exactly zero when the
-    sensor is stationary or moving without rotation. This corrects gyro
-    bias drift in the EKF.
+    Why this implementation is incomplete:
+    ------------------------------------
+    The book's ZARU (Eq. 6.60) defines:
+        z_zaru = 0 (measurement: zero angular rate)
+        h(x) = ω_b (predicted: body angular rate from gyro)
 
-    The measurement model is:
-        z = h(x) + w, where h(x) = ω and z = 0
-        R = σ_ZARU² I (measurement noise covariance)
+    However, ω_b (angular rate) is NOT in the EKF state vector
+    x = [p, v, q, b_g, b_a]. The angular rate is an *input* (gyro measurement
+    ω_meas), not a state variable. The corrected angular rate is:
+        ω_b = ω_meas - b_g
 
-    Note: This implementation assumes gyro bias b_g is part of the state.
-    The measurement is effectively on the bias: h(x) = ω_measured - b_g,
-    and we expect this to be zero when stationary.
+    For proper ZARU implementation, h(x) must compute ω_meas - b_g, but ω_meas
+    is not available in the h(x) interface (which only receives state x).
+
+    Current implementation limitations:
+    -----------------------------------
+    1. h(x) returns zeros (incorrect - should return predicted angular rate)
+    2. H has -I at gyro bias indices (partially correct but not justified)
+    3. No way to pass current gyro measurement ω_meas to h(x)
+    4. Does NOT match the book's Eq. (6.60) formulation
+
+    What would be needed for proper implementation:
+    -----------------------------------------------
+    - Extend measurement model interface to accept external measurements
+    - Pass current gyro reading ω_meas to h(x)
+    - Compute h(x) = ω_meas - b_g[x]
+    - Jacobian: ∂h/∂b_g = -I (already implemented)
+
+    Current usage (if you choose to use this placeholder):
+    ------------------------------------------------------
+    This placeholder may provide *some* bias correction if used carefully,
+    but it does not faithfully implement the book's ZARU algorithm.
 
     Attributes:
         sigma_zaru: ZARU measurement noise standard deviation.
                     Units: rad/s. Typical value: 0.01 to 0.1 rad/s.
 
     Notes:
-        - ZARU is often applied together with ZUPT (both stationary conditions).
-        - Helps estimate and correct gyro bias online.
-        - Less common than ZUPT; requires very still sensor.
-        - Can be applied when detect_zupt() returns True (same detector).
+        - ZARU is conceptually similar to ZUPT but for angular rate
+        - Should be applied during "no rotation" intervals
+        - Can be detected using same conditions as ZUPT (gyro near zero)
+        - Proper implementation requires interface changes
 
     Example:
-        >>> zaru_model = ZaruMeasurementModel(sigma_zaru=0.01)
+        >>> # This is a placeholder - use with caution!
+        >>> zaru_model = ZaruMeasurementModelPlaceholder(sigma_zaru=0.01)
         >>> # Apply when stationary (same condition as ZUPT)
         >>> if detect_zupt(gyro, accel, 0.05, 0.5):
         >>>     z_zaru = np.zeros(3)  # zero angular rate measurement
-        >>>     # ekf.update(z_zaru, zaru_model)
+        >>>     # ekf.update(z_zaru, zaru_model)  # INCOMPLETE!
 
-    Related Equations:
+    Related Book Sections:
+        - Section 6.6.2.2: ZARU description (conceptual)
+        - Eq. (6.60): ZARU pseudo-measurement (NOT fully implemented here)
         - Eq. (6.44): Stationary detector (shared with ZUPT)
-        - Eq. (6.60): ZARU pseudo-measurement (THIS CLASS)
+
+    See Also:
+        - ZuptMeasurementModel: Properly implemented zero velocity update
+        - NhcMeasurementModel: Properly implemented non-holonomic constraints
     """
 
     def __init__(self, sigma_zaru: float = 0.01):
         """
-        Initialize ZARU measurement model.
+        Initialize ZARU placeholder measurement model.
+
+        **WARNING**: This is an incomplete implementation. See class docstring.
 
         Args:
             sigma_zaru: ZARU measurement noise std dev (rad/s). Default: 0.01 rad/s.
@@ -502,47 +537,50 @@ class ZaruMeasurementModel:
 
     def h(self, x: np.ndarray) -> np.ndarray:
         """
-        Measurement function: h(x) = corrected angular velocity.
+        Measurement function (INCOMPLETE PLACEHOLDER).
 
-        For augmented state x = [q, v, p, b_g, ...], the corrected angular
-        velocity is ω_corrected = ω_measured - b_g. But we don't have
-        ω_measured in the state, so we assume ZARU is applied directly
-        to gyro bias correction.
+        **LIMITATION**: This returns zeros, but the book's Eq. (6.60) requires
+        h(x) = ω_b = ω_meas - b_g, where ω_meas is the current gyro reading.
+        Since ω_meas is not available in this interface, this implementation
+        is fundamentally incomplete.
 
-        Simplified implementation: returns zero (pseudo-measurement approach).
+        For state x = [p, v, q, b_g, b_a] (Eq. 6.16), proper ZARU would need:
+            h(x) = ω_meas - b_g[x]
+        where ω_meas is passed externally (not currently supported).
 
         Args:
             x: State vector. Shape: (n,).
 
         Returns:
-            Predicted measurement (zero for ZARU).
+            Predicted measurement (zeros - INCORRECT for Eq. 6.60).
             Shape: (3,). Units: rad/s.
         """
-        # For ZARU: we expect zero angular velocity
-        # The measurement is applied as a correction to gyro bias
+        # INCOMPLETE: Should return ω_meas - b_g, but ω_meas not available
         return np.zeros(3)
 
     def H(self, x: np.ndarray) -> np.ndarray:
         """
-        Measurement Jacobian for ZARU.
+        Measurement Jacobian (partially correct).
 
-        For state x = [q, v, p, b_g, b_a], ZARU affects gyro bias b_g.
-        Assuming b_g is at indices 10:13 (after q, v, p):
-            ∂h/∂b_g = -I (3×3) [since ω = ω_meas - b_g, and we measure ω ≈ 0]
+        If h(x) = ω_meas - b_g, then ∂h/∂b_g = -I.
+        This part is implemented correctly, but h(x) itself is not.
 
-        Simplified: returns zeros for now (needs full state structure).
+        For state x = [p, v, q, b_g, b_a] (Eq. 6.16), b_g is at indices 10:13:
+            ∂h/∂b_g = -I (3×3)
 
         Args:
-            x: State vector. Shape: (n,).
+            x: State vector. Shape: (n,) where n >= 13.
 
         Returns:
             Measurement Jacobian H.
             Shape: (3, n).
+            H = [0_3x3, 0_3x3, 0_3x4, -I_3, 0_3x3] for full 16-state vector.
         """
         n = x.shape[0]
         H = np.zeros((3, n))
 
-        # If gyro bias is at indices 10:13, set ∂h/∂b_g = -I
+        # ∂h/∂b_g = -I at indices 10:13
+        # This is correct if h(x) = ω_meas - b_g
         if n >= 13:
             H[:, 10:13] = -np.eye(3)
 
@@ -550,7 +588,7 @@ class ZaruMeasurementModel:
 
     def R(self, x: Optional[np.ndarray] = None) -> np.ndarray:
         """
-        Measurement noise covariance for ZARU.
+        Measurement noise covariance (correctly implemented).
 
         Args:
             x: State vector (optional, not used).
@@ -624,28 +662,28 @@ class NhcMeasurementModel:
 
     def h(self, x: np.ndarray) -> np.ndarray:
         """
-        Measurement function: h(x) = [v_y, v_z] in body frame.
+        Measurement function: h(x) = [v_y, v_z] in body frame (Eq. 6.61).
 
-        Extracts velocity from state x = [q, v_map, p, ...], then transforms
-        to body frame using quaternion q, and returns lateral (y) and
-        vertical (z) components.
+        Extracts velocity from state x = [p, v_map, q, ...] (Eq. 6.16), then
+        transforms to body frame using quaternion q, and returns lateral (y)
+        and vertical (z) components.
 
         Args:
-            x: State vector. Shape: (n,) where n >= 7.
-               Expected: [q (4), v_map (3), p (3), ...]
+            x: State vector. Shape: (n,) where n >= 10.
+               Expected: [p (3), v_map (3), q (4), ...]
 
         Returns:
             Predicted measurement: [v_y_body, v_z_body].
             Shape: (2,). Units: m/s.
         """
-        if x.shape[0] < 7:
+        if x.shape[0] < 10:
             raise ValueError(
-                f"State vector must have at least 7 elements, got {x.shape[0]}"
+                f"State vector must have at least 10 elements, got {x.shape[0]}"
             )
 
-        # Extract quaternion and velocity
-        q = x[0:4]
-        v_map = x[4:7]
+        # Extract velocity and quaternion (Eq. 6.16 ordering)
+        v_map = x[3:6]
+        q = x[6:10]
 
         # Transform velocity from map to body frame: v_body = C_M^B @ v_map
         # C_M^B = C_B^M^T (transpose of rotation matrix)
@@ -662,27 +700,31 @@ class NhcMeasurementModel:
 
     def H(self, x: np.ndarray) -> np.ndarray:
         """
-        Measurement Jacobian: H = ∂h/∂x for NHC.
+        Measurement Jacobian: H = ∂h/∂x for NHC (Eq. 6.61).
 
         For NHC, h(x) depends on both q and v:
-            ∂h/∂q: derivatives of body frame velocity w.r.t. quaternion
+            ∂h/∂p = 0 (position doesn't affect velocity constraints)
             ∂h/∂v: rotation from map to body frame (C_M^B)
+            ∂h/∂q: derivatives of body frame velocity w.r.t. quaternion
+
+        State ordering (Eq. 6.16): x = [p (3), v (3), q (4), b_g (3), b_a (3)]
 
         Simplified implementation (linearized around current state).
 
         Args:
-            x: State vector. Shape: (n,) where n >= 7.
+            x: State vector. Shape: (n,) where n >= 10.
 
         Returns:
             Measurement Jacobian H.
             Shape: (2, n).
+            H = [0_2x3, (C_M^B)[1:3,:], 0_2x4, 0_2x3, 0_2x3] for full 16-state.
         """
         n = x.shape[0]
         H = np.zeros((2, n))
 
-        # Extract quaternion and velocity
-        q = x[0:4]
-        v_map = x[4:7]
+        # Extract velocity and quaternion (Eq. 6.16 ordering)
+        v_map = x[3:6]
+        q = x[6:10]
 
         # Compute C_M^B (rotation from map to body)
         from core.sensors.strapdown import quat_to_rotmat
@@ -691,12 +733,12 @@ class NhcMeasurementModel:
         C_M_B = C_B_M.T
 
         # ∂h/∂v: extract rows 1 and 2 of C_M^B (y and z components)
-        H[:, 4:7] = C_M_B[1:3, :]
+        H[:, 3:6] = C_M_B[1:3, :]
 
         # ∂h/∂q: more complex (quaternion derivative)
         # Simplified: set to zero (acceptable for small orientation errors)
         # Full implementation would compute ∂(C_M^B @ v)/∂q
-        H[:, 0:4] = 0.0
+        H[:, 6:10] = 0.0
 
         return H
 

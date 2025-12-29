@@ -305,3 +305,10 @@ The implementation successfully:
 The code now properly implements the book's assumption that "sufficient survey samples are available to estimate P(z|x_i)" rather than using a constant variance everywhere.
 
 
+
+
+
+
+
+
+

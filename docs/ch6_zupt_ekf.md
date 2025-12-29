@@ -247,3 +247,10 @@ The process noise covariance affects how much the filter trusts predictions vs. 
 5. **Initialize biases carefully** if prior knowledge available
 6. **Test on realistic trajectories** with known stance phases
 
+
+
+
+
+
+
+

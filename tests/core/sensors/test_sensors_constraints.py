@@ -18,7 +18,7 @@ import pytest
 from core.sensors.constraints import (
     detect_zupt,
     ZuptMeasurementModel,
-    ZaruMeasurementModel,
+    ZaruMeasurementModelPlaceholder,
     NhcMeasurementModel,
 )
 
@@ -125,12 +125,12 @@ class TestZuptMeasurementModel(unittest.TestCase):
         """Test ZUPT measurement function h(x) returns velocity."""
         model = ZuptMeasurementModel()
 
-        # State: [q (4), v (3), p (3), ...]
-        x = np.array([1.0, 0.0, 0.0, 0.0, 1.5, 2.0, -0.5, 10.0, 20.0, 5.0])
+        # State: [p (3), v (3), q (4), ...] (Eq. 6.16 ordering)
+        x = np.array([10.0, 20.0, 5.0, 1.5, 2.0, -0.5, 1.0, 0.0, 0.0, 0.0])
 
         h = model.h(x)
 
-        # Should extract velocity (indices 4:7)
+        # Should extract velocity (indices 3:6)
         expected = np.array([1.5, 2.0, -0.5])
         np.testing.assert_array_equal(h, expected)
 
@@ -138,16 +138,16 @@ class TestZuptMeasurementModel(unittest.TestCase):
         """Test ZUPT Jacobian H = ∂h/∂x."""
         model = ZuptMeasurementModel()
 
-        # State: 10 dimensions
+        # State: 10 dimensions (Eq. 6.16 ordering: [p, v, q, ...])
         x = np.zeros(10)
         H = model.H(x)
 
         # H should be (3, 10) with identity at velocity indices
         assert H.shape == (3, 10)
 
-        # Check that H selects velocity (indices 4:7)
+        # Check that H selects velocity (indices 3:6)
         expected_H = np.zeros((3, 10))
-        expected_H[:, 4:7] = np.eye(3)
+        expected_H[:, 3:6] = np.eye(3)
 
         np.testing.assert_array_equal(H, expected_H)
 
@@ -165,28 +165,28 @@ class TestZuptMeasurementModel(unittest.TestCase):
     def test_zupt_model_short_state(self) -> None:
         """Test that short state vector raises error."""
         model = ZuptMeasurementModel()
-        x_short = np.zeros(6)  # Too short (needs at least 7)
+        x_short = np.zeros(5)  # Too short (needs at least 6 for [p, v, ...])
 
-        with pytest.raises(ValueError, match="at least 7 elements"):
+        with pytest.raises(ValueError, match="at least 6 elements"):
             model.h(x_short)
 
 
-class TestZaruMeasurementModel(unittest.TestCase):
-    """Test suite for ZARU measurement model (Eq. 6.60)."""
+class TestZaruMeasurementModelPlaceholder(unittest.TestCase):
+    """Test suite for ZARU measurement model placeholder (INCOMPLETE)."""
 
-    def test_zaru_model_initialization(self) -> None:
-        """Test ZARU model can be initialized."""
-        model = ZaruMeasurementModel(sigma_zaru=0.01)
+    def test_zaru_placeholder_initialization(self) -> None:
+        """Test ZARU placeholder can be initialized."""
+        model = ZaruMeasurementModelPlaceholder(sigma_zaru=0.01)
         assert model.sigma_zaru == 0.01
 
-    def test_zaru_model_invalid_sigma(self) -> None:
+    def test_zaru_placeholder_invalid_sigma(self) -> None:
         """Test that invalid sigma raises error."""
         with pytest.raises(ValueError, match="sigma_zaru must be positive"):
-            ZaruMeasurementModel(sigma_zaru=0.0)
+            ZaruMeasurementModelPlaceholder(sigma_zaru=0.0)
 
-    def test_zaru_h_function(self) -> None:
-        """Test ZARU measurement function h(x) returns zeros."""
-        model = ZaruMeasurementModel()
+    def test_zaru_placeholder_h_function(self) -> None:
+        """Test ZARU placeholder h(x) returns zeros (incomplete behavior)."""
+        model = ZaruMeasurementModelPlaceholder()
 
         x = np.zeros(13)  # State with gyro bias
         h = model.h(x)
@@ -194,9 +194,9 @@ class TestZaruMeasurementModel(unittest.TestCase):
         # ZARU expects zero angular velocity
         np.testing.assert_array_equal(h, np.zeros(3))
 
-    def test_zaru_h_jacobian(self) -> None:
-        """Test ZARU Jacobian H (simplified implementation)."""
-        model = ZaruMeasurementModel()
+    def test_zaru_placeholder_h_jacobian(self) -> None:
+        """Test ZARU placeholder Jacobian H (partially correct)."""
+        model = ZaruMeasurementModelPlaceholder()
 
         # State: 13 dimensions (q, v, p, b_g, ...)
         x = np.zeros(13)
@@ -208,10 +208,10 @@ class TestZaruMeasurementModel(unittest.TestCase):
         # Should affect gyro bias at indices 10:13 (∂h/∂b_g = -I)
         assert np.allclose(H[:, 10:13], -np.eye(3))
 
-    def test_zaru_r_covariance(self) -> None:
-        """Test ZARU measurement noise covariance R."""
+    def test_zaru_placeholder_r_covariance(self) -> None:
+        """Test ZARU placeholder measurement noise covariance R (correctly implemented)."""
         sigma = 0.02
-        model = ZaruMeasurementModel(sigma_zaru=sigma)
+        model = ZaruMeasurementModelPlaceholder(sigma_zaru=sigma)
 
         R = model.R()
 
@@ -240,11 +240,11 @@ class TestNhcMeasurementModel(unittest.TestCase):
         """Test NHC h(x) for level vehicle moving forward."""
         model = NhcMeasurementModel()
 
-        # State: [q (identity), v (forward), p, ...]
-        q = np.array([1.0, 0.0, 0.0, 0.0])  # level, heading east
-        v_map = np.array([5.0, 0.0, 0.0])  # 5 m/s eastward
+        # State: [p, v, q, ...] (Eq. 6.16 ordering)
         p = np.zeros(3)
-        x = np.concatenate([q, v_map, p])
+        v_map = np.array([5.0, 0.0, 0.0])  # 5 m/s eastward
+        q = np.array([1.0, 0.0, 0.0, 0.0])  # level, heading east
+        x = np.concatenate([p, v_map, q])
 
         h = model.h(x)
 
@@ -256,11 +256,11 @@ class TestNhcMeasurementModel(unittest.TestCase):
         """Test NHC h(x) detects lateral velocity."""
         model = NhcMeasurementModel()
 
-        # State with lateral (y) velocity in map frame
-        q = np.array([1.0, 0.0, 0.0, 0.0])
-        v_map = np.array([0.0, 2.0, 0.0])  # 2 m/s northward (lateral in body)
+        # State: [p, v, q, ...] (Eq. 6.16 ordering)
         p = np.zeros(3)
-        x = np.concatenate([q, v_map, p])
+        v_map = np.array([0.0, 2.0, 0.0])  # 2 m/s northward (lateral in body)
+        q = np.array([1.0, 0.0, 0.0, 0.0])
+        x = np.concatenate([p, v_map, q])
 
         h = model.h(x)
 
@@ -273,11 +273,11 @@ class TestNhcMeasurementModel(unittest.TestCase):
         """Test NHC h(x) detects vertical velocity."""
         model = NhcMeasurementModel()
 
-        # State with vertical (z) velocity
-        q = np.array([1.0, 0.0, 0.0, 0.0])
-        v_map = np.array([0.0, 0.0, 1.5])  # 1.5 m/s upward
+        # State: [p, v, q, ...] (Eq. 6.16 ordering)
         p = np.zeros(3)
-        x = np.concatenate([q, v_map, p])
+        v_map = np.array([0.0, 0.0, 1.5])  # 1.5 m/s upward
+        q = np.array([1.0, 0.0, 0.0, 0.0])
+        x = np.concatenate([p, v_map, q])
 
         h = model.h(x)
 
@@ -289,11 +289,11 @@ class TestNhcMeasurementModel(unittest.TestCase):
         """Test NHC h(x) with rotated vehicle."""
         model = NhcMeasurementModel()
 
-        # Vehicle rotated 90° (heading north instead of east)
-        q = np.array([np.cos(np.pi / 4), 0, 0, np.sin(np.pi / 4)])  # 90° yaw
-        v_map = np.array([5.0, 0.0, 0.0])  # 5 m/s eastward in map
+        # State: [p, v, q, ...] (Eq. 6.16 ordering)
         p = np.zeros(3)
-        x = np.concatenate([q, v_map, p])
+        v_map = np.array([5.0, 0.0, 0.0])  # 5 m/s eastward in map
+        q = np.array([np.cos(np.pi / 4), 0, 0, np.sin(np.pi / 4)])  # 90° yaw
+        x = np.concatenate([p, v_map, q])
 
         h = model.h(x)
 
@@ -306,9 +306,9 @@ class TestNhcMeasurementModel(unittest.TestCase):
         """Test NHC Jacobian H = ∂h/∂x."""
         model = NhcMeasurementModel()
 
-        # State: [q, v, p]
+        # State: [p, v, q, ...] (Eq. 6.16 ordering)
         x = np.zeros(10)
-        x[0] = 1.0  # q0 = 1 (identity quaternion)
+        x[6] = 1.0  # q[0] = 1 (identity quaternion at index 6)
 
         H = model.H(x)
 
@@ -318,7 +318,7 @@ class TestNhcMeasurementModel(unittest.TestCase):
         # For identity quaternion, ∂h/∂v should extract y and z components
         # (rows 1 and 2 of C_M^B = identity)
         expected_dh_dv = np.array([[0, 1, 0], [0, 0, 1]])
-        np.testing.assert_array_almost_equal(H[:, 4:7], expected_dh_dv)
+        np.testing.assert_array_almost_equal(H[:, 3:6], expected_dh_dv)
 
     def test_nhc_r_covariance(self) -> None:
         """Test NHC measurement noise covariance R."""
@@ -367,10 +367,11 @@ class TestEdgeCases(unittest.TestCase):
         """Test NHC with zero velocity (should give zero measurement)."""
         model = NhcMeasurementModel()
 
-        q = np.array([1.0, 0.0, 0.0, 0.0])
-        v_map = np.zeros(3)  # stationary
+        # State: [p, v, q, ...] (Eq. 6.16 ordering)
         p = np.zeros(3)
-        x = np.concatenate([q, v_map, p])
+        v_map = np.zeros(3)  # stationary
+        q = np.array([1.0, 0.0, 0.0, 0.0])
+        x = np.concatenate([p, v_map, q])
 
         h = model.h(x)
 

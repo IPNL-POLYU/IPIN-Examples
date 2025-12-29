@@ -314,3 +314,10 @@ def generate_imu_from_trajectory(
 
     return accel_body, gyro_body
 
+
+
+
+
+
+
+

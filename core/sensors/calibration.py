@@ -2,8 +2,9 @@
 IMU calibration utilities: Allan variance and noise characterization (Chapter 6).
 
 This module implements calibration and characterization tools for IMU sensors:
-    - Allan variance analysis (Eqs. (6.56)-(6.58))
-    - Noise parameter extraction from Allan deviation plots
+    - Allan variance analysis (IEEE Std 952-1997)
+    - Noise parameter extraction from Allan deviation plots (Eqs. 6.56-6.58)
+    - Conversion between ARW and per-sample noise (Eq. 6.58)
     - IMU scale/misalignment correction (Eq. (6.59) - implemented in imu_models.py)
 
 Allan variance is the gold standard for characterizing IMU noise sources:
@@ -18,10 +19,10 @@ changes with averaging time (tau), revealing different noise processes.
 
 References:
     Chapter 6, Section 6.5: IMU calibration
-    Eq. (6.56): Cluster averages (binning)
-    Eq. (6.57): Allan variance definition
-    Eq. (6.58): Allan deviation (square root of variance)
-    IEEE Std 952-1997: Allan variance standard
+    Eq. (6.56): ARW extraction from Allan deviation: σ(τ) = ARW/√τ
+    Eq. (6.57): Log-linear form: log(σ(τ)) = log(ARW) - (1/2)log(τ)
+    Eq. (6.58): ARW to per-sample noise: σ_ω = ARW × √Δt
+    IEEE Std 952-1997: Allan variance computational algorithm
 """
 
 from typing import Tuple, Optional
@@ -38,10 +39,10 @@ def allan_variance(
     """
     Compute Allan variance (and Allan deviation) for IMU data.
 
-    Implements Eqs. (6.56)-(6.58) in Chapter 6:
-        1. Cluster/bin the data into averaging intervals tau (Eq. 6.56)
-        2. Compute Allan variance: σ²(τ) = (1/2) E[(θ̄_{k+1} - θ̄_k)²] (Eq. 6.57)
-        3. Allan deviation: σ(τ) = √(σ²(τ)) (Eq. 6.58)
+    Implements the standard Allan variance computational algorithm (IEEE Std 952-1997):
+        1. Cluster/bin the data into averaging intervals tau
+        2. Compute Allan variance: σ²(τ) = (1/2) E[(θ̄_{k+1} - θ̄_k)²]
+        3. Allan deviation: σ(τ) = √(σ²(τ))
 
     where:
         x: time series of sensor measurements (e.g., gyro, accel)
@@ -50,9 +51,9 @@ def allan_variance(
         σ²(τ): Allan variance at averaging time τ
         σ(τ): Allan deviation (ADEV)
 
-    Allan variance reveals noise characteristics:
+    The resulting Allan deviation curve reveals noise characteristics:
         - Quantization noise: slope -1 on log-log plot
-        - Angle/velocity random walk: slope -1/2
+        - Angle/velocity random walk: slope -1/2 (extract ARW via Eq. 6.56)
         - Bias instability: flat region (minimum of curve)
         - Rate random walk: slope +1/2
         - Rate ramp: slope +1
@@ -108,10 +109,12 @@ def allan_variance(
         >>> # plt.ylabel('Allan deviation [rad/s]')
         >>> # plt.grid(True, which='both')
 
-    Related Equations:
-        - Eq. (6.56): Cluster averages (binning)
-        - Eq. (6.57): Allan variance definition
-        - Eq. (6.58): Allan deviation (THIS FUNCTION)
+    Notes on Book's Equations:
+        - This function computes Allan deviation σ(τ) following IEEE Std 952-1997
+        - To extract ARW from the result, use identify_random_walk() which implements
+          the book's Eq. (6.56): σ(τ) = ARW/√τ
+        - To convert ARW to per-sample noise, use arw_to_noise_std() which implements
+          the book's Eq. (6.58): σ_ω = ARW × √Δt
     """
     if x.ndim != 1:
         raise ValueError(f"x must be 1D array, got shape {x.shape}")
@@ -246,16 +249,20 @@ def identify_random_walk(
     """
     Identify angle/velocity random walk coefficient from Allan deviation.
 
+    Implements the book's Eq. (6.56) extraction method:
+        σ(τ) = ARW / √τ
+
     Angle random walk (ARW) or velocity random walk (VRW) appears as a
     slope of -1/2 on the log-log Allan deviation plot at short averaging
     times. It characterizes the white noise in the sensor output.
 
-    The random walk coefficient N is found from:
-        σ(τ=1s) = N
+    The random walk coefficient is found by reading σ(τ) at τ=1s on the
+    -1/2 slope region (book's Eq. 6.56 and 6.57):
+        ARW = σ(τ=1s)
 
-    where N has units:
+    where ARW has units:
         - rad/√s for gyro (angle random walk)
-        - m/(s^(3/2)) for accel (velocity random walk)
+        - m/s^(3/2) or m/(s^(3/2)) for accel (velocity random walk)
 
     Args:
         taus: Averaging times from allan_variance().
@@ -266,21 +273,26 @@ def identify_random_walk(
                     Units: seconds. Default: 1.0 second.
 
     Returns:
-        Random walk coefficient N.
+        Random walk coefficient (ARW for gyro, VRW for accel).
         Units: rad/√s (gyro) or m/s^(3/2) (accel).
 
     Notes:
-        - Random walk is read at τ = 1 second on the -1/2 slope region.
+        - Random walk is read at τ = 1 second on the -1/2 slope region (Eq. 6.56).
         - For gyro: angle random walk (ARW) in rad/√s or deg/√hr.
-        - For accel: velocity random walk (VRW) in m/s/√s.
+        - For accel: velocity random walk (VRW) in m/s/√s or m/s^(3/2).
         - Conversion: 1 rad/√s = 3437.75 deg/√hr.
         - Smaller random walk = better short-term accuracy.
+        - To convert ARW to per-sample noise σ_ω, use arw_to_noise_std() (Eq. 6.58).
 
     Example:
         >>> taus, adev = allan_variance(gyro_data, fs=100.0)
         >>> arw = identify_random_walk(taus, adev, tau_target=1.0)
         >>> print(f"Angle random walk: {np.rad2deg(arw):.4f} deg/√s")
         >>> print(f"                   {np.rad2deg(arw)*60:.2f} deg/√hr")
+        >>> # Convert to per-sample noise (Eq. 6.58)
+        >>> dt = 1.0 / 100.0  # 100 Hz
+        >>> sigma_omega = arw_to_noise_std(arw, dt)
+        >>> print(f"Per-sample noise:  {np.rad2deg(sigma_omega):.4f} deg/s")
     """
     if len(taus) != len(adev):
         raise ValueError("taus and adev must have same length")
@@ -417,6 +429,119 @@ def identify_rate_random_walk(
     K = adev_at_target * np.sqrt(3.0 / tau_target)
 
     return K
+
+
+def arw_to_noise_std(arw: float, dt: float) -> float:
+    """
+    Convert angle/velocity random walk to per-sample noise standard deviation.
+
+    Implements the book's Eq. (6.58):
+        σ_ω = ARW × √Δt
+
+    This converts the angle random walk (ARW) coefficient (typically extracted
+    from Allan deviation analysis) to the per-sample noise standard deviation
+    needed for IMU simulation and filtering.
+
+    Args:
+        arw: Angle random walk coefficient (ARW for gyro, VRW for accel).
+             Units: rad/√s (gyro) or m/s^(3/2) (accel).
+             Typically obtained from identify_random_walk().
+        dt: Sampling interval.
+            Units: seconds.
+            Example: dt = 1/100 = 0.01 s for 100 Hz data.
+
+    Returns:
+        Per-sample noise standard deviation σ_ω.
+        Units: rad/s (gyro) or m/s² (accel).
+        This is the standard deviation of the white noise in each sensor sample.
+
+    Notes:
+        - This is the book's Eq. (6.58) from Section 6.5.1.1.
+        - ARW is a measure of noise power per square root of time.
+        - σ_ω is the discrete-time noise standard deviation.
+        - For simulation: add N(0, σ_ω²) noise to each IMU sample.
+        - For filtering: use σ_ω² as the measurement noise variance.
+
+    Example:
+        >>> # Extract ARW from Allan variance analysis
+        >>> taus, adev = allan_variance(gyro_data, fs=100.0)
+        >>> arw = identify_random_walk(taus, adev, tau_target=1.0)
+        >>> print(f"ARW: {np.rad2deg(arw):.4f} deg/√s")
+        >>> 
+        >>> # Convert to per-sample noise (Eq. 6.58)
+        >>> dt = 1.0 / 100.0  # 100 Hz sampling
+        >>> sigma_omega = arw_to_noise_std(arw, dt)
+        >>> print(f"Per-sample noise: {np.rad2deg(sigma_omega):.4f} deg/s")
+        >>> 
+        >>> # Use in simulation
+        >>> gyro_noise = np.random.randn(N) * sigma_omega
+
+    Related Functions:
+        - identify_random_walk(): Extract ARW from Allan deviation (Eq. 6.56)
+        - noise_std_to_arw(): Inverse conversion (σ_ω → ARW)
+    """
+    if dt <= 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    if arw < 0:
+        raise ValueError(f"arw must be non-negative, got {arw}")
+
+    # Eq. (6.58): σ_ω = ARW × √Δt
+    sigma_omega = arw * np.sqrt(dt)
+
+    return sigma_omega
+
+
+def noise_std_to_arw(sigma: float, dt: float) -> float:
+    """
+    Convert per-sample noise standard deviation to angle/velocity random walk.
+
+    Inverse of the book's Eq. (6.58):
+        ARW = σ_ω / √Δt
+
+    This converts the per-sample noise standard deviation to the angle random
+    walk (ARW) coefficient, useful when you know the sensor noise level and
+    want to predict Allan deviation behavior.
+
+    Args:
+        sigma: Per-sample noise standard deviation σ_ω.
+               Units: rad/s (gyro) or m/s² (accel).
+               Example: measured from stationary sensor data.
+        dt: Sampling interval.
+            Units: seconds.
+            Example: dt = 1/100 = 0.01 s for 100 Hz data.
+
+    Returns:
+        Angle random walk coefficient (ARW for gyro, VRW for accel).
+        Units: rad/√s (gyro) or m/s^(3/2) (accel).
+
+    Notes:
+        - Inverse of arw_to_noise_std() (Eq. 6.58).
+        - Useful for predicting Allan deviation from known noise levels.
+        - Can verify consistency: allan → ARW → σ_ω → ARW should match.
+
+    Example:
+        >>> # Known noise level from sensor datasheet
+        >>> sigma_omega = np.deg2rad(0.1)  # 0.1 deg/s per sample
+        >>> dt = 1.0 / 100.0  # 100 Hz
+        >>> 
+        >>> # Compute equivalent ARW
+        >>> arw = noise_std_to_arw(sigma_omega, dt)
+        >>> print(f"ARW: {np.rad2deg(arw):.4f} deg/√s")
+        >>> print(f"     {np.rad2deg(arw)*60:.2f} deg/√hr")
+
+    Related Functions:
+        - arw_to_noise_std(): Forward conversion (ARW → σ_ω) per Eq. 6.58
+        - identify_random_walk(): Extract ARW from Allan deviation
+    """
+    if dt <= 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    if sigma < 0:
+        raise ValueError(f"sigma must be non-negative, got {sigma}")
+
+    # Inverse of Eq. (6.58): ARW = σ_ω / √Δt
+    arw = sigma / np.sqrt(dt)
+
+    return arw
 
 
 def characterize_imu_noise(

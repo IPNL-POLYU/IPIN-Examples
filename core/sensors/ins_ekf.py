@@ -5,13 +5,13 @@ This module implements a simplified Extended Kalman Filter for Inertial Navigati
 System (INS) with Zero-Velocity Update (ZUPT) pseudo-measurements.
 
 State Vector (Eq. 6.16):
-    x = [q (4), v (3), p (3), b_g (3), b_a (3)]^T
+    x = [p (3), v (3), q (4), b_g (3), b_a (3)]^T
     Total: 16 states
     
     Where:
-        q: Quaternion (body-to-map rotation), scalar-first [q0, q1, q2, q3]
-        v: Velocity in map frame [vx, vy, vz] (m/s)
         p: Position in map frame [px, py, pz] (m)
+        v: Velocity in map frame [vx, vy, vz] (m/s)
+        q: Quaternion (body-to-map rotation), scalar-first [q0, q1, q2, q3]
         b_g: Gyroscope bias in body frame [bgx, bgy, bgz] (rad/s)
         b_a: Accelerometer bias in body frame [bax, bay, baz] (m/s²)
 
@@ -29,7 +29,7 @@ Kalman Filter Equations (Eqs. 6.40-6.43):
 ZUPT Measurement (Eq. 6.45):
     z_k = [0, 0, 0]^T  # Zero velocity measurement
     h(x) = v  # Extract velocity from state
-    H = [0_3x4, I_3, 0_3x3, 0_3x3, 0_3x3]  # Measurement Jacobian
+    H = [0_3x3, I_3, 0_3x4, 0_3x3, 0_3x3]  # Measurement Jacobian
 
 Author: Li-Ta Hsu
 Date: December 2025
@@ -52,32 +52,61 @@ class INSState:
     """
     INS state vector for EKF-based navigation.
     
+    State ordering follows Eq. (6.16): x = [p, v, q, b_g, b_a]^T
+    
     Attributes:
-        q: Quaternion (body-to-map), shape (4,), scalar-first.
-        v: Velocity in map frame (m/s), shape (3,).
         p: Position in map frame (m), shape (3,).
+        v: Velocity in map frame (m/s), shape (3,).
+        q: Quaternion (body-to-map), shape (4,), scalar-first.
         b_g: Gyroscope bias in body frame (rad/s), shape (3,).
         b_a: Accelerometer bias in body frame (m/s²), shape (3,).
         P: State covariance matrix, shape (16, 16).
+    
+    Note:
+        The state vector is 16-dimensional (not 13 or 15):
+        - Position: 3 elements (indices 0:3)
+        - Velocity: 3 elements (indices 3:6)
+        - Quaternion: 4 elements (indices 6:10)
+        - Gyro bias: 3 elements (indices 10:13)
+        - Accel bias: 3 elements (indices 13:16)
     """
-    q: np.ndarray  # (4,)
-    v: np.ndarray  # (3,)
     p: np.ndarray  # (3,)
+    v: np.ndarray  # (3,)
+    q: np.ndarray  # (4,)
     b_g: np.ndarray  # (3,)
     b_a: np.ndarray  # (3,)
     P: np.ndarray  # (16, 16)
     
     def to_vector(self) -> np.ndarray:
-        """Convert state to vector form."""
-        return np.concatenate([self.q, self.v, self.p, self.b_g, self.b_a])
+        """
+        Convert state to vector form following Eq. (6.16).
+        
+        Returns:
+            State vector x = [p, v, q, b_g, b_a]^T, shape (16,).
+        """
+        return np.concatenate([self.p, self.v, self.q, self.b_g, self.b_a])
     
     @classmethod
     def from_vector(cls, x: np.ndarray, P: np.ndarray) -> "INSState":
-        """Create state from vector form."""
+        """
+        Create state from vector form following Eq. (6.16).
+        
+        Args:
+            x: State vector [p, v, q, b_g, b_a]^T, shape (16,).
+            P: Covariance matrix, shape (16, 16).
+        
+        Returns:
+            INSState instance.
+        """
+        if x.shape[0] != 16:
+            raise ValueError(f"State vector must have 16 elements, got {x.shape[0]}")
+        if P.shape != (16, 16):
+            raise ValueError(f"Covariance must be (16, 16), got {P.shape}")
+        
         return cls(
-            q=x[0:4],
-            v=x[4:7],
-            p=x[7:10],
+            p=x[0:3],
+            v=x[3:6],
+            q=x[6:10],
             b_g=x[10:13],
             b_a=x[13:16],
             P=P
@@ -114,18 +143,18 @@ class ZUPT_EKF:
         
     def initialize(
         self,
-        q0: np.ndarray,
-        v0: np.ndarray,
         p0: np.ndarray,
+        v0: np.ndarray,
+        q0: np.ndarray,
         P0: Optional[np.ndarray] = None
     ) -> INSState:
         """
-        Initialize EKF state.
+        Initialize EKF state following Eq. (6.16) ordering.
         
         Args:
-            q0: Initial quaternion, shape (4,).
-            v0: Initial velocity, shape (3,).
             p0: Initial position, shape (3,).
+            v0: Initial velocity, shape (3,).
+            q0: Initial quaternion, shape (4,).
             P0: Initial covariance, shape (16, 16). If None, uses default.
         
         Returns:
@@ -138,18 +167,18 @@ class ZUPT_EKF:
         # Default covariance if not provided
         if P0 is None:
             P0 = np.eye(16) * 1e-6  # Small initial uncertainty
-            # Attitude uncertainty (quaternion is normalized constraint)
-            P0[0:4, 0:4] *= 1e-4
-            # Velocity uncertainty
-            P0[4:7, 4:7] *= 0.1**2
-            # Position uncertainty
-            P0[7:10, 7:10] *= 0.1**2
-            # Gyro bias uncertainty
+            # Position uncertainty (indices 0:3)
+            P0[0:3, 0:3] *= 0.1**2
+            # Velocity uncertainty (indices 3:6)
+            P0[3:6, 3:6] *= 0.1**2
+            # Attitude uncertainty (indices 6:10, quaternion is normalized constraint)
+            P0[6:10, 6:10] *= 1e-4
+            # Gyro bias uncertainty (indices 10:13)
             P0[10:13, 10:13] *= self.imu_params.gyro_bias_rad_s**2
-            # Accel bias uncertainty
+            # Accel bias uncertainty (indices 13:16)
             P0[13:16, 13:16] *= self.imu_params.accel_bias_mps2**2
         
-        return INSState(q=q0, v=v0, p=p0, b_g=b_g0, b_a=b_a0, P=P0)
+        return INSState(p=p0, v=v0, q=q0, b_g=b_g0, b_a=b_a0, P=P0)
     
     def predict(
         self,
@@ -202,6 +231,8 @@ class ZUPT_EKF:
         This is a simplified model. A full implementation would compute
         Q from continuous-time noise and integrate over dt.
         
+        State ordering: [p, v, q, b_g, b_a]
+        
         Args:
             dt: Time step (s).
         
@@ -210,23 +241,23 @@ class ZUPT_EKF:
         """
         Q = np.zeros((16, 16))
         
-        # Attitude noise (from gyro ARW)
-        q_noise = (self.imu_params.gyro_arw_rad_sqrt_s * np.sqrt(dt))**2
-        Q[0:4, 0:4] = np.eye(4) * q_noise * 0.1  # Scale down for quaternion
-        
-        # Velocity noise (from accel VRW)
+        # Position noise (indices 0:3, integrated from velocity noise)
         v_noise = (self.imu_params.accel_vrw_mps_sqrt_s * np.sqrt(dt))**2
-        Q[4:7, 4:7] = np.eye(3) * v_noise * dt
-        
-        # Position noise (integrated from velocity noise)
         p_noise = v_noise * dt**2
-        Q[7:10, 7:10] = np.eye(3) * p_noise
+        Q[0:3, 0:3] = np.eye(3) * p_noise
         
-        # Gyro bias random walk (very slow drift)
+        # Velocity noise (indices 3:6, from accel VRW)
+        Q[3:6, 3:6] = np.eye(3) * v_noise * dt
+        
+        # Attitude noise (indices 6:10, from gyro ARW)
+        q_noise = (self.imu_params.gyro_arw_rad_sqrt_s * np.sqrt(dt))**2
+        Q[6:10, 6:10] = np.eye(4) * q_noise * 0.1  # Scale down for quaternion
+        
+        # Gyro bias random walk (indices 10:13, very slow drift)
         bg_noise = (self.imu_params.gyro_bias_rad_s * 0.01 * np.sqrt(dt))**2
         Q[10:13, 10:13] = np.eye(3) * bg_noise
         
-        # Accel bias random walk (very slow drift)
+        # Accel bias random walk (indices 13:16, very slow drift)
         ba_noise = (self.imu_params.accel_bias_mps2 * 0.01 * np.sqrt(dt))**2
         Q[13:16, 13:16] = np.eye(3) * ba_noise
         
@@ -239,7 +270,9 @@ class ZUPT_EKF:
         Applies zero-velocity pseudo-measurement:
             z_k = [0, 0, 0]^T (measured velocity)
             h(x) = v (predicted velocity from state)
-            H = [0_3x4, I_3, 0_3x3, 0_3x3, 0_3x3] (Jacobian)
+            H = [0_3x3, I_3, 0_3x4, 0_3x3, 0_3x3] (Jacobian, Eq. 6.45)
+        
+        State ordering (Eq. 6.16): x = [p (3), v (3), q (4), b_g (3), b_a (3)]
         
         Args:
             state: Predicted INSState.
@@ -252,9 +285,10 @@ class ZUPT_EKF:
         h_x = state.v  # Predicted velocity
         
         # Measurement Jacobian H (extracts velocity from state)
-        # State ordering: [q (4), v (3), p (3), b_g (3), b_a (3)]
+        # State ordering: [p (3), v (3), q (4), b_g (3), b_a (3)]
+        # H = [0_3x3, I_3, 0_3x4, 0_3x3, 0_3x3]
         H = np.zeros((3, 16))
-        H[:, 4:7] = np.eye(3)  # ∂h/∂v = I
+        H[:, 3:6] = np.eye(3)  # ∂h/∂v = I (velocity at indices 3:6)
         
         # Measurement noise covariance R
         R = (self.sigma_zupt**2) * np.eye(3)

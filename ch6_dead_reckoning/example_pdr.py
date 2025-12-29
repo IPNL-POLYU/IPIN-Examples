@@ -78,6 +78,12 @@ def load_pdr_dataset(data_dir: str) -> Dict:
 def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
     """Run PDR algorithm on loaded dataset.
     
+    Uses the book's peak detection method (Eqs. 6.46-6.47) for step detection:
+    1. Compute total acceleration magnitude (6.46)
+    2. Subtract gravity (6.47)
+    3. Filter the signal
+    4. Detect peaks
+    
     Args:
         data: Dataset dictionary from load_pdr_dataset
         height: Pedestrian height in meters
@@ -92,6 +98,24 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
     
     N = len(t)
     dt = t[1] - t[0] if len(t) > 1 else 0.01
+    fs = 1.0 / dt  # Sampling frequency
+    
+    # Detect steps using peak detector (Eqs. 6.46-6.47)
+    # Tune parameters based on dataset sampling rate:
+    # - min_peak_height: 1.0 m/s² (typical walking peak above gravity)
+    # - min_peak_distance: 0.3s minimum (max ~3.3 steps/s for fast walking)
+    # - lowpass_cutoff: 5 Hz (removes high-frequency noise, preserves step dynamics)
+    print(f"  Detecting steps using peak detector (Eqs. 6.46-6.47) at {fs:.1f} Hz...")
+    step_indices, accel_processed = detect_steps_peak_detector(
+        accel_meas,
+        dt=dt,
+        g=9.81,
+        min_peak_height=1.0,  # m/s² above gravity
+        min_peak_distance=0.3,  # seconds between steps
+        lowpass_cutoff=5.0  # Hz low-pass filter
+    )
+    
+    print(f"  Detected {len(step_indices)} steps")
     
     # Initialize outputs
     pos_gyro = np.zeros((N, 2))
@@ -99,52 +123,58 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
     heading_gyro = np.zeros(N)
     heading_mag = np.zeros(N)
     
-    step_count_gyro = 0
-    step_count_mag = 0
-    last_step_time_gyro = 0
-    last_step_time_mag = 0
-    last_a_mag_gyro = 10.0
-    last_a_mag_mag = 10.0
+    # Initialize headings
+    heading_gyro[0] = 0.0
+    heading_mag[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)
     
     # Run PDR with gyro heading
     for k in range(1, N):
-        a_mag = total_accel_magnitude(accel_meas[k])
-        is_step = (last_a_mag_gyro < 11.0 and a_mag >= 11.0)
-        last_a_mag_gyro = a_mag
+        # Integrate gyro heading
+        heading_gyro[k] = integrate_gyro_heading(heading_gyro[k-1], gyro_meas[k, 2], dt)
+        heading_gyro[k] = wrap_heading(heading_gyro[k])
         
-        if is_step and (t[k] - last_step_time_gyro) > 0.3:
-            step_count_gyro += 1
-            delta_t = t[k] - last_step_time_gyro
-            last_step_time_gyro = t[k]
+        # Update position on step events
+        if k in step_indices:
+            # Find previous step for delta_t calculation
+            prev_steps = step_indices[step_indices < k]
+            if len(prev_steps) > 0:
+                last_step_idx = prev_steps[-1]
+                delta_t = t[k] - t[last_step_idx]
+                f_step = 1.0 / delta_t if delta_t > 0 else 2.0
+            else:
+                f_step = 2.0  # Default for first step
             
-            f_step = 1.0 / delta_t if delta_t > 0 else 2.0
+            # Step length (Eq. 6.49 - Weinberg model)
             L = step_length(height, f_step)
+            
+            # Update position (Eq. 6.50)
             pos_gyro[k] = pdr_step_update(pos_gyro[k-1], L, heading_gyro[k-1])
         else:
             pos_gyro[k] = pos_gyro[k-1]
-        
-        heading_gyro[k] = integrate_gyro_heading(heading_gyro[k-1], gyro_meas[k, 2], dt)
-        heading_gyro[k] = wrap_heading(heading_gyro[k])
     
     # Run PDR with magnetometer heading
-    last_a_mag_mag = 10.0
     for k in range(1, N):
-        a_mag = total_accel_magnitude(accel_meas[k])
-        is_step = (last_a_mag_mag < 11.0 and a_mag >= 11.0)
-        last_a_mag_mag = a_mag
+        # Magnetometer heading (Eqs. 6.51-6.53)
+        heading_mag[k] = mag_heading(mag_meas[k], roll=0.0, pitch=0.0, declination=0.0)
         
-        if is_step and (t[k] - last_step_time_mag) > 0.3:
-            step_count_mag += 1
-            delta_t = t[k] - last_step_time_mag
-            last_step_time_mag = t[k]
+        # Update position on step events
+        if k in step_indices:
+            # Find previous step for delta_t calculation
+            prev_steps = step_indices[step_indices < k]
+            if len(prev_steps) > 0:
+                last_step_idx = prev_steps[-1]
+                delta_t = t[k] - t[last_step_idx]
+                f_step = 1.0 / delta_t if delta_t > 0 else 2.0
+            else:
+                f_step = 2.0  # Default for first step
             
-            f_step = 1.0 / delta_t if delta_t > 0 else 2.0
+            # Step length (Eq. 6.49)
             L = step_length(height, f_step)
+            
+            # Update position (Eq. 6.50)
             pos_mag[k] = pdr_step_update(pos_mag[k-1], L, heading_mag[k-1])
         else:
             pos_mag[k] = pos_mag[k-1]
-        
-        heading_mag[k] = mag_heading(mag_meas[k], roll=0.0, pitch=0.0, declination=0.0)
     
     return {
         't': t,
@@ -152,8 +182,9 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
         'pos_mag': pos_mag,
         'heading_gyro': heading_gyro,
         'heading_mag': heading_mag,
-        'step_count_gyro': step_count_gyro,
-        'step_count_mag': step_count_mag,
+        'step_count_gyro': len(step_indices),
+        'step_count_mag': len(step_indices),
+        'step_indices': step_indices,
     }
 
 

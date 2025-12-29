@@ -11,9 +11,9 @@ These functions support vehicle-based navigation where wheel speed sensors
 provide velocity measurements that must be integrated with IMU data.
 
 Frame Conventions:
-    - S: Speed frame (wheel odometry measurement frame)
-    - A: Attitude frame (vehicle body frame for velocity)
-    - B: Body frame (IMU/sensor frame)
+    - S: Speed frame (wheel encoder frame, x=right, y=forward, z=up)
+    - A: Attitude frame (vehicle body frame, aligned with IMU unless C_S^A specified)
+    - B: Body frame (IMU/sensor frame, typically same as A for vehicles)
     - M: Map frame (navigation frame, typically ENU)
 
 References:
@@ -87,59 +87,74 @@ def skew(v: np.ndarray) -> np.ndarray:
 
 def wheel_speed_to_attitude_velocity(
     v_s: np.ndarray,
-    omega_b: np.ndarray,
-    lever_arm_b: np.ndarray,
+    omega_a: np.ndarray,
+    lever_arm_a: np.ndarray,
+    C_S_A: np.ndarray = None,
 ) -> np.ndarray:
     """
     Convert wheel speed to attitude frame velocity with lever arm compensation.
 
     Implements Eq. (6.11) in Chapter 6:
-        v^A = v^S - [ω_B ×] l^B
+        v^A = C_S^A · v^S - [ω^A]_× · l^A
 
     where:
         v^S: velocity in speed frame S (wheel measurement) [m/s]
-        ω_B: angular velocity in body frame B [rad/s]
-        l^B: lever arm from IMU to wheel center in body frame [m]
+        C_S^A: rotation matrix from speed frame S to attitude frame A
+        ω^A: angular velocity in attitude frame A [rad/s]
+        l^A: lever arm from IMU to wheel center in attitude frame [m]
         v^A: velocity in attitude frame A [m/s]
         [ω×]: skew-symmetric matrix (Eq. 6.12)
 
     The lever arm correction accounts for the fact that the wheel speed sensor
     measures velocity at a different point than the IMU/navigation center.
-    The rotational motion (ω_B) causes an additional velocity component at
+    The rotational motion (ω^A) causes an additional velocity component at
     the wheel location.
+
+    Speed Frame Convention (Book):
+        - x-axis: right
+        - y-axis: forward (primary velocity direction)
+        - z-axis: up
+        - For forward vehicle motion: v^S = [0, v_forward, 0]^T
 
     Args:
         v_s: Velocity measurement in speed frame S.
              Shape: (3,). Units: m/s.
-             Typically v_s = [v_forward, 0, 0] for forward vehicle motion.
-        omega_b: Angular velocity in body frame B (from corrected gyro).
+             **Book convention**: v_s = [0, v_forward, 0] for forward motion.
+             Speed frame axes: x=right, y=forward, z=up.
+        omega_a: Angular velocity in attitude frame A (from corrected gyro).
                  Shape: (3,). Units: rad/s.
                  Typically from IMU gyroscope after bias correction.
-        lever_arm_b: Lever arm vector from IMU to wheel center in body frame B.
+        lever_arm_a: Lever arm vector from IMU to wheel center in attitude frame A.
                      Shape: (3,). Units: m.
                      Example: [0.5, 0, -0.2] means wheel is 0.5m forward,
-                     0.2m below IMU.
+                     0.2m below IMU in A-frame.
+        C_S_A: Rotation matrix from speed frame S to attitude frame A.
+               Shape: (3, 3). Optional, defaults to identity (aligned frames).
+               When None, assumes S and A frames are aligned (C_S^A = I).
+               For misaligned frames, provide explicit rotation matrix.
 
     Returns:
         Velocity in attitude frame A.
         Shape: (3,). Units: m/s.
 
     Notes:
-        - Speed frame S is typically aligned with vehicle forward direction.
+        - **Frame alignment**: If S and A are aligned, C_S^A = I (default).
+        - **Book's axis convention**: Forward velocity is in y component of v^S.
         - Lever arm is positive in direction from IMU to wheel center.
-        - For zero lever arm (l = 0), v^A = v^S (no correction needed).
+        - For zero lever arm (l = 0), v^A = C_S^A @ v^S (rotation only).
         - Sign convention: cross product [ω×] l gives velocity due to rotation.
         - This correction is crucial for accurate vehicle navigation.
 
     Example:
         >>> import numpy as np
-        >>> # Vehicle moving forward at 5 m/s
-        >>> v_s = np.array([5.0, 0.0, 0.0])
+        >>> # Vehicle moving forward at 5 m/s (book convention: y component)
+        >>> v_s = np.array([0.0, 5.0, 0.0])
         >>> # Turning right (positive yaw rate)
-        >>> omega_b = np.array([0.0, 0.0, 0.5])  # 0.5 rad/s
-        >>> # Wheel is 0.5 m forward of IMU
-        >>> lever_arm = np.array([0.5, 0.0, 0.0])
-        >>> v_a = wheel_speed_to_attitude_velocity(v_s, omega_b, lever_arm)
+        >>> omega_a = np.array([0.0, 0.0, 0.5])  # 0.5 rad/s
+        >>> # Wheel is 0.5 m forward (y) of IMU
+        >>> lever_arm = np.array([0.0, 0.5, 0.0])
+        >>> # Aligned frames (C_S^A = I by default)
+        >>> v_a = wheel_speed_to_attitude_velocity(v_s, omega_a, lever_arm)
         >>> print(v_a)  # Includes correction for rotation
 
     Related Equations:
@@ -149,16 +164,23 @@ def wheel_speed_to_attitude_velocity(
     """
     if v_s.shape != (3,):
         raise ValueError(f"v_s must have shape (3,), got {v_s.shape}")
-    if omega_b.shape != (3,):
-        raise ValueError(f"omega_b must have shape (3,), got {omega_b.shape}")
-    if lever_arm_b.shape != (3,):
-        raise ValueError(f"lever_arm_b must have shape (3,), got {lever_arm_b.shape}")
+    if omega_a.shape != (3,):
+        raise ValueError(f"omega_a must have shape (3,), got {omega_a.shape}")
+    if lever_arm_a.shape != (3,):
+        raise ValueError(f"lever_arm_a must have shape (3,), got {lever_arm_a.shape}")
+
+    # Default: aligned frames (C_S^A = I)
+    if C_S_A is None:
+        C_S_A = np.eye(3)
+    else:
+        if C_S_A.shape != (3, 3):
+            raise ValueError(f"C_S_A must have shape (3, 3), got {C_S_A.shape}")
 
     # Skew-symmetric matrix [ω×] (Eq. 6.12)
-    omega_skew = skew(omega_b)
+    omega_skew = skew(omega_a)
 
-    # Lever arm compensation (Eq. 6.11): v^A = v^S - [ω×] l
-    v_a = v_s - omega_skew @ lever_arm_b
+    # Lever arm compensation (Eq. 6.11): v^A = C_S^A @ v^S - [ω^A×] @ l^A
+    v_a = C_S_A @ v_s - omega_skew @ lever_arm_a
 
     return v_a
 
@@ -298,15 +320,16 @@ def wheel_odom_update(
     p: np.ndarray,
     q: np.ndarray,
     v_s: np.ndarray,
-    omega_b: np.ndarray,
-    lever_arm_b: np.ndarray,
+    omega_a: np.ndarray,
+    lever_arm_a: np.ndarray,
     dt: float,
+    C_S_A: np.ndarray = None,
 ) -> np.ndarray:
     """
     Complete wheel odometry position update (convenience function).
 
     Combines Eqs. (6.11), (6.14), and (6.15) into a single function:
-        1. Lever arm compensation: v^A = v^S - [ω×] l (Eq. 6.11)
+        1. Lever arm compensation: v^A = C_S^A @ v^S - [ω^A×] @ l^A (Eq. 6.11)
         2. Attitude to map transform: v^M = C_A^M @ v^A (Eq. 6.14)
         3. Position update: p_k = p_{k-1} + v^M * Δt (Eq. 6.15)
 
@@ -320,12 +343,15 @@ def wheel_odom_update(
            Shape: (4,). Scalar-first: [q0, q1, q2, q3].
         v_s: Wheel speed measurement in speed frame S.
              Shape: (3,). Units: m/s.
-        omega_b: Angular velocity in body frame B (from IMU gyro).
+             **Book convention**: v_s = [0, v_forward, 0].
+        omega_a: Angular velocity in attitude frame A (from IMU gyro).
                  Shape: (3,). Units: rad/s.
-        lever_arm_b: Lever arm from IMU to wheel center in body frame B.
+        lever_arm_a: Lever arm from IMU to wheel center in attitude frame A.
                      Shape: (3,). Units: m.
         dt: Time step.
             Units: seconds.
+        C_S_A: Rotation matrix from speed to attitude frame.
+               Shape: (3, 3). Optional, defaults to identity.
 
     Returns:
         Updated position p_k in map frame M.
@@ -341,9 +367,9 @@ def wheel_odom_update(
         >>> import numpy as np
         >>> p0 = np.zeros(3)
         >>> q = np.array([1.0, 0.0, 0.0, 0.0])  # level
-        >>> v_s = np.array([5.0, 0.0, 0.0])  # 5 m/s forward
+        >>> v_s = np.array([0.0, 5.0, 0.0])  # 5 m/s forward (book convention)
         >>> omega = np.array([0.0, 0.0, 0.5])  # 0.5 rad/s yaw
-        >>> lever_arm = np.array([0.5, 0.0, 0.0])
+        >>> lever_arm = np.array([0.0, 0.5, 0.0])  # 0.5m forward (y-axis)
         >>> dt = 0.1
         >>> p1 = wheel_odom_update(p0, q, v_s, omega, lever_arm, dt)
 
@@ -353,7 +379,7 @@ def wheel_odom_update(
         - Eq. (6.15): Position update
     """
     # Step 1: Lever arm compensation (Eq. 6.11)
-    v_a = wheel_speed_to_attitude_velocity(v_s, omega_b, lever_arm_b)
+    v_a = wheel_speed_to_attitude_velocity(v_s, omega_a, lever_arm_a, C_S_A)
 
     # Step 2: Attitude to map transform (Eq. 6.14)
     v_m = attitude_to_map_velocity(v_a, q)

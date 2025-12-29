@@ -2,7 +2,9 @@
 Unit tests for core/sensors/calibration.py (Allan variance and IMU characterization).
 
 Tests cover:
-    - Allan variance computation (Eqs. 6.56-6.58)
+    - Allan variance computation (IEEE Std 952-1997)
+    - ARW extraction from Allan deviation (Eq. 6.56)
+    - ARW/VRW to per-sample noise conversion (Eq. 6.58)
     - Bias instability identification
     - Random walk coefficient extraction
     - Rate random walk extraction
@@ -23,6 +25,8 @@ from core.sensors.calibration import (
     identify_random_walk,
     identify_rate_random_walk,
     characterize_imu_noise,
+    arw_to_noise_std,
+    noise_std_to_arw,
 )
 
 
@@ -343,6 +347,179 @@ class TestCharacterizeImuNoise(unittest.TestCase):
         # Extracted ARW should be in reasonable range
         arw_extracted = results["gyro"]["angle_random_walk"]
         assert 0.00001 < arw_extracted < 0.01  # reasonable range
+
+
+class TestArwNoiseConversion(unittest.TestCase):
+    """Test suite for ARW ↔ per-sample noise conversion (Eq. 6.58)."""
+
+    def test_arw_to_noise_std_basic(self) -> None:
+        """Test basic ARW to noise conversion (Eq. 6.58)."""
+        arw = 0.01  # rad/√s
+        dt = 0.01  # 100 Hz
+        
+        sigma = arw_to_noise_std(arw, dt)
+        
+        # σ_ω = ARW × √Δt = 0.01 × √0.01 = 0.01 × 0.1 = 0.001
+        expected = arw * np.sqrt(dt)
+        assert np.isclose(sigma, expected)
+        assert np.isclose(sigma, 0.001)
+
+    def test_noise_std_to_arw_basic(self) -> None:
+        """Test basic noise to ARW conversion (inverse of Eq. 6.58)."""
+        sigma = 0.001  # rad/s
+        dt = 0.01  # 100 Hz
+        
+        arw = noise_std_to_arw(sigma, dt)
+        
+        # ARW = σ_ω / √Δt = 0.001 / √0.01 = 0.001 / 0.1 = 0.01
+        expected = sigma / np.sqrt(dt)
+        assert np.isclose(arw, expected)
+        assert np.isclose(arw, 0.01)
+
+    def test_arw_noise_roundtrip(self) -> None:
+        """Test that ARW → noise → ARW roundtrip is consistent."""
+        arw_original = 0.005  # rad/√s
+        dt = 0.02  # 50 Hz
+        
+        # Forward conversion
+        sigma = arw_to_noise_std(arw_original, dt)
+        
+        # Inverse conversion
+        arw_recovered = noise_std_to_arw(sigma, dt)
+        
+        # Should recover original ARW
+        assert np.isclose(arw_recovered, arw_original)
+
+    def test_arw_to_noise_different_sample_rates(self) -> None:
+        """Test ARW to noise at different sampling rates."""
+        arw = 0.01  # rad/√s
+        
+        # Higher sampling rate → smaller per-sample noise
+        dt_fast = 0.001  # 1000 Hz
+        sigma_fast = arw_to_noise_std(arw, dt_fast)
+        
+        # Lower sampling rate → larger per-sample noise
+        dt_slow = 0.1  # 10 Hz
+        sigma_slow = arw_to_noise_std(arw, dt_slow)
+        
+        # Slower rate should have larger per-sample noise
+        assert sigma_slow > sigma_fast
+        
+        # Check specific values
+        assert np.isclose(sigma_fast, arw * np.sqrt(dt_fast))
+        assert np.isclose(sigma_slow, arw * np.sqrt(dt_slow))
+
+    def test_arw_to_noise_realistic_gyro(self) -> None:
+        """Test with realistic gyro parameters."""
+        # Consumer IMU: ARW ~ 0.01 deg/√s
+        arw_deg = 0.01  # deg/√s
+        arw_rad = np.deg2rad(arw_deg)  # rad/√s
+        
+        # At 100 Hz
+        fs = 100.0
+        dt = 1.0 / fs
+        
+        sigma = arw_to_noise_std(arw_rad, dt)
+        
+        # Check result is reasonable
+        assert 0.00001 < sigma < 0.001  # rad/s
+        
+        # Check formula
+        expected = arw_rad * np.sqrt(dt)
+        assert np.isclose(sigma, expected)
+
+    def test_arw_to_noise_realistic_accel(self) -> None:
+        """Test with realistic accelerometer parameters."""
+        # Consumer IMU: VRW ~ 0.1 m/s/√s
+        vrw = 0.1  # m/s^(3/2)
+        
+        # At 100 Hz
+        dt = 0.01
+        
+        sigma = arw_to_noise_std(vrw, dt)
+        
+        # σ = 0.1 × √0.01 = 0.1 × 0.1 = 0.01 m/s²
+        assert np.isclose(sigma, 0.01)
+
+    def test_arw_to_noise_invalid_inputs(self) -> None:
+        """Test that invalid inputs raise errors."""
+        arw = 0.01
+        
+        # Negative dt
+        with pytest.raises(ValueError, match="dt must be positive"):
+            arw_to_noise_std(arw, dt=-0.01)
+        
+        # Zero dt
+        with pytest.raises(ValueError, match="dt must be positive"):
+            arw_to_noise_std(arw, dt=0.0)
+        
+        # Negative ARW
+        with pytest.raises(ValueError, match="arw must be non-negative"):
+            arw_to_noise_std(arw=-0.01, dt=0.01)
+
+    def test_noise_to_arw_invalid_inputs(self) -> None:
+        """Test that invalid inputs raise errors."""
+        sigma = 0.001
+        
+        # Negative dt
+        with pytest.raises(ValueError, match="dt must be positive"):
+            noise_std_to_arw(sigma, dt=-0.01)
+        
+        # Zero dt
+        with pytest.raises(ValueError, match="dt must be positive"):
+            noise_std_to_arw(sigma, dt=0.0)
+        
+        # Negative sigma
+        with pytest.raises(ValueError, match="sigma must be non-negative"):
+            noise_std_to_arw(sigma=-0.001, dt=0.01)
+
+    def test_arw_noise_consistency_with_allan(self) -> None:
+        """Test that Eq. (6.58) formula is applied correctly in conversion."""
+        np.random.seed(42)
+        fs = 100.0
+        dt = 1.0 / fs
+        
+        # Generate white noise with known standard deviation
+        sigma_true = 0.01  # rad/s per sample
+        duration = 300  # 5 minutes
+        N = int(fs * duration)
+        gyro = sigma_true * np.random.randn(N)
+        
+        # Extract ARW from Allan variance
+        taus, adev = allan_variance(gyro, fs)
+        arw_extracted = identify_random_walk(taus, adev, tau_target=1.0)
+        
+        # Convert ARW to per-sample noise using Eq. (6.58)
+        sigma_recovered = arw_to_noise_std(arw_extracted, dt)
+        
+        # The key test: verify that the conversion formula is applied correctly
+        # by checking roundtrip consistency (this tests Eq. 6.58 and its inverse)
+        arw_roundtrip = noise_std_to_arw(sigma_recovered, dt)
+        assert np.isclose(arw_roundtrip, arw_extracted, rtol=1e-10)
+        
+        # Also verify the formula is correct: σ_ω = ARW × √Δt
+        expected_sigma = arw_extracted * np.sqrt(dt)
+        assert np.isclose(sigma_recovered, expected_sigma)
+
+    def test_arw_to_noise_zero_arw(self) -> None:
+        """Test with zero ARW (noiseless sensor)."""
+        arw = 0.0
+        dt = 0.01
+        
+        sigma = arw_to_noise_std(arw, dt)
+        
+        # Zero ARW → zero noise
+        assert sigma == 0.0
+
+    def test_noise_to_arw_zero_noise(self) -> None:
+        """Test with zero noise."""
+        sigma = 0.0
+        dt = 0.01
+        
+        arw = noise_std_to_arw(sigma, dt)
+        
+        # Zero noise → zero ARW
+        assert arw == 0.0
 
 
 class TestEdgeCases(unittest.TestCase):

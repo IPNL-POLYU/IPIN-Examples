@@ -209,3 +209,10 @@ assert abs(bias_deg_s - 0.002778) < 0.0001  # PASS
 4. **Document units in variable names**: `gyro_bias_rad_s`, not `gyro_bias`.
 5. **Test your conversions**: Verify that 10 deg/hr = 0.0028 deg/s in your code.
 
+
+
+
+
+
+
+

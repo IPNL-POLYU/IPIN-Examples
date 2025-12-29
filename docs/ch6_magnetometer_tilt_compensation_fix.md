@@ -270,3 +270,10 @@ mag_h = R_x(-roll) @ R_y(-pitch) @ mag_b
 
 Negative angles undo the body tilt to project into horizontal plane.
 
+
+
+
+
+
+
+

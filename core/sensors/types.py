@@ -753,7 +753,7 @@ class NavStateQPVPBias:
              Slow-varying bias modeled as random walk (Eq. (6.9)).
 
     Notes:
-        - Full state dimension is 13 (4 + 3 + 3 + 3).
+        - Full state dimension is 16 (3 + 3 + 4 + 3 + 3).
         - Bias evolution is typically modeled as random walk in EKF process model.
         - For error-state EKF, biases are estimated as additive corrections.
 
@@ -761,7 +761,7 @@ class NavStateQPVPBias:
         - Eq. (6.5): Gyro error model (ω̃ = ω + b_g + n_g)
         - Eq. (6.6): Gyro correction (ω = ω̃ - b_g - n_g)
         - Eq. (6.9): Accel error model (f̃ = f + b_a + n_a)
-        - Eq. (6.16): State vector for IMU+wheel EKF [q, v, p, b_g, b_a]
+        - Eq. (6.16): State vector for IMU+wheel EKF [p, v, q, b_g, b_a]
         - Eqs. (6.17)-(6.32): Process model and covariance propagation
 
     Example:

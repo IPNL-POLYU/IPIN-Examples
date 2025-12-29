@@ -301,3 +301,10 @@ adaptive_threshold = 3 * signal_std  # 3-sigma threshold
 **Deprecated:**
 - `detect_step_simple()` - Use `detect_steps_peak_detector()` instead
 
+
+
+
+
+
+
+

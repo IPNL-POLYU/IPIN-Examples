@@ -38,7 +38,7 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
     pos_true = np.zeros((N, 3))
     vel_true = np.zeros((N, 3))
     quat_true = np.zeros((N, 4))
-    wheel_speed_true = np.zeros((N, 3))  # Speed frame: [v_forward, 0, 0]
+    wheel_speed_true = np.zeros((N, 3))  # Speed frame: [0, v_forward, 0] (book convention)
     gyro_true = np.zeros((N, 3))
     
     if shape == 'square':
@@ -59,7 +59,7 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
             t_seg = t_cycle - segment * segment_time
             
             if t_seg < side_time:  # Driving straight
-                wheel_speed_true[k] = np.array([v_drive, 0, 0])
+                wheel_speed_true[k] = np.array([0, v_drive, 0])  # Book: y=forward
                 gyro_true[k, 2] = 0
             else:  # Turning
                 wheel_speed_true[k] = np.array([0, 0, 0])  # Stop to turn
@@ -68,11 +68,11 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
             # Update state
             if k > 0:
                 current_heading += gyro_true[k, 2] * dt
-                v_map = wheel_speed_true[k, 0] * np.array([np.cos(current_heading), np.sin(current_heading), 0])
+                v_map = wheel_speed_true[k, 1] * np.array([np.cos(current_heading), np.sin(current_heading), 0])
                 current_pos += v_map * dt
             
             pos_true[k] = current_pos
-            vel_true[k, :2] = wheel_speed_true[k, 0] * np.array([np.cos(current_heading), np.sin(current_heading)])
+            vel_true[k, :2] = wheel_speed_true[k, 1] * np.array([np.cos(current_heading), np.sin(current_heading)])
             
             # Quaternion (yaw only)
             quat_true[k] = np.array([np.cos(current_heading/2), 0, 0, np.sin(current_heading/2)])
@@ -86,7 +86,7 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
             angle = omega * t[k]
             pos_true[k] = np.array([radius*np.cos(angle), radius*np.sin(angle), 0])
             vel_true[k] = v_drive * np.array([-np.sin(angle), np.cos(angle), 0])
-            wheel_speed_true[k] = np.array([v_drive, 0, 0])
+            wheel_speed_true[k] = np.array([0, v_drive, 0])  # Book: y=forward
             gyro_true[k, 2] = omega
             quat_true[k] = np.array([np.cos(angle/2), 0, 0, np.sin(angle/2)])
     
@@ -113,7 +113,7 @@ def add_wheel_noise(wheel_speed_true, gyro_true, add_slip=False, slip_intervals=
         for start, end in slip_intervals:
             mask = (np.arange(N)*0.01 >= start) & (np.arange(N)*0.01 < end)
             # During slip, wheel speed overestimates actual motion
-            wheel_meas[mask, 0] *= 1.3  # 30% overestimate
+            wheel_meas[mask, 1] *= 1.3  # 30% overestimate (y-component)
     
     return wheel_meas, gyro_meas
 
@@ -135,8 +135,8 @@ def run_wheel_odometry(t, wheel_speed, gyro, initial_state, lever_arm):
             p=p,
             q=q,
             v_s=wheel_speed[k-1],
-            omega_b=gyro[k-1],
-            lever_arm_b=lever_arm,
+            omega_a=gyro[k-1],
+            lever_arm_a=lever_arm,
             dt=dt
         )
         

@@ -47,7 +47,7 @@ Wheel odometry functions (from wheel_odometry module):
 Drift correction constraints (from constraints module):
     detect_zupt: Stationary detector (Eq. 6.44)
     ZuptMeasurementModel: Zero velocity update (Eq. 6.45)
-    ZaruMeasurementModel: Zero angular rate update (Eq. 6.60)
+    ZaruMeasurementModelPlaceholder: Zero angular rate update (INCOMPLETE PLACEHOLDER)
     NhcMeasurementModel: Nonholonomic constraint (Eq. 6.61)
 
 Pedestrian Dead Reckoning functions (from pdr module):
@@ -152,7 +152,7 @@ from core.sensors.constraints import (
     detect_zupt_windowed,
     detect_zupt,  # Deprecated, use detect_zupt_windowed instead
     ZuptMeasurementModel,
-    ZaruMeasurementModel,
+    ZaruMeasurementModelPlaceholder,
     NhcMeasurementModel,
 )
 
@@ -225,7 +225,7 @@ __all__ = [
     "detect_zupt_windowed",
     "detect_zupt",  # Deprecated
     "ZuptMeasurementModel",
-    "ZaruMeasurementModel",
+    "ZaruMeasurementModelPlaceholder",
     "NhcMeasurementModel",
     # Pedestrian Dead Reckoning (PDR)
     "total_accel_magnitude",

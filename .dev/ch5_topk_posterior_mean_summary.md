@@ -243,3 +243,10 @@ The implementation successfully:
 The code now implements the book's practical guidance that computing posterior mean over the full database is often unnecessary when a few dominant candidates suffice. Users can choose between full accuracy (top_k=None) and practical efficiency (top_k=10) based on their needs.
 
 
+
+
+
+
+
+
+

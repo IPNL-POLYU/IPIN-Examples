@@ -256,11 +256,25 @@ def gravity_vector(
     frame: Optional[FrameConvention] = None,
 ) -> np.ndarray:
     """
-    Gravity vector in map frame (downward).
+    Gravity vector in map frame (physical gravity, pointing downward).
 
-    Implements Eq. (6.8) in Chapter 6:
-        g_M = [0, 0, -g]^T    (for ENU frame)
-        g_M = [0, 0, +g]^T    (for NED frame)
+    Implements Eq. (6.8) in Chapter 6 with standard physics convention:
+        g_M = [0, 0, -g]^T    (for ENU: gravity points downward = negative z)
+        g_M = [0, 0, +g]^T    (for NED: gravity points downward = positive z)
+    
+    NOTATION NOTE:
+        The book writes g^M = [0, 0, g]^T in Eq. (6.7) context, which can be 
+        ambiguous. We interpret this as the MAGNITUDE in the z-direction.
+        
+        Book's convention: g^M = [0, 0, +g] (upward) used with SUBTRACTION
+        Code's convention: g_M = [0, 0, -g] (downward) used with ADDITION
+        
+        These are equivalent: (a_B - g_book) = (f_B + g_code) where g_book = -g_code
+    
+    PHYSICAL MEANING:
+        This function returns the actual gravitational acceleration vector:
+        - ENU: [0, 0, -9.81] m/s² (gravity pulls downward = negative z)
+        - NED: [0, 0, +9.81] m/s² (gravity pulls downward = positive z in z-down frame)
 
     Args:
         g: Gravitational acceleration magnitude.
@@ -316,10 +330,32 @@ def vel_update(
     frame: Optional[FrameConvention] = None,
 ) -> np.ndarray:
     """
-    Velocity update with gravity compensation.
+    Velocity update with gravity compensation (Eq. 6.7).
 
-    Implements Eq. (6.7) in Chapter 6:
+    Implements Eq. (6.7) in Chapter 6 using standard specific force convention.
+    
+    CODE FORMULATION (what this function implements):
         v_k^M = v_{k-1}^M + (C_B^M(q) @ f_b + g_M) * Δt
+    
+    BOOK'S EQ. (6.7) FORMULATION:
+        v_k^M = v_{k-1}^M + (C_B^M(q) @ a_B - g_M_book) * Δt
+    
+    ALGEBRAIC EQUIVALENCE:
+        These are identical! The difference is notation:
+        - f_b (code) = a_B (book) = specific force (accelerometer reading)
+        - g_M (code) = -g_M_book
+        
+        For ENU:
+          g_M (code) = [0, 0, -9.81]  (physical gravity vector, downward)
+          g_M (book) = [0, 0, +9.81]  (magnitude to subtract, upward)
+        
+        Proof: C @ a_B - [0,0,+g] = C @ a_B + [0,0,-g] = C @ f_b + g_M ✓
+    
+    PHYSICAL MEANING:
+        - Accelerometer measures specific force f_b (reaction force, NOT gravity)
+        - For stationary in ENU: f_b = [0, 0, +9.81] (upward reaction from ground)
+        - Gravity vector: g_M = [0, 0, -9.81] (downward in ENU)
+        - True kinematic accel: a_M = f_b + g_M = [0,0,0] for stationary ✓
 
     where:
         v^M: velocity in map frame M [m/s]
@@ -327,9 +363,6 @@ def vel_update(
         f_b: specific force in body frame B (corrected accel) [m/s²]
         g_M: gravity vector in map frame [m/s²]
         Δt: time step [s]
-
-    This equation integrates the corrected accelerometer measurement (specific force)
-    in the map frame, accounting for gravity, to update velocity.
 
     Args:
         v_prev: Previous velocity in map frame M.
