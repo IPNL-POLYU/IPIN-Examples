@@ -43,8 +43,8 @@ def create_odometry_factor(
     Create odometry factor connecting two consecutive poses.
 
     An odometry factor encodes the relative motion between two consecutive
-    robot poses as measured by wheel encoders, IMU, or other dead-reckoning
-    sensors. The factor penalizes deviations from the measured relative pose.
+    robot poses as measured by wheel encoders, IMU, or scan matching (ICP/NDT).
+    The factor penalizes deviations from the measured relative pose.
 
     Residual:
         r = relative_measured ⊖ (pose_from⁻¹ ⊕ pose_to)
@@ -54,12 +54,19 @@ def create_odometry_factor(
         pose_id_from: Variable ID of the starting pose.
         pose_id_to: Variable ID of the ending pose.
         relative_pose: Measured relative pose [Δx, Δy, Δyaw], shape (3,).
+                       From ICP (Eq. 7.10) or NDT (Eq. 7.16) scan matching.
                        This is the motion in the frame of pose_from.
         information: Information matrix (3, 3) for the measurement.
                      If None, uses identity (unit covariance).
 
     Returns:
         Factor instance for the odometry constraint.
+
+    References:
+        - Section 7.1.2: GraphSLAM framework (back-end optimization)
+        - Table 7.2: Evolution of SLAM methods
+        - Section 7.3.1: ICP for scan-to-scan relative pose
+        - Section 7.3.2: NDT for scan-to-scan relative pose
 
     Examples:
         >>> # Robot moved 1m forward, 0.5m left, rotated 30° left
@@ -75,7 +82,7 @@ def create_odometry_factor(
         - Odometry factors form the "backbone" of the pose graph.
         - They connect consecutive poses in chronological order.
         - Information matrix encodes measurement uncertainty.
-        - For typical wheel odometry: σ_x < σ_y (forward more accurate than lateral).
+        - Typical odometry: σ_x < σ_y (forward more accurate than lateral).
     """
     if information is None:
         information = np.eye(3)
@@ -134,42 +141,55 @@ def create_loop_closure_factor(
     information: Optional[np.ndarray] = None,
 ) -> Factor:
     """
-    Create loop closure factor connecting non-consecutive poses.
+    Create loop closure factor connecting non-consecutive poses (Section 7.3.5).
 
-    A loop closure factor is similar to an odometry factor but connects
-    non-consecutive poses that have been matched via scan matching (ICP/NDT)
-    or place recognition. Loop closures are critical for reducing drift in
-    long trajectories.
+    A loop closure factor connects non-consecutive poses i and j that have been
+    matched via scan matching (ICP/NDT) or place recognition. When the robot
+    returns to a previously visited location, the loop closure constraint
+    enforces consistency between the odometry chain and the scan-matched transform.
 
-    The factor structure is identical to odometry factors, but they connect
-    poses that are far apart in time. The relative pose is typically obtained
-    from ICP or NDT alignment.
+    The close-loop constraint from Eq. (7.22):
+        residual = ln((ΔT_ij')^{-1} T_i^{-1} T_j)^∨
+    
+    where:
+        - T_i = pose at earlier time i (pose_id_from)
+        - T_j = pose at later time j (pose_id_to)
+        - ΔT_ij' = observed relative transform from scan matching
+        - The residual measures inconsistency between scan-matched transform
+          (ΔT_ij') and the transform implied by the pose chain (T_i^{-1} T_j)
+
+    Loop closures are critical for reducing accumulated drift in long trajectories.
 
     Residual:
         r = relative_measured ⊖ (pose_from⁻¹ ⊕ pose_to)
 
     Args:
-        pose_id_from: Variable ID of the first pose (earlier in time).
-        pose_id_to: Variable ID of the second pose (later in time, or any other pose).
-        relative_pose: Measured relative pose from scan matching [Δx, Δy, Δyaw], shape (3,).
+        pose_id_from: Variable ID of pose i (earlier in time).
+        pose_id_to: Variable ID of pose j (later in time, loops back to i).
+        relative_pose: Observed relative pose from scan matching [Δx, Δy, Δyaw], shape (3,).
+                      This is ΔT_ij' from Eq. (7.22).
         information: Information matrix (3, 3). If None, uses identity.
-                     Should typically come from ICP/NDT covariance estimate.
+                     Should reflect scan matching quality (from ICP/NDT).
 
     Returns:
         Factor instance for the loop closure constraint.
 
+    References:
+        - Section 7.3.5: Close-loop Constraints
+        - Eq. (7.22): Close-loop constraint formulation
+
     Examples:
-        >>> # Loop closure detected: pose 100 matches pose 10
-        >>> # Scan matching gives relative pose and covariance
-        >>> rel_pose = np.array([0.2, 0.1, 0.05])  # Small difference (good closure)
+        >>> # Loop closure detected: pose 100 returns to vicinity of pose 10
+        >>> # ICP/NDT scan matching gives relative pose and covariance
+        >>> rel_pose = np.array([0.2, 0.1, 0.05])  # Small residual (good closure)
         >>> cov = np.diag([0.05, 0.05, 0.01])  # Scan matching uncertainty
         >>> info = np.linalg.inv(cov)
         >>> factor = create_loop_closure_factor(10, 100, rel_pose, information=info)
 
     Notes:
-        - Loop closures "bend" the trajectory to close loops.
-        - They significantly reduce accumulated drift.
-        - Information matrix should reflect scan matching quality.
+        - Loop closures "bend" the trajectory to enforce closure constraints per Eq. (7.22).
+        - They significantly reduce accumulated odometry drift.
+        - Information matrix should reflect scan matching quality/confidence.
         - For ambiguous closures, use lower information (higher uncertainty).
         - This is the same as odometry factor but conceptually different.
     """

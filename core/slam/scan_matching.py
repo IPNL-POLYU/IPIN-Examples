@@ -1,7 +1,7 @@
 """ICP (Iterative Closest Point) scan matching for 2D LiDAR SLAM.
 
 This module implements point-to-point ICP scan matching as described in
-Section 7.2.1 of Chapter 7 (SLAM Technologies) of the book:
+Section 7.3.1 of Chapter 7 (LiDAR SLAM) of the book:
 Principles of Indoor Positioning and Indoor Navigation.
 
 ICP is the foundational algorithm for LiDAR-based SLAM, aligning two
@@ -9,18 +9,19 @@ point clouds by iteratively finding correspondences and computing the
 optimal rigid transformation.
 
 Key functions:
-    - find_correspondences: Nearest-neighbor matching
+    - find_correspondences: Nearest-neighbor matching with correspondence gating
     - compute_icp_residual: Point-to-point error (Eq. 7.10)
-    - align_svd: Closed-form SVD alignment (Eq. 7.11)
+    - align_svd: Closed-form SVD alignment (method described after Eq. 7.11)
     - icp_point_to_point: Full ICP algorithm
 
 References:
-    - Section 7.2.1: Point-to-point ICP
-    - Eq. (7.10): ICP residual cost function
-    - Eq. (7.11): SVD-based alignment solution
+    - Section 7.3.1: Point-cloud based LiDAR SLAM - ICP
+    - Eq. (7.10): ICP objective function with binary selector b_{i,j}
+    - Eq. (7.11): Correspondence gating using distance threshold d_threshold
+    - SVD solution: Mentioned in text after Eq. 7.11 for solving rotation/translation
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 from typing import Optional, Tuple
@@ -38,25 +39,30 @@ def find_correspondences(
     max_distance: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
-    Find nearest-neighbor correspondences between source and target point clouds.
+    Find nearest-neighbor correspondences with distance-based gating (Eq. 7.11).
 
     For each point in the source cloud, finds the closest point in the target
-    cloud using a KD-tree for efficient nearest-neighbor search. This is the
-    data association step in ICP.
+    cloud using a KD-tree for efficient nearest-neighbor search. Correspondences
+    are gated by the distance threshold d_threshold as described in Eq. (7.11):
+    
+        b_{i,j} = { 0  if ||p_{i,t-1} - T p_{j,t}|| > d_threshold
+                  { 1  otherwise
+    
+    This implements the binary selector for valid point pairs in ICP.
 
     Args:
         source_points: Source point cloud, shape (N, 2) in meters.
         target_points: Target point cloud, shape (M, 2) in meters.
-        max_distance: Maximum correspondence distance in meters. Points beyond
-                      this distance are rejected. If None, all correspondences
-                      are accepted.
+        max_distance: Maximum correspondence distance in meters (d_threshold in Eq. 7.11).
+                      Points beyond this distance are rejected (b_{i,j} = 0).
+                      If None, all correspondences are accepted (no gating).
 
     Returns:
         Tuple of (matched_source, matched_target, distances):
             - matched_source: Source points with valid correspondences, shape (K, 2).
             - matched_target: Corresponding target points, shape (K, 2).
             - distances: Distance for each correspondence, shape (K,).
-            where K <= N is the number of valid correspondences.
+            where K <= N is the number of valid correspondences (where b_{i,j} = 1).
 
     Examples:
         >>> source = np.array([[1.0, 0.0], [0.0, 1.0]])
@@ -66,9 +72,10 @@ def find_correspondences(
         >>> print(dists)  # [0.1, 0.1] - small distances
 
     Notes:
+        - Implements correspondence gating from Eq. (7.11), Section 7.3.1.
         - Uses scipy.spatial.KDTree for O(M log M + N log M) complexity.
-        - Rejecting distant correspondences (max_distance) improves robustness
-          to outliers and partial overlap.
+        - Rejecting distant correspondences (max_distance = d_threshold) improves
+          robustness to outliers and partial overlap.
         - Correspondences are one-to-many: multiple source points can match
           the same target point.
     """
@@ -124,17 +131,18 @@ def compute_icp_residual(
     target_points: np.ndarray,
 ) -> float:
     """
-    Compute point-to-point ICP residual (cost).
+    Compute point-to-point ICP residual (cost function).
 
     Computes the sum of squared distances between corresponding points,
-    as defined in Eq. (7.10) of Chapter 7:
+    as defined in Eq. (7.10) of Section 7.3.1:
 
-        E = sum_i ||p_i^source - p_i^target||^2
+        Objective = sum_{i=1}^{N_model} sum_{j=1}^{N_measurement} b_{i,j} ||p_{i,t-1} - T p_{j,t}||^2
 
-    This is the objective function minimized by ICP.
+    where b_{i,j} is the binary selector (1 if points are paired, 0 otherwise).
+    This function computes the residual after correspondences are established.
 
     Args:
-        source_points: Source points, shape (N, 2).
+        source_points: Source points (already transformed), shape (N, 2).
         target_points: Corresponding target points, shape (N, 2).
                        Must have the same number of points as source.
 
@@ -151,7 +159,7 @@ def compute_icp_residual(
         >>> print(f"{residual:.4f}")  # 0.02 = 0.1^2 + 0.1^2
 
     Notes:
-        - Implements Eq. (7.10) from Section 7.2.1.
+        - Implements the objective function from Eq. (7.10), Section 7.3.1.
         - This is the point-to-point metric (not point-to-plane).
         - Used to assess convergence in ICP iterations.
     """
@@ -180,8 +188,12 @@ def align_svd(
     Compute optimal SE(2) alignment using SVD (closed-form solution).
 
     Given corresponding point sets, computes the rigid transformation
-    (rotation + translation) that minimizes the point-to-point error.
-    This is the solution to Eq. (7.11) in Chapter 7.
+    (rotation + translation) that minimizes the point-to-point error in Eq. (7.10).
+    The SVD-based solution is described in Section 7.3.1 text after Eq. (7.11).
+    
+    The book mentions that to solve Eq. (7.10), a nonlinear optimizer can be used,
+    or the rotation matrix can be solved first by SVD, then the translation can be
+    computed as: Δx = p̄_{t-1} - (Ĉ p̄_t), where p̄ denotes the geometric center.
 
     The algorithm:
         1. Compute centroids of both point clouds.
@@ -219,7 +231,8 @@ def align_svd(
         True
 
     Notes:
-        - Implements the closed-form SVD solution from Eq. (7.11).
+        - Implements the SVD-based solution described in Section 7.3.1 text.
+        - Solves the minimization problem in Eq. (7.10) in closed form.
         - Requires at least 2 correspondences for a unique solution.
         - Assumes correspondences are already established (no outlier rejection).
         - For degenerate configurations (e.g., collinear points), the solution
@@ -284,11 +297,11 @@ def icp_point_to_point(
     min_correspondences: int = 3,
 ) -> Tuple[np.ndarray, int, float, bool]:
     """
-    Point-to-point ICP algorithm for 2D scan matching.
+    Point-to-point ICP algorithm for 2D scan matching (Section 7.3.1).
 
     Iteratively aligns source scan to target scan by alternating between:
-        1. Finding correspondences (nearest neighbors).
-        2. Computing optimal transformation (SVD alignment).
+        1. Finding correspondences with distance gating (Eq. 7.11).
+        2. Computing optimal transformation (SVD alignment for Eq. 7.10).
 
     Converges when the pose change is below tolerance or max iterations reached.
 
@@ -299,8 +312,9 @@ def icp_point_to_point(
         max_iterations: Maximum number of ICP iterations (default: 50).
         tolerance: Convergence threshold for pose change (default: 1e-6).
                    Measured as ||delta_pose|| in Euclidean sense.
-        max_correspondence_distance: Maximum distance for valid correspondences
-                                      in meters. If None, all correspondences accepted.
+        max_correspondence_distance: Maximum distance for valid correspondences in meters
+                                      (d_threshold in Eq. 7.11). If None, all correspondences
+                                      accepted (no gating).
         min_correspondences: Minimum number of correspondences required for
                              alignment (default: 3). If fewer, ICP fails.
 
@@ -308,7 +322,7 @@ def icp_point_to_point(
         Tuple of (final_pose, num_iterations, final_residual, converged):
             - final_pose: Estimated pose [x, y, yaw], shape (3,).
             - num_iterations: Number of iterations executed.
-            - final_residual: Final ICP residual (sum of squared errors).
+            - final_residual: Final ICP residual (sum of squared errors from Eq. 7.10).
             - converged: True if convergence criteria met, False if max_iterations reached.
 
     Raises:
@@ -331,9 +345,11 @@ def icp_point_to_point(
         True
 
     Notes:
-        - Implements the standard point-to-point ICP from Section 7.2.1.
+        - Implements point-to-point ICP from Section 7.3.1.
+        - Minimizes the objective function in Eq. (7.10).
+        - Uses correspondence gating from Eq. (7.11) via d_threshold.
+        - SVD provides closed-form solution at each iteration (described in text).
         - Uses KD-tree for efficient correspondence search.
-        - SVD provides closed-form solution at each iteration (Eq. 7.11).
         - Convergence is not guaranteed for poor initialization or low overlap.
         - Returns last valid pose even if convergence fails.
     """
@@ -422,7 +438,8 @@ def compute_icp_covariance(
         source_scan: Source point cloud, shape (N, 2).
         target_scan: Target point cloud, shape (M, 2).
         final_pose: Final ICP pose [x, y, yaw], shape (3,).
-        max_correspondence_distance: Maximum correspondence distance.
+        max_correspondence_distance: Maximum correspondence distance in meters
+                                      (d_threshold in Eq. 7.11).
 
     Returns:
         Covariance matrix of shape (3, 3) representing uncertainty in [x, y, yaw].

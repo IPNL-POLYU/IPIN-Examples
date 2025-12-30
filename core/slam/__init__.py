@@ -15,11 +15,11 @@ Chapter examples in ch7_slam/ wire datasets + factors + solver + plots.
 Main components:
     - Pose2, CameraIntrinsics: Core data structures
     - se2_compose, se2_inverse, se2_apply: SE(2) operations
-    - icp_point_to_point: ICP scan matching (Section 7.2.1)
-    - ndt_align: NDT alignment (Section 7.2.2)
-    - create_pose_graph: Pose graph optimization (Section 7.3)
-    - project_point, distort_normalized: Camera projection (Section 7.4)
-    - create_reprojection_factor: Visual SLAM bundle adjustment (Eqs. 7.68-7.70)
+    - icp_point_to_point: ICP scan matching (Section 7.3.1)
+    - ndt_align: NDT alignment (Section 7.3.2)
+    - create_pose_graph: Pose graph optimization (Section 7.1.2 GraphSLAM)
+    - project_point, distort_normalized: Camera projection (Section 7.4.1)
+    - create_reprojection_factor: Visual SLAM bundle adjustment (Eq. 7.70, Section 7.4.2)
     - create_odometry_factor, create_loop_closure_factor, create_prior_factor: Factor constructors
 
 Example usage:
@@ -38,12 +38,18 @@ Example usage:
     >>> points_transformed = se2_apply(p2.to_array(), points)
 
 References:
-    Chapter 7: SLAM Technologies
-    - Section 7.2: LiDAR SLAM (ICP, NDT, LOAM)
-    - Section 7.4: Visual SLAM (camera model, bundle adjustment)
+    Chapter 7: Indoor Simultaneous Localization and Mapping (SLAM)
+    - Section 7.1.2: SLAM Frameworks and Evolution (GraphSLAM)
+    - Section 7.3: LiDAR SLAM
+        - Section 7.3.1: Point-cloud based LiDAR SLAM - ICP
+        - Section 7.3.2: Feature-based LiDAR SLAM - NDT
+        - Section 7.3.5: Close-loop Constraints
+    - Section 7.4: Visual SLAM
+        - Section 7.4.1: Monocular Camera (camera model)
+        - Section 7.4.2: Monocular SLAM (bundle adjustment)
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 from . import camera

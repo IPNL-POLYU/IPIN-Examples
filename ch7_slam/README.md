@@ -203,6 +203,18 @@ pose_0 --odom--> pose_1 --odom--> ... --odom--> pose_N
 
 Based on GraphSLAM (Section 7.1.2): poses and landmarks form graph nodes, measurements create edges (constraints). The SLAM problem is solved by finding the configuration that best satisfies all constraints through sparse graph optimization.
 
+**Loop Closure Constraints (Section 7.3.5, Eq. 7.22):**
+
+When the robot returns to a previously visited location (e.g., completing a loop), a loop closure is detected by scan matching. The close-loop constraint enforces consistency between:
+- The **scan-matched transform** ΔT_ij' (from ICP/NDT)
+- The **pose chain transform** T_i^{-1} T_j (from odometry)
+
+The residual from Eq. (7.22):
+```
+residual = ln((ΔT_ij')^{-1} T_i^{-1} T_j)^∨
+```
+where T_i is an earlier pose, T_j is the current pose, and ΔT_ij' is the observed relative transform from scan matching. This constraint "bends" the trajectory to close loops and eliminate accumulated drift.
+
 ### Bundle Adjustment (Section 7.4.2)
 
 - **Variables**: Camera poses {Ri, ti} + 3D landmarks {pk}

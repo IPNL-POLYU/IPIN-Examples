@@ -13,13 +13,17 @@ Can run with:
     - Inline data (default): python example_pose_graph_slam.py
     - High drift scenario: python example_pose_graph_slam.py --data ch7_slam_2d_high_drift
 
-This implements the pose graph SLAM approach from Section 7.3 of Chapter 7.
+This implements pose graph SLAM (GraphSLAM back-end optimization) from:
+    - Section 7.1.2: GraphSLAM framework (Table 7.2)
+    - Section 7.3.1: ICP scan matching
+    - Section 7.3.2: NDT scan matching
+    - Section 7.3.5: Close-loop constraints (Eq. 7.22)
 
 Usage:
     python -m ch7_slam.example_pose_graph_slam
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 import argparse
@@ -392,6 +396,13 @@ def detect_loop_closures(
     """
     Detect loop closures using distance threshold and ICP verification.
 
+    When the robot returns to a previously visited location, loop closures
+    enforce the close-loop constraint from Eq. (7.22):
+        residual = ln((ΔT_ij')^{-1} T_i^{-1} T_j)^∨
+    
+    where ΔT_ij' is the scan-matched transform from ICP, and T_i^{-1} T_j
+    is the transform implied by the odometry chain.
+
     Args:
         poses: List of poses (possibly with drift).
         scans: List of scans in local frame.
@@ -400,6 +411,15 @@ def detect_loop_closures(
 
     Returns:
         List of tuples (pose_i, pose_j, relative_pose, covariance) for each closure.
+        Each tuple contains:
+            - pose_i: Earlier pose index (T_i)
+            - pose_j: Later pose index (T_j)
+            - relative_pose: Scan-matched transform ΔT_ij' from ICP
+            - covariance: Uncertainty in the scan matching
+
+    References:
+        - Section 7.3.5: Close-loop Constraints
+        - Eq. (7.22): Close-loop constraint formulation
     """
     loop_closures = []
 

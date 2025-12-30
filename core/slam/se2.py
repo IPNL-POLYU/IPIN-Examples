@@ -218,9 +218,9 @@ def se2_apply(
         points_transformed = R(yaw) * points + [x, y]
 
     This is used in:
-        - Scan matching: transforming scan points to reference frame (Eq. 7.10)
+        - Scan matching: transforming scan points for ICP residual (Eq. 7.10)
         - Visualization: plotting scans in global frame
-        - Correspondence building: aligning point clouds (Eq. 7.11)
+        - Correspondence building: aligning point clouds before distance gating (Eq. 7.11)
 
     Args:
         p: Pose [x, y, yaw] or Pose2 instance defining the transformation.
