@@ -83,9 +83,9 @@ config = json.load(open(path / "config.json"))
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `project_point()` | `core/slam/camera.py` | Eq. (7.40) | Pinhole camera projection |
-| `Camera` distortion methods | `core/slam/camera.py` | Eq. (7.41)-(7.43) | Radial and tangential distortion |
-| Bundle adjustment factors | `core/slam/factors.py` | Eq. (7.70) | Reprojection error minimization |
+| `project_point()` | `core/slam/camera.py` | Eq. (7.40), (7.41), (7.42)-(7.43) | Full camera projection + distortion |
+| `distort_normalized()` | `core/slam/camera.py` | Eq. (7.41) | Distortion model (k1,k2,k3,p1,p2) |
+| `create_reprojection_factor()` | `core/slam/factors.py` | Eq. (7.68)-(7.70) | Bundle adjustment reprojection error |
 
 ## Expected Output
 

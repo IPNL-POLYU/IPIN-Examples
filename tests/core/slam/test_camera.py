@@ -4,7 +4,7 @@ Tests camera projection, distortion, and reprojection error functions
 from Chapter 7, Section 7.4 (Visual SLAM).
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 import numpy as np
@@ -21,18 +21,18 @@ from core.slam.types import CameraIntrinsics
 
 
 class TestDistortNormalized:
-    """Tests for distort_normalized function (Eqs. 7.43-7.46)."""
+    """Tests for distort_normalized function (Eq. 7.41)."""
 
     def test_zero_distortion(self):
         """Test that zero distortion coefficients leave coordinates unchanged."""
         xy = np.array([[0.1, 0.2], [0.3, 0.4]])
-        result = distort_normalized(xy, k1=0, k2=0, p1=0, p2=0)
+        result = distort_normalized(xy, k1=0, k2=0, k3=0, p1=0, p2=0)
         np.testing.assert_allclose(result, xy, atol=1e-10)
 
     def test_single_point(self):
         """Test distortion on a single point."""
         xy = np.array([0.1, 0.2])
-        result = distort_normalized(xy, k1=-0.1, k2=0.01, p1=0.001, p2=0.001)
+        result = distort_normalized(xy, k1=-0.1, k2=0.01, k3=0.0, p1=0.001, p2=0.001)
         
         # Result should be different from input
         assert result.shape == (2,)
@@ -43,20 +43,20 @@ class TestDistortNormalized:
         xy = np.array([[0.1, 0.2]])
         
         # Negative k1 causes barrel distortion (points move inward)
-        result_barrel = distort_normalized(xy, k1=-0.2, k2=0, p1=0, p2=0)
+        result_barrel = distort_normalized(xy, k1=-0.2, k2=0, k3=0, p1=0, p2=0)
         r_original = np.linalg.norm(xy)
         r_distorted = np.linalg.norm(result_barrel)
         assert r_distorted < r_original  # Barrel distortion
 
         # Positive k1 causes pincushion distortion (points move outward)
-        result_pincushion = distort_normalized(xy, k1=0.2, k2=0, p1=0, p2=0)
+        result_pincushion = distort_normalized(xy, k1=0.2, k2=0, k3=0, p1=0, p2=0)
         r_distorted2 = np.linalg.norm(result_pincushion)
         assert r_distorted2 > r_original  # Pincushion distortion
 
     def test_tangential_distortion_only(self):
-        """Test pure tangential distortion (p1, p2 non-zero, k1=k2=0)."""
+        """Test pure tangential distortion (p1, p2 non-zero, k1=k2=k3=0)."""
         xy = np.array([[0.1, 0.2]])
-        result = distort_normalized(xy, k1=0, k2=0, p1=0.01, p2=0.01)
+        result = distort_normalized(xy, k1=0, k2=0, k3=0, p1=0.01, p2=0.01)
         
         # Result should be different from input
         assert not np.allclose(result, xy)
@@ -64,13 +64,13 @@ class TestDistortNormalized:
     def test_origin_unchanged(self):
         """Test that the origin (0, 0) is unchanged by distortion."""
         xy = np.array([[0.0, 0.0]])
-        result = distort_normalized(xy, k1=-0.1, k2=0.01, p1=0.001, p2=0.001)
+        result = distort_normalized(xy, k1=-0.1, k2=0.01, k3=0.001, p1=0.001, p2=0.001)
         np.testing.assert_allclose(result, xy, atol=1e-10)
 
     def test_batch_processing(self):
         """Test distortion on multiple points."""
         xy = np.array([[0.1, 0.2], [0.3, 0.4], [-0.1, -0.2]])
-        result = distort_normalized(xy, k1=-0.1, k2=0.01, p1=0.001, p2=0.001)
+        result = distort_normalized(xy, k1=-0.1, k2=0.01, k3=0.0, p1=0.001, p2=0.001)
         
         assert result.shape == (3, 2)
         # Each point should be distorted differently
@@ -81,7 +81,7 @@ class TestDistortNormalized:
         """Test that invalid input shape raises ValueError."""
         xy_bad = np.array([0.1, 0.2, 0.3])  # 3 values instead of 2
         with pytest.raises(ValueError, match="must be"):
-            distort_normalized(xy_bad, k1=0, k2=0, p1=0, p2=0)
+            distort_normalized(xy_bad, k1=0, k2=0, k3=0, p1=0, p2=0)
 
 
 class TestUndistortNormalized:
@@ -90,18 +90,18 @@ class TestUndistortNormalized:
     def test_undistort_inverts_distort(self):
         """Test that undistort inverts distort operation."""
         xy_original = np.array([[0.1, 0.2], [0.3, 0.4]])
-        k1, k2, p1, p2 = -0.1, 0.01, 0.001, 0.001
+        k1, k2, k3, p1, p2 = -0.1, 0.01, 0.001, 0.001, 0.001
         
         # Distort then undistort
-        xy_distorted = distort_normalized(xy_original, k1, k2, p1, p2)
-        xy_recovered = undistort_normalized(xy_distorted, k1, k2, p1, p2)
+        xy_distorted = distort_normalized(xy_original, k1, k2, k3, p1, p2)
+        xy_recovered = undistort_normalized(xy_distorted, k1, k2, k3, p1, p2)
         
         np.testing.assert_allclose(xy_recovered, xy_original, atol=1e-5)
 
     def test_zero_distortion(self):
         """Test undistort with zero coefficients."""
         xy = np.array([[0.1, 0.2]])
-        result = undistort_normalized(xy, k1=0, k2=0, p1=0, p2=0)
+        result = undistort_normalized(xy, k1=0, k2=0, k3=0, p1=0, p2=0)
         np.testing.assert_allclose(result, xy, atol=1e-6)
 
 

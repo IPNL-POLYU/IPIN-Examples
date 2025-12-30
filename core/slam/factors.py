@@ -452,7 +452,10 @@ def create_reprojection_factor(
 
     Residual:
         r = h(pose, landmark) - observed_pixel
-    where h is the camera projection function (Eqs. 7.43-7.46, 7.40).
+    where h is the camera projection function:
+        - Eq. (7.40): Intrinsic matrix K
+        - Eq. (7.41): Distortion model with k1, k2, k3, p1, p2
+        - Eqs. (7.42)-(7.43): Pixel coordinates u, v
 
     Args:
         camera_pose_id: Variable ID of the camera pose.

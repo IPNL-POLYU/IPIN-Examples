@@ -140,34 +140,40 @@ class CameraIntrinsics:
     bundle adjustment (Eqs. 7.68-7.70) and reprojection factors.
 
     Attributes:
-        fx: Focal length in x (pixels).
-        fy: Focal length in y (pixels).
-        cx: Principal point x-coordinate (pixels).
-        cy: Principal point y-coordinate (pixels).
-        k1: 1st radial distortion coefficient (Eq. 7.43).
-        k2: 2nd radial distortion coefficient (Eq. 7.44).
-        p1: 1st tangential distortion coefficient (Eq. 7.45).
-        p2: 2nd tangential distortion coefficient (Eq. 7.46).
+        fx: Focal length in x (pixels), from Eq. (7.40).
+        fy: Focal length in y (pixels), from Eq. (7.40).
+        cx: Principal point x-coordinate (pixels), from Eq. (7.40).
+        cy: Principal point y-coordinate (pixels), from Eq. (7.40).
+        k1: 1st radial distortion coefficient, from Eq. (7.41).
+        k2: 2nd radial distortion coefficient, from Eq. (7.41).
+        k3: 3rd radial distortion coefficient, from Eq. (7.41).
+        p1: 1st tangential distortion coefficient, from Eq. (7.41).
+            Note: Book calls this d1, but formula uses p1 (OpenCV convention).
+        p2: 2nd tangential distortion coefficient, from Eq. (7.41).
+            Note: Book calls this d2, but formula uses p2 (OpenCV convention).
         width: Image width in pixels (optional).
         height: Image height in pixels (optional).
 
     Notes:
-        - Distortion model follows Brown-Conrady / OpenCV convention.
-        - Eqs. (7.43)-(7.46) define the radial + tangential distortion.
-        - For an ideal pinhole camera, set k1=k2=p1=p2=0.
+        - Intrinsic matrix K from Eq. (7.40): s p^pixel = K p^C
+        - Distortion model from Eq. (7.41): includes k1*r², k2*r⁴, k3*r⁶ (radial)
+          and tangential terms with p1, p2 (book calls them d1, d2).
+        - Pixel projection from Eqs. (7.42)-(7.43): u = fx*x̂ + cx, v = fy*ŷ + cy
+        - For an ideal pinhole camera, set k1=k2=k3=p1=p2=0.
+        - Follows OpenCV convention (p1, p2) which matches book's formula in Eq. (7.41).
 
     Examples:
-        >>> # Typical camera with moderate distortion
+        >>> # Typical camera with moderate distortion (including k3)
         >>> K = CameraIntrinsics(
         ...     fx=500.0, fy=500.0, cx=320.0, cy=240.0,
-        ...     k1=-0.2, k2=0.05, p1=0.001, p2=0.001,
+        ...     k1=-0.2, k2=0.05, k3=0.01, p1=0.001, p2=0.001,
         ...     width=640, height=480
         ... )
         >>>
         >>> # Ideal pinhole (no distortion)
         >>> K_ideal = CameraIntrinsics(
         ...     fx=500.0, fy=500.0, cx=320.0, cy=240.0,
-        ...     k1=0.0, k2=0.0, p1=0.0, p2=0.0
+        ...     k1=0.0, k2=0.0, k3=0.0, p1=0.0, p2=0.0
         ... )
     """
 
@@ -175,10 +181,11 @@ class CameraIntrinsics:
     fy: float
     cx: float
     cy: float
-    k1: float = 0.0  # Radial distortion (Eq. 7.43)
-    k2: float = 0.0  # Radial distortion (Eq. 7.44)
-    p1: float = 0.0  # Tangential distortion (Eq. 7.45)
-    p2: float = 0.0  # Tangential distortion (Eq. 7.46)
+    k1: float = 0.0  # Radial distortion (Eq. 7.41)
+    k2: float = 0.0  # Radial distortion (Eq. 7.41)
+    k3: float = 0.0  # Radial distortion (Eq. 7.41) - 3rd order term
+    p1: float = 0.0  # Tangential distortion (Eq. 7.41, book calls it d1)
+    p2: float = 0.0  # Tangential distortion (Eq. 7.41, book calls it d2)
     width: int = 640  # Image width (pixels)
     height: int = 480  # Image height (pixels)
 
@@ -236,6 +243,7 @@ class CameraIntrinsics:
             [
                 abs(self.k1) > 1e-10,
                 abs(self.k2) > 1e-10,
+                abs(self.k3) > 1e-10,
                 abs(self.p1) > 1e-10,
                 abs(self.p2) > 1e-10,
             ]
@@ -246,7 +254,8 @@ class CameraIntrinsics:
         return (
             f"CameraIntrinsics(fx={self.fx:.2f}, fy={self.fy:.2f}, "
             f"cx={self.cx:.2f}, cy={self.cy:.2f}, "
-            f"distortion=[{self.k1:.4f}, {self.k2:.4f}, {self.p1:.4f}, {self.p2:.4f}])"
+            f"distortion=[k1={self.k1:.4f}, k2={self.k2:.4f}, k3={self.k3:.4f}, "
+            f"p1={self.p1:.4f}, p2={self.p2:.4f}])"
         )
 
 

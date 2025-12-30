@@ -1,15 +1,16 @@
 """Camera projection and distortion models for visual SLAM.
 
-This module implements camera models from Chapter 7 of the book, including:
-    - Pinhole camera projection
-    - Radial and tangential lens distortion
+This module implements camera models from Chapter 7 (Section 7.4) of the book:
+    - Pinhole camera projection (Eq. 7.40)
+    - Radial and tangential lens distortion (Eq. 7.41)
+    - Pixel coordinates after distortion (Eqs. 7.42-7.43)
     - Inverse projection (pixel to ray)
 
-These models are used for visual odometry, bundle adjustment, and reprojection
-error computation in visual SLAM systems.
+These models are used for visual odometry, bundle adjustment (Eq. 7.70), and
+reprojection error computation in visual SLAM systems.
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 import numpy as np
@@ -21,38 +22,42 @@ def distort_normalized(
     xy_normalized: np.ndarray,
     k1: float,
     k2: float,
+    k3: float,
     p1: float,
     p2: float,
 ) -> np.ndarray:
     """
     Apply radial and tangential distortion to normalized image coordinates.
 
-    Implements the Brown-Conrady distortion model from Eqs. (7.43)-(7.46)
-    in Chapter 7.
+    Implements the Brown-Conrady distortion model from Eq. (7.41) in Chapter 7.
 
-    The distortion model:
-        x_distorted = x * (1 + k1*r² + k2*r⁴) + 2*p1*x*y + p2*(r² + 2*x²)
-        y_distorted = y * (1 + k1*r² + k2*r⁴) + p1*(r² + 2*y²) + 2*p2*x*y
+    The distortion model (Eq. 7.41):
+        x̂ = x * (1 + k1*r² + k2*r⁴ + k3*r⁶) + 2*p1*x*y + p2*(r² + 2*x²)
+        ŷ = y * (1 + k1*r² + k2*r⁴ + k3*r⁶) + 2*p2*x*y + p1*(r² + 2*y²)
 
-    where r² = x² + y² and (x, y) are normalized image coordinates.
+    where r² = x² + y² and (x, y) are normalized image coordinates (x^I, y^I).
+    The book denotes (k1, k2, k3) for radial distortion and (d1, d2) for
+    tangential distortion, but uses p1, p2 in the formula (OpenCV convention).
 
     Args:
         xy_normalized: Normalized image coordinates, shape (N, 2) or (2,).
                       These are 3D points projected onto z=1 plane: (X/Z, Y/Z).
-        k1: First radial distortion coefficient.
-        k2: Second radial distortion coefficient.
-        p1: First tangential distortion coefficient.
-        p2: Second tangential distortion coefficient.
+        k1: First radial distortion coefficient (Eq. 7.41).
+        k2: Second radial distortion coefficient (Eq. 7.41).
+        k3: Third radial distortion coefficient (Eq. 7.41).
+        p1: First tangential distortion coefficient (Eq. 7.41, book calls it d1).
+        p2: Second tangential distortion coefficient (Eq. 7.41, book calls it d2).
 
     Returns:
-        Distorted normalized coordinates, same shape as input.
+        Distorted normalized coordinates (x̂, ŷ), same shape as input.
 
     References:
-        Implements Eqs. (7.43)-(7.46) from Chapter 7 (Brown-Conrady model).
+        Implements Eq. (7.41) from Section 7.4 (Camera Model - Distortion).
 
     Example:
         >>> xy = np.array([[0.1, 0.2], [0.3, 0.4]])
-        >>> distorted = distort_normalized(xy, k1=-0.1, k2=0.01, p1=0.001, p2=0.001)
+        >>> distorted = distort_normalized(xy, k1=-0.1, k2=0.01, k3=0.001,
+        ...                                 p1=0.001, p2=0.001)
     """
     # Handle both single point and array of points
     single_point = False
@@ -69,17 +74,17 @@ def distort_normalized(
     # Compute r² = x² + y²
     r_squared = x**2 + y**2
 
-    # Radial distortion factor: (1 + k1*r² + k2*r⁴)
-    # Eq. (7.43): radial component
-    radial_distortion = 1.0 + k1 * r_squared + k2 * r_squared**2
+    # Radial distortion factor: (1 + k1*r² + k2*r⁴ + k3*r⁶)
+    # Eq. (7.41): radial component with k1, k2, k3
+    radial_distortion = 1.0 + k1 * r_squared + k2 * r_squared**2 + k3 * r_squared**3
 
     # Tangential distortion components
-    # Eq. (7.44)-(7.45): tangential components
+    # Eq. (7.41): tangential components with p1, p2 (book calls them d1, d2)
     tangential_x = 2.0 * p1 * x * y + p2 * (r_squared + 2.0 * x**2)
     tangential_y = p1 * (r_squared + 2.0 * y**2) + 2.0 * p2 * x * y
 
     # Apply distortion
-    # Eq. (7.46): combined distortion model
+    # Eq. (7.41): combined distortion model
     x_distorted = x * radial_distortion + tangential_x
     y_distorted = y * radial_distortion + tangential_y
 
@@ -95,22 +100,25 @@ def undistort_normalized(
     xy_distorted: np.ndarray,
     k1: float,
     k2: float,
+    k3: float,
     p1: float,
     p2: float,
     max_iterations: int = 10,
     tolerance: float = 1e-6,
 ) -> np.ndarray:
     """
-    Remove distortion from normalized image coordinates (inverse of distortion).
+    Remove distortion from normalized image coordinates (inverse of Eq. 7.41).
 
-    Uses iterative Newton-Raphson method to invert the distortion model.
+    Uses iterative Newton-Raphson method to invert the distortion model
+    from Eq. (7.41).
 
     Args:
         xy_distorted: Distorted normalized coordinates, shape (N, 2) or (2,).
-        k1: First radial distortion coefficient.
-        k2: Second radial distortion coefficient.
-        p1: First tangential distortion coefficient.
-        p2: Second tangential distortion coefficient.
+        k1: First radial distortion coefficient (Eq. 7.41).
+        k2: Second radial distortion coefficient (Eq. 7.41).
+        k3: Third radial distortion coefficient (Eq. 7.41).
+        p1: First tangential distortion coefficient (Eq. 7.41).
+        p2: Second tangential distortion coefficient (Eq. 7.41).
         max_iterations: Maximum number of Newton-Raphson iterations.
         tolerance: Convergence tolerance.
 
@@ -132,7 +140,7 @@ def undistort_normalized(
     # Newton-Raphson iteration
     for _ in range(max_iterations):
         # Forward distortion from current guess
-        xy_predicted = distort_normalized(xy_undistorted, k1, k2, p1, p2)
+        xy_predicted = distort_normalized(xy_undistorted, k1, k2, k3, p1, p2)
 
         # Residual
         residual = xy_predicted - xy_distorted
@@ -157,16 +165,18 @@ def project_point(
     """
     Project a 3D point in camera frame to pixel coordinates.
 
-    Implements the full camera projection model: 3D point → normalized coords
-    → distortion → pixel coordinates.
+    Implements the full camera projection model from Section 7.4:
+        1. Normalize: (x, y) = (X/Z, Y/Z) - perspective projection
+        2. Distort: (x̂, ŷ) = distort(x, y) using Eq. (7.41)
+        3. Scale to pixels: u = fx*x̂ + cx, v = fy*ŷ + cy from Eqs. (7.42)-(7.43)
 
-    The projection follows:
-        1. Normalize: (x_n, y_n) = (X/Z, Y/Z)
-        2. Distort: (x_d, y_d) = distort(x_n, y_n)  [Eqs. 7.43-7.46]
-        3. Scale: (u, v) = (fx*x_d + cx, fy*y_d + cy)  [Eq. 7.40]
+    The complete model combines:
+        - Eq. (7.40): Intrinsic matrix K for s p^pixel = K p^C
+        - Eq. (7.41): Distortion model with k1, k2, k3, p1, p2
+        - Eqs. (7.42)-(7.43): Final pixel coordinates u, v
 
     Args:
-        intrinsics: Camera intrinsic parameters (fx, fy, cx, cy, distortion).
+        intrinsics: Camera intrinsic parameters (fx, fy, cx, cy, k1, k2, k3, p1, p2).
         point_camera: 3D point(s) in camera frame, shape (3,) or (N, 3).
                      Camera frame: X-right, Y-down, Z-forward.
 
@@ -177,8 +187,9 @@ def project_point(
         ValueError: If point is behind camera (Z <= 0).
 
     References:
-        Implements Eq. (7.40) (pinhole projection) combined with
-        Eqs. (7.43)-(7.46) (distortion model) from Chapter 7.
+        - Eq. (7.40): Intrinsic matrix K (pinhole projection)
+        - Eq. (7.41): Distortion model
+        - Eqs. (7.42)-(7.43): Pixel coordinates after distortion
 
     Example:
         >>> intrinsics = CameraIntrinsics(fx=500, fy=500, cx=320, cy=240)
@@ -202,23 +213,24 @@ def project_point(
         raise ValueError("Cannot project points behind camera (Z <= 0)")
 
     # 1. Normalize to image plane (z=1)
-    # Eq. (7.40): perspective division
+    # Perspective division: (x, y) = (X/Z, Y/Z)
     x_normalized = X / Z
     y_normalized = Y / Z
     xy_normalized = np.column_stack([x_normalized, y_normalized])
 
     # 2. Apply distortion
-    # Eqs. (7.43)-(7.46): distortion model
+    # Eq. (7.41): distortion model with k1, k2, k3, p1, p2
     xy_distorted = distort_normalized(
         xy_normalized,
         intrinsics.k1,
         intrinsics.k2,
+        intrinsics.k3,
         intrinsics.p1,
         intrinsics.p2,
     )
 
     # 3. Apply intrinsic matrix (scale and offset)
-    # Eq. (7.40): pixel coordinates from normalized coords
+    # Eqs. (7.42)-(7.43): u = fx*x̂ + cx, v = fy*ŷ + cy
     u = intrinsics.fx * xy_distorted[:, 0] + intrinsics.cx
     v = intrinsics.fy * xy_distorted[:, 1] + intrinsics.cy
 
@@ -273,11 +285,12 @@ def unproject_pixel(
     y_distorted = (v - intrinsics.cy) / intrinsics.fy
     xy_distorted = np.column_stack([x_distorted, y_distorted])
 
-    # 2. Remove distortion
+    # 2. Remove distortion (inverse of Eq. 7.41)
     xy_normalized = undistort_normalized(
         xy_distorted,
         intrinsics.k1,
         intrinsics.k2,
+        intrinsics.k3,
         intrinsics.p1,
         intrinsics.p2,
     )
