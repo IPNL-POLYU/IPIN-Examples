@@ -232,16 +232,73 @@ core/slam/
 
 **Note**: The current implementation is **2D SLAM** (SE(2) poses) for educational clarity, while the book's Chapter 7 discusses general 3D LiDAR SLAM. The mathematical principles (ICP, NDT, pose graph optimization) apply to both 2D and 3D cases.
 
+## Not Implemented (Future Work)
+
+The following topics from Chapter 7 are **not currently implemented** in this repository:
+
+### 7.3.3 LOAM (LiDAR Odometry and Mapping)
+- **Book coverage**: Section 7.3.3, Eqs. (7.17)-(7.19)
+- **What it is**: State-of-the-art feature-based LiDAR SLAM using edge and planar features
+- **Key innovations**:
+  - Scan-to-map matching (vs scan-to-scan) to reduce drift
+  - Two-step approach: scan-to-scan odometry + scan-to-map refinement
+  - Point-to-line and point-to-plane distance metrics
+- **Why not implemented**: Significantly more complex than ICP/NDT; requires feature extraction, curvature analysis, and two-stage optimization
+- **Future work**: Could add as `core/slam/loam.py` with `extract_edge_features()`, `extract_planar_features()`, and `loam_align()`
+
+### 7.3.4 Advanced LiDAR SLAM Topics
+- **Motion distortion compensation** (Eqs. 7.20-7.21): Compensating for ego-motion during LiDAR scan sweep using IMU
+- **Dynamic object handling**: Detecting and filtering moving objects in SLAM
+- **LiDAR-IMU integration**: Tightly-coupled LiDAR-inertial odometry (e.g., LIO-SAM)
+- **Why not implemented**: These are advanced topics requiring IMU integration and real-time processing considerations
+
+### 7.4.3 RGB-D SLAM
+- **Book coverage**: Section 7.4.3
+- **What it is**: SLAM using RGB-D cameras (e.g., Microsoft Kinect) with depth information
+- **Why not implemented**: Requires depth sensor data and integration of visual and depth information
+- **Future work**: Could extend visual SLAM examples to use depth measurements
+
+### 7.4.4 Advanced Visual SLAM Topics
+- **Stereo SLAM**: Using stereo camera pairs for depth estimation
+- **Deep learning features**: Neural network-based feature detection and tracking
+- **Visual-inertial fusion**: Camera-IMU integration (e.g., VINS-Mono)
+- **Why not implemented**: Advanced topics beyond the scope of introductory examples
+
+### 7.4.5 LiDAR-Camera Integration
+- **Book coverage**: Section 7.4.5
+- **What it is**: Mapping camera pixels to LiDAR point clouds for colored 3D maps
+- **Why not implemented**: Requires sensor calibration and multi-modal data fusion
+
+### What IS Implemented
+
+This repository focuses on **foundational SLAM concepts** for educational purposes:
+
+✅ **ICP** (Section 7.3.1): Point-to-point scan matching  
+✅ **NDT** (Section 7.3.2): Probabilistic scan matching with normal distributions  
+✅ **Pose Graph Optimization** (Section 7.3.5): Factor graph-based trajectory optimization  
+✅ **Loop Closure** (Section 7.3.5): Drift correction via loop detection  
+✅ **Camera Models** (Section 7.4.1): Pinhole projection with distortion  
+✅ **Bundle Adjustment** (Section 7.4.2): Visual SLAM with reprojection error minimization  
+
+These implementations provide a solid foundation for understanding SLAM principles. For production systems, consider established frameworks like:
+- **LiDAR SLAM**: LIO-SAM, LeGO-LOAM, LOAM
+- **Visual SLAM**: ORB-SLAM3, VINS-Mono, OpenVSLAM
+- **Multi-sensor**: Cartographer, RTAB-Map
+
 ## References
 
 - **Chapter 7**: Indoor Simultaneous Localization and Mapping (SLAM)
   - Section 7.1.2: SLAM Frameworks and Evolution (GraphSLAM)
   - Section 7.3: LiDAR SLAM
-    - Section 7.3.1: Point-cloud based LiDAR SLAM - ICP
-    - Section 7.3.2: Feature-based LiDAR SLAM - NDT
-    - Section 7.3.3: Feature-based LiDAR SLAM - LOAM
-    - Section 7.3.5: Close-loop Constraints
+    - Section 7.3.1: Point-cloud based LiDAR SLAM - ICP ✅
+    - Section 7.3.2: Feature-based LiDAR SLAM - NDT ✅
+    - Section 7.3.3: Feature-based LiDAR SLAM - LOAM ❌ (not implemented)
+    - Section 7.3.4: Challenges of LiDAR SLAM ❌ (not implemented)
+    - Section 7.3.5: Close-loop Constraints ✅
   - Section 7.4: Visual SLAM
-    - Section 7.4.1: Monocular Camera (pinhole model, distortion)
-    - Section 7.4.2: Monocular SLAM (bundle adjustment)
+    - Section 7.4.1: Monocular Camera (pinhole model, distortion) ✅
+    - Section 7.4.2: Monocular SLAM (bundle adjustment) ✅
+    - Section 7.4.3: RGB-D SLAM ❌ (not implemented)
+    - Section 7.4.4: Challenges of Visual SLAM ❌ (not implemented)
+    - Section 7.4.5: LiDAR-Camera Integration ❌ (not implemented)
 
