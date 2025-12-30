@@ -906,7 +906,7 @@
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# Section 7.2.1: ICP (Iterative Closest Point) Scan Matching
+# Section 7.3.1: ICP (Iterative Closest Point) Scan Matching
 # ------------------------------------------------------------------------------
 
 - eq: "Eq. (7.10)"
@@ -948,7 +948,7 @@
   notes: "Computes optimal [x, y, yaw] transformation between matched point clouds using SVD (Procrustes problem). Core update step in ICP."
 
 # ------------------------------------------------------------------------------
-# Section 7.2.2: NDT (Normal Distributions Transform) Scan Matching
+# Section 7.3.2: NDT (Normal Distributions Transform) Scan Matching
 # ------------------------------------------------------------------------------
 
 - eq: "Eqs. (7.12)-(7.13)"
@@ -985,12 +985,12 @@
   notes: "Optimizes pose to maximize likelihood (minimize negative log-likelihood). Uses gradient descent with numerical derivatives."
 
 # ------------------------------------------------------------------------------
-# Section 7.3: Pose Graph Optimization
+# Section 7.3.5: Close-Loop Constraints & Pose Graph Optimization
 # ------------------------------------------------------------------------------
 
-- eq: "Section 7.3 (Pose Graph Framework)"
+- eq: "Eq. (7.22) - Close-loop constraint"
   chapter: 7
-  description: "Pose graph optimization with odometry and loop closure factors"
+  description: "Loop closure constraint formulation for pose graph optimization"
   files:
     - path: "core/slam/factors.py"
       object: "create_pose_graph"
@@ -1048,7 +1048,7 @@
   notes: "For feature-based SLAM. Residual: r = h(x_i, l_k) - z_ik where h is range-bearing measurement model."
 
 # ------------------------------------------------------------------------------
-# Section 7.4: Visual SLAM - Camera Model
+# Section 7.4.1: Visual SLAM - Monocular Camera
 # ------------------------------------------------------------------------------
 
 - eq: "Eq. (7.40)"
@@ -1087,12 +1087,12 @@
   notes: "Inverts camera model: pixel → undistort → normalize → 3D ray. Optional depth parameter gives 3D point."
 
 # ------------------------------------------------------------------------------
-# Section 7.4: Visual SLAM - Bundle Adjustment
+# Section 7.4.2: Visual SLAM - Bundle Adjustment
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (7.68)-(7.70)"
+- eq: "Eq. (7.70)"
   chapter: 7
-  description: "Bundle adjustment (joint pose and landmark optimization)"
+  description: "Bundle adjustment objective (joint pose and landmark optimization)"
   files:
     - path: "core/slam/factors.py"
       object: "create_reprojection_factor"
@@ -1102,7 +1102,7 @@
       object: "main"
   tests:
     - "tests/core/slam/test_camera.py::TestComputeReprojectionError"
-  notes: "Eq. 7.68: BA cost function (sum of squared reprojection errors). Eq. 7.69: reprojection error definition. Eq. 7.70: robust kernel (optional)."
+  notes: "Eq. (7.70): Bundle adjustment objective - minimizes sum of squared reprojection errors over all camera poses {R_i, t_i} and 3D landmarks {p_k}. Section 7.4.2 - Monocular SLAM."
 
 - eq: "Reprojection Error"
   chapter: 7

@@ -11,9 +11,9 @@ SLAM solves the fundamental chicken-and-egg problem:
 
 ## Implemented Algorithms
 
-### 1. Scan Matching (Section 7.2)
+### 1. Scan Matching (Section 7.3 - LiDAR SLAM)
 
-#### 1.1 ICP (Iterative Closest Point)
+#### 1.1 ICP - Iterative Closest Point (Section 7.3.1)
 
 **Purpose:** Align two point clouds by finding optimal rigid body transformation.
 
@@ -54,7 +54,7 @@ pose, iterations, residual, converged = icp_point_to_point(
 
 **Tests:** `tests/core/slam/test_scan_matching.py` (37 tests)
 
-#### 1.2 NDT (Normal Distributions Transform)
+#### 1.2 NDT - Normal Distributions Transform (Section 7.3.2)
 
 **Purpose:** Probabilistic scan matching using voxel-based Gaussian distributions.
 
@@ -107,9 +107,11 @@ pose, iterations, score, converged = ndt_align(
 
 ---
 
-### 2. Pose Graph Optimization (Section 7.3)
+### 2. Pose Graph Optimization (Section 7.1.2 - GraphSLAM)
 
 **Purpose:** Globally optimize robot trajectory using odometry and loop closure constraints.
+
+**Note:** Pose graph optimization is the back-end of GraphSLAM (Section 7.1.2, Table 7.2). Loop closure constraints are detailed in Section 7.3.5 (Eq. 7.22).
 
 **Framework:** Factor graph with poses as variables and constraints as factors.
 
@@ -160,10 +162,14 @@ factor = create_odometry_factor(
 )
 ```
 
-#### 2.2 Loop Closure Factor
+#### 2.2 Loop Closure Factor (Section 7.3.5)
 **Purpose:** Connect non-consecutive poses detected via scan matching.
 
-**Structure:** Identical to odometry factor but for poses far apart in time.
+**Close-loop constraint (Eq. 7.22):**
+```
+residual = ln((ΔT_ij')^{-1} T_i^{-1} T_j)^∨
+```
+where ΔT_ij' is the scan-matched transform and T_i, T_j are poses.
 
 **Usage:**
 ```python
@@ -267,18 +273,18 @@ pixel = project_point(intrinsics, point_3d)  # [u, v]
 
 **Tests:** `tests/core/slam/test_camera.py` (28 tests)
 
-#### 3.2 Bundle Adjustment
+#### 3.2 Bundle Adjustment (Section 7.4.2)
 
 **Purpose:** Jointly optimize camera poses and 3D landmark positions.
 
 **Key Equations:**
-- **Eq. (7.68)**: Bundle adjustment cost function
+- **Eq. (7.70)**: Bundle adjustment objective
   ```
   E = Σᵢⱼ ||uᵢⱼ - π(Tᵢ, Lⱼ)||²
   ```
   where `uᵢⱼ` is observed pixel, `π(Tᵢ, Lⱼ)` is projected landmark
+- **Eq. (7.68)**: Robust kernel formulation
 - **Eq. (7.69)**: Reprojection error definition
-- **Eq. (7.70)**: Robust kernel (optional, for outlier rejection)
 
 **Implementation:**
 ```python
