@@ -55,28 +55,37 @@ config = json.load(open(path / "config.json"))
 
 ## Equation Reference
 
-### Scan Matching
+### 7.3.1 Point-cloud based LiDAR SLAM - ICP
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
 | `icp_point_to_point()` | `core/slam/scan_matching.py` | Eq. (7.10)-(7.11) | ICP alignment with SVD |
-| `ndt_align()` | `core/slam/scan_matching.py` | Eq. (7.14)-(7.16) | NDT probabilistic alignment |
 
-### Pose Graph Optimization
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `create_odometry_factor()` | `core/slam/pose_graph.py` | Section 7.3 | Connect consecutive poses |
-| `create_loop_closure_factor()` | `core/slam/pose_graph.py` | Section 7.3 | Connect non-consecutive poses |
-| `create_prior_factor()` | `core/slam/pose_graph.py` | Section 7.3 | Anchor first pose |
-
-### Visual SLAM
+### 7.3.2 Feature-based LiDAR SLAM - NDT
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `project_point()` | `core/slam/camera_model.py` | Eq. (7.40) | Pinhole camera projection |
-| `distort_normalized()` | `core/slam/camera_model.py` | Eq. (7.43)-(7.46) | Brown-Conrady distortion |
-| `create_reprojection_factor()` | `core/slam/bundle_adjustment.py` | Eq. (7.68)-(7.70) | Bundle adjustment factor |
+| `build_ndt_map()` | `core/slam/ndt.py` | Eq. (7.12), (7.13) | Voxel mean and covariance (note: uses n_k-1) |
+| `ndt_score()` | `core/slam/ndt.py` | Eq. (7.14)-(7.16) | Negative log-likelihood objective |
+| `ndt_align()` | `core/slam/ndt.py` | Eq. (7.12)-(7.16) | Full NDT alignment (2D implementation) |
+
+**Note**: The book presents NDT for 3D LiDAR (Eq. 7.9), but this implementation uses 2D for pedagogical clarity.
+
+### Pose Graph Optimization (GraphSLAM)
+
+| Function | Location | Reference | Description |
+|----------|----------|----------|-------------|
+| `create_odometry_factor()` | `core/slam/factors.py` | Section 7.1.2, Table 7.2 | Connect consecutive poses |
+| `create_loop_closure_factor()` | `core/slam/factors.py` | Section 7.3.5, Eq. (7.22) | Loop closure constraints |
+| `create_prior_factor()` | `core/slam/factors.py` | Section 7.1.2 | Anchor first pose |
+
+### 7.4 Visual SLAM
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `project_point()` | `core/slam/camera.py` | Eq. (7.40) | Pinhole camera projection |
+| `Camera` distortion methods | `core/slam/camera.py` | Eq. (7.41)-(7.43) | Radial and tangential distortion |
+| Bundle adjustment factors | `core/slam/factors.py` | Eq. (7.70) | Reprojection error minimization |
 
 ## Expected Output
 
@@ -170,48 +179,67 @@ CHAPTER 7: VISUAL BUNDLE ADJUSTMENT EXAMPLE
 
 ## Key Concepts
 
-### Scan Matching (ICP/NDT)
+### 7.3.1 ICP (Iterative Closest Point)
 
-- **ICP**: Finds correspondences, computes optimal transform via SVD
-- **NDT**: Represents target as Gaussian distributions, gradient-based optimization
-- **Used for**: Loop closure detection and relative pose estimation
+- Minimizes point-to-point distances between scans (Eq. 7.10)
+- Uses SVD to solve rotation and translation
+- **Used for**: Scan-to-scan matching and loop closure detection
 
-### Pose Graph Structure
+### 7.3.2 NDT (Normal Distributions Transform)
+
+- Represents voxels as 3D normal distributions (Eq. 7.12-7.13)
+- Maximum likelihood estimation via nonlinear optimization (Eq. 7.14-7.16)
+- More robust to noise than raw point matching
+
+### Pose Graph Structure (GraphSLAM - Section 7.1.2)
 
 ```
 pose_0 --odom--> pose_1 --odom--> ... --odom--> pose_N
   ^                                                  |
-  +------------------- loop closure -----------------+
+  +--------------- loop closure (Eq. 7.22) ----------+
 ```
 
-### Bundle Adjustment
+Based on GraphSLAM (Section 7.1.2): poses and landmarks form graph nodes, measurements create edges (constraints). The SLAM problem is solved by finding the configuration that best satisfies all constraints through sparse graph optimization.
 
-- **Variables**: Camera poses + 3D landmarks
-- **Objective**: Minimize sum of squared reprojection errors
-- **Result**: Globally consistent reconstruction
+### Bundle Adjustment (Section 7.4.2)
+
+- **Variables**: Camera poses {Ri, ti} + 3D landmarks {pk}
+- **Objective**: Minimize sum of squared reprojection errors (Eq. 7.70)
+- **Challenge**: Scale uncertainty in monocular vision (Section 7.4.2)
+- **Result**: Globally consistent reconstruction across multiple views
 
 ## File Structure
 
 ```
 ch7_slam/
 ├── README.md                       # This file (student documentation)
-├── example_pose_graph_slam.py      # LiDAR SLAM pipeline demo
+├── example_pose_graph_slam.py      # 2D LiDAR SLAM pipeline demo
 ├── example_bundle_adjustment.py    # Visual bundle adjustment demo
 └── figs/                           # Generated figures
     ├── pose_graph_slam_results.png
     └── bundle_adjustment_results.png
 
 core/slam/
-├── scan_matching.py                # ICP, NDT algorithms
-├── pose_graph.py                   # Pose graph construction
-├── camera_model.py                 # Camera projection, distortion
-└── bundle_adjustment.py            # Visual SLAM optimization
+├── scan_matching.py                # ICP algorithm (Section 7.3.1)
+├── ndt.py                          # NDT algorithm (Section 7.3.2)
+├── factors.py                      # Pose graph factors and bundle adjustment
+├── camera.py                       # Camera projection and distortion (Section 7.4)
+├── se2.py                          # SE(2) transformations for 2D SLAM
+└── types.py                        # Type definitions
 ```
+
+**Note**: The current implementation is **2D SLAM** (SE(2) poses) for educational clarity, while the book's Chapter 7 discusses general 3D LiDAR SLAM. The mathematical principles (ICP, NDT, pose graph optimization) apply to both 2D and 3D cases.
 
 ## References
 
-- **Chapter 7**: SLAM
-  - Section 7.2: Scan Matching (ICP, NDT)
-  - Section 7.3: Pose Graph Optimization
-  - Section 7.4: Visual SLAM and Bundle Adjustment
+- **Chapter 7**: Indoor Simultaneous Localization and Mapping (SLAM)
+  - Section 7.1.2: SLAM Frameworks and Evolution (GraphSLAM)
+  - Section 7.3: LiDAR SLAM
+    - Section 7.3.1: Point-cloud based LiDAR SLAM - ICP
+    - Section 7.3.2: Feature-based LiDAR SLAM - NDT
+    - Section 7.3.3: Feature-based LiDAR SLAM - LOAM
+    - Section 7.3.5: Close-loop Constraints
+  - Section 7.4: Visual SLAM
+    - Section 7.4.1: Monocular Camera (pinhole model, distortion)
+    - Section 7.4.2: Monocular SLAM (bundle adjustment)
 

@@ -1,28 +1,34 @@
 """NDT (Normal Distributions Transform) scan matching for 2D LiDAR SLAM.
 
-This module implements NDT alignment as described in Section 7.2.2 of
-Chapter 7 (SLAM Technologies) of the book: Principles of Indoor
-Positioning and Indoor Navigation.
+This module implements NDT alignment as described in Section 7.3.2 of
+Chapter 7 (LiDAR SLAM) of the book: Principles of Indoor Positioning
+and Indoor Navigation.
 
 NDT represents the target scan as a probabilistic model (Gaussian distributions
 per voxel) rather than raw points, leading to smoother cost functions and
 better convergence properties compared to point-to-point ICP.
 
+**Note on 2D vs 3D**: The book presents NDT for 3D LiDAR point clouds (Eq. 7.9).
+This implementation restricts to 2D (x, y) for educational clarity and consistency
+with other 2D SLAM examples. The mathematical principles (mean, covariance, likelihood)
+are identical in 2D and 3D.
+
 Key functions:
-    - build_ndt_map: Build voxel grid with Gaussian distributions
-    - ndt_score: Compute NDT score function (Eqs. 7.12-7.16)
+    - build_ndt_map: Build voxel grid with Gaussian distributions (Eq. 7.12-7.13)
+    - ndt_score: Compute negative log-likelihood (Eq. 7.16)
     - ndt_gradient: Compute gradient for optimization
-    - ndt_align: Full NDT alignment with Newton's method
+    - ndt_align: Full NDT alignment with gradient descent
 
 References:
-    - Section 7.2.2: Normal Distributions Transform (NDT)
-    - Eq. (7.12): NDT score function
-    - Eq. (7.13): Probability density per voxel
-    - Eq. (7.14): Negative log-likelihood formulation
-    - Eqs. (7.15)-(7.16): Gradient and Hessian
+    - Section 7.3.2: Feature-based LiDAR SLAM - NDT
+    - Eq. (7.12): Voxel mean p̄_{k,t-1} = (1/n_k) Σ p_{i,t-1}
+    - Eq. (7.13): Voxel covariance Σ_{k,t-1} = 1/(n_k-1) Σ (p-p̄)(p-p̄)^T
+    - Eq. (7.14): Likelihood for one voxel k
+    - Eq. (7.15): Joint likelihood across all voxels
+    - Eq. (7.16): MLE objective (minimize 0.5 Σ ||T p_j - p̄_k||²_Σ)
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 from typing import Dict, Optional, Tuple
@@ -42,11 +48,16 @@ def build_ndt_map(
     Build NDT map from point cloud: voxel grid with Gaussian distributions.
 
     Divides 2D space into voxels and fits a Gaussian distribution (mean and
-    covariance) to the points in each voxel. This is the offline preprocessing
-    step for NDT alignment.
+    covariance) to the points in each voxel per Eqs. (7.12)-(7.13).
+    This is the offline preprocessing step for NDT alignment.
+
+    For each voxel k with n_k points:
+        - Mean (Eq. 7.12): p̄_k = (1/n_k) Σ_{i=1}^{n_k} p_i
+        - Covariance (Eq. 7.13): Σ_k = 1/(n_k-1) Σ_{i=1}^{n_k} (p_i - p̄_k)(p_i - p̄_k)^T
 
     Args:
-        points: Point cloud, shape (N, 2) in meters.
+        points: Point cloud, shape (N, 2) in meters. Note: book uses 3D (Eq. 7.9),
+                but this implementation restricts to 2D for pedagogical clarity.
         voxel_size: Voxel edge length in meters (default: 1.0).
         min_points_per_voxel: Minimum number of points required to fit a
                               Gaussian in a voxel (default: 3).
@@ -55,9 +66,9 @@ def build_ndt_map(
         VoxelGrid: Dictionary mapping voxel indices (i, j) to Gaussian parameters:
             {
                 (i, j): {
-                    'mean': np.ndarray of shape (2,),
-                    'cov': np.ndarray of shape (2, 2),
-                    'n_points': int
+                    'mean': np.ndarray of shape (2,),   # p̄_k from Eq. 7.12
+                    'cov': np.ndarray of shape (2, 2),  # Σ_k from Eq. 7.13
+                    'n_points': int                      # n_k
                 },
                 ...
             }
@@ -72,9 +83,10 @@ def build_ndt_map(
         2
 
     Notes:
+        - Implements Eqs. (7.12)-(7.13) from Section 7.3.2.
+        - Uses (n_k - 1) denominator for unbiased covariance estimate (Eq. 7.13).
         - Voxels with fewer than min_points_per_voxel are discarded (no Gaussian).
         - Covariance is regularized with small diagonal term to avoid singularity.
-        - This implements the voxelization step described in Section 7.2.2.
     """
     if points.ndim != 2 or points.shape[1] != 2:
         raise ValueError(f"points must have shape (N, 2), got {points.shape}")
@@ -100,13 +112,19 @@ def build_ndt_map(
             continue
 
         voxel_points_array = np.array(voxel_points)  # shape (n, 2)
+        n_k = len(voxel_points)
 
-        # Compute mean
+        # Compute mean (Eq. 7.12): p̄_k = (1/n_k) Σ p_i
         mean = np.mean(voxel_points_array, axis=0)  # shape (2,)
 
-        # Compute covariance
+        # Compute covariance (Eq. 7.13): Σ_k = 1/(n_k-1) Σ (p_i - p̄_k)(p_i - p̄_k)^T
+        # Note: For n_k=1, use biased estimator (divide by n_k) to avoid division by zero
         centered = voxel_points_array - mean
-        cov = (centered.T @ centered) / len(voxel_points)  # shape (2, 2)
+        if n_k > 1:
+            cov = (centered.T @ centered) / (n_k - 1)  # Unbiased estimator (Eq. 7.13)
+        else:
+            # Single point: use biased estimator to avoid division by zero
+            cov = (centered.T @ centered) / n_k
 
         # Regularize covariance to avoid singularity
         cov += np.eye(2) * 1e-4
@@ -130,21 +148,27 @@ def ndt_score(
     Compute NDT score (negative log-likelihood) for a given pose.
 
     Evaluates how well the source points (transformed by pose) align with
-    the target NDT map. This implements Eqs. (7.12)-(7.14) from Section 7.2.2.
+    the target NDT map. This implements the objective function from Eq. (7.16).
 
-    The score is:
-        score = -sum_i log( p(T(p_i)) )
-    where p(T(p_i)) is the probability density of the transformed source point
-    evaluated at the corresponding voxel's Gaussian distribution.
+    The likelihood for a single voxel k (Eq. 7.14):
+        likelihood_k(T) = ∏_{j=1}^{N} exp( -||T p_j - p̄_k||²_Σ / 2 )
+
+    The joint likelihood across all voxels (Eq. 7.15):
+        likelihood(T) = ∏_{k=1}^{N_voxel} ∏_{j=1}^{N} exp( -||T p_j - p̄_k||²_Σ / 2 )
+
+    The MLE objective to minimize (Eq. 7.16):
+        T̂ = argmin_T  (1/2) Σ_k Σ_j ||T p_j - p̄_k||²_Σ
+
+    where ||r||²_Σ = r^T Σ^{-1} r is the squared Mahalanobis distance.
 
     Args:
         source_points: Source point cloud, shape (N, 2).
-        ndt_map: Target NDT map (voxel grid with Gaussians).
+        ndt_map: Target NDT map (voxel grid with Gaussians from Eq. 7.12-7.13).
         pose: Pose [x, y, yaw], shape (3,) to transform source.
         voxel_size: Voxel edge length (must match ndt_map).
 
     Returns:
-        NDT score (scalar). Lower is better (negative log-likelihood).
+        NDT score (scalar). Lower is better (negative log-likelihood from Eq. 7.16).
 
     Examples:
         >>> source = np.array([[0.0, 0.0], [1.0, 0.0]])
@@ -157,9 +181,10 @@ def ndt_score(
         True
 
     Notes:
-        - Implements Eq. (7.12)-(7.14) from Chapter 7.
+        - Implements the MLE objective from Eq. (7.16), Section 7.3.2.
         - Points that fall outside occupied voxels are ignored.
         - Uses negative log-likelihood formulation for numerical stability.
+        - Score includes log(det(Σ)) term for proper likelihood computation.
     """
     if source_points.shape[0] == 0:
         return 0.0
@@ -224,11 +249,11 @@ def ndt_gradient(
     Compute gradient of NDT score with respect to pose.
 
     Computes the gradient ∇_pose score(pose) for gradient-based optimization.
-    This implements the gradient computation from Eq. (7.15) in Section 7.2.2.
+    The gradient of the MLE objective (Eq. 7.16) enables iterative pose refinement.
 
     Args:
         source_points: Source point cloud, shape (N, 2).
-        ndt_map: Target NDT map.
+        ndt_map: Target NDT map (Gaussians from Eq. 7.12-7.13).
         pose: Current pose [x, y, yaw], shape (3,).
         voxel_size: Voxel edge length.
 
@@ -236,9 +261,10 @@ def ndt_gradient(
         Gradient vector of shape (3,): [∂score/∂x, ∂score/∂y, ∂score/∂yaw].
 
     Notes:
+        - Computes gradient of the objective function in Eq. (7.16).
         - Uses finite differences for simplicity (not analytic gradient).
         - For production code, analytic gradients would be more efficient.
-        - Implements numerical approximation of Eq. (7.15).
+        - The book mentions that Eq. (7.16) can be solved by nonlinear optimization.
     """
     gradient = np.zeros(3)
     epsilon = 1e-6
@@ -267,15 +293,15 @@ def ndt_align(
     step_size: float = 0.1,
 ) -> Tuple[np.ndarray, int, float, bool]:
     """
-    NDT-based scan alignment using gradient descent.
+    NDT-based scan alignment using gradient descent (Section 7.3.2).
 
     Aligns source scan to target scan by optimizing the NDT score function.
-    The target scan is first converted to an NDT map (voxel grid with Gaussians),
-    then gradient descent minimizes the negative log-likelihood.
+    The target scan is first converted to an NDT map (voxel grid with Gaussians
+    per Eqs. 7.12-7.13), then gradient descent minimizes the MLE objective (Eq. 7.16).
 
     Args:
-        source_scan: Source point cloud, shape (N, 2).
-        target_scan: Target point cloud, shape (M, 2).
+        source_scan: Source point cloud, shape (N, 2). Book uses 3D, we restrict to 2D.
+        target_scan: Target point cloud, shape (M, 2). Book uses 3D, we restrict to 2D.
         initial_pose: Initial pose guess [x, y, yaw], shape (3,).
                       If None, uses identity.
         voxel_size: Voxel edge length in meters (default: 1.0).
@@ -287,7 +313,7 @@ def ndt_align(
         Tuple of (final_pose, num_iterations, final_score, converged):
             - final_pose: Estimated pose [x, y, yaw], shape (3,).
             - num_iterations: Number of iterations executed.
-            - final_score: Final NDT score.
+            - final_score: Final NDT score (negative log-likelihood from Eq. 7.16).
             - converged: True if convergence criteria met.
 
     Examples:
@@ -298,10 +324,11 @@ def ndt_align(
         True
 
     Notes:
-        - Implements NDT alignment from Section 7.2.2.
-        - Uses gradient descent (simpler than Newton's method from Eq. 7.16).
-        - For better performance, consider using scipy.optimize.minimize with
-          analytic gradients.
+        - Implements NDT alignment from Section 7.3.2.
+        - Target map built using Eqs. (7.12)-(7.13) for mean and covariance.
+        - Minimizes MLE objective from Eq. (7.16) via gradient descent.
+        - Uses gradient descent (simpler than Newton's method).
+        - For better performance, consider scipy.optimize.minimize with analytic gradients.
     """
     # Validate inputs
     if source_scan.ndim != 2 or source_scan.shape[1] != 2:
@@ -380,7 +407,7 @@ def ndt_covariance(
 
     Args:
         source_scan: Source point cloud, shape (N, 2).
-        ndt_map: Target NDT map.
+        ndt_map: Target NDT map (Gaussians from Eq. 7.12-7.13).
         final_pose: Final NDT pose [x, y, yaw], shape (3,).
         voxel_size: Voxel edge length.
 
@@ -389,7 +416,8 @@ def ndt_covariance(
 
     Notes:
         - This is a simplified heuristic, not a rigorous covariance estimate.
-        - For rigorous uncertainty, compute the Hessian from Eq. (7.16).
+        - For rigorous uncertainty, compute the Hessian of Eq. (7.16) at the optimum.
+        - The book mentions that Eq. (7.16) can be solved by nonlinear optimizer.
     """
     # Simplified covariance: assume diagonal based on score magnitude
     score = ndt_score(source_scan, ndt_map, final_pose, voxel_size)

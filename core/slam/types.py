@@ -11,7 +11,7 @@ Key types:
     - VoxelGrid: Type alias for NDT voxel maps
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 from dataclasses import dataclass
