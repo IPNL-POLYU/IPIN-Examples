@@ -35,7 +35,7 @@ IPIN-Examples/
 ├── scripts/                     # Dataset generation scripts
 ├── tools/                       # CI/maintenance scripts
 ├── references/                  # Design specifications
-└── tests/                       # Unit tests (778 test cases)
+└── tests/                       # Unit tests (1,171 test cases)
 ```
 
 ## Chapter Overview
@@ -44,13 +44,13 @@ Each chapter folder contains example scripts and a README with equation-to-code 
 
 | Chapter | Topic | Key Algorithms | Equations |
 |---------|-------|----------------|-----------|
-| **Ch2** | Coordinate Systems | LLH↔ECEF↔ENU, Euler/Quaternion/Matrix rotations | Eqs. 2.1-2.10 |
-| **Ch3** | State Estimation | LS, WLS, Robust LS, KF, EKF | Eqs. 3.1-3.9 |
+| **Ch2** | Coordinate Systems | LLH↔ECEF↔ENU, Euler/Quaternion/Matrix rotations | Eqs. 2.9-2.23 |
+| **Ch3** | State Estimation | LS, WLS, KF, EKF, IEKF, UKF, PF, FGO | Eqs. 3.1-3.56 |
 | **Ch4** | RF Positioning | TOA, TDOA, AOA, RSS, DOP | Eqs. 4.1-4.69 |
-| **Ch5** | Fingerprinting | k-NN, MAP, Posterior Mean, Linear Regression | Eqs. 5.1-5.5 |
-| **Ch6** | Dead Reckoning | IMU Strapdown, PDR, ZUPT, Wheel Odometry | Eqs. 6.2-6.61 |
+| **Ch5** | Fingerprinting | NN, k-NN, MAP, Posterior Mean, Classification | Eqs. 5.1-5.5 |
+| **Ch6** | Dead Reckoning | IMU Strapdown, PDR, ZUPT, Wheel Odometry, Allan Variance | Eqs. 6.2-6.61 |
 | **Ch7** | SLAM | ICP, NDT, Pose Graph, Bundle Adjustment | Eqs. 7.10-7.70 |
-| **Ch8** | Sensor Fusion | Loosely/Tightly Coupled EKF, Observability | Practical methods |
+| **Ch8** | Sensor Fusion | LC/TC EKF, Observability, Gating, Calibration | Eqs. 8.3-8.9 |
 
 **Quick Start:** Run any chapter's example script:
 ```bash
