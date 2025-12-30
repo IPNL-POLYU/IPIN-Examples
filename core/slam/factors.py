@@ -8,16 +8,18 @@ Factors connect poses in a graph and encode constraints from:
     - Odometry: consecutive pose relationships from dead-reckoning
     - Loop closures: non-consecutive pose relationships from scan matching
     - Priors: absolute pose measurements (e.g., GPS, initial pose)
+    - Reprojection: camera observations of 3D landmarks (bundle adjustment)
 
 These factors work with the Factor Graph framework from core.estimators.
 
 References:
-    - Section 7.3: Pose graph optimization
-    - Eqs. (7.68)-(7.70): Reprojection factors (visual SLAM)
+    - Section 7.3: Pose graph optimization (LiDAR SLAM)
+    - Section 7.4.2: Bundle adjustment for multi-epoch SLAM
+    - Eq. (7.70): Bundle adjustment objective (book uses SE(3), code uses SE(2))
     - Factor graphs build on Chapter 3 FGO framework
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 from typing import Optional, TYPE_CHECKING
@@ -471,10 +473,14 @@ def create_reprojection_factor(
         Factor encoding the reprojection constraint.
 
     References:
-        Implements the reprojection residual from Eqs. (7.68)-(7.70) in Chapter 7:
-            - Eq. (7.68): Bundle adjustment cost function
-            - Eq. (7.69): Reprojection error definition
-            - Eq. (7.70): Robust kernel (optional, not implemented here)
+        Implements the reprojection residual from Section 7.4.2 (Bundle Adjustment):
+            - Eq. (7.70): Bundle adjustment objective function
+              {R_i, t_i, p_k} = argmin Σ ||p_pixel - π(R_i p_k + t_i)||²
+            
+        Note: This implementation uses SE(2) planar poses [x, y, yaw] instead of
+        full SE(3) poses (R_i, t_i) from Eq. (7.70). This is a pedagogical
+        simplification for 2D SLAM examples. The reprojection error principle
+        (minimize pixel residuals) remains the same.
 
     Example:
         >>> from core.slam.types import CameraIntrinsics

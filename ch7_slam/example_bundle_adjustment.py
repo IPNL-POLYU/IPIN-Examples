@@ -8,14 +8,19 @@ This example demonstrates bundle adjustment for visual SLAM:
     5. Run bundle adjustment to jointly optimize poses and landmarks
     6. Visualize results
 
-This implements bundle adjustment from Section 7.4 of Chapter 7,
-specifically Eqs. (7.68)-(7.70).
+This implements bundle adjustment from Section 7.4.2 of Chapter 7,
+specifically based on Eq. (7.70):
+    {R_i, t_i, p_k} = argmin Σ_i Σ_k ||p_pixel - π(R_i p_k + t_i)||²
+
+Note: This implementation uses SE(2) planar poses [x, y, yaw] for pedagogical
+clarity and consistency with other 2D SLAM examples. The book's Eq. (7.70)
+uses full SE(3) poses with rotation matrix R_i and translation t_i.
 
 Usage:
     python -m ch7_slam.example_bundle_adjustment
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: December 2025
 """
 
 import numpy as np
@@ -37,6 +42,10 @@ def generate_camera_trajectory(
 ) -> List[np.ndarray]:
     """
     Generate circular camera trajectory for bundle adjustment demo.
+
+    Note: This generates SE(2) planar poses [x, y, yaw] instead of full SE(3)
+    poses (R, t) from Eq. (7.70). This is a pedagogical simplification for
+    consistency with other 2D SLAM examples in this chapter.
 
     Args:
         n_poses: Number of camera poses.

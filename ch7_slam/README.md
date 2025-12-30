@@ -85,7 +85,9 @@ config = json.load(open(path / "config.json"))
 |----------|----------|----------|-------------|
 | `project_point()` | `core/slam/camera.py` | Eq. (7.40), (7.41), (7.42)-(7.43) | Full camera projection + distortion |
 | `distort_normalized()` | `core/slam/camera.py` | Eq. (7.41) | Distortion model (k1,k2,k3,p1,p2) |
-| `create_reprojection_factor()` | `core/slam/factors.py` | Eq. (7.68)-(7.70) | Bundle adjustment reprojection error |
+| `create_reprojection_factor()` | `core/slam/factors.py` | Eq. (7.70) | Bundle adjustment reprojection error |
+
+**Note on Bundle Adjustment (Section 7.4.2)**: The book's Eq. (7.70) uses full SE(3) poses with rotation matrix R_i and translation vector t_i. This implementation uses SE(2) planar poses [x, y, yaw] for pedagogical consistency with other 2D SLAM examples. The core principle (minimizing reprojection error) remains the same.
 
 ## Expected Output
 
