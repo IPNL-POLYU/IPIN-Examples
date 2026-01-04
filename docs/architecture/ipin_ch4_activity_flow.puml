@@ -1,0 +1,43 @@
+@startuml
+title Chapter 4 (RF Point Positioning) — Execution Flow (Clean)
+
+start
+:Run one script in ch4_rf_point_positioning/;
+:Parse args (only comparison supports --data / --compare-geometry);
+if (Which script?) then (example_toa_positioning.py)
+  :Setup anchor geometry + true position;
+  :Generate measurements:\nTOA ranges (± noise)\n+ optional clock bias\n+ optional RSS or RTT;
+  :Solve with TOAPositioner (iterative LS)\n+ optional joint clock-bias solve;
+  :Compute error + convergence info;
+  :Plot + save toa_positioning_example.png;
+elseif (example_tdoa_positioning.py)
+  :Setup beacons + true position;
+  :Simulate TOA ranges → form TDOA differences;
+  :Build TDOA covariance (reference beacon)\n(+ whitening);
+  :Solve (choose): Fang / Chan (closed-form)\nOR iterative LS;
+  :Compare vs TOA baseline;
+  :Plot + save to ch4_rf_point_positioning/figs/;
+elseif (example_aoa_positioning.py)
+  :Setup anchors + true position (2D/3D);
+  :Compute AOA (azimuth/elevation)\n+ add angle noise;
+  :Solve with AOAPositioner (iterative WLS)\n+ optional closed-form (OVE / PLE);
+  :Compute error + compare methods;
+  :Plot geometry + save figs/;
+else (example_comparison.py)
+  if (--compare-geometry ?) then (yes)
+    :Geometry study: compute GDOP\nfor TOA/TDOA/AOA;
+    :Plot + save figs/;
+  else (no)
+    if (--data provided?) then (yes)
+      :Load dataset from data/sim/ch4_rf_*/;
+    else (no)
+      :Generate inline scenario\n(simulate TOA/TDOA/AOA/RSS);
+    endif
+    :Run solvers over many points:\nTOA / TDOA / AOA (+ RSS ranging);
+    :Aggregate errors + convergence stats;
+    :Plot + save ch4_rf_comparison.png;
+  endif
+endif
+stop
+
+@enduml

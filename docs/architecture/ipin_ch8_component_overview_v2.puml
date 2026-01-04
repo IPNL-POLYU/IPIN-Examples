@@ -1,0 +1,69 @@
+@startuml
+title Chapter 8 (Sensor Fusion) — Component Overview (Simplified)
+skinparam componentStyle rectangle
+
+package "ch8_sensor_fusion/" as CH8 {
+  [Fusion scripts\nLC / TC / Compare / Tune / Temporal] as FUSION
+  [Calibration scripts\n(calibration + temporal)] as CALGRP
+
+  [lc_uwb_imu_ekf.py\nLC fusion demo\n(tags: fusion, eval)] as LC
+  [tc_uwb_imu_ekf.py\nTC fusion demo\n(tags: fusion, eval)] as TC
+  [compare_lc_tc.py\ncomparison\n(tags: eval)] as CMP
+  [tuning_robust_demo.py\nrobust tuning\n(tags: fusion, eval, ekf)] as TUNE
+  [temporal_calibration_demo.py\ntemporal calibration\n(tags: fusion, eval, ekf)] as TEMP
+  [calibration_demo.py\nintrinsic/extrinsic\n(tags: standalone)] as CAL
+  [observability_demo.py\nobservability\n(tags: ekf)] as OBS
+
+  [lc_models.py\nLC models + WLS solver] as LCM
+  [tc_models.py\nTC models + interpolation] as TCM
+
+  folder "figs/\n(saved plots)" as FIGS
+  note "README.md\n(run instructions)" as README
+
+  ' key intra-chapter relations
+  LC --> LCM
+  TC --> TCM
+  TUNE --> TCM
+  TEMP --> TCM
+  CMP ..> LC : runs
+  CMP ..> TC : runs
+
+  ' grouping (dotted)
+  FUSION ..> LC
+  FUSION ..> TC
+  FUSION ..> CMP
+  FUSION ..> TUNE
+  FUSION ..> TEMP
+
+  CALGRP ..> CAL
+  CALGRP ..> TEMP
+
+  ' outputs (few edges)
+  FUSION --> FIGS
+  CALGRP --> FIGS
+  OBS --> FIGS
+
+  README ..> FUSION
+  README ..> CALGRP
+  README ..> OBS
+}
+
+package "core/" as CORE {
+  [core/fusion/*] as CFUS
+  [core/eval.py] as CEVAL
+  [core/estimators/*\nExtendedKalmanFilter] as CEST
+}
+
+package "data/" as DATA {
+  folder "data/sim/ch8_*" as SIM
+}
+
+' simplified core deps
+FUSION --> CFUS
+FUSION --> CEVAL
+TUNE --> CEST
+TEMP --> CEST
+OBS  --> CEST
+
+FUSION ..> SIM : optional load
+@enduml

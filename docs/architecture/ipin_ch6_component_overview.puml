@@ -1,0 +1,65 @@
+@startuml
+title Chapter 6 (Dead Reckoning) — Component Overview (Clean)
+skinparam componentStyle rectangle
+
+package "ch6_dead_reckoning/" {
+  [README.md] as readme
+  [example_allan_variance.py] as av
+  [example_environment.py] as env
+  [example_imu_strapdown.py] as strap
+  [example_zupt.py] as zupt
+  [example_wheel_odometry.py] as wheel
+  [example_pdr.py] as pdr
+  [example_comparison.py] as cmp
+  folder "figs/" as figs
+}
+
+package "core/" {
+  [sensors] as sensors
+  [sim] as sim
+  [sensors/ins_ekf] as ins
+}
+
+package "data/sim/" {
+  [ch6_env_sensors_heading_altitude] as d_env
+  [ch6_foot_zupt_walk] as d_zupt
+  [ch6_pdr_corridor_walk] as d_pdr
+  [ch6_strapdown_basic] as d_strap
+  [ch6_wheel_odom_square] as d_wheel
+}
+
+readme ..> av
+readme ..> env
+readme ..> strap
+readme ..> zupt
+readme ..> wheel
+readme ..> pdr
+readme ..> cmp
+
+av --> sensors
+env --> sensors
+strap --> sensors
+strap --> sim
+zupt --> sensors
+zupt --> sim
+zupt --> ins
+wheel --> sensors
+pdr --> sensors
+pdr --> sim
+cmp --> sensors
+cmp --> sim
+
+d_env ..> env : --data
+d_strap ..> strap : --data
+d_zupt ..> zupt : --data
+d_wheel ..> wheel : --data
+d_pdr ..> pdr : --data
+
+av --> figs : save plots
+env --> figs : save plots
+strap --> figs : save plots
+zupt --> figs : save plots
+wheel --> figs : save plots
+pdr --> figs : save plots
+cmp --> figs : save plots
+@enduml

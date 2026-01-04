@@ -1,0 +1,63 @@
+@startuml
+title Chapter 5 (Fingerprinting) — Component Overview (Clean)
+skinparam componentStyle rectangle
+
+package "ch5_fingerprinting/" {
+  [README.md] as readme
+  [example_deterministic.py] as det
+  [example_probabilistic.py] as prob
+  [example_pattern_recognition.py] as pr
+  [example_classification.py] as cls
+  [example_comparison.py] as cmp
+  folder "figs/" as figs
+  [deterministic_positioning.png] as f_det
+  [probabilistic_positioning.png] as f_prob
+  [pattern_recognition_positioning.png] as f_pr
+  [classification_noise_robustness.png] as f_cls1
+  [hierarchical_localization.png] as f_cls2
+  [comparison_all_methods.png] as f_cmp
+}
+
+package "core/" {
+  [fingerprinting] as fpkg
+}
+
+package "data/sim/" {
+  [ch5_wifi_fingerprint_grid] as dgrid
+  [ch5_wifi_fingerprint_dense] as ddense
+  [ch5_wifi_fingerprint_sparse] as dsparse
+}
+
+readme --> det
+readme --> prob
+readme --> pr
+readme --> cls
+readme --> cmp
+
+det --> fpkg : imports
+prob --> fpkg : imports
+pr --> fpkg : imports
+cls --> fpkg : imports
+cmp --> fpkg : imports
+
+det ..> dgrid : loads (default)
+prob ..> dgrid : loads (default)
+pr ..> dgrid : loads (default)
+cmp ..> dgrid : loads (default)
+readme ..> ddense : alternative
+readme ..> dsparse : alternative
+
+det --> f_det : saves
+prob --> f_prob : saves
+pr --> f_pr : saves
+cls --> f_cls1 : saves
+cls --> f_cls2 : saves
+cmp --> f_cmp : saves
+
+f_det --> figs
+f_prob --> figs
+f_pr --> figs
+f_cls1 --> figs
+f_cls2 --> figs
+f_cmp --> figs
+@enduml

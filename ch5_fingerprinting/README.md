@@ -16,6 +16,70 @@ The module provides four main categories of methods:
 - ✅ Top-k posterior mean optimization (2.86x speedup)
 - ✅ **Missing AP support** - handles signal dropout gracefully (NaN-based)
 
+## Architecture Diagrams
+
+For a visual understanding of the chapter's implementation, refer to the following diagrams:
+
+### Component Architecture
+
+![Component Architecture](../docs/architecture/ipin_ch5_component_clean.svg)
+
+This diagram shows:
+- **Example Scripts**: Five demonstration scripts (`example_deterministic.py`, `example_probabilistic.py`, `example_pattern_recognition.py`, `example_classification.py`, `example_comparison.py`)
+- **Core Modules**: Reusable fingerprinting implementations in `core/fingerprinting/` (dataset, preprocessing, deterministic, probabilistic, pattern recognition, classification, types)
+- **Datasets**: Three WiFi fingerprint databases in `data/sim/`:
+  - `ch5_wifi_fingerprint_grid/` (default, 5m grid, 121 RPs)
+  - `ch5_wifi_fingerprint_dense/` (2m grid, 676 RPs)
+  - `ch5_wifi_fingerprint_sparse/` (10m grid, 25 RPs)
+- **Output**: Generated figures saved to `figs/` subdirectory
+
+**Source**: PlantUML source available at [`docs/architecture/ipin_ch5_component_overview.puml`](../docs/architecture/ipin_ch5_component_overview.puml)
+
+### Execution Flow
+
+![Execution Flow](../docs/architecture/ipin_ch5_flow_clean.svg)
+
+This diagram illustrates the execution pipeline for each example script:
+
+1. **`example_deterministic.py`** (Nearest-Neighbor):
+   - Load fingerprint DB (default: `ch5_wifi_fingerprint_grid/`)
+   - Generate test queries (floor + RSS noise)
+   - Run deterministic methods: NN (Eq. 5.1) and k-NN (Eq. 5.2)
+   - Compute errors + runtime (RMSE / median / P90)
+   - Plot + save `figs/deterministic_positioning.png`
+
+2. **`example_probabilistic.py`** (Bayesian Methods):
+   - Load fingerprint DB
+   - Fit Gaussian Naive Bayes (Eq. 5.6)
+   - Generate test queries (+ RSS noise)
+   - Compute posterior P(x_i|z) (Eq. 5.3)
+   - Estimate location: MAP (Eq. 5.4) and Posterior mean (Eq. 5.5)
+   - Evaluate errors + runtime
+   - Plot posterior + save `figs/probabilistic_positioning.png`
+
+3. **`example_pattern_recognition.py`** (Linear Regression):
+   - Load fingerprint DB
+   - Split train/test (per floor)
+   - Train linear regression localizer: x̂ = Wz + b (ridge, λ ∈ {0, 0.1, 1, 10})
+   - Evaluate RMSE + R² + time/query
+   - Plot weights + error stats, save `figs/pattern_recognition_positioning.png`
+
+4. **`example_classification.py`** (Classification + Hierarchical):
+   - Create synthetic multi-floor DB (3 floors, multiple APs)
+   - Train Random Forest + SVM classifiers
+   - Test accuracy + noise robustness
+   - Hierarchical localization: floor classification → k-NN / Bayes refinement
+   - Save `figs/classification_noise_robustness.png` and `figs/hierarchical_localization.png`
+
+5. **`example_comparison.py`** (Method Comparison):
+   - Load fingerprint DB
+   - Define scenarios: Baseline / Moderate / High noise
+   - Run method suite: Deterministic + Probabilistic + Linear Regression
+   - Aggregate metrics (RMSE / median / P90 / time)
+   - Plot + save `figs/comparison_all_methods.png`
+
+**Source**: PlantUML source available at [`docs/architecture/ipin_ch5_activity_flow.puml`](../docs/architecture/ipin_ch5_activity_flow.puml)
+
 ## Quick Start
 
 ```bash
@@ -455,6 +519,23 @@ core/fingerprinting/
 ├── preprocess.py                     # Preprocessing utilities (averaging, normalization)
 ├── types.py                          # FingerprintDatabase class (allows NaN)
 └── dataset.py                        # Load/save utilities
+
+docs/architecture/
+├── ipin_ch5_component_overview.puml  # Component diagram source (PlantUML)
+├── ipin_ch5_component_clean.svg      # Component diagram (rendered)
+├── ipin_ch5_activity_flow.puml       # Execution flow source (PlantUML)
+└── ipin_ch5_flow_clean.svg           # Execution flow diagram (rendered)
+
+data/sim/
+├── ch5_wifi_fingerprint_grid/        # Default dataset (5m grid, 121 RPs)
+│   ├── fingerprints.csv              # Reference fingerprints
+│   └── metadata.json                 # Dataset configuration
+├── ch5_wifi_fingerprint_dense/       # Dense dataset (2m grid, 676 RPs)
+│   ├── fingerprints.csv
+│   └── metadata.json
+└── ch5_wifi_fingerprint_sparse/      # Sparse dataset (10m grid, 25 RPs)
+    ├── fingerprints.csv
+    └── metadata.json
 
 tests/core/fingerprinting/
 ├── test_deterministic.py             # Deterministic method tests

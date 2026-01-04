@@ -1,0 +1,50 @@
+@startuml
+title Chapter 3 (Estimators) — Component Overview (Clean)
+skinparam componentStyle rectangle
+
+package "ch3_estimators/" {
+  [README.md] as readme
+  [example_least_squares.py] as ls
+  [example_kalman_1d.py] as kf
+  [example_ekf_range_bearing.py] as ekf
+  [example_iekf_range_bearing.py] as iekf
+  [example_comparison.py] as cmp
+  folder "figs/" as figs
+}
+
+package "core/" {
+  [estimators] as estim
+  [utils] as utils
+}
+
+package "data/sim/" {
+  [ch3_estimator_nonlinear] as d1
+  [ch3_estimator_high_nonlinear] as d2
+}
+
+readme --> ls
+readme --> kf
+readme --> ekf
+readme --> iekf
+readme --> cmp
+
+ls --> estim : imports
+kf --> estim : imports
+ekf --> estim : imports
+iekf --> estim : imports
+cmp --> estim : imports
+
+ekf --> utils : imports
+iekf --> utils : imports
+
+ekf ..> d1 : --data (optional)
+ekf ..> d2 : --data (optional)
+iekf ..> d1 : --data (optional)
+iekf ..> d2 : --data (optional)
+
+ls --> figs : saves plots
+kf --> figs : saves plots
+ekf --> figs : saves plots
+iekf --> figs : saves plots
+cmp --> figs : saves plots
+@enduml

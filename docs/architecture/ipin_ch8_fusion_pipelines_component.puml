@@ -1,0 +1,49 @@
+@startuml
+title Chapter 8 – Fusion Pipelines (LC vs TC) – Component View
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam componentStyle rectangle
+
+package "ch8_sensor_fusion (scripts)" {
+  [lc_uwb_imu_ekf.py\n(Loosely coupled)] as LC
+  [tc_uwb_imu_ekf.py\n(Tightly coupled)] as TC
+  [compare_lc_tc.py\n(Compare LC vs TC)] as CMP
+}
+
+package "ch8_sensor_fusion (models)" {
+  [lc_models.py\n(WLS pos fix + LC meas model)] as LCM
+  [tc_models.py\n(Range models + TC process)] as TCM
+}
+
+package "core" {
+  [core/estimators\nExtendedKalmanFilter] as EKF
+  [core/fusion\nStampedMeasurement, gating, innovations] as FUS
+  [core/eval\nmetrics (errors, RMSE)] as EVAL
+}
+
+folder "data/sim/ch8_* (optional)" as DATA
+folder "ch8_sensor_fusion/figs (outputs)" as FIGS
+
+LC --> LCM
+TC --> TCM
+CMP --> LC
+CMP --> TC
+
+LCM --> EKF
+TCM --> EKF
+
+LC --> FUS
+TC --> FUS
+LC --> EVAL
+TC --> EVAL
+CMP --> EVAL
+
+DATA ..> LC
+DATA ..> TC
+LC --> FIGS
+TC --> FIGS
+CMP --> FIGS
+
+LCM ..> FUS : gating helpers
+TCM ..> FUS : meas helpers
+@enduml

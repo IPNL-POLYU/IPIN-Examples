@@ -1,0 +1,63 @@
+@startuml
+title Chapter 8 – Fusion Pipelines (LC vs TC) – Activity Flow
+skinparam shadowing false
+skinparam roundcorner 12
+skinparam activity {
+  BackgroundColor white
+  BorderColor #777777
+  ArrowColor #555555
+}
+
+start
+:Run a Chapter 8 fusion script;
+if (Which pipeline?) then (LC)
+  partition "Loosely Coupled (lc_uwb_imu_ekf.py)" {
+    :Parse args (data dir, gating, save figs);
+    :Load dataset (truth, IMU 100Hz, UWB ranges 10Hz, anchors);
+    :Create LC EKF\nstate=[x,y,vx,vy,yaw]\nIMU process model;
+    while (for each IMU step) is (next)
+      :Predict / propagate with IMU;
+      if (UWB epoch?) then (yes)
+        :Solve UWB position fix\nfrom all ranges (WLS)\n+ covariance;
+        if (Chi-square gating Eq. 8.9?) then (accept)
+          :EKF update using\nposition measurement model;
+        else (reject)
+          :Skip/reject UWB update\n(or solver failed);
+        endif
+      else (no)
+        :continue;
+      endif
+    endwhile (done)
+    :Evaluate + RMSE;\nSave plots to ch8/figs;
+  }
+elseif (TC)
+  partition "Tightly Coupled (tc_uwb_imu_ekf.py)" {
+    :Parse args (batch_update?, gating, save figs);
+    :Load dataset (truth, IMU, UWB ranges, anchors);
+    :Create TC EKF\nstate=[x,y,vx,vy,yaw]\nIMU process model;
+    :Create per-anchor range measurement models;
+    :Build time-ordered measurement list\n(IMU + UWB);
+    while (next measurement by time?) is (yes)
+      if (IMU meas) then (yes)
+        :Propagate EKF with IMU;
+      else (UWB)
+        if (Batch update mode?) then (yes)
+          :Build z,y,H for all ranges at epoch;
+          :Compute S and NIS;\nChi-square gating Eq. 8.9;
+          :Update EKF;
+        else (sequential)
+          :For each anchor range:\ninnovation -> (optional gate) -> update;
+        endif
+      endif
+    endwhile (no)
+    :Evaluate + RMSE\n(+ IMU-only baseline);\nSave plots to ch8/figs;
+  }
+else (Compare)
+  partition "Comparison (compare_lc_tc.py)" {
+    :Run LC + TC on same dataset;
+    :Compute comparative metrics\n(RMSE, NIS, gating rates);
+    :Plot side-by-side + save report/figs;
+  }
+endif
+stop
+@enduml

@@ -1,0 +1,55 @@
+@startuml
+title Chapter 8 (Sensor Fusion) — Execution Flow (Clean View)
+
+start
+:Run a Chapter 8 script;
+
+if ("Fusion / Calibration / Observability?") then (Fusion)
+  if ("Fusion mode?") then (LC)
+    :Load dataset (data/sim/ch8_*);
+    :Init EKF (state + P0);
+    :IMU propagation (high-rate);
+    :Solve UWB position fix (WLS from ranges);
+    :Innovation gating (Chi-square / NIS);
+    :EKF update (position fix);
+    :Save figures (ch8_sensor_fusion/figs/*);
+  elseif (TC)
+    :Load dataset (data/sim/ch8_*);
+    :Init EKF (state + P0);
+    :IMU propagation (high-rate);
+    :Per-anchor UWB updates (ranges);
+    :Optional robustness (gating / reweighting);
+    :Save figures (ch8_sensor_fusion/figs/*);
+  elseif (Compare)
+    :Run LC + TC (reuse functions);
+    :Compute errors + RMSE;
+    :Overlay/summary plots;
+    :Save figures (ch8_sensor_fusion/figs/*);
+  else (Robust tuning)
+    :Sweep robust params (gate / weights);
+    :Run TC EKF per setting;
+    :RMSE / NIS trade-off plots;
+    :Save figures (ch8_sensor_fusion/figs/*);
+  endif
+
+elseif (Calibration)
+  if ("Intrinsic / Temporal?") then (Intrinsic/Extrinsic)
+    :Generate/load samples (stationary IMU, 2D poses);
+    :Estimate biases + extrinsics (least squares);
+    :Save figures (ch8_sensor_fusion/figs/*);
+  else (Temporal)
+    :Load dataset (data/sim/ch8_*);
+    :Estimate time offset (TimeSyncModel);
+    :Run EKF with synced data;
+    :Save figures (ch8_sensor_fusion/figs/*);
+  endif
+
+else (Observability)
+  :Generate two trajectories (translation offset);
+  :Compute odometry increments (same for both);
+  :Add occasional absolute fixes (position);
+  :Plot unobservable mode + fixes;
+endif
+
+stop
+@enduml

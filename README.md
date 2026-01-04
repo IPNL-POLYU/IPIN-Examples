@@ -38,6 +38,18 @@ IPIN-Examples/
 └── tests/                       # Unit tests (1,171 test cases)
 ```
 
+## Architecture Diagram
+
+For a visual overview of how chapters connect to the core library:
+
+![Repository Architecture](docs/architecture/ipin_repo_architecture_clean.svg)
+
+This diagram shows:
+- **Entry points**: README, notebooks, and scripts
+- **Chapter examples**: Learning modules (ch2-ch8)
+- **Core library**: Reusable implementations
+- **Dependencies**: How chapters import from core modules
+
 ## Chapter Overview
 
 Each chapter folder contains example scripts and a README with equation-to-code mappings:

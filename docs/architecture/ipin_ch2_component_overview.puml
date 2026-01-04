@@ -1,0 +1,37 @@
+@startuml
+title Chapter 2 - Repo Architecture (Component View)
+
+package "ch2_coords" {
+  [example_coordinate_transforms.py] as ex
+  [README.md] as readme
+}
+
+package "core/coords" {
+  [__init__.py] as cinit
+  [transforms.py] as ctrans
+  [rotations.py] as crot
+  [frames.py] as cframes
+}
+
+folder "data/sim/ch2_coords_san_francisco" as ds
+
+readme ..> ex : run commands
+ex --> cinit : imports
+cinit --> ctrans : re-export
+cinit --> crot : re-export
+cinit --> cframes : re-export
+
+ex ..> ds : optional --data
+(load_dataset)
+
+note right of ctrans
+LLH/ECEF/ENU transforms
+(Eq. 2.9, 2.10 + iterative inverse)
+end note
+
+note right of crot
+Euler / Rotation matrix / Quaternion
+(Eq. 2.17, 2.21-2.23)
+end note
+
+@enduml

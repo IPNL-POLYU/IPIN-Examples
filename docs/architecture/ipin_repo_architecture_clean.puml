@@ -1,0 +1,90 @@
+@startuml
+hide stereotypes
+skinparam shadowing false
+skinparam packageStyle rectangle
+skinparam defaultFontName Helvetica
+skinparam defaultFontSize 12
+skinparam ArrowColor #666666
+skinparam PackageBorderColor #999999
+skinparam PackageFontColor #333333
+
+package "Entry points" {
+  [README.md] as README
+  [notebooks/] as NB
+  [scripts/] as SCRIPTS
+}
+
+package "Chapters (examples)" {
+  [ch2_coords/] as CH2
+  [ch3_estimators/] as CH3
+  [ch4_rf_point_positioning/] as CH4
+  [ch5_fingerprinting/] as CH5
+  [ch6_dead_reckoning/] as CH6
+  [ch7_slam/] as CH7
+  [ch8_sensor_fusion/] as CH8
+}
+
+package "core/ (reusable library)" {
+  [coords] as C_COORDS
+  [estimators] as C_EST
+  [rf] as C_RF
+  [fingerprinting] as C_FP
+  [sensors + sim] as C_SENS_SIM
+  [slam] as C_SLAM
+  [fusion + eval] as C_FUS_EVAL
+  [models] as C_MODELS
+  [utils] as C_UTILS
+}
+
+package "Assets & engineering" {
+  [data/] as DATA
+  [docs/] as DOCS
+  [tests/] as TESTS
+  [.github/] as CI
+}
+
+README --> NB
+README --> SCRIPTS
+
+NB --> CH2
+NB --> CH3
+NB --> CH4
+NB --> CH5
+NB --> CH6
+NB --> CH7
+NB --> CH8
+
+SCRIPTS --> CH2
+SCRIPTS --> CH3
+SCRIPTS --> CH4
+
+' Chapter-to-core (based on actual imports in this repo)
+CH2 --> C_COORDS
+CH3 --> C_EST
+CH3 --> C_UTILS
+CH4 --> C_RF
+CH5 --> C_FP
+CH6 --> C_SENS_SIM
+CH7 --> C_SLAM
+CH7 --> C_EST
+CH8 --> C_FUS_EVAL
+CH8 --> C_EST
+
+' Light internal couplings (keep dashed to avoid clutter)
+C_RF ..> C_EST
+C_FP ..> C_EST
+C_SENS_SIM ..> C_FUS_EVAL
+C_SLAM ..> C_FUS_EVAL
+C_MODELS ..> C_EST
+C_UTILS ..> C_EST
+C_COORDS ..> C_SENS_SIM
+
+' Assets links
+DATA ..> C_SENS_SIM
+DATA ..> C_FP
+DOCS ..> README
+TESTS ..> C_EST
+TESTS ..> C_RF
+CI ..> TESTS
+
+@enduml

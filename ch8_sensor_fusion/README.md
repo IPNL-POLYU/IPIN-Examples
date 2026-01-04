@@ -35,6 +35,80 @@ python -m ch8_sensor_fusion.temporal_calibration_demo
 python -m ch8_sensor_fusion.calibration_demo  # Section 8.4: Intrinsic & extrinsic calibration
 ```
 
+## Architecture Diagrams
+
+For a visual understanding of the chapter's implementation, refer to the following diagrams:
+
+### Component Architecture
+
+![Component Architecture](../docs/architecture/ipin_ch8_component_clean_v2.svg)
+
+This diagram shows:
+- **Example Scripts**: Seven demonstration scripts (`lc_uwb_imu_ekf.py`, `tc_uwb_imu_ekf.py`, `compare_lc_tc.py`, `tuning_robust_demo.py`, `temporal_calibration_demo.py`, `calibration_demo.py`, `observability_demo.py`)
+- **Core Modules**: Reusable sensor fusion implementations in:
+  - `core/fusion/` (StampedMeasurement, TimeSyncModel, gating/robust utils)
+  - `core/estimators/` (ExtendedKalmanFilter)
+  - `core/eval.py` (errors, RMSE)
+- **Chapter Models**: Fusion-specific models in `lc_models.py` (LC models + WLS solver) and `tc_models.py` (TC models + interpolation)
+- **Data Sources**: Optional synthetic datasets from `data/sim/ch8_*` directories
+- **Output Figures**: Generated visualizations in `figs/`
+
+### Execution Flow
+
+![Execution Flow](../docs/architecture/ipin_ch8_flow_clean.svg)
+
+This diagram illustrates the detailed execution pipeline for the sensor fusion demos:
+
+**Fusion Demos (IMU + UWB):**
+1. **Loosely Coupled (LC)**:
+   - Load dataset → Init EKF (state + P0)
+   - IMU propagation (high-rate)
+   - Solve UWB position fix (WLS from ranges)
+   - Innovation gating (Chi-square / NIS)
+   - EKF update (position fix)
+   - Save figures
+
+2. **Tightly Coupled (TC)**:
+   - Load dataset → Init EKF (state + P0)
+   - IMU propagation (high-rate)
+   - Per-anchor UWB updates (ranges)
+   - Optional robustness (gating / reweighting)
+   - Save figures
+
+3. **Compare LC + TC**:
+   - Run LC + TC (reuse functions)
+   - Compute errors + RMSE
+   - Overlay/summary plots
+   - Save figures
+
+4. **Robust Tuning**:
+   - Sweep robust params (gate / weights)
+   - Run TC EKF per setting
+   - RMSE / NIS trade-off plots
+   - Save figures
+
+**Calibration Demos:**
+1. **Intrinsic/Extrinsic**:
+   - Generate/load samples (stationary IMU, 2D poses)
+   - Estimate biases + extrinsics (least squares)
+   - Save figures
+
+2. **Temporal**:
+   - Load dataset
+   - Estimate time offset (TimeSyncModel)
+   - Run EKF with synced data
+   - Save figures
+
+**Observability Demo:**
+- Generate two trajectories (translation offset)
+- Compute odometry increments (same for both)
+- Add occasional absolute fixes (position)
+- Plot unobservable mode + fixes
+
+**Source Files:** The PlantUML source files for these diagrams can be found at:
+- Component overview: `docs/architecture/ipin_ch8_component_overview_v2.puml`
+- Execution flow: `docs/architecture/ipin_ch8_activity_flow.puml`
+
 ## Equation Reference
 
 ### Innovation Monitoring and Gating
@@ -467,6 +541,17 @@ core/fusion/
 ├── tuning.py                        # Innovation, scaling (Eqs. 8.5-8.7)
 ├── gating.py                        # Chi-square gating (Eqs. 8.8-8.9)
 └── adaptive.py                      # Adaptive gating manager (Sec. 8.3.2)
+
+docs/architecture/
+├── ipin_ch8_component_clean_v2.svg  # Component diagram (visual)
+├── ipin_ch8_flow_clean.svg          # Execution flow diagram (visual)
+├── ipin_ch8_component_overview_v2.puml  # Component diagram (source)
+└── ipin_ch8_activity_flow.puml      # Execution flow diagram (source)
+
+data/sim/
+├── ch8_fusion_2d_imu_uwb/           # Baseline dataset (no bias, no offset)
+├── ch8_fusion_2d_imu_uwb_nlos/      # NLOS bias on anchors 1,2
+└── ch8_fusion_2d_imu_uwb_timeoffset/  # 50ms offset + 100ppm drift
 ```
 
 ## Figure Gallery

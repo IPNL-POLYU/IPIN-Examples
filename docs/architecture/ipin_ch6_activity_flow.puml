@@ -1,0 +1,50 @@
+@startuml
+title Chapter 6 (Dead Reckoning) — Execution Flow (Clean)
+
+start
+:Run one script in ch6_dead_reckoning/;
+
+if (Which script?) then (example_imu_strapdown.py)
+  :Load dataset ch6_strapdown_basic (optional)
+OR generate trajectory truth;
+  :Generate IMU measurements (noise + bias);
+  :Strapdown integrate attitude/vel/pos
+(pure dead reckoning);
+  :Compute drift + errors;
+  :Plot + save figs/*.svg;
+elseif (example_zupt.py)
+  :Load dataset ch6_foot_zupt_walk (optional)
+OR simulate foot IMU;
+  :Detect stance phases (ZUPT detector);
+  :Run INS-EKF with ZUPT updates;
+  :Compute errors (vs truth);
+  :Plot + save figs/*.svg;
+elseif (example_wheel_odometry.py)
+  :Load dataset ch6_wheel_odom_square (optional);
+  :Integrate wheel odometry -> 2D pose;
+  :Compute errors;
+  :Plot + save figs/*.svg;
+elseif (example_pdr.py)
+  :Load dataset ch6_pdr_corridor_walk (optional);
+  :Detect steps;
+  :Estimate step length (Weinberg model);
+  :Estimate heading (gyro/magnetometer);
+  :Update 2D position (step-and-heading);
+  :Plot + save figs/*.svg;
+elseif (example_environment.py)
+  :Load dataset ch6_env_sensors_heading_altitude (optional);
+  :Heading from magnetometer + gyro integration;
+  :Altitude from barometer;
+  :Plot + save figs/*.svg;
+elseif (example_allan_variance.py)
+  :Compute Allan deviation for accel + gyro;
+  :Plot + save figs/*.svg;
+else (example_comparison.py)
+  :Generate / load common trajectory;
+  :Run strapdown / ZUPT / wheel odom / PDR;
+  :Compare error-time + CDF curves;
+  :Plot + save figs/*.svg;
+endif
+
+stop
+@enduml

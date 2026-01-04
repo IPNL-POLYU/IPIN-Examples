@@ -1,0 +1,52 @@
+@startuml
+title IPIN Examples — Chapter 7 (SLAM) — Component Overview (Clean)
+skinparam componentStyle rectangle
+
+package "ch7_slam" {
+  [README.md] as ch7_readme
+  [example_pose_graph_slam.py] as ch7_pg
+  [example_bundle_adjustment.py] as ch7_ba
+}
+
+package "core/slam" {
+  [__init__.py] as slam_api
+  [se2.py] as se2
+  [scan_matching.py] as scan
+  [ndt.py] as ndt
+  [camera.py] as cam
+  [factors.py] as factors
+  [types.py] as types
+}
+
+package "core/estimators" {
+  [factor_graph.py\n(FactorGraph + GN/LM)] as fg
+}
+
+package "data/sim (optional)" {
+  [ch7_slam_2d_square] as d1
+  [ch7_slam_2d_high_drift] as d2
+}
+
+folder "Outputs" {
+  [ch7_slam/figs/*.svg] as figs
+}
+
+ch7_pg --> slam_api : imports
+ch7_ba --> slam_api : imports
+ch7_ba --> fg : uses
+
+slam_api --> se2
+slam_api --> scan
+slam_api --> cam
+slam_api --> factors
+slam_api --> types
+slam_api ..> ndt : optional
+
+factors --> fg : constructs factors for
+
+ch7_pg ..> d1 : --data_dir
+ch7_pg ..> d2 : --data_dir
+ch7_pg --> figs : saves
+ch7_ba --> figs : saves
+
+@enduml

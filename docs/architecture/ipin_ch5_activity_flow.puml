@@ -1,0 +1,41 @@
+@startuml
+title Chapter 5 (Fingerprinting) — Execution Flow (Clean)
+
+start
+:Run one script in ch5_fingerprinting/;
+if (Which script?) then (example_deterministic.py)
+  :Load fingerprint DB\nch5_wifi_fingerprint_grid (default);
+  :Generate test queries\n(floor + RSS noise);
+  :Run deterministic methods:\nNN (Eq. 5.1)\nk-NN (Eq. 5.2);
+  :Compute errors + runtime\n(RMSE / median / P90);
+  :Plot + save figs/deterministic_positioning.png;
+elseif (example_probabilistic.py)
+  :Load fingerprint DB\nch5_wifi_fingerprint_grid (default);
+  :Fit Gaussian Naive Bayes\n(Eq. 5.6);
+  :Generate test queries\n(+ RSS noise);
+  :Compute posterior\nP(x_i|z) (Eq. 5.3);
+  :Estimate location:\nMAP (Eq. 5.4)\nPosterior mean (Eq. 5.5);
+  :Evaluate errors + runtime;
+  :Plot posterior + save figs/probabilistic_positioning.png;
+elseif (example_pattern_recognition.py)
+  :Load fingerprint DB\nch5_wifi_fingerprint_grid (default);
+  :Split train/test (per floor);
+  :Train linear regression localizer\n x̂ = Wz + b (ridge);
+  :Evaluate RMSE + R² + time/query;
+  :Plot weights + error stats\nsave figs/pattern_recognition_positioning.png;
+elseif (example_classification.py)
+  :Create synthetic multi-floor DB;
+  :Train Random Forest + SVM classifiers;
+  :Test accuracy + noise robustness;
+  :Hierarchical localization:\nfloor classification → k-NN / Bayes refinement;
+  :Save figs/classification_noise_robustness.png\nand figs/hierarchical_localization.png;
+else (example_comparison.py)
+  :Load fingerprint DB\nch5_wifi_fingerprint_grid (default);
+  :Define scenarios:\nBaseline / Moderate / High noise;
+  :Run suite:\nDeterministic + Probabilistic + Linear Regression;
+  :Aggregate metrics (RMSE / median / P90 / time);
+  :Plot + save figs/comparison_all_methods.png;
+endif
+stop
+
+@enduml

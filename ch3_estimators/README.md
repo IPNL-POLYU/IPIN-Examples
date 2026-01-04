@@ -14,6 +14,55 @@ This module implements the state estimation algorithms described in **Chapter 3*
 
 ---
 
+## Architecture Diagrams
+
+To help you understand the code structure and execution flow, we provide visual diagrams:
+
+### Component Architecture
+
+![Chapter 3 Component View](../docs/architecture/ipin_ch3_component_clean.svg)
+
+This diagram shows:
+- **Entry points**: `README.md` → Five example scripts
+- **Core library**: `core/estimators/` (LS/WLS/GN/LM/Robust, KF/EKF/IEKF/UKF, PF, FactorGraph) and `core/utils/` (angle_diff, geometry, observability)
+- **Datasets**: Optional `data/sim/ch3_estimator_*` for EKF/IEKF examples with pre-generated trajectories
+- **Output**: All examples save results to `ch3_estimators/figs/`
+- **Dependencies**: How each example imports from core modules
+
+### Execution Flow
+
+![Chapter 3 Execution Flow](../docs/architecture/ipin_ch3_flow_clean.svg)
+
+This diagram illustrates the complete execution pipeline for all five examples:
+
+1. **example_least_squares.py**: 
+   - Setup anchors → Simulate ranges → Build Jacobian → Solve with multiple methods (LS/WLS/GN/LM/Robust IRLS)
+   - Calls `core.estimators` (LS/WLS/GN/LM algorithms)
+
+2. **example_kalman_1d.py**: 
+   - Define linear model (F,Q,H,R) → Simulate trajectory → KF loop (predict→update)
+   - Calls `core.estimators.KalmanFilter`
+
+3. **example_ekf_range_bearing.py**: 
+   - Load dataset OR simulate → Check geometry/observability → EKF loop with angle-wrapped innovation
+   - Calls `core.estimators.ExtendedKalmanFilter` and `core.utils` (angle_diff, geometry checks)
+   - Supports `--data` option to load pre-generated nonlinear scenarios
+
+4. **example_iekf_range_bearing.py**: 
+   - Load dataset OR simulate → Run both EKF and IEKF → Compare results
+   - Demonstrates IEKF's improved accuracy in high-nonlinearity cases
+   - Supports `--data` option
+
+5. **example_comparison.py**: 
+   - Setup scenario → Generate ranges → Run all methods (EKF/UKF/PF/FGO) with timing
+   - Compares accuracy vs. computational cost trade-offs
+
+**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
+- `ipin_ch3_component_overview.puml` - Component relationships
+- `ipin_ch3_activity_flow.puml` - High-level activity flow
+
+---
+
 ## Quick Start
 
 ```bash
@@ -403,6 +452,33 @@ core/estimators/
 ├── unscented_kalman_filter.py       # Section 3.2.4: UKF (with innovation_func)
 ├── particle_filter.py               # Section 3.3: Particle Filter (SIR)
 └── factor_graph.py                  # Section 3.4: FGO (GN, LM, line search)
+
+core/utils/
+├── angle_diff.py                    # Angle wrapping utilities
+├── geometry.py                      # Geometry checks
+└── observability.py                 # Observability analysis
+
+docs/architecture/
+├── ipin_ch3_component_clean.svg     # Component architecture diagram
+├── ipin_ch3_component_overview.puml # Component diagram source
+├── ipin_ch3_flow_clean.svg          # Execution flow diagram
+└── ipin_ch3_activity_flow.puml      # Activity flow source
+
+data/sim/
+├── ch3_estimator_nonlinear/         # Moderate nonlinearity scenario
+│   ├── time.txt
+│   ├── beacons.txt
+│   ├── ground_truth_states.txt
+│   ├── range_measurements.txt
+│   ├── bearing_measurements.txt
+│   └── config.json
+└── ch3_estimator_high_nonlinear/    # High nonlinearity scenario
+    ├── time.txt
+    ├── beacons.txt
+    ├── ground_truth_states.txt
+    ├── range_measurements.txt
+    ├── bearing_measurements.txt
+    └── config.json
 ```
 
 ---

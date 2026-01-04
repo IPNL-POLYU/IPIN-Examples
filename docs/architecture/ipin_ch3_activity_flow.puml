@@ -1,0 +1,43 @@
+@startuml
+title Chapter 3 (Estimators) — Execution Flow (Clean)
+
+start
+:Run one script in ch3_estimators/;
+:Parse args (only EKF/IEKF support --data);
+if (Which script?) then (example_least_squares.py)
+  :Setup anchors + true position;
+  :Simulate range measurements;
+  :Define h(x) and Jacobian;
+  :Solve (choose): LS / WLS / Gauss-Newton / LM / Robust IRLS;
+  :Plot + save to ch3_estimators/figs/;
+elseif (example_kalman_1d.py)
+  :Define linear model (F,Q,H,R);
+  :Simulate trajectory + noisy measurements;
+  :KalmanFilter loop: predict → update;
+  :Plot + save to ch3_estimators/figs/;
+elseif (example_ekf_range_bearing.py)
+  if (--data provided?) then (yes)
+    :Load dataset from data/sim/ch3_estimator_*/;
+  else (no)
+    :Simulate trajectory + range/bearing measurements;
+  endif
+  :Check geometry + observability;
+  :EKF loop: predict → update\n(angle-wrapped innovation);
+  :Plot + save to ch3_estimators/figs/;
+elseif (example_iekf_range_bearing.py)
+  if (--data provided?) then (yes)
+    :Load dataset from data/sim/ch3_estimator_*/;
+  else (no)
+    :Simulate trajectory + range/bearing measurements;
+  endif
+  :Run EKF and IEKF on same data;
+  :Compare + plot + save to ch3_estimators/figs/;
+else (example_comparison.py)
+  :Setup scenario (2D motion + anchors);
+  :Generate range measurements;
+  :Run methods: EKF / UKF / PF / FGO (+ timing);
+  :Compare results + save to ch3_estimators/figs/;
+endif
+stop
+
+@enduml

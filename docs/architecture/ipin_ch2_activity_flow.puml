@@ -1,0 +1,55 @@
+@startuml
+title Chapter 2 - Coordinate Transforms: Activity Flow (High-level)
+
+start
+:Run `python -m ch2_coords.example_coordinate_transforms`;
+
+if (--data provided?) then (yes)
+  :Resolve dataset path
+  (args.data OR data/sim/<name>);
+  :Load dataset (txt + json);
+  note right
+    data/sim/ch2_coords_san_francisco/
+    - llh_coordinates.txt
+    - ecef_coordinates.txt
+    - enu_coordinates.txt
+    - reference_llh.txt
+    - euler_angles.txt
+    - quaternions.txt
+    - config.json
+  end note
+else (no)
+  :Use inline demo values (San Francisco reference LLH);
+endif
+
+:LLH <-> ECEF demo;
+note right
+  core.coords.transforms
+  - llh_to_ecef (Eq. 2.9)
+  - ecef_to_llh (iterative)
+end note
+
+:ENU local frame demo;
+note right
+  core.coords.transforms
+  - ecef_to_enu (Eq. 2.10)
+  - enu_to_ecef (inverse)
+end note
+
+:Rotation representation demo;
+note right
+  core.coords.rotations
+  - euler_to_rotation_matrix (Eq. 2.17)
+  - euler_to_quat (Eq. 2.23)
+  - quat_to_rotation_matrix (Eq. 2.21)
+  - rotation_matrix_to_euler (inverse)
+end note
+
+:Indoor positioning scenario;
+note right
+  ENU user poses -> ECEF -> LLH
+  (building entrance as reference)
+end note
+
+stop
+@enduml

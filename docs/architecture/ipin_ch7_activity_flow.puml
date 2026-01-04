@@ -1,0 +1,22 @@
+@startuml
+title IPIN Examples — Chapter 7 (SLAM) — Activity Flow (Clean)
+
+start
+:User runs a Chapter 7 script\npython -m ch7_slam.<example>;
+if (Which example?) then (Pose Graph SLAM)
+  :Parse args / config\n(optional --data_dir);
+  :Load dataset OR generate synthetic\nposes + scans + loop closures;
+  :Estimate relative transforms\n(ICP scan matching);
+  :Build factor graph\n(prior + odom + loop closure factors);
+  :Optimize (Gauss-Newton / LM)\n-> corrected trajectory;
+  :Visualize + save figures\nch7_slam/figs/*.svg;
+else (Bundle Adjustment)
+  :Generate synthetic camera trajectory\n+ 3D landmarks;
+  :Simulate camera observations\n(project + noise);
+  :Perturb initial poses/landmarks;
+  :Build factor graph\n(reprojection factors + priors);
+  :Optimize (Gauss-Newton / LM)\n-> refined poses + landmarks;
+  :Visualize + save figures\nch7_slam/figs/*.svg;
+endif
+stop
+@enduml

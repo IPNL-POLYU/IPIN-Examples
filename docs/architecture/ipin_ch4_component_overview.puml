@@ -1,0 +1,45 @@
+@startuml
+title Chapter 4 (RF Point Positioning) — Component Overview (Clean)
+skinparam componentStyle rectangle
+
+package "ch4_rf_point_positioning/" {
+  [README.md] as readme
+  [example_toa_positioning.py] as toa
+  [example_tdoa_positioning.py] as tdoa
+  [example_aoa_positioning.py] as aoa
+  [example_comparison.py] as cmp
+  folder "figs/" as figs
+  [toa_positioning_example.png] as fig_toa
+}
+
+package "core/" {
+  [rf] as rf
+}
+
+package "data/sim/" {
+  [ch4_rf_2d_square] as d1
+  [ch4_rf_2d_linear] as d2
+  [ch4_rf_2d_nlos] as d3
+  [ch4_rf_2d_optimal] as d4
+}
+
+readme --> toa
+readme --> tdoa
+readme --> aoa
+readme --> cmp
+
+toa --> rf : imports
+tdoa --> rf : imports
+aoa --> rf : imports
+cmp --> rf : imports
+
+cmp ..> d1 : --data (optional)
+cmp ..> d2 : --data (optional)
+cmp ..> d3 : --data (optional)
+cmp ..> d4 : --data (optional)
+
+toa --> fig_toa : saves plot
+tdoa --> figs : saves plots
+aoa --> figs : saves plots
+cmp --> figs : saves plots
+@enduml
