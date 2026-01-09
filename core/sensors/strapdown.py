@@ -5,7 +5,7 @@ This module implements the core strapdown inertial navigation equations:
     - Quaternion kinematics and discrete integration (Eqs. (6.2)-(6.4))
     - Velocity update with gravity compensation (Eq. (6.7))
     - Position update (Eq. (6.10))
-    - Gravity vector (Eq. (6.8))
+    - Gravity magnitude (Eq. (6.8) via core.sensors.gravity module)
 
 The strapdown algorithm integrates IMU measurements (corrected gyro and accel)
 to propagate the navigation state (attitude, velocity, position) over time.
@@ -29,8 +29,11 @@ References:
     Eq. (6.3): Ω matrix definition
     Eq. (6.4): Discrete quaternion update
     Eq. (6.7): Velocity update with gravity
-    Eq. (6.8): Gravity vector
+    Eq. (6.8): Gravity magnitude (latitude-dependent)
     Eq. (6.10): Position update
+
+Author: Li-Ta Hsu
+Date: December 2025
 """
 
 from typing import Optional
@@ -38,6 +41,7 @@ import numpy as np
 
 # Import FrameConvention for type hints (avoid circular import)
 from core.sensors.types import FrameConvention
+from core.sensors.gravity import gravity_magnitude
 
 
 def omega_matrix(omega_b: np.ndarray) -> np.ndarray:
@@ -254,13 +258,14 @@ def quat_to_rotmat(q: np.ndarray) -> np.ndarray:
 def gravity_vector(
     g: float = 9.81,
     frame: Optional[FrameConvention] = None,
+    lat_rad: Optional[float] = None,
 ) -> np.ndarray:
     """
     Gravity vector in map frame (physical gravity, pointing downward).
 
-    Implements Eq. (6.8) in Chapter 6 with standard physics convention:
-        g_M = [0, 0, -g]^T    (for ENU: gravity points downward = negative z)
-        g_M = [0, 0, +g]^T    (for NED: gravity points downward = positive z)
+    Computes gravity direction from frame convention and magnitude from either:
+        - Eq. (6.8) when latitude provided (latitude-dependent WGS-84 model)
+        - Default g parameter when latitude not provided (backward compatible)
     
     NOTATION NOTE:
         The book writes g^M = [0, 0, g]^T in Eq. (6.7) context, which can be 
@@ -273,51 +278,59 @@ def gravity_vector(
     
     PHYSICAL MEANING:
         This function returns the actual gravitational acceleration vector:
-        - ENU: [0, 0, -9.81] m/s² (gravity pulls downward = negative z)
-        - NED: [0, 0, +9.81] m/s² (gravity pulls downward = positive z in z-down frame)
+        - ENU: [0, 0, -g_mag] m/s² (gravity pulls downward = negative z)
+        - NED: [0, 0, +g_mag] m/s² (gravity pulls downward = positive z in z-down frame)
+        where g_mag is computed from Eq. (6.8) if latitude provided.
 
     Args:
-        g: Gravitational acceleration magnitude.
+        g: Gravitational acceleration magnitude (fallback when lat_rad=None).
            Default: 9.81 m/s² (standard gravity).
-           Can be adjusted for local gravity variations (±0.05 m/s²).
+           Used for backward compatibility when latitude unavailable.
         frame: Frame convention defining gravity direction.
                Default: None (creates ENU).
                Use FrameConvention.create_enu() or .create_ned().
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
+                 Range: [-π/2, +π/2] (South Pole to North Pole).
 
     Returns:
         Gravity vector in map frame M.
         Shape: (3,). Units: m/s².
-        For ENU: [0, 0, -g] (downward = negative z)
-        For NED: [0, 0, +g] (downward = positive z)
+        For ENU: [0, 0, -g_mag] (downward = negative z)
+        For NED: [0, 0, +g_mag] (downward = positive z)
 
     Notes:
-        - Standard gravity: g = 9.80665 m/s² (exact)
-        - Typical approximation: g = 9.81 m/s²
-        - Local variations: ±0.05 m/s² depending on latitude and altitude
-        - For indoor positioning, constant g is sufficient
-        - Gravity direction determined by frame.gravity_direction (-1 or +1)
+        - Gravity magnitude: Use Eq. (6.8) when latitude known (book-accurate)
+        - Gravity direction: Determined by frame convention (ENU vs NED)
+        - Latitude variation: ±0.05 m/s² from equator (9.78) to pole (9.83)
+        - Backward compatible: Old code without lat_rad still works
 
     Example:
         >>> import numpy as np
         >>> from core.sensors import FrameConvention
-        >>> # ENU frame (default)
+        >>> # ENU frame, default gravity (backward compatible)
         >>> frame_enu = FrameConvention.create_enu()
         >>> g_enu = gravity_vector(g=9.81, frame=frame_enu)
         >>> print(g_enu)  # [0, 0, -9.81]
-        >>> # NED frame
-        >>> frame_ned = FrameConvention.create_ned()
-        >>> g_ned = gravity_vector(g=9.81, frame=frame_ned)
-        >>> print(g_ned)  # [0, 0, +9.81]
+        >>> 
+        >>> # ENU frame, latitude-dependent gravity (book-accurate)
+        >>> lat_rad = np.deg2rad(45.0)  # 45° North
+        >>> g_enu_lat = gravity_vector(g=9.81, frame=frame_enu, lat_rad=lat_rad)
+        >>> print(g_enu_lat)  # [0, 0, -9.8062] (from Eq. 6.8)
 
     Related Equations:
         - Eq. (6.7): Velocity update (v += (C_B^M @ f + g) * dt)
-        - Eq. (6.8): Gravity vector definition (THIS FUNCTION)
+        - Eq. (6.8): Gravity magnitude (core.sensors.gravity module)
     """
     if frame is None:
         frame = FrameConvention.create_enu()
 
+    # Compute gravity magnitude (Eq. 6.8 if latitude provided)
+    g_mag = gravity_magnitude(lat_rad=lat_rad, default_g=g)
+    
     # Use frame convention to determine gravity direction
-    g_map = frame.gravity_vector(g)
+    g_map = frame.gravity_vector(g_mag)
     return g_map
 
 
@@ -328,6 +341,7 @@ def vel_update(
     dt: float,
     g: float = 9.81,
     frame: Optional[FrameConvention] = None,
+    lat_rad: Optional[float] = None,
 ) -> np.ndarray:
     """
     Velocity update with gravity compensation (Eq. 6.7).
@@ -374,10 +388,13 @@ def vel_update(
              This is the accelerometer measurement after bias/noise removal.
         dt: Time step.
             Units: seconds. Typically 0.001 to 0.01 s.
-        g: Gravitational acceleration magnitude (optional).
+        g: Gravitational acceleration magnitude (fallback when lat_rad=None).
            Default: 9.81 m/s².
         frame: Frame convention defining gravity direction.
                Default: None (creates ENU).
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
 
     Returns:
         Updated velocity v_k in map frame M.
@@ -420,9 +437,11 @@ def vel_update(
     C_B_M = quat_to_rotmat(q_prev)
 
     # Gravity vector in map frame (Eq. 6.8)
-    # For ENU: g_M = [0, 0, -g] (downward)
-    # For NED: g_M = [0, 0, +g] (downward)
-    g_M = gravity_vector(g, frame)
+    # Magnitude from Eq. (6.8) if latitude provided, else use g parameter
+    # Direction from frame convention
+    # For ENU: g_M = [0, 0, -g_mag] (downward)
+    # For NED: g_M = [0, 0, +g_mag] (downward)
+    g_M = gravity_vector(g, frame, lat_rad=lat_rad)
 
     # Acceleration in map frame (Eq. 6.7): a_M = C_B^M @ f_b + g_M
     # Note: f_b is specific force measured by accelerometer (reaction force)
@@ -511,6 +530,7 @@ def strapdown_update(
     dt: float,
     g: float = 9.81,
     frame: Optional[FrameConvention] = None,
+    lat_rad: Optional[float] = None,
 ) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Complete strapdown integration step (attitude, velocity, position).
@@ -535,10 +555,13 @@ def strapdown_update(
              Shape: (3,). Units: m/s².
         dt: Time step.
             Units: seconds.
-        g: Gravitational acceleration magnitude (optional).
+        g: Gravitational acceleration magnitude (fallback when lat_rad=None).
            Default: 9.81 m/s².
         frame: Frame convention defining gravity direction.
                Default: None (creates ENU).
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
 
     Returns:
         Tuple (q_next, v_next, p_next):
@@ -576,7 +599,7 @@ def strapdown_update(
     q_next = quat_integrate(q, omega_b, dt)
 
     # Step 2: Update velocity
-    v_next = vel_update(v, q, f_b, dt, g, frame)
+    v_next = vel_update(v, q, f_b, dt, g, frame, lat_rad=lat_rad)
 
     # Step 3: Update position
     p_next = pos_update(p, v_next, dt)

@@ -188,7 +188,7 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
     }
 
 
-def run_with_dataset(data_dir: str, height: float = 1.75) -> None:
+def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0) -> None:
     """Run PDR example using pre-generated dataset.
     
     Args:
@@ -647,7 +647,7 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     return error_gyro, error_mag
 
 
-def run_with_inline_data():
+def run_with_inline_data(lat_deg: float = 45.0):
     """Run with inline generated data (original behavior)."""
     print("\n" + "="*70)
     print("Chapter 6: Pedestrian Dead Reckoning (PDR) - Step-and-Heading")
@@ -761,6 +761,10 @@ Examples:
         "--height", type=float, default=1.75,
         help="Pedestrian height in meters (default: 1.75)"
     )
+    parser.add_argument(
+        "--latitude", type=float, default=45.0,
+        help="Latitude in degrees for gravity model (Eq. 6.8, default: 45.0)"
+    )
     
     args = parser.parse_args()
     
@@ -779,9 +783,9 @@ Examples:
                         print(f"  - {d.name}")
             return
         
-        run_with_dataset(str(data_path), height=args.height)
+        run_with_dataset(str(data_path), height=args.height, lat_deg=args.latitude)
     else:
-        run_with_inline_data()
+        run_with_inline_data(lat_deg=args.latitude)
 
 
 if __name__ == "__main__":

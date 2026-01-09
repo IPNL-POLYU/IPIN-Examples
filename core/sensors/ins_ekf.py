@@ -40,6 +40,7 @@ from dataclasses import dataclass
 from typing import Optional
 from core.sensors.strapdown import strapdown_update
 from core.sensors.types import FrameConvention, IMUNoiseParams
+from core.sensors.gravity import gravity_magnitude
 
 
 def quat_normalize(q: np.ndarray) -> np.ndarray:
@@ -123,7 +124,10 @@ class ZUPT_EKF:
         frame: Frame convention (ENU or NED).
         imu_params: IMU noise parameters.
         sigma_zupt: ZUPT measurement noise std dev (m/s). Default: 0.01.
-        g: Gravity magnitude (m/s²). Default: 9.81.
+        g: Gravity magnitude (fallback when lat_rad=None, m/s²). Default: 9.81.
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
     """
     
     def __init__(
@@ -131,12 +135,15 @@ class ZUPT_EKF:
         frame: FrameConvention,
         imu_params: IMUNoiseParams,
         sigma_zupt: float = 0.01,
-        g: float = 9.81
+        g: float = 9.81,
+        lat_rad: Optional[float] = None,
     ):
         self.frame = frame
         self.imu_params = imu_params
         self.sigma_zupt = sigma_zupt
-        self.g = g
+        # Compute gravity magnitude using Eq. (6.8) if latitude provided
+        self.g = gravity_magnitude(lat_rad=lat_rad, default_g=g)
+        self.lat_rad = lat_rad
         
         # Process noise (simplified)
         self.Q = np.zeros((16, 16))
@@ -207,7 +214,7 @@ class ZUPT_EKF:
         q_new, v_new, p_new = strapdown_update(
             state.q, state.v, state.p,
             gyro_corrected, accel_corrected,
-            dt, g=self.g, frame=self.frame
+            dt, g=self.g, frame=self.frame, lat_rad=self.lat_rad
         )
         
         # Normalize quaternion

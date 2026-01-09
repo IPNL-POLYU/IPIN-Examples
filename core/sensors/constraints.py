@@ -35,6 +35,8 @@ References:
 from typing import Optional
 import numpy as np
 
+from core.sensors.gravity import gravity_magnitude
+
 
 def zupt_test_statistic(
     accel_window: np.ndarray,
@@ -42,6 +44,7 @@ def zupt_test_statistic(
     sigma_a: float,
     sigma_g: float,
     g: float = 9.81,
+    lat_rad: Optional[float] = None,
 ) -> float:
     """
     Compute ZUPT test statistic over a window (Eq. 6.44).
@@ -77,7 +80,11 @@ def zupt_test_statistic(
                  Units: m/s². Typical: 0.01-0.1 m/s² (from VRW).
         sigma_g: Gyroscope noise standard deviation.
                  Units: rad/s. Typical: 1e-4 to 1e-3 rad/s (from ARW).
-        g: Gravity magnitude. Default: 9.81 m/s². Units: m/s².
+        g: Gravity magnitude (fallback when lat_rad=None).
+           Default: 9.81 m/s². Units: m/s².
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
     
     Returns:
         Test statistic T_k. Units: dimensionless.
@@ -136,7 +143,9 @@ def zupt_test_statistic(
         accel_mean_norm = 1e-6
     
     # Expected gravity direction: g * (ā_k / ||ā_k||)
-    gravity_direction = g * (accel_mean / accel_mean_norm)  # Shape: (3,)
+    # where g is from Eq. (6.8) if latitude provided
+    g_mag = gravity_magnitude(lat_rad=lat_rad, default_g=g)
+    gravity_direction = g_mag * (accel_mean / accel_mean_norm)  # Shape: (3,)
     
     # Compute test statistic: sum over window samples
     T_k = 0.0
@@ -166,6 +175,7 @@ def detect_zupt_windowed(
     sigma_g: float,
     gamma: float,
     g: float = 9.81,
+    lat_rad: Optional[float] = None,
 ) -> bool:
     """
     Detect zero velocity (ZUPT) using windowed test statistic (Eq. 6.44).
@@ -189,7 +199,11 @@ def detect_zupt_windowed(
                Typical values: 1e5 to 1e7.
                Lower γ = stricter detection (fewer false positives).
                Higher γ = more sensitive (more detections).
-        g: Gravity magnitude. Default: 9.81 m/s². Units: m/s².
+        g: Gravity magnitude (fallback when lat_rad=None).
+           Default: 9.81 m/s². Units: m/s².
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
     
     Returns:
         True if ZUPT detected (stationary), False otherwise.
@@ -227,9 +241,10 @@ def detect_zupt_windowed(
     Related Equations:
         - Eq. (6.44): ZUPT test statistic (THIS FUNCTION)
         - Eq. (6.45): ZUPT pseudo-measurement
+        - Eq. (6.8): Gravity magnitude (used when latitude provided)
     """
     # Compute test statistic
-    T_k = zupt_test_statistic(accel_window, gyro_window, sigma_a, sigma_g, g)
+    T_k = zupt_test_statistic(accel_window, gyro_window, sigma_a, sigma_g, g, lat_rad=lat_rad)
     
     # Compare to threshold
     is_stationary = (T_k < gamma)

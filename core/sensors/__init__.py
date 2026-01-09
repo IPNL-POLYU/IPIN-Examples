@@ -122,6 +122,12 @@ from core.sensors.types import (
     NavStateQPVPBias,
 )
 
+from core.sensors.gravity import (
+    gravity_magnitude_eq6_8,
+    gravity_magnitude,
+    gravity_magnitude_from_lat_deg,
+)
+
 from core.sensors.imu_models import (
     correct_gyro,
     correct_accel,
@@ -201,6 +207,10 @@ __all__ = [
     "BarometerSeries",
     "NavStateQPVP",
     "NavStateQPVPBias",
+    # Gravity models (Eq. 6.8)
+    "gravity_magnitude_eq6_8",
+    "gravity_magnitude",
+    "gravity_magnitude_from_lat_deg",
     # IMU correction
     "correct_gyro",
     "correct_accel",

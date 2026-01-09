@@ -36,7 +36,7 @@ from core.sensors import (
 from core.sim import generate_imu_from_trajectory
 
 
-def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None):
+def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None, lat_deg=45.0):
     """
     Generate a figure-8 trajectory with correct IMU forward model.
     
@@ -44,12 +44,16 @@ def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None):
         duration: Total duration [s].
         dt: Time step [s].
         frame: Frame convention (default: ENU).
+        lat_deg: Latitude in degrees for gravity model (default: 45.0°).
     
     Returns:
         Tuple of (t, pos_true, vel_true, quat_true, accel_body, gyro_body).
     """
     if frame is None:
         frame = FrameConvention.create_enu()
+    
+    # Convert latitude to radians for Eq. (6.8)
+    lat_rad = np.deg2rad(lat_deg)
     
     t = np.arange(0, duration, dt)
     N = len(t)
@@ -82,14 +86,15 @@ def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None):
         np.sin(yaw / 2)
     ])
     
-    # Generate IMU measurements using correct forward model
+    # Generate IMU measurements using correct forward model with Eq. (6.8)
     accel_body, gyro_body = generate_imu_from_trajectory(
         pos_map=pos_true,
         vel_map=vel_true,
         quat_b_to_m=quat_true,
         dt=dt,
         frame=frame,
-        g=9.81
+        g=9.81,
+        lat_rad=lat_rad
     )
     
     return t, pos_true, vel_true, quat_true, accel_body, gyro_body
@@ -167,7 +172,7 @@ def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state, frame):
         omega_b = gyro_meas[k-1]
         f_b = accel_meas[k-1]
         
-        # Strapdown update (Eqs. 6.2-6.10)
+        # Strapdown update (Eqs. 6.2-6.10) with Eq. (6.8) gravity
         q, v, p = strapdown_update(
             q=q,
             v=v,
@@ -175,7 +180,8 @@ def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state, frame):
             omega_b=omega_b,
             f_b=f_b,
             dt=dt,
-            frame=frame
+            frame=frame,
+            lat_rad=lat_rad
         )
         
         # Store
@@ -322,6 +328,12 @@ def main():
     imu_params = IMUNoiseParams.consumer_grade()  # Use consumer-grade IMU
     frame = FrameConvention.create_enu()  # Use ENU frame
     
+    # Latitude for gravity model (Eq. 6.8)
+    # Example: 45° North (mid-latitude, typical for many cities)
+    lat_deg = 45.0  # degrees
+    lat_rad = np.deg2rad(lat_deg)
+    print(f"Using latitude: {lat_deg}° N for Eq. (6.8) gravity model")
+    
     print(f"Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  IMU Rate:        {1/dt:.0f} Hz")
@@ -336,7 +348,7 @@ def main():
     # Generate true trajectory with correct IMU forward model
     print("Generating trajectory...")
     t, pos_true, vel_true, quat_true, accel_body, gyro_body = generate_figure8_trajectory(
-        duration=duration, dt=dt, frame=frame
+        duration=duration, dt=dt, frame=frame, lat_deg=lat_deg
     )
     
     total_distance = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))

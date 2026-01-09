@@ -29,6 +29,7 @@ import numpy as np
 
 from core.sensors.types import FrameConvention
 from core.sensors.strapdown import quat_to_rotmat
+from core.sensors.gravity import gravity_magnitude
 
 
 def compute_specific_force_body(
@@ -36,6 +37,7 @@ def compute_specific_force_body(
     quat_b_to_m: np.ndarray,
     frame: Optional[FrameConvention] = None,
     g: float = 9.81,
+    lat_rad: Optional[float] = None,
 ) -> np.ndarray:
     """
     Compute specific force in body frame from true acceleration in map frame.
@@ -60,8 +62,11 @@ def compute_specific_force_body(
                      Shape: (N, 4) or (4,). Scalar-first [q0, q1, q2, q3].
         frame: Frame convention defining gravity direction.
                Default: None (creates ENU).
-        g: Gravitational acceleration magnitude.
+        g: Gravitational acceleration magnitude (fallback when lat_rad=None).
            Default: 9.81 m/s².
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
 
     Returns:
         Specific force in body frame.
@@ -101,7 +106,9 @@ def compute_specific_force_body(
     N = accel_map.shape[0]
 
     # Gravity vector in map frame
-    g_M = frame.gravity_vector(g)
+    # Magnitude from Eq. (6.8) if latitude provided, else use g parameter
+    g_mag = gravity_magnitude(lat_rad=lat_rad, default_g=g)
+    g_M = frame.gravity_vector(g_mag)
 
     # Compute specific force in body frame for each sample
     f_b = np.zeros((N, 3))
@@ -237,6 +244,7 @@ def generate_imu_from_trajectory(
     dt: float,
     frame: Optional[FrameConvention] = None,
     g: float = 9.81,
+    lat_rad: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Generate synthetic IMU measurements from ground truth trajectory.
@@ -258,8 +266,11 @@ def generate_imu_from_trajectory(
             Units: seconds.
         frame: Frame convention defining gravity direction.
                Default: None (creates ENU).
-        g: Gravitational acceleration magnitude.
+        g: Gravitational acceleration magnitude (fallback when lat_rad=None).
            Default: 9.81 m/s².
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
 
     Returns:
         Tuple (accel_body, gyro_body):
@@ -307,7 +318,7 @@ def generate_imu_from_trajectory(
     accel_map[0] = accel_map[1] if N > 1 else np.zeros(3)
 
     # Step 2: Compute specific force in body frame
-    accel_body = compute_specific_force_body(accel_map, quat_b_to_m, frame, g)
+    accel_body = compute_specific_force_body(accel_map, quat_b_to_m, frame, g, lat_rad=lat_rad)
 
     # Step 3: Compute gyro rates in body frame
     gyro_body = compute_gyro_body(quat_b_to_m, dt)

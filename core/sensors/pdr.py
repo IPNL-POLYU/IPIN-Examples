@@ -36,6 +36,7 @@ from scipy import signal
 
 # Import FrameConvention for type hints
 from core.sensors.types import FrameConvention
+from core.sensors.gravity import gravity_magnitude
 
 
 def total_accel_magnitude(accel_b: np.ndarray) -> float:
@@ -91,7 +92,11 @@ def total_accel_magnitude(accel_b: np.ndarray) -> float:
     return a_mag
 
 
-def remove_gravity_from_magnitude(a_mag: float, g: float = 9.81) -> float:
+def remove_gravity_from_magnitude(
+    a_mag: float,
+    g: float = 9.81,
+    lat_rad: Optional[float] = None,
+) -> float:
     """
     Remove gravity component from acceleration magnitude.
 
@@ -100,7 +105,7 @@ def remove_gravity_from_magnitude(a_mag: float, g: float = 9.81) -> float:
 
     where:
         a_mag: total acceleration magnitude (Eq. 6.46) [m/s²]
-        g: gravity magnitude (≈ 9.81 m/s²) [m/s²]
+        g: gravity magnitude (from Eq. 6.8 if latitude provided) [m/s²]
         a_dynamic: dynamic acceleration magnitude [m/s²]
 
     This approximation assumes that the static component (gravity) can be
@@ -110,8 +115,11 @@ def remove_gravity_from_magnitude(a_mag: float, g: float = 9.81) -> float:
     Args:
         a_mag: Total acceleration magnitude from total_accel_magnitude().
                Units: m/s². Must be non-negative.
-        g: Gravity magnitude.
+        g: Gravity magnitude (fallback when lat_rad=None).
            Units: m/s². Default: 9.81 m/s² (standard gravity).
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
 
     Returns:
         Dynamic acceleration magnitude (gravity removed).
@@ -139,9 +147,12 @@ def remove_gravity_from_magnitude(a_mag: float, g: float = 9.81) -> float:
         - Eq. (6.46): Total acceleration magnitude
         - Eq. (6.47): Gravity removal (THIS FUNCTION)
         - Eq. (6.48): Step frequency (uses processed a_dynamic)
+        - Eq. (6.8): Gravity magnitude (used when latitude provided)
     """
     # Eq. (6.47): a_dynamic = a_mag - g
-    a_dynamic = a_mag - g
+    # where g is from Eq. (6.8) if latitude provided
+    g_mag = gravity_magnitude(lat_rad=lat_rad, default_g=g)
+    a_dynamic = a_mag - g_mag
 
     return a_dynamic
 
@@ -153,6 +164,7 @@ def detect_steps_peak_detector(
     min_peak_height: float = 1.0,
     min_peak_distance: float = 0.3,
     lowpass_cutoff: Optional[float] = 5.0,
+    lat_rad: Optional[float] = None,
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Detect steps using peak detection on gravity-removed acceleration magnitude.
@@ -170,7 +182,8 @@ def detect_steps_peak_detector(
                       Shape: (N, 3). Units: m/s².
                       Must include gravity (raw measurements).
         dt: Time step between samples. Units: seconds.
-        g: Gravity magnitude. Default: 9.81 m/s². Units: m/s².
+        g: Gravity magnitude (fallback when lat_rad=None).
+           Default: 9.81 m/s². Units: m/s².
         min_peak_height: Minimum height of peaks above zero (after gravity removal).
                          Units: m/s². Default: 1.0 m/s².
                          Typical range: 0.5-2.0 m/s².
@@ -180,6 +193,9 @@ def detect_steps_peak_detector(
         lowpass_cutoff: Low-pass filter cutoff frequency. Units: Hz.
                         Default: 5.0 Hz. Set to None to disable filtering.
                         Typical range: 3-10 Hz.
+        lat_rad: Geodetic latitude in radians (optional).
+                 If provided, uses Eq. (6.8) for gravity magnitude.
+                 If None, uses g parameter (backward compatible).
     
     Returns:
         Tuple of (step_indices, accel_mag_filtered):
@@ -237,7 +253,9 @@ def detect_steps_peak_detector(
     
     # Step 2: Remove gravity (Eq. 6.47)
     # a_dynamic[k] = a_mag[k] - g
-    accel_dynamic = accel_mag - g  # Shape: (N,)
+    # where g is from Eq. (6.8) if latitude provided
+    g_mag = gravity_magnitude(lat_rad=lat_rad, default_g=g)
+    accel_dynamic = accel_mag - g_mag  # Shape: (N,)
     
     # Step 3: Optional low-pass filter to reduce noise
     if lowpass_cutoff is not None:
