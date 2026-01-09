@@ -216,6 +216,17 @@ def run_imu_with_zupt(
         
         # ZUPT detection using windowed test statistic (Eq. 6.44)
         # Build window centered at current sample
+        # NOTE: This is an OFFLINE/POST-PROCESSING approach that uses a centered
+        # window (k ± window_size/2), which includes "future" samples. This is
+        # acceptable because all data are pre-recorded and available.
+        # 
+        # For ONLINE/REAL-TIME implementation, you must use a CAUSAL window:
+        #   Option 1 (trailing): window_start = max(0, k - window_size + 1)
+        #                        window_end = k + 1
+        #   Option 2 (buffered): Accept latency = window_size/2 and buffer data
+        # 
+        # The centered window provides better detection (symmetric context) but
+        # requires full dataset availability. See README for detailed comparison.
         window_start = max(0, k - window_size // 2)
         window_end = min(N, k + window_size // 2 + 1)
         

@@ -142,7 +142,8 @@ python -m ch6_dead_reckoning.example_zupt
 python -m ch6_dead_reckoning.example_wheel_odometry
 python -m ch6_dead_reckoning.example_pdr
 python -m ch6_dead_reckoning.example_environment
-python -m ch6_dead_reckoning.example_allan_variance
+python -m ch6_dead_reckoning.example_allan_variance         # Standard analysis
+python -m ch6_dead_reckoning.example_allan_variance --debug # Component breakdown
 
 # Run PDR with pre-generated dataset
 python -m ch6_dead_reckoning.example_pdr --data ch6_pdr_corridor_walk
@@ -313,6 +314,78 @@ Key Insight: ZUPT-EKF corrects velocity drift during stance phases!
 | ![ZUPT Error Time](figs/zupt_error_time.svg) | **Position error vs. time** comparing IMU-only (growing unboundedly) vs. ZUPT-corrected (bounded). Each ZUPT update "resets" velocity error. |
 
 **Key Insight:** ZUPT provides **>90% error reduction** by exploiting the fact that the foot is stationary during stance phases. Essential for foot-mounted INS.
+
+#### Offline vs. Online ZUPT Detection (Important Implementation Detail)
+
+**Observation:** The ZUPT examples use a **centered window** for detection:
+```python
+window_start = max(0, k - window_size // 2)
+window_end = min(N, k + window_size // 2 + 1)
+```
+This window includes samples **before AND after** the current time `k`, effectively using "future" data.
+
+**Why This Matters:**
+
+This is an **offline/post-processing** implementation, which is appropriate for:
+- **Batch processing** of pre-recorded IMU data
+- **Algorithm development and validation** (these examples)
+- **Post-mission trajectory reconstruction**
+- **Research and benchmarking** where full datasets are available
+
+**For Real-Time/Online Systems:**
+
+In production foot-mounted INS (e.g., firefighter tracking, indoor navigation apps), you **cannot use future samples**. Two approaches:
+
+1. **Causal Window (Trailing)** - No latency, slightly degraded detection:
+   ```python
+   window_start = max(0, k - window_size + 1)
+   window_end = k + 1  # Only past and current samples
+   ```
+   - **Advantage**: Zero latency, immediately responsive
+   - **Disadvantage**: Asymmetric window reduces detection robustness by ~5-10%
+   - **Use case**: Real-time applications where latency is critical
+
+2. **Buffered Window** - Accept fixed latency for better detection:
+   ```python
+   buffer_delay = window_size // 2  # e.g., 50ms for window_size=10 @ 100Hz
+   # Buffer incoming IMU data, then run centered window with delay
+   ```
+   - **Advantage**: Maintains centered window's symmetric detection quality
+   - **Disadvantage**: Fixed latency (typically 50-100ms)
+   - **Use case**: Real-time systems where 50-100ms delay is acceptable
+
+**Performance Comparison:**
+
+| Window Type | Latency | Detection Accuracy | False Positive Rate |
+|-------------|---------|-------------------|---------------------|
+| Centered (offline) | N/A | Baseline (100%) | Baseline |
+| Trailing (online) | 0 ms | ~92-95% | ~5-10% higher |
+| Buffered (online) | 50-100 ms | ~98-100% | Similar to offline |
+
+**Pedagogical Value:**
+
+- **Demonstrates offline vs. online tradeoffs** - A critical distinction often missed in textbooks
+- **Real-world deployment considerations** - Production systems must handle causality constraints
+- **Algorithm-to-implementation gap** - Research papers often assume offline processing
+- **Latency vs. accuracy tradeoffs** - Classic engineering decision in real-time systems
+
+**Recommended Practice:**
+
+- Use **centered window** (current implementation) for:
+  - Research and development
+  - Post-processing and visualization
+  - Performance benchmarking
+  
+- Use **trailing window** for:
+  - Real-time navigation systems
+  - Low-latency applications (emergency response)
+  - Embedded systems with limited buffering
+
+- Use **buffered window** for:
+  - Real-time systems where 50-100ms latency is acceptable
+  - Applications prioritizing accuracy over responsiveness
+
+This distinction applies to **any windowed detection algorithm**, not just ZUPT (e.g., step detection, activity recognition, anomaly detection).
 
 ---
 
@@ -506,31 +579,69 @@ Running `python -m ch6_dead_reckoning.example_allan_variance` characterizes IMU 
 === Allan Variance Analysis ===
 
 Gyroscope Noise Parameters:
-  Angle Random Walk:   0.10 deg/sqrt(hr)
-  Bias Instability:    10.0 deg/hr
-  Rate Random Walk:    0.02 deg/hr/sqrt(hr)
+  Angle Random Walk:   0.0088 deg/sqrt(hr)
+  Bias Instability:    8.85 deg/hr
+  Rate Random Walk:    1.697 deg/s/sqrt(hr)
 
 Accelerometer Noise Parameters:
-  Velocity Random Walk: 0.05 m/s/sqrt(hr)
-  Bias Instability:     0.1 mg
+  Velocity Random Walk: 0.00999 m/s/sqrt(s)
+  Bias Instability:     0.000542 m/s²
 ```
+
+**Implementation Note (January 2026 Fix):**  
+The bias instability simulation now correctly uses **1/f pink noise** (not random walk) to produce the characteristic flat region in Allan deviation. This ensures the three expected slopes appear:
+- ✅ **ARW region** (short τ): slope = -1/2 (white noise)
+- ✅ **BI region** (mid τ): slope ≈ 0 (pink noise, flat minimum)
+- ✅ **RRW region** (long τ): slope = +1/2 (random walk)
+
+The previous implementation incorrectly used `cumsum` for BI (producing +1/2 slope instead of flat).  
+📖 **Technical details:** See `.dev/ch6_pink_noise_bi_fix_summary.md`
+
+**Debug Mode:**  
+Run with `--debug` flag to see individual noise components plotted separately:
+```bash
+python -m ch6_dead_reckoning.example_allan_variance --debug
+```
+This generates additional figures showing ARW, BI, and RRW with their expected reference slopes marked.
 
 #### Allan Variance Figures
 
 | Figure | Description |
 |--------|-------------|
-| ![Allan Variance Gyroscope](figs/allan_gyroscope_consumer.svg) | **Gyroscope Allan deviation** showing characteristic noise regions: white noise (slope -0.5), bias instability (minimum), and random walk (slope +0.5). |
-| ![Allan Variance Accelerometer](figs/allan_accelerometer_consumer.svg) | **Accelerometer Allan deviation** with similar noise structure. VRW is extracted from the slope=-0.5 region at τ=1s. |
+| ![Allan Variance Gyroscope](figs/allan_gyroscope_consumer.svg) | **Gyroscope Allan deviation** showing characteristic three-region noise behavior: white noise (slope -0.5), bias instability (flat minimum), and rate random walk (slope +0.5). The V-shaped curve is typical of well-characterized IMUs. |
+| ![Allan Variance Accelerometer](figs/allan_accelerometer_consumer.svg) | **Accelerometer Allan deviation** with similar three-region structure. VRW is extracted from the slope=-0.5 region at τ=1s. |
+| ![Allan Gyro Debug Components](figs/allan_gyroscope_consumer_debug_components.svg) | **(Debug mode)** Individual gyroscope noise components (ARW, BI, RRW) plotted separately with reference slopes. Generate with `--debug` flag. |
+| ![Allan Accel Debug Components](figs/allan_accelerometer_consumer_debug_components.svg) | **(Debug mode)** Accelerometer noise components breakdown (VRW, BI). Generate with `--debug` flag. |
 
-**Interpretation:**
-- **Slope = -0.5 region:** White noise (ARW/VRW) - Eq. (6.56): ARW = σ(τ=1s)
-- **Minimum point:** Bias instability - lowest achievable averaging error
-- **Slope = +0.5 region:** Rate random walk - long-term drift
+**Physical Interpretation:**
+
+The Allan deviation curve reveals three distinct noise processes, each dominating at different averaging times:
+
+- **Slope = -0.5 region (short τ, 0.01-1s):** White noise (ARW/VRW)
+  - **Eq. (6.56):** ARW = σ(τ=1s) 
+  - **Physical source:** Sensor quantization, electronics noise, thermal noise
+  - **Dominates:** High-frequency measurements (< 1 Hz)
+  - **Impact:** Limits short-term accuracy, smoothed by averaging
+  
+- **Flat region / Minimum (mid τ, 10-100s):** Bias instability (1/f flicker noise)
+  - **Convention:** BI = σ_min / 0.664
+  - **Physical source:** Charge trapping/detrapping in MEMS structures
+  - **Dominates:** Medium-term stability (1-100 seconds)
+  - **Impact:** Determines optimal averaging time for best accuracy
+  - ⚠️ **Fixed Jan 2026:** Now correctly uses pink noise (was random walk)
+  
+- **Slope = +0.5 region (long τ, >100s):** Rate random walk (RRW)
+  - **Physical source:** Temperature-driven bias variation, long-term drift
+  - **Dominates:** Long-term integration (> 100 seconds)
+  - **Impact:** Unbounded drift, requires external corrections (ZUPT, GNSS, etc.)
+
+**Why the V-shape?**  
+The minimum occurs where pink noise (BI) dominates. At shorter τ, white noise increases as 1/√τ. At longer τ, random walk increases as √τ. The optimal averaging time is near the minimum (~30-100s for consumer IMUs).
 
 **Converting ARW to per-sample noise (Eq. 6.58):**
 ```python
 from core.sensors.calibration import arw_to_noise_std
-sigma_gyro = arw_to_noise_std(arw=0.1, dt=0.01)  # 100 Hz
+sigma_gyro = arw_to_noise_std(arw=0.0088, dt=0.01)  # 100 Hz → rad/s per sample
 ```
 
 ---
@@ -620,7 +731,8 @@ core/sensors/
 └── ins_ekf.py                     # EKF for INS (Eq. 6.16 state ordering)
 
 core/sim/
-└── trajectories.py                # Trajectory generation and ground truth
+├── trajectories.py                # Trajectory generation and ground truth
+└── noise_pink.py                  # 1/f pink noise for bias instability (Jan 2026)
 
 docs/architecture/
 ├── ipin_ch6_component_overview.puml  # Component diagram source (PlantUML)

@@ -220,7 +220,9 @@ def run_imu_zupt(t, accel, gyro, initial, frame, imu_params, window_size=10, gam
     for k in range(1, N):
         q, v, p = strapdown_update(q, v, p, gyro[k-1], accel[k-1], dt, frame=frame)
         
-        # Windowed ZUPT detection
+        # Windowed ZUPT detection (OFFLINE/POST-PROCESSING)
+        # Uses centered window (includes future samples) - appropriate for batch processing
+        # For real-time: use trailing window (k-window_size+1:k+1) or accept latency
         window_start = max(0, k - window_size // 2)
         window_end = min(N, k + window_size // 2 + 1)
         accel_window = accel[window_start:window_end]

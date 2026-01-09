@@ -7,15 +7,18 @@ Critical for IMU selection and Kalman filter tuning.
 Implements:
     - Allan variance computation (Eqs. 6.56-6.58)
     - Noise parameter identification (ARW, bias instability, RRW)
+    - Pink noise (1/f) generation for bias instability
+    - Debug mode for component-wise Allan deviation analysis
 
 Key Insight: Allan variance reveals ALL IMU noise characteristics on
             a single log-log plot. Essential for system design!
 
 Author: Li-Ta Hsu
-Date: December 2024
+Date: December 2025
 """
 
 import time
+import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
@@ -24,9 +27,15 @@ from core.sensors import (
     allan_variance,
     characterize_imu_noise,
 )
+from core.sim import (
+    pink_noise_1f_fft,
+    scale_to_bias_instability,
+)
 
 
-def generate_imu_stationary_data(duration=3600.0, fs=100.0, imu_grade='consumer'):
+def generate_imu_stationary_data(
+    duration=3600.0, fs=100.0, imu_grade='consumer', return_components=False
+):
     """
     Generate synthetic stationary IMU data with realistic noise.
     
@@ -34,9 +43,15 @@ def generate_imu_stationary_data(duration=3600.0, fs=100.0, imu_grade='consumer'
         duration: Duration [s] (recommend 1-24 hours).
         fs: Sampling frequency [Hz].
         imu_grade: 'consumer', 'tactical', or 'navigation'.
+        return_components: If True, return individual noise components
+                          for debug analysis. Default: False.
     
     Returns:
-        Tuple of (t, gyro_data, accel_data).
+        If return_components=False:
+            Tuple of (t, gyro_data, accel_data).
+        If return_components=True:
+            Tuple of (t, gyro_data, accel_data, gyro_components, accel_components).
+            where gyro_components = {'arw': ..., 'bi': ..., 'rrw': ...}
     """
     N = int(duration * fs)
     t = np.arange(N) / fs
@@ -46,17 +61,17 @@ def generate_imu_stationary_data(duration=3600.0, fs=100.0, imu_grade='consumer'
     specs = {
         'consumer': {
             'gyro_arw': np.deg2rad(0.5),  # deg/sqrt(hr) → rad/sqrt(s)
-            'gyro_bias_instability': np.deg2rad(10.0),  # deg/hr → rad/s
+            'gyro_bias_instability': np.deg2rad(10.0) / 3600.0,  # deg/hr → rad/s
             'gyro_rrw': np.deg2rad(0.01),  # deg/s/sqrt(hr)
             'accel_vrw': 0.01,  # m/s/sqrt(s)
-            'accel_bias_instability': 0.0001,  # m/s²
+            'accel_bias_instability': 0.0001 / 3600.0,  # m/s² (converted from per-hr)
         },
         'tactical': {
             'gyro_arw': np.deg2rad(0.05),
-            'gyro_bias_instability': np.deg2rad(1.0),
+            'gyro_bias_instability': np.deg2rad(1.0) / 3600.0,  # deg/hr → rad/s
             'gyro_rrw': np.deg2rad(0.001),
             'accel_vrw': 0.001,
-            'accel_bias_instability': 0.00001,
+            'accel_bias_instability': 0.00001,  # m/s²
         },
     }
     
@@ -66,34 +81,161 @@ def generate_imu_stationary_data(duration=3600.0, fs=100.0, imu_grade='consumer'
     gyro_noise_density = spec['gyro_arw'] / np.sqrt(3600)  # rad/sqrt(s)
     accel_noise_density = spec['accel_vrw']  # m/s/sqrt(s)
     
+    # Create RNG for reproducibility
+    rng = np.random.default_rng()
+    
+    # Create tau grid for BI scaling (used by scale_to_bias_instability)
+    tau_grid = np.logspace(0, 3, 50)  # 1s to 1000s
+    
     # Generate noise components
     gyro_data = np.zeros((N, 3))
     accel_data = np.zeros((N, 3))
     
-    for axis in range(3):
-        # Gyro: Angle Random Walk (white noise on angular rate)
-        arw_noise = np.random.randn(N) * gyro_noise_density * np.sqrt(fs)
-        
-        # Bias instability (1/f noise, approximated by random walk of bias)
-        bias_rw_std = spec['gyro_bias_instability'] * np.sqrt(dt)
-        bias = np.cumsum(np.random.randn(N) * bias_rw_std)
-        bias -= np.mean(bias)  # Remove DC
-        bias *= 0.1  # Scale down (bias instability is slow)
-        
-        # Rate random walk (diffusion of bias)
-        rrw_noise = np.cumsum(np.random.randn(N)) * spec['gyro_rrw'] * np.sqrt(dt/3600)
-        
-        gyro_data[:, axis] = arw_noise + bias + rrw_noise
-        
-        # Accel: Similar structure
-        vrw_noise = np.random.randn(N) * accel_noise_density * np.sqrt(fs)
-        accel_bias_rw = np.cumsum(np.random.randn(N) * spec['accel_bias_instability'] * np.sqrt(dt))
-        accel_bias_rw -= np.mean(accel_bias_rw)
-        accel_bias_rw *= 0.1
-        
-        accel_data[:, axis] = vrw_noise + accel_bias_rw
+    # For debug mode: store individual components (first axis only)
+    gyro_components = {}
+    accel_components = {}
     
-    return t, gyro_data, accel_data
+    for axis in range(3):
+        # === GYRO: ARW + BI + RRW ===
+        
+        # 1) Angle Random Walk (white noise on angular rate, slope -1/2)
+        arw_noise = rng.standard_normal(N) * gyro_noise_density * np.sqrt(fs)
+        
+        # 2) Bias Instability (1/f pink noise, slope ~0)
+        # Generate unit pink noise
+        pink_unit = pink_noise_1f_fft(N, fs, rng=rng)
+        # Scale to match target BI (using Allan deviation convention)
+        bi_noise = scale_to_bias_instability(
+            pink_unit=pink_unit,
+            target_bi_rad_s=spec['gyro_bias_instability'],
+            allan_sigma_func=allan_variance,
+            tau_grid_s=tau_grid,
+            fs=fs,
+            bi_factor=0.664,
+        )
+        
+        # 3) Rate Random Walk (diffusion of bias, slope +1/2)
+        # Single random walk term (NOT double cumsum)
+        rrw_coeff = spec['gyro_rrw'] / np.sqrt(3600)  # Convert to rad/s/sqrt(s)
+        rrw_bias = np.cumsum(rng.standard_normal(N)) * rrw_coeff * np.sqrt(dt)
+        
+        # Combine all three components
+        gyro_data[:, axis] = arw_noise + bi_noise + rrw_bias
+        
+        # Store components for first axis (debug mode)
+        if axis == 0 and return_components:
+            gyro_components['arw'] = arw_noise
+            gyro_components['bi'] = bi_noise
+            gyro_components['rrw'] = rrw_bias
+        
+        # === ACCEL: VRW + BI ===
+        
+        # 1) Velocity Random Walk (white noise, slope -1/2)
+        vrw_noise = rng.standard_normal(N) * accel_noise_density * np.sqrt(fs)
+        
+        # 2) Bias Instability (1/f pink noise, slope ~0)
+        pink_unit_accel = pink_noise_1f_fft(N, fs, rng=rng)
+        accel_bi_noise = scale_to_bias_instability(
+            pink_unit=pink_unit_accel,
+            target_bi_rad_s=spec['accel_bias_instability'],
+            allan_sigma_func=allan_variance,
+            tau_grid_s=tau_grid,
+            fs=fs,
+            bi_factor=0.664,
+        )
+        
+        # Combine components
+        accel_data[:, axis] = vrw_noise + accel_bi_noise
+        
+        # Store components for first axis (debug mode)
+        if axis == 0 and return_components:
+            accel_components['vrw'] = vrw_noise
+            accel_components['bi'] = accel_bi_noise
+    
+    if return_components:
+        return t, gyro_data, accel_data, gyro_components, accel_components
+    else:
+        return t, gyro_data, accel_data
+
+
+def plot_allan_deviation_components(
+    fs, components, sensor_type, grade, figs_dir
+):
+    """
+    Plot Allan deviation for individual noise components (debug mode).
+    
+    This helps verify that each component produces the expected slope:
+        - ARW (white noise): slope -1/2
+        - BI (pink noise): slope ~0 (flat region)
+        - RRW (random walk): slope +1/2
+    """
+    fig, ax = plt.subplots(figsize=(14, 9))
+    
+    colors = {'arw': 'blue', 'bi': 'green', 'rrw': 'red', 'vrw': 'blue'}
+    labels = {
+        'arw': 'ARW (Angle Random Walk)',
+        'bi': 'BI (Bias Instability)',
+        'rrw': 'RRW (Rate Random Walk)',
+        'vrw': 'VRW (Velocity Random Walk)',
+    }
+    expected_slopes = {'arw': -0.5, 'bi': 0.0, 'rrw': 0.5, 'vrw': -0.5}
+    
+    tau_grid = np.logspace(0, 3, 50)  # 1s to 1000s
+    
+    for key, component_data in components.items():
+        # Compute Allan deviation
+        taus, sigma = allan_variance(component_data, fs, tau_grid)
+        
+        # Plot
+        color = colors.get(key, 'black')
+        label = labels.get(key, key.upper())
+        ax.loglog(
+            taus, sigma, '-', color=color, linewidth=2, label=label, alpha=0.8
+        )
+        
+        # Add expected slope indicator
+        slope = expected_slopes.get(key, 0.0)
+        # Draw reference line at mid-range
+        tau_mid = 10 ** ((np.log10(taus[0]) + np.log10(taus[-1])) / 2)
+        idx_mid = np.argmin(np.abs(taus - tau_mid))
+        sigma_mid = sigma[idx_mid]
+        
+        tau_ref = np.array([tau_mid / 3, tau_mid * 3])
+        sigma_ref = sigma_mid * (tau_ref / tau_mid) ** slope
+        ax.loglog(tau_ref, sigma_ref, '--', color=color, alpha=0.4, linewidth=1)
+        
+        # Add slope annotation
+        slope_text = f'slope = {slope:+.1f}'
+        ax.text(
+            tau_mid * 1.5,
+            sigma_mid * 1.2,
+            slope_text,
+            fontsize=9,
+            color=color,
+            style='italic',
+        )
+    
+    ax.set_xlabel('Averaging Time τ [s]', fontsize=13, fontweight='bold')
+    ax.set_ylabel(
+        'Allan Deviation [rad/s] or [m/s²]', fontsize=13, fontweight='bold'
+    )
+    ax.set_title(
+        f'Allan Variance Component Analysis: {grade.capitalize()} {sensor_type}\n'
+        'Debug Mode: Individual Noise Components',
+        fontsize=14,
+        fontweight='bold',
+    )
+    ax.legend(fontsize=11, loc='best', framealpha=0.9)
+    ax.grid(True, which='both', alpha=0.3, linestyle=':')
+    ax.set_xlim([taus[0], taus[-1]])
+    
+    plt.tight_layout()
+    filename = f'allan_{sensor_type.lower()}_{grade}_debug_components'
+    fig.savefig(figs_dir / f'{filename}.svg', dpi=300, bbox_inches='tight')
+    fig.savefig(figs_dir / f'{filename}.pdf', bbox_inches='tight')
+    print(f"  [DEBUG] Saved: {figs_dir / filename}.svg")
+    
+    plt.close(fig)
 
 
 def plot_allan_deviation(taus, adev, noise_params, sensor_type, grade, figs_dir):
@@ -148,11 +290,17 @@ def plot_allan_deviation(taus, adev, noise_params, sensor_type, grade, figs_dir)
 
 def main():
     """Main execution."""
+    # Check for debug mode
+    debug_mode = '--debug' in sys.argv
+    
     print("\n" + "="*70)
     print("Chapter 6: Allan Variance for IMU Noise Characterization")
     print("="*70)
     print("\nDemonstrates IMU noise identification using Allan variance.")
-    print("Key equations: 6.56-6.58 (Allan variance and deviation)\n")
+    print("Key equations: 6.56-6.58 (Allan variance and deviation)")
+    if debug_mode:
+        print("\n[DEBUG MODE] Will plot individual noise components.")
+    print()
     
     # Configuration
     duration = 3600.0  # 1 hour (recommend 1-24 hours for real data)
@@ -168,7 +316,13 @@ def main():
     # Generate synthetic IMU data
     print("Generating synthetic stationary IMU data...")
     start = time.time()
-    t, gyro_data, accel_data = generate_imu_stationary_data(duration, fs, grade)
+    if debug_mode:
+        result = generate_imu_stationary_data(
+            duration, fs, grade, return_components=True
+        )
+        t, gyro_data, accel_data, gyro_components, accel_components = result
+    else:
+        t, gyro_data, accel_data = generate_imu_stationary_data(duration, fs, grade)
     print(f"  Time: {time.time()-start:.2f} s")
     print(f"  Samples: {len(t):,}")
     
@@ -198,6 +352,16 @@ def main():
     taus_a, adev_a = allan_variance(accel_data[:, 0], fs, taus=None)
     plot_allan_deviation(taus_a, adev_a, noise_char['accel'], 'Accelerometer', grade, figs_dir)
     
+    # Debug mode: plot individual components
+    if debug_mode:
+        print("\n[DEBUG MODE] Plotting individual noise components...")
+        plot_allan_deviation_components(
+            fs, gyro_components, 'Gyroscope', grade, figs_dir
+        )
+        plot_allan_deviation_components(
+            fs, accel_components, 'Accelerometer', grade, figs_dir
+        )
+    
     # Print results
     print("\n" + "="*70)
     print("RESULTS - IMU Noise Characterization")
@@ -221,6 +385,11 @@ def main():
     print("  Navigation | < 0.01             | < 1          | $10k-100k")
     
     print(f"\nFigures saved to: {figs_dir}/")
+    if debug_mode:
+        print("\n[DEBUG MODE] Component-wise plots show expected slopes:")
+        print("  ARW (white):       -1/2 slope (short tau)")
+        print("  BI (pink):         ~0 slope (flat region at mid tau)")
+        print("  RRW (random walk): +1/2 slope (long tau)")
     print()
     print("="*70)
     print("KEY INSIGHT: Allan variance reveals ALL noise sources!")
@@ -228,6 +397,10 @@ def main():
     print("             - Slope 0:    Bias Instability (minimum)")
     print("             - Slope +1/2: Rate Random Walk")
     print("             Essential for IMU selection and filter tuning!")
+    if debug_mode:
+        print("\nTo run without debug mode: python example_allan_variance.py")
+    else:
+        print("\nTo see component breakdown: python example_allan_variance.py --debug")
     print("="*70)
     print()
 
