@@ -7,7 +7,7 @@ critical importance of accurate heading for PDR performance.
 
 Key Learning Objectives:
     - Step detection from accelerometer magnitude (Eq. 6.46)
-    - Step length models (Weinberg formula, Eq. 6.49)
+    - Step length models (book Eq. 6.49)
     - Heading estimation: gyro drift vs. magnetometer absolute
     - 1 degree heading error causes ~1.7% position error per step!
 
@@ -36,7 +36,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.sensors import (
     total_accel_magnitude,
-    step_length,
+    step_length_book_eq6_49,
     pdr_step_update,
     integrate_gyro_heading,
     wrap_heading,
@@ -76,7 +76,8 @@ def generate_corridor_walk(
 
     # Compute step parameters
     step_period = 1.0 / step_freq
-    step_len = step_length(HEIGHT, step_freq)
+    # Use book Eq. (6.49) for step length
+    step_len = step_length_book_eq6_49(HEIGHT, step_freq)
     steps_per_leg = int(leg_length / step_len)
     leg_duration = steps_per_leg * step_period
 
@@ -265,8 +266,8 @@ def run_pdr_gyro(
             # Step frequency (Eq. 6.48)
             f_step = 1.0 / delta_t if delta_t > 0 else 2.0
 
-            # Step length (Eq. 6.49 - Weinberg model)
-            L = step_length(height, f_step)
+            # Step length using book Eq. (6.49)
+            L = step_length_book_eq6_49(height, f_step)
 
             # Update position (Eq. 6.50)
             pos[k] = pdr_step_update(pos[k - 1], L, heading_est[k - 1])
@@ -319,7 +320,8 @@ def run_pdr_mag(
             last_step_time = t[k]
 
             f_step = 1.0 / delta_t if delta_t > 0 else 2.0
-            L = step_length(height, f_step)
+            # Use book Eq. (6.49) for step length
+            L = step_length_book_eq6_49(height, f_step)
 
             pos[k] = pdr_step_update(pos[k - 1], L, heading_est[k - 1])
         else:

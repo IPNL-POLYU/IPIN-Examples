@@ -26,7 +26,7 @@ from core.sensors import (
     detect_zupt_windowed,
     wheel_odom_update,
     total_accel_magnitude,
-    step_length,
+    step_length_book_eq6_49,
     pdr_step_update,
     detect_step_simple,
     mag_heading,
@@ -279,7 +279,8 @@ def run_pdr(t, accel, gyro, mag, height=1.75):
             delta_t = t[k] - last_step_time
             last_step_time = t[k]
             f_step = 1.0 / delta_t if delta_t > 0 else 2.0
-            L = step_length(height, f_step)
+            # Use book Eq. (6.49) for step length
+            L = step_length_book_eq6_49(height, f_step)
             pos[k] = pdr_step_update(pos[k-1], L, heading)
         else:
             pos[k] = pos[k-1]

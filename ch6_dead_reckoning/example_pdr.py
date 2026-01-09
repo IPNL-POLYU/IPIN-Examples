@@ -35,6 +35,8 @@ from core.sensors import (
     total_accel_magnitude,
     detect_steps_peak_detector,
     step_length,
+    step_length_book_eq6_49,
+    step_length_weinberg,
     pdr_step_update,
     detect_step_simple,
     integrate_gyro_heading,
@@ -43,6 +45,41 @@ from core.sensors import (
     units,
 )
 from core.sim import generate_imu_from_trajectory
+
+
+def compute_step_length(
+    height: float,
+    f_step: float,
+    model: str = "book",
+    G_w: Optional[float] = None,
+    f_step_window: Optional[np.ndarray] = None,
+) -> float:
+    """
+    Compute step length using selected model.
+    
+    Args:
+        height: User height in meters
+        f_step: Step frequency in Hz
+        model: Model selection: 'book' (Eq. 6.49), 'weinberg' (actual Weinberg), or 'power_law' (old)
+        G_w: Weinberg gain parameter (required if model='weinberg')
+        f_step_window: Per-step accel window (required if model='weinberg')
+    
+    Returns:
+        Step length in meters
+    """
+    if model == "book":
+        # Use book Eq. (6.49) - default for reproducibility
+        return step_length_book_eq6_49(height, f_step)
+    elif model == "weinberg":
+        # Use actual Weinberg model with per-step ptp
+        if G_w is None or f_step_window is None:
+            raise ValueError("Weinberg model requires G_w and f_step_window parameters")
+        return step_length_weinberg(f_step_window, G_w)
+    elif model == "power_law":
+        # Legacy power-law (deprecated but kept for compatibility)
+        return step_length(height, f_step)
+    else:
+        raise ValueError(f"Unknown model: {model}. Choose 'book', 'weinberg', or 'power_law'")
 
 
 def load_pdr_dataset(data_dir: str) -> Dict:
@@ -75,7 +112,7 @@ def load_pdr_dataset(data_dir: str) -> Dict:
     return data
 
 
-def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
+def run_pdr_from_dataset(data: Dict, height: float = 1.75, step_model: str = "book") -> Dict:
     """Run PDR algorithm on loaded dataset.
     
     Uses the book's peak detection method (Eqs. 6.46-6.47) for step detection:
@@ -87,9 +124,13 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
     Args:
         data: Dataset dictionary from load_pdr_dataset
         height: Pedestrian height in meters
+        step_model: Step-length model: 'book' (Eq. 6.49, default), 'power_law' (old)
     
     Returns:
         Dictionary with estimated positions and headings
+    
+    Note:
+        Weinberg model not supported here (requires per-step windows, needs refactoring)
     """
     t = data['t']
     accel_meas = data['accel_meas']
@@ -148,8 +189,8 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
             else:
                 f_step = 2.0  # Default for first step
             
-            # Step length (Eq. 6.49 - Weinberg model)
-            L = step_length(height, f_step)
+            # Step length using selected model
+            L = compute_step_length(height, f_step, model=step_model)
             
             # Update position (Eq. 6.50)
             pos_gyro[k] = pdr_step_update(pos_gyro[k-1], L, heading_gyro[k-1])
@@ -172,8 +213,8 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
             else:
                 f_step = 2.0  # Default for first step
             
-            # Step length (Eq. 6.49)
-            L = step_length(height, f_step)
+            # Step length using selected model
+            L = compute_step_length(height, f_step, model=step_model)
             
             # Update position (Eq. 6.50)
             pos_mag[k] = pdr_step_update(pos_mag[k-1], L, heading_mag[k-1])
@@ -192,12 +233,14 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
     }
 
 
-def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0) -> None:
+def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0, step_model: str = "book") -> None:
     """Run PDR example using pre-generated dataset.
     
     Args:
         data_dir: Path to dataset directory
         height: Pedestrian height in meters
+        lat_deg: Latitude in degrees
+        step_model: Step-length model selection
     """
     print("\n" + "="*70)
     print("Chapter 6: Pedestrian Dead Reckoning (PDR)")
@@ -223,9 +266,9 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0)
     print(f"  User height: {height} m")
     
     # Run PDR
-    print("\nRunning PDR algorithms...")
+    print(f"\nRunning PDR algorithms (step model: {step_model})...")
     start = time.time()
-    results = run_pdr_from_dataset(data, height)
+    results = run_pdr_from_dataset(data, height, step_model=step_model)
     elapsed = time.time() - start
     
     print(f"  Processing time: {elapsed:.3f} s")
@@ -472,11 +515,18 @@ def add_sensor_noise(accel_body, gyro_body, mag_body, dt, imu_params: IMUNoisePa
     return accel_meas, gyro_meas, mag_meas
 
 
-def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75):
+def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75, step_model="book"):
     """
     Run PDR with gyro-integrated heading (drifts).
     
     Uses proper peak detection (Eqs. 6.46-6.47) instead of threshold crossing.
+    
+    Args:
+        t: Time array
+        accel_meas: Accelerometer measurements
+        gyro_meas: Gyroscope measurements
+        height: Pedestrian height in meters
+        step_model: Step-length model: 'book' (Eq. 6.49, default), 'power_law' (old)
     """
     N = len(t)
     dt = t[1] - t[0]
@@ -520,8 +570,8 @@ def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75):
             else:
                 f_step = 2.0  # Default for first step
             
-            # Step length (Eq. 6.49 - Weinberg model)
-            L = step_length(height, f_step)
+            # Step length using selected model
+            L = compute_step_length(height, f_step, model=step_model)
             
             # Update position (Eq. 6.50)
             pos_est[k] = pdr_step_update(pos_est[k-1], L, heading_est[k-1])
@@ -531,11 +581,19 @@ def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75):
     return pos_est, heading_est, step_count
 
 
-def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75):
+def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75, step_model="book"):
     """
     Run PDR with magnetometer heading (absolute but noisy).
     
     Uses proper peak detection (Eqs. 6.46-6.47) instead of threshold crossing.
+    
+    Args:
+        t: Time array
+        accel_meas: Accelerometer measurements
+        gyro_meas: Gyroscope measurements
+        mag_meas: Magnetometer measurements
+        height: Pedestrian height in meters
+        step_model: Step-length model: 'book' (Eq. 6.49, default), 'power_law' (old)
     """
     N = len(t)
     dt = t[1] - t[0]
@@ -579,8 +637,8 @@ def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75):
             else:
                 f_step = 2.0  # Default for first step
             
-            # Step length (Eq. 6.49)
-            L = step_length(height, f_step)
+            # Step length using selected model
+            L = compute_step_length(height, f_step, model=step_model)
             
             # Update position (Eq. 6.50)
             pos_est[k] = pdr_step_update(pos_est[k-1], L, heading_est[k-1])
@@ -659,8 +717,13 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     return error_gyro, error_mag
 
 
-def run_with_inline_data(lat_deg: float = 45.0):
-    """Run with inline generated data (original behavior)."""
+def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
+    """Run with inline generated data (original behavior).
+    
+    Args:
+        lat_deg: Latitude in degrees
+        step_model: Step-length model selection
+    """
     print("\n" + "="*70)
     print("Chapter 6: Pedestrian Dead Reckoning (PDR) - Step-and-Heading")
     print("(Using inline generated data)")
@@ -704,14 +767,14 @@ def run_with_inline_data(lat_deg: float = 45.0):
     print("\nAdding sensor noise...")
     accel_meas, gyro_meas, mag_meas = add_sensor_noise(accel_body, gyro_body, mag_body, dt, imu_params)
     
-    print("\nRunning PDR with gyro heading...")
+    print(f"\nRunning PDR with gyro heading (step model: {step_model})...")
     start = time.time()
-    pos_gyro, heading_gyro, steps_gyro = run_pdr_gyro_heading(t, accel_meas, gyro_meas, height)
+    pos_gyro, heading_gyro, steps_gyro = run_pdr_gyro_heading(t, accel_meas, gyro_meas, height, step_model=step_model)
     print(f"  Time: {time.time()-start:.3f} s, Steps detected: {steps_gyro}")
     
-    print("\nRunning PDR with magnetometer heading...")
+    print(f"\nRunning PDR with magnetometer heading (step model: {step_model})...")
     start = time.time()
-    pos_mag, heading_mag, steps_mag = run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height)
+    pos_mag, heading_mag, steps_mag = run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height, step_model=step_model)
     print(f"  Time: {time.time()-start:.3f} s, Steps detected: {steps_mag}")
     
     figs_dir = Path(__file__).parent / 'figs'
@@ -777,6 +840,11 @@ Examples:
         "--latitude", type=float, default=45.0,
         help="Latitude in degrees for gravity model (Eq. 6.8, default: 45.0)"
     )
+    parser.add_argument(
+        "--step-model", type=str, default="book",
+        choices=["book", "power_law"],
+        help="Step-length model: 'book' (Eq. 6.49, default) or 'power_law' (old)"
+    )
     
     args = parser.parse_args()
     
@@ -795,9 +863,9 @@ Examples:
                         print(f"  - {d.name}")
             return
         
-        run_with_dataset(str(data_path), height=args.height, lat_deg=args.latitude)
+        run_with_dataset(str(data_path), height=args.height, lat_deg=args.latitude, step_model=args.step_model)
     else:
-        run_with_inline_data(lat_deg=args.latitude)
+        run_with_inline_data(lat_deg=args.latitude, step_model=args.step_model)
 
 
 if __name__ == "__main__":

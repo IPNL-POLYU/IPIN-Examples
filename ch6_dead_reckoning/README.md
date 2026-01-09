@@ -215,7 +215,10 @@ config = json.load(open(path / "config.json"))
 |----------|----------|----------|-------------|
 | `total_accel_magnitude()` | `core/sensors/pdr.py` | Eq. (6.46) | Total acceleration magnitude |
 | `detect_steps_peak_detector()` | `core/sensors/pdr.py` | Eq. (6.46-6.47) | Peak-based step detection |
-| `step_length()` | `core/sensors/pdr.py` | Eq. (6.49) | Weinberg step length model |
+| `step_length()` | `core/sensors/pdr.py` | ⚠️ DEPRECATED | Generic power-law (not Eq. 6.49 or Weinberg) |
+| `step_length_book_eq6_49()` | `core/sensors/pdr.py` | Eq. (6.49) | Book's actual step length formula |
+| `step_length_weinberg()` | `core/sensors/pdr.py` | Weinberg (1995) | Actual Weinberg model: SL = G_w·ptp^0.25 |
+| `calibrate_weinberg_gain()` | `core/sensors/pdr.py` | — | Calibrate G_w from known distance |
 | `pdr_step_update()` | `core/sensors/pdr.py` | Eq. (6.50) | 2D position update |
 
 ### Environmental Sensors
@@ -233,6 +236,106 @@ config = json.load(open(path / "config.json"))
 | `allan_variance()` | `core/sensors/calibration.py` | IEEE Std 952-1997 | Standard Allan variance computation |
 | `identify_random_walk()` | `core/sensors/calibration.py` | Eq. (6.56) | ARW/VRW extraction from slope=-0.5 region |
 | `arw_to_noise_std()` | `core/sensors/calibration.py` | Eq. (6.58) | Convert ARW to per-sample noise: σ = ARW × √Δt |
+
+---
+
+## Step-Length Models (Important Clarification)
+
+The repository provides **three distinct step-length models** with clear naming to avoid confusion:
+
+### 1. Book Eq. (6.49) — `step_length_book_eq6_49()`
+
+**Formula:**
+```
+L = 0.7 + c · (h/1.75)^0.371 · (SF/1.79)^0.227
+```
+
+**Description:** The actual formula from the IPIN book Eq. (6.49), which includes:
+- **Offset term**: 0.7 m (base step length)
+- **Reference normalization**: h_ref = 1.75 m, SF_ref = 1.79 Hz
+- **Empirical exponents**: a = 0.371 (height), b = 0.227 (frequency)
+
+**Use when:** You want reproducibility with the book examples and have height + step frequency.
+
+**Example:**
+```python
+from core.sensors import step_length_book_eq6_49
+
+h = 1.75  # meters
+SF = 2.0  # Hz
+L = step_length_book_eq6_49(h, SF)  # ~1.7 m
+```
+
+### 2. Actual Weinberg Model — `step_length_weinberg()`
+
+**Formula:**
+```
+SL = G_w · (max(f) - min(f))^0.25
+```
+
+**Description:** The **actual** Weinberg model from practice, which uses:
+- **Per-step acceleration window**: peak-to-peak specific force amplitude
+- **Quarter-power law**: Biomechanically motivated exponent
+- **Calibrated gain G_w**: User-specific parameter (typically 0.3-0.5)
+
+**Use when:** You have per-step acceleration segments and want higher accuracy (requires calibration).
+
+**Example:**
+```python
+from core.sensors import step_length_weinberg, calibrate_weinberg_gain, detect_steps_peak_detector
+
+# Detect steps
+step_indices, accel_filtered = detect_steps_peak_detector(accel, dt=0.01)
+
+# Calibrate gain on known distance
+ptp_per_step = []
+for i in range(len(step_indices)-1):
+    seg = accel_filtered[step_indices[i]:step_indices[i+1]]
+    ptp_per_step.append(np.ptp(seg))
+G_w = calibrate_weinberg_gain(np.array(ptp_per_step), distance_m=50.0)
+
+# Compute step lengths
+for i in range(len(step_indices)-1):
+    seg = accel_filtered[step_indices[i]:step_indices[i+1]]
+    L = step_length_weinberg(seg, G_w)
+```
+
+**Reference:** Weinberg, H. (2002). "Using the ADXL202 in Pedometer and Personal Navigation Applications." Analog Devices AN-602.
+
+### 3. Generic Power-Law — `step_length()` ⚠️ DEPRECATED
+
+**Formula:**
+```
+L = c · h^a · f^b
+```
+
+**Description:** A simple power-law that is **neither** the book Eq. (6.49) nor the actual Weinberg model. Kept for backward compatibility but should not be used for new code.
+
+**Status:** Deprecated. Use `step_length_book_eq6_49()` or `step_length_weinberg()` instead.
+
+### Model Selection Guide
+
+| Scenario | Recommended Model | Why |
+|----------|-------------------|-----|
+| **Book reproducibility** | `step_length_book_eq6_49()` | Matches book equations exactly |
+| **High accuracy** | `step_length_weinberg()` | Uses actual acceleration dynamics |
+| **No calibration data** | `step_length_book_eq6_49()` | Works with just height + frequency |
+| **Real-time systems** | `step_length_weinberg()` | More accurate after initial calibration |
+| **Legacy code** | `step_length()` | Only for backward compatibility |
+
+### PDR Example Usage
+
+The `example_pdr.py` script now supports model selection:
+
+```bash
+# Use book Eq. (6.49) - default for reproducibility
+python ch6_dead_reckoning/example_pdr.py --step-model book
+
+# Use old power-law (deprecated)
+python ch6_dead_reckoning/example_pdr.py --step-model power_law
+```
+
+**Note:** The Weinberg model is not yet fully integrated into `example_pdr.py` because it requires per-step window processing (needs refactoring).
 
 ---
 
@@ -314,78 +417,6 @@ Key Insight: ZUPT-EKF corrects velocity drift during stance phases!
 | ![ZUPT Error Time](figs/zupt_error_time.svg) | **Position error vs. time** comparing IMU-only (growing unboundedly) vs. ZUPT-corrected (bounded). Each ZUPT update "resets" velocity error. |
 
 **Key Insight:** ZUPT provides **>90% error reduction** by exploiting the fact that the foot is stationary during stance phases. Essential for foot-mounted INS.
-
-#### Offline vs. Online ZUPT Detection (Important Implementation Detail)
-
-**Observation:** The ZUPT examples use a **centered window** for detection:
-```python
-window_start = max(0, k - window_size // 2)
-window_end = min(N, k + window_size // 2 + 1)
-```
-This window includes samples **before AND after** the current time `k`, effectively using "future" data.
-
-**Why This Matters:**
-
-This is an **offline/post-processing** implementation, which is appropriate for:
-- **Batch processing** of pre-recorded IMU data
-- **Algorithm development and validation** (these examples)
-- **Post-mission trajectory reconstruction**
-- **Research and benchmarking** where full datasets are available
-
-**For Real-Time/Online Systems:**
-
-In production foot-mounted INS (e.g., firefighter tracking, indoor navigation apps), you **cannot use future samples**. Two approaches:
-
-1. **Causal Window (Trailing)** - No latency, slightly degraded detection:
-   ```python
-   window_start = max(0, k - window_size + 1)
-   window_end = k + 1  # Only past and current samples
-   ```
-   - **Advantage**: Zero latency, immediately responsive
-   - **Disadvantage**: Asymmetric window reduces detection robustness by ~5-10%
-   - **Use case**: Real-time applications where latency is critical
-
-2. **Buffered Window** - Accept fixed latency for better detection:
-   ```python
-   buffer_delay = window_size // 2  # e.g., 50ms for window_size=10 @ 100Hz
-   # Buffer incoming IMU data, then run centered window with delay
-   ```
-   - **Advantage**: Maintains centered window's symmetric detection quality
-   - **Disadvantage**: Fixed latency (typically 50-100ms)
-   - **Use case**: Real-time systems where 50-100ms delay is acceptable
-
-**Performance Comparison:**
-
-| Window Type | Latency | Detection Accuracy | False Positive Rate |
-|-------------|---------|-------------------|---------------------|
-| Centered (offline) | N/A | Baseline (100%) | Baseline |
-| Trailing (online) | 0 ms | ~92-95% | ~5-10% higher |
-| Buffered (online) | 50-100 ms | ~98-100% | Similar to offline |
-
-**Pedagogical Value:**
-
-- **Demonstrates offline vs. online tradeoffs** - A critical distinction often missed in textbooks
-- **Real-world deployment considerations** - Production systems must handle causality constraints
-- **Algorithm-to-implementation gap** - Research papers often assume offline processing
-- **Latency vs. accuracy tradeoffs** - Classic engineering decision in real-time systems
-
-**Recommended Practice:**
-
-- Use **centered window** (current implementation) for:
-  - Research and development
-  - Post-processing and visualization
-  - Performance benchmarking
-  
-- Use **trailing window** for:
-  - Real-time navigation systems
-  - Low-latency applications (emergency response)
-  - Embedded systems with limited buffering
-
-- Use **buffered window** for:
-  - Real-time systems where 50-100ms latency is acceptable
-  - Applications prioritizing accuracy over responsiveness
-
-This distinction applies to **any windowed detection algorithm**, not just ZUPT (e.g., step detection, activity recognition, anomaly detection).
 
 ---
 
@@ -473,20 +504,22 @@ Running `python -m ch6_dead_reckoning.example_pdr` demonstrates step-and-heading
 
 This behavior demonstrates the **critical importance of calibration** in PDR systems. Three factors contribute to path over-estimation:
 
-1. **Step Length Calibration** (Weinberg Model, Eq. 6.49):
+1. **Step Length Calibration** (Book Eq. 6.49):
    ```
-   L = c · h^0.371 · f_step^0.227
+   L = 0.7 + c · (h/1.75)^0.371 · (SF/1.79)^0.227
    ```
-   - The example uses **hardcoded parameters**: `height = 1.75 m` and `c = 1.0` (lines 78, 467 in `example_pdr.py`)
+   - The example uses **hardcoded parameters**: `height = 1.75 m` and `c = 1.0`
+   - Book Eq. (6.49) includes an offset (0.7 m) and reference normalization
    - If the synthetic walker has a different height or stride pattern, each step is over-scaled
    - **Impact**: Every step moves the estimate farther than actual motion
    - **Real-world analogy**: Using average shoe size to estimate foot length for everyone
+   - **Note**: The actual Weinberg model uses per-step acceleration ptp, not just height/frequency
 
 2. **Step Over-Counting** (Peak Detection):
    - Peak detector uses `min_peak_distance = 0.3 s` to prevent double-counting
    - At 100 Hz sampling, synthetic accelerations can have **two strong peaks per stride** (e.g., heel strike + toe-off)
    - The 0.3 s window (~30 samples) may not fully suppress both peaks for certain gait patterns
-   - **Impact**: Detecting 10-20% more steps than actually occurred
+   - **Impact**: Can detect **~40% more steps** than actually occurred (e.g., 239 detected vs 171 expected)
    - **Real-world analogy**: Counting both footfalls of a single step as two separate steps
 
 3. **Heading Disturbances** (Magnetometer Noise):
@@ -498,16 +531,17 @@ This behavior demonstrates the **critical importance of calibration** in PDR sys
 
 **Combined Effect:**
 
-- Over-scaled step length (factor ×1.1 typical)
-- More detected steps (factor ×1.15 typical)  
+- Over-scaled step length (factor ×1.2 typical with book Eq. 6.49)
+- More detected steps (factor ×1.4 typical, e.g., 239 vs 171 expected)
 - Heading spread (adds ~5-10% boundary expansion)
-- **Result**: PDR estimate can be 20-35% larger in total path length
+- **Result**: PDR estimate can be significantly larger than actual path (50-100% error in uncalibrated scenarios)
+- **Note**: Proper calibration and tuning can reduce this to ~20% error (as shown in comparison example)
 
 **Pedagogical Value:**
 
 - This is **NOT a bug** but a demonstration of PDR's **sensitivity to parameters**
 - Shows why **personal calibration** is essential for accurate PDR:
-  - Walk a known distance to calibrate `c` in the Weinberg model
+  - Walk a known distance to calibrate parameter `c` (book Eq. 6.49 model)
   - Validate step detection against manual counts
   - Calibrate magnetometer for local distortions
 - Illustrates the difference between **algorithmic correctness** and **parameter accuracy**
@@ -529,6 +563,11 @@ This behavior demonstrates the **critical importance of calibration** in PDR sys
    - Apply hard-iron and soft-iron corrections
    - Filter out transient disturbances
    - Consider complementary filtering with gyro heading
+
+**Note on Step-Length Models:**
+- The examples use **book Eq. (6.49)** with parameter `c` (default: `--step-model book`)
+- For higher accuracy, the **actual Weinberg model** requires per-step acceleration windows and calibrated gain `G_w`
+- See the "Step-Length Models" section below for detailed comparison and usage examples
 
 **Recommended Action:** Keep this behavior as-is. It provides valuable insight into why PDR systems require careful calibration and why "off-the-shelf" parameters rarely work in practice!
 

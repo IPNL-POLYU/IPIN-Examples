@@ -351,9 +351,14 @@ def step_length(
     c: float = 1.0,
 ) -> float:
     """
-    Estimate step length using Weinberg model.
+    Estimate step length using empirical power-law model.
 
-    Implements Eq. (6.49) in Chapter 6 (Weinberg model):
+    **DEPRECATED**: This function implements a generic power-law formula
+    L = c * h^a * f^b that is neither the book's Eq. (6.49) nor the actual
+    Weinberg model. Use `step_length_book_eq6_49()` or `step_length_weinberg()`
+    for mathematically correct implementations.
+
+    Formula:
         L = c * h^a * f_step^b
 
     where:
@@ -392,16 +397,10 @@ def step_length(
         >>> freq = 2.0  # Hz
         >>> L = step_length(height, freq)
         >>> print(f"Step length: {L:.2f} m")  # ~0.73 m
-        >>> 
-        >>> # Same person, faster walking at 2.5 Hz
-        >>> freq_fast = 2.5
-        >>> L_fast = step_length(height, freq_fast)
-        >>> print(f"Step length (fast): {L_fast:.2f} m")  # ~0.76 m
 
-    Related Equations:
-        - Eq. (6.48): Step frequency (f_step)
-        - Eq. (6.49): Step length (THIS FUNCTION)
-        - Eq. (6.50): Position update (uses L)
+    Recommended Alternatives:
+        - `step_length_book_eq6_49()`: Matches book Eq. (6.49) exactly
+        - `step_length_weinberg()`: Actual Weinberg model with per-step ptp
     """
     if h <= 0:
         raise ValueError(f"h (height) must be positive, got {h}")
@@ -410,10 +409,258 @@ def step_length(
     if c <= 0:
         raise ValueError(f"c must be positive, got {c}")
 
-    # Eq. (6.49): L = c * h^a * f_step^b (Weinberg model)
+    # Generic power-law (NOT Eq. 6.49 or Weinberg)
     L = c * (h**a) * (f_step**b)
 
     return L
+
+
+def step_length_book_eq6_49(
+    h: float,
+    SF: float,
+    a: float = 0.371,
+    b: float = 0.227,
+    c: float = 1.0,
+    h_ref: float = 1.75,
+    SF_ref: float = 1.79,
+    L_offset: float = 0.7,
+) -> float:
+    """
+    Estimate step length using book Eq. (6.49).
+
+    Implements the actual formula from Chapter 6, Eq. (6.49):
+        L = L_offset + c * ((h / h_ref)^a) * ((SF / SF_ref)^b)
+
+    where:
+        L: step length [m]
+        h: user height [m]
+        SF: step frequency [Hz]
+        h_ref: reference height (1.75 m)
+        SF_ref: reference step frequency (1.79 Hz)
+        L_offset: base step length (0.7 m)
+        a, b, c: empirical exponents
+
+    This is a height + frequency empirical model with an offset and reference
+    normalization terms, NOT a simple power-law.
+
+    Args:
+        h: User height.
+           Units: meters. Typical range: 1.5-2.0 m.
+        SF: Step frequency.
+            Units: Hz (steps per second). Typical range: 1.5-3.0 Hz.
+        a: Height exponent. Default: 0.371 (book value).
+        b: Frequency exponent. Default: 0.227 (book value).
+        c: Scaling constant. Default: 1.0 (personal calibration factor).
+        h_ref: Reference height. Default: 1.75 m (book value).
+        SF_ref: Reference step frequency. Default: 1.79 Hz (book value).
+        L_offset: Base step length offset. Default: 0.7 m (book value).
+
+    Returns:
+        Step length L.
+        Units: meters. Typical range: 0.6-1.0 m.
+
+    Notes:
+        - This matches the book's Eq. (6.49) exactly
+        - The offset and reference terms make this model more physically realistic
+        - At h=h_ref and SF=SF_ref with c=1, L ≈ L_offset + 1.0 m
+        - Parameters can be calibrated per user for best accuracy
+
+    Example:
+        >>> # Person at reference height and frequency
+        >>> h, SF = 1.75, 1.79
+        >>> L = step_length_book_eq6_49(h, SF)
+        >>> print(f"Step length: {L:.2f} m")  # ~1.7 m
+        >>> 
+        >>> # Taller person, faster walking
+        >>> L_tall = step_length_book_eq6_49(h=1.90, SF=2.2)
+        >>> print(f"Step length (tall): {L_tall:.2f} m")
+
+    Related Equations:
+        - Eq. (6.48): Step frequency (SF)
+        - Eq. (6.49): Step length (THIS FUNCTION)
+        - Eq. (6.50): Position update (uses L)
+    
+    Author: Li-Ta Hsu
+    Date: December 2025
+    """
+    if h <= 0:
+        raise ValueError(f"h (height) must be positive, got {h}")
+    if SF <= 0:
+        raise ValueError(f"SF (step frequency) must be positive, got {SF}")
+    if c <= 0:
+        raise ValueError(f"c must be positive, got {c}")
+    if h_ref <= 0:
+        raise ValueError(f"h_ref must be positive, got {h_ref}")
+    if SF_ref <= 0:
+        raise ValueError(f"SF_ref must be positive, got {SF_ref}")
+
+    # Book Eq. (6.49): L = L_offset + c * (h/h_ref)^a * (SF/SF_ref)^b
+    h_norm = h / h_ref
+    SF_norm = SF / SF_ref
+    L = L_offset + c * (h_norm**a) * (SF_norm**b)
+
+    return L
+
+
+def step_length_weinberg(
+    f_step_window: np.ndarray,
+    G_w: float,
+    power: float = 0.25,
+    eps: float = 1e-6,
+) -> float:
+    """
+    Weinberg step-length model (peak-to-peak specific force).
+
+    Implements the actual Weinberg model used in practice:
+        SL = G_w * (max(f) - min(f))^(1/4)
+
+    where:
+        SL: step length [m]
+        f: specific force (or gravity-removed accel magnitude) samples over ONE step
+        G_w: gain parameter (user-calibrated, typically 0.3-0.5)
+        power: exponent (default 0.25 = 1/4)
+
+    This model relates step length to the peak-to-peak amplitude of vertical
+    acceleration during a step, which correlates biomechanically with step
+    energy and thus step length.
+
+    Args:
+        f_step_window: Specific force (or gravity-removed accel magnitude) samples
+                       for ONE step. Shape: (M,). Units should be consistent
+                       (typically m/s² or g-units).
+                       Obtained from detect_steps_peak_detector() output.
+        G_w: Gain parameter (user-calibrated).
+             Units: depends on f_step_window units. Typical: 0.3-0.5 if f is in m/s².
+        power: Exponent for ptp amplitude. Default: 0.25 (quarter-power law).
+        eps: Floor value for numerical stability (avoids zero ptp). Default: 1e-6.
+
+    Returns:
+        SL: Estimated step length.
+        Units: meters (if G_w is calibrated for meters).
+
+    Raises:
+        ValueError: If f_step_window is not 1D or has < 2 samples.
+
+    Notes:
+        - This is the ACTUAL Weinberg model, not a power-law on height/frequency
+        - Requires per-step acceleration segments (not just frequency)
+        - G_w must be calibrated using `calibrate_weinberg_gain()`
+        - More accurate than frequency-only models but requires proper segmentation
+        - Works best with foot-mounted or waist-worn IMUs
+
+    Example:
+        >>> # Get step segments from detector
+        >>> step_indices, accel_filtered = detect_steps_peak_detector(accel, dt=0.01)
+        >>> 
+        >>> # Calibrate gain (assuming known distance)
+        >>> ptp_per_step = []
+        >>> for i in range(len(step_indices)-1):
+        >>>     seg = accel_filtered[step_indices[i]:step_indices[i+1]]
+        >>>     ptp_per_step.append(np.ptp(seg))
+        >>> G_w = calibrate_weinberg_gain(np.array(ptp_per_step), distance_m=50.0)
+        >>> 
+        >>> # Compute step length per step
+        >>> for i in range(len(step_indices)-1):
+        >>>     seg = accel_filtered[step_indices[i]:step_indices[i+1]]
+        >>>     L = step_length_weinberg(seg, G_w)
+        >>>     print(f"Step {i}: {L:.2f} m")
+
+    Related Functions:
+        - `calibrate_weinberg_gain()`: Calibrate G_w from known distance
+        - `detect_steps_peak_detector()`: Provides step windows and accel_filtered
+    
+    References:
+        Weinberg, H. (2002). "Using the ADXL202 in Pedometer and Personal Navigation
+        Applications." Analog Devices AN-602 Application Note.
+    
+    Author: Li-Ta Hsu
+    Date: December 2025
+    """
+    if f_step_window.ndim != 1 or f_step_window.size < 2:
+        raise ValueError(
+            f"f_step_window must be 1D with at least 2 samples, got shape {f_step_window.shape}"
+        )
+
+    # Compute peak-to-peak amplitude (max - min)
+    ptp = float(np.ptp(f_step_window))
+    ptp = max(ptp, eps)  # Apply floor for numerical stability
+
+    # Weinberg formula: SL = G_w * ptp^(1/4)
+    SL = G_w * (ptp ** power)
+
+    return SL
+
+
+def calibrate_weinberg_gain(
+    ptp_per_step: np.ndarray,
+    distance_m: float,
+    power: float = 0.25,
+    eps: float = 1e-6,
+) -> float:
+    """
+    Calibrate Weinberg gain parameter from known distance.
+
+    Given a calibration walk with known distance D and measured per-step
+    peak-to-peak amplitudes, computes the gain:
+
+        G_w = D / sum_i(ptp_i^(1/4))
+
+    such that sum of step lengths equals the known distance.
+
+    Args:
+        ptp_per_step: Peak-to-peak amplitudes for each step.
+                      Shape: (n_steps,). Units: m/s² (or consistent with sensor).
+        distance_m: Known total distance traveled.
+                    Units: meters. Must be positive.
+        power: Exponent for ptp (default 0.25 for quarter-power law).
+        eps: Floor value for numerical stability. Default: 1e-6.
+
+    Returns:
+        G_w: Calibrated gain parameter.
+        Units: meters / (sensor_units^power). Typical: 0.3-0.5 for m/s².
+
+    Raises:
+        ValueError: If distance_m <= 0 or denominator is invalid.
+
+    Notes:
+        - Requires a calibration walk with known distance (e.g., measured corridor)
+        - More steps provide better calibration (recommend 20+ steps)
+        - G_w is user-specific and should be recalibrated if sensor changes
+        - Store G_w for future use with same user + sensor setup
+
+    Example:
+        >>> # After walking 50m in a corridor
+        >>> ptp_per_step = np.array([3.2, 3.5, 3.1, 3.4, ...])  # from detector
+        >>> known_distance = 50.0  # meters
+        >>> G_w = calibrate_weinberg_gain(ptp_per_step, known_distance)
+        >>> print(f"Calibrated gain: {G_w:.3f}")
+        >>> # Save G_w for future use
+
+    Related Functions:
+        - `step_length_weinberg()`: Uses calibrated G_w
+        - `detect_steps_peak_detector()`: Provides accel_filtered for ptp computation
+    
+    Author: Li-Ta Hsu
+    Date: December 2025
+    """
+    if distance_m <= 0:
+        raise ValueError(f"distance_m must be positive, got {distance_m}")
+
+    # Apply floor to ptp values
+    ptp = np.maximum(ptp_per_step.astype(float), eps)
+
+    # Compute denominator: sum of ptp^power
+    denom = float(np.sum(ptp ** power))
+
+    if denom <= 0:
+        raise ValueError(
+            f"Invalid denominator {denom}; check ptp_per_step values or eps"
+        )
+
+    # Compute gain: G_w = D / sum(ptp^power)
+    G_w = distance_m / denom
+
+    return G_w
 
 
 def pdr_step_update(

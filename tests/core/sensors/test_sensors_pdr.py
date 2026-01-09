@@ -22,6 +22,9 @@ from core.sensors.pdr import (
     remove_gravity_from_magnitude,
     step_frequency,
     step_length,
+    step_length_book_eq6_49,
+    step_length_weinberg,
+    calibrate_weinberg_gain,
     pdr_step_update,
     detect_step_simple,
     integrate_gyro_heading,
@@ -464,6 +467,233 @@ class TestWrapHeading(unittest.TestCase):
         # Both should be at boundary
         assert np.isclose(abs(wrapped_pos), np.pi)
         assert np.isclose(abs(wrapped_neg), np.pi)
+
+
+class TestStepLengthBookEq649(unittest.TestCase):
+    """Test suite for book Eq. (6.49) step length model."""
+
+    def test_step_length_at_reference_values(self) -> None:
+        """Test step length at reference height and frequency."""
+        # At reference values with c=1, should give L_offset + c
+        h_ref = 1.75
+        SF_ref = 1.79
+        L_offset = 0.7
+        
+        L = step_length_book_eq6_49(h_ref, SF_ref)
+        
+        # Expected: L_offset + 1.0 (since normalized terms are 1)
+        expected = L_offset + 1.0
+        assert np.isclose(L, expected, atol=0.01)
+
+    def test_step_length_increases_with_height(self) -> None:
+        """Test that taller people have longer steps."""
+        SF = 2.0
+        
+        L_short = step_length_book_eq6_49(h=1.60, SF=SF)
+        L_tall = step_length_book_eq6_49(h=1.90, SF=SF)
+        
+        assert L_tall > L_short
+
+    def test_step_length_increases_with_frequency(self) -> None:
+        """Test that faster walking gives longer steps."""
+        h = 1.75
+        
+        L_slow = step_length_book_eq6_49(h=h, SF=1.5)
+        L_fast = step_length_book_eq6_49(h=h, SF=2.5)
+        
+        assert L_fast > L_slow
+
+    def test_step_length_formula_explicit(self) -> None:
+        """Test formula explicitly matches book Eq. (6.49)."""
+        h = 1.80
+        SF = 2.0
+        a = 0.371
+        b = 0.227
+        c = 1.0
+        h_ref = 1.75
+        SF_ref = 1.79
+        L_offset = 0.7
+        
+        L = step_length_book_eq6_49(h, SF, a, b, c, h_ref, SF_ref, L_offset)
+        
+        # Manual calculation: L = L_offset + c * (h/h_ref)^a * (SF/SF_ref)^b
+        h_norm = h / h_ref
+        SF_norm = SF / SF_ref
+        L_expected = L_offset + c * (h_norm**a) * (SF_norm**b)
+        
+        assert np.isclose(L, L_expected)
+
+    def test_step_length_custom_calibration(self) -> None:
+        """Test step length with custom calibration parameter c."""
+        h = 1.70
+        SF = 2.0
+        c_custom = 1.2
+        
+        L_default = step_length_book_eq6_49(h, SF, c=1.0)
+        L_custom = step_length_book_eq6_49(h, SF, c=c_custom)
+        
+        # Custom c scales the non-offset term
+        # L = L_offset + c * (h/h_ref)^a * (SF/SF_ref)^b
+        # So L_custom - L_offset = 1.2 * (L_default - L_offset)
+        L_offset = 0.7
+        assert np.isclose(L_custom - L_offset, 1.2 * (L_default - L_offset))
+
+    def test_step_length_invalid_inputs(self) -> None:
+        """Test that invalid inputs raise errors."""
+        with pytest.raises(ValueError, match="height"):
+            step_length_book_eq6_49(h=0.0, SF=2.0)
+        
+        with pytest.raises(ValueError, match="step frequency"):
+            step_length_book_eq6_49(h=1.75, SF=0.0)
+        
+        with pytest.raises(ValueError, match="c"):
+            step_length_book_eq6_49(h=1.75, SF=2.0, c=0.0)
+
+
+class TestStepLengthWeinberg(unittest.TestCase):
+    """Test suite for actual Weinberg step length model."""
+
+    def test_weinberg_basic_computation(self) -> None:
+        """Test basic Weinberg computation with synthetic data."""
+        # Simulate one step with ptp = 4.0 m/s²
+        f_window = np.array([0.0, 1.0, 2.0, 4.0, 2.0, 1.0, 0.0])
+        G_w = 0.5
+        
+        L = step_length_weinberg(f_window, G_w)
+        
+        # ptp = 4.0, so L = 0.5 * 4.0^0.25 = 0.5 * 1.414... ≈ 0.707
+        expected = G_w * (4.0 ** 0.25)
+        assert np.isclose(L, expected, atol=0.01)
+
+    def test_weinberg_monotonicity(self) -> None:
+        """Test that larger ptp gives longer step length."""
+        G_w = 0.4
+        
+        # Small ptp
+        f_small = np.array([0.0, 0.5, 1.0, 0.5, 0.0])
+        L_small = step_length_weinberg(f_small, G_w)
+        
+        # Large ptp
+        f_large = np.array([0.0, 2.0, 5.0, 2.0, 0.0])
+        L_large = step_length_weinberg(f_large, G_w)
+        
+        assert L_large > L_small
+
+    def test_weinberg_power_law(self) -> None:
+        """Test that Weinberg follows quarter-power law."""
+        G_w = 0.5
+        
+        # ptp = 16 should give 2x step length of ptp = 1
+        # because 16^0.25 = 2 * 1^0.25
+        f1 = np.array([0.0, 1.0, 0.0])
+        f16 = np.array([0.0, 16.0, 0.0])
+        
+        L1 = step_length_weinberg(f1, G_w)
+        L16 = step_length_weinberg(f16, G_w)
+        
+        assert np.isclose(L16, 2.0 * L1, atol=0.01)
+
+    def test_weinberg_custom_power(self) -> None:
+        """Test Weinberg with custom power exponent."""
+        f_window = np.array([0.0, 2.0, 8.0, 2.0, 0.0])
+        G_w = 0.5
+        power_custom = 0.5  # square root instead of quarter
+        
+        L = step_length_weinberg(f_window, G_w, power=power_custom)
+        
+        # ptp = 8.0, L = 0.5 * 8.0^0.5 = 0.5 * 2.828... ≈ 1.414
+        expected = G_w * (8.0 ** power_custom)
+        assert np.isclose(L, expected, atol=0.01)
+
+    def test_weinberg_eps_floor(self) -> None:
+        """Test that eps floor prevents zero ptp."""
+        # Zero ptp (flat signal)
+        f_flat = np.ones(10) * 5.0
+        G_w = 0.5
+        eps = 0.1
+        
+        L = step_length_weinberg(f_flat, G_w, eps=eps)
+        
+        # Should use eps as ptp: L = G_w * eps^0.25
+        expected = G_w * (eps ** 0.25)
+        assert np.isclose(L, expected, atol=0.01)
+
+    def test_weinberg_invalid_inputs(self) -> None:
+        """Test that invalid inputs raise errors."""
+        f_valid = np.array([0.0, 1.0, 2.0, 1.0, 0.0])
+        
+        # 2D array
+        with pytest.raises(ValueError, match="must be 1D"):
+            step_length_weinberg(np.array([[1, 2], [3, 4]]), G_w=0.5)
+        
+        # Too few samples
+        with pytest.raises(ValueError, match="at least 2 samples"):
+            step_length_weinberg(np.array([1.0]), G_w=0.5)
+
+
+class TestCalibrateWeinbergGain(unittest.TestCase):
+    """Test suite for Weinberg gain calibration."""
+
+    def test_calibrate_gain_basic(self) -> None:
+        """Test basic gain calibration."""
+        # Simulate 10 steps with known ptp values
+        ptp_per_step = np.array([3.0, 3.2, 2.9, 3.1, 3.0, 2.8, 3.3, 3.0, 2.9, 3.1])
+        distance_known = 7.0  # meters
+        
+        G_w = calibrate_weinberg_gain(ptp_per_step, distance_known)
+        
+        # Verify: sum of step lengths should equal distance
+        total_length = G_w * np.sum(ptp_per_step ** 0.25)
+        assert np.isclose(total_length, distance_known, atol=0.01)
+
+    def test_calibrate_gain_consistency(self) -> None:
+        """Test that calibrated gain produces consistent results."""
+        ptp_per_step = np.array([4.0, 4.0, 4.0, 4.0])  # 4 identical steps
+        distance_known = 2.0  # meters
+        
+        G_w = calibrate_weinberg_gain(ptp_per_step, distance_known)
+        
+        # Each step should be 0.5m
+        step_length = G_w * (4.0 ** 0.25)
+        assert np.isclose(step_length, 0.5, atol=0.01)
+
+    def test_calibrate_gain_more_steps_same_distance(self) -> None:
+        """Test that more steps with same total distance gives smaller gain."""
+        distance = 10.0
+        
+        # 5 steps
+        ptp_5 = np.ones(5) * 3.0
+        G_w_5 = calibrate_weinberg_gain(ptp_5, distance)
+        
+        # 10 steps (same ptp per step)
+        ptp_10 = np.ones(10) * 3.0
+        G_w_10 = calibrate_weinberg_gain(ptp_10, distance)
+        
+        # G_w should be smaller for more steps (shorter step length)
+        assert G_w_10 < G_w_5
+
+    def test_calibrate_gain_custom_power(self) -> None:
+        """Test calibration with custom power exponent."""
+        ptp_per_step = np.array([4.0, 9.0, 16.0])
+        distance_known = 6.0
+        power_custom = 0.5  # square root
+        
+        G_w = calibrate_weinberg_gain(ptp_per_step, distance_known, power=power_custom)
+        
+        # Verify: sum = G_w * (4^0.5 + 9^0.5 + 16^0.5) = G_w * (2 + 3 + 4) = G_w * 9
+        expected_sum = 2.0 + 3.0 + 4.0
+        assert np.isclose(G_w * expected_sum, distance_known, atol=0.01)
+
+    def test_calibrate_gain_invalid_inputs(self) -> None:
+        """Test that invalid inputs raise errors."""
+        ptp_valid = np.array([3.0, 3.5, 3.2])
+        
+        # Zero or negative distance
+        with pytest.raises(ValueError, match="must be positive"):
+            calibrate_weinberg_gain(ptp_valid, distance_m=0.0)
+        
+        with pytest.raises(ValueError, match="must be positive"):
+            calibrate_weinberg_gain(ptp_valid, distance_m=-5.0)
 
 
 class TestEdgeCases(unittest.TestCase):

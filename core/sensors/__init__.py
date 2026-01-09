@@ -54,9 +54,13 @@ Pedestrian Dead Reckoning functions (from pdr module):
     total_accel_magnitude: Acceleration magnitude (Eq. 6.46)
     remove_gravity_from_magnitude: Gravity removal (Eq. 6.47)
     step_frequency: Step frequency from inter-step time (Eq. 6.48)
-    step_length: Weinberg step length model (Eq. 6.49)
+    step_length: Generic power-law model (DEPRECATED, use alternatives below)
+    step_length_book_eq6_49: Book Eq. (6.49) step length model
+    step_length_weinberg: Actual Weinberg model with per-step ptp
+    calibrate_weinberg_gain: Calibrate G_w for Weinberg model
     pdr_step_update: 2D position update from step (Eq. 6.50)
     detect_step_simple: Simple peak-based step detector
+    detect_steps_peak_detector: Proper peak detection (Eqs. 6.46-6.47)
     integrate_gyro_heading: Gyro-based heading integration
     wrap_heading: Wrap heading to [-π, π]
 
@@ -168,6 +172,9 @@ from core.sensors.pdr import (
     detect_steps_peak_detector,
     step_frequency,
     step_length,
+    step_length_book_eq6_49,
+    step_length_weinberg,
+    calibrate_weinberg_gain,
     pdr_step_update,
     detect_step_simple,
     integrate_gyro_heading,
@@ -242,7 +249,10 @@ __all__ = [
     "remove_gravity_from_magnitude",
     "detect_steps_peak_detector",
     "step_frequency",
-    "step_length",
+    "step_length",  # Deprecated, use step_length_book_eq6_49 or step_length_weinberg
+    "step_length_book_eq6_49",
+    "step_length_weinberg",
+    "calibrate_weinberg_gain",
     "pdr_step_update",
     "detect_step_simple",  # Deprecated, use detect_steps_peak_detector
     "integrate_gyro_heading",
