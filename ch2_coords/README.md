@@ -4,38 +4,6 @@
 
 This module implements the coordinate systems and transformation functions described in **Chapter 2** of *Principles of Indoor Positioning and Indoor Navigation*. It provides the foundational mathematical tools for converting between different coordinate frames and rotation representations commonly used in indoor navigation systems.
 
-## Architecture Diagrams
-
-To help you understand the code structure and execution flow, we provide visual diagrams:
-
-### Component Architecture
-
-![Chapter 2 Component View](../docs/architecture/ipin_ch2_component_clean.svg)
-
-This diagram shows:
-- **Entry points**: `README.md` → `example_coordinate_transforms.py`
-- **Core library**: `core/coords/__init__.py` re-exports `transforms.py`, `rotations.py`, `frames.py`
-- **Dataset**: Optional `data/sim/ch2_coords_san_francisco/` with pre-generated test data
-- **Dependencies**: How the example script imports the core API
-
-### Execution Flow
-
-![Chapter 2 Execution Flow](../docs/architecture/ipin_ch2_flow_clean.svg)
-
-This diagram illustrates the complete execution pipeline:
-1. **Entry**: Run `python -m ch2_coords.example_coordinate_transforms`
-2. **Data source**: Choose between `--data` option (loads dataset) or inline demo values
-3. **Demo pipeline**:
-   - LLH ↔ ECEF conversions (Eq. 2.9)
-   - ECEF ↔ ENU local frame (Eq. 2.10)
-   - Rotation representations: Euler ↔ R ↔ Quaternion (Eqs. 2.17, 2.21-2.23)
-   - Indoor positioning scenario (practical example)
-4. **Core functions**: All demos call `core/coords/transforms.py` and `rotations.py`
-
-**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
-- `ipin_ch2_component_overview.puml` - Component relationships
-- `ipin_ch2_activity_flow.puml` - High-level activity flow
-
 ## Quick Start
 
 ```bash
@@ -252,6 +220,40 @@ Parking:
 Examples completed successfully!
 ======================================================================
 ```
+
+## Architecture Diagrams
+
+To help you understand the code structure and execution flow, we provide visual diagrams:
+
+### Component Architecture
+
+![Chapter 2 Component View](../docs/architecture/ipin_ch2_component_clean.svg)
+
+This diagram shows:
+- **Entry points**: `README.md` → `example_coordinate_transforms.py`
+- **Core library**: `core/coords/__init__.py` re-exports `transforms.py`, `rotations.py`, `frames.py`
+- **Dataset**: Optional `data/sim/ch2_coords_san_francisco/` with pre-generated test data
+- **Dependencies**: How the example script imports the core API
+
+### Execution Flow
+
+![Chapter 2 Execution Flow](../docs/architecture/ipin_ch2_flow_clean.svg)
+
+This diagram illustrates the complete execution pipeline:
+1. **Entry**: Run `python -m ch2_coords.example_coordinate_transforms`
+2. **Data source**: Choose between `--data` option (loads dataset) or inline demo values
+3. **Demo pipeline**:
+   - LLH ↔ ECEF conversions (Eq. 2.9)
+   - ECEF ↔ ENU local frame (Eq. 2.10)
+   - Rotation representations: Euler ↔ R ↔ Quaternion (Eqs. 2.17, 2.21-2.23)
+   - Indoor positioning scenario (practical example)
+4. **Core functions**: All demos call `core/coords/transforms.py` and `rotations.py`
+
+**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
+- `ipin_ch2_component_overview.puml` - Component relationships
+- `ipin_ch2_activity_flow.puml` - High-level activity flow
+
+---
 
 ## File Structure
 

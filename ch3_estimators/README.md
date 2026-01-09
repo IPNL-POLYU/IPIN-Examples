@@ -14,55 +14,6 @@ This module implements the state estimation algorithms described in **Chapter 3*
 
 ---
 
-## Architecture Diagrams
-
-To help you understand the code structure and execution flow, we provide visual diagrams:
-
-### Component Architecture
-
-![Chapter 3 Component View](../docs/architecture/ipin_ch3_component_clean.svg)
-
-This diagram shows:
-- **Entry points**: `README.md` → Five example scripts
-- **Core library**: `core/estimators/` (LS/WLS/GN/LM/Robust, KF/EKF/IEKF/UKF, PF, FactorGraph) and `core/utils/` (angle_diff, geometry, observability)
-- **Datasets**: Optional `data/sim/ch3_estimator_*` for EKF/IEKF examples with pre-generated trajectories
-- **Output**: All examples save results to `ch3_estimators/figs/`
-- **Dependencies**: How each example imports from core modules
-
-### Execution Flow
-
-![Chapter 3 Execution Flow](../docs/architecture/ipin_ch3_flow_clean.svg)
-
-This diagram illustrates the complete execution pipeline for all five examples:
-
-1. **example_least_squares.py**: 
-   - Setup anchors → Simulate ranges → Build Jacobian → Solve with multiple methods (LS/WLS/GN/LM/Robust IRLS)
-   - Calls `core.estimators` (LS/WLS/GN/LM algorithms)
-
-2. **example_kalman_1d.py**: 
-   - Define linear model (F,Q,H,R) → Simulate trajectory → KF loop (predict→update)
-   - Calls `core.estimators.KalmanFilter`
-
-3. **example_ekf_range_bearing.py**: 
-   - Load dataset OR simulate → Check geometry/observability → EKF loop with angle-wrapped innovation
-   - Calls `core.estimators.ExtendedKalmanFilter` and `core.utils` (angle_diff, geometry checks)
-   - Supports `--data` option to load pre-generated nonlinear scenarios
-
-4. **example_iekf_range_bearing.py**: 
-   - Load dataset OR simulate → Run both EKF and IEKF → Compare results
-   - Demonstrates IEKF's improved accuracy in high-nonlinearity cases
-   - Supports `--data` option
-
-5. **example_comparison.py**: 
-   - Setup scenario → Generate ranges → Run all methods (EKF/UKF/PF/FGO) with timing
-   - Compares accuracy vs. computational cost trade-offs
-
-**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
-- `ipin_ch3_component_overview.puml` - Component relationships
-- `ipin_ch3_activity_flow.puml` - High-level activity flow
-
----
-
 ## Quick Start
 
 ```bash
@@ -422,6 +373,55 @@ Note: Uses 8 anchors (not 4) to provide sufficient redundancy for robust estimat
 **Generated figure:** `figs/ch3_estimator_comparison.png`
 
 ![Estimator Comparison](figs/ch3_estimator_comparison.png)
+
+---
+
+## Architecture Diagrams
+
+To help you understand the code structure and execution flow, we provide visual diagrams:
+
+### Component Architecture
+
+![Chapter 3 Component View](../docs/architecture/ipin_ch3_component_clean.svg)
+
+This diagram shows:
+- **Entry points**: `README.md` → Five example scripts
+- **Core library**: `core/estimators/` (LS/WLS/GN/LM/Robust, KF/EKF/IEKF/UKF, PF, FactorGraph) and `core/utils/` (angle_diff, geometry, observability)
+- **Datasets**: Optional `data/sim/ch3_estimator_*` for EKF/IEKF examples with pre-generated trajectories
+- **Output**: All examples save results to `ch3_estimators/figs/`
+- **Dependencies**: How each example imports from core modules
+
+### Execution Flow
+
+![Chapter 3 Execution Flow](../docs/architecture/ipin_ch3_flow_clean.svg)
+
+This diagram illustrates the complete execution pipeline for all five examples:
+
+1. **example_least_squares.py**: 
+   - Setup anchors → Simulate ranges → Build Jacobian → Solve with multiple methods (LS/WLS/GN/LM/Robust IRLS)
+   - Calls `core.estimators` (LS/WLS/GN/LM algorithms)
+
+2. **example_kalman_1d.py**: 
+   - Define linear model (F,Q,H,R) → Simulate trajectory → KF loop (predict→update)
+   - Calls `core.estimators.KalmanFilter`
+
+3. **example_ekf_range_bearing.py**: 
+   - Load dataset OR simulate → Check geometry/observability → EKF loop with angle-wrapped innovation
+   - Calls `core.estimators.ExtendedKalmanFilter` and `core.utils` (angle_diff, geometry checks)
+   - Supports `--data` option to load pre-generated nonlinear scenarios
+
+4. **example_iekf_range_bearing.py**: 
+   - Load dataset OR simulate → Run both EKF and IEKF → Compare results
+   - Demonstrates IEKF's improved accuracy in high-nonlinearity cases
+   - Supports `--data` option
+
+5. **example_comparison.py**: 
+   - Setup scenario → Generate ranges → Run all methods (EKF/UKF/PF/FGO) with timing
+   - Compares accuracy vs. computational cost trade-offs
+
+**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
+- `ipin_ch3_component_overview.puml` - Component relationships
+- `ipin_ch3_activity_flow.puml` - High-level activity flow
 
 ---
 

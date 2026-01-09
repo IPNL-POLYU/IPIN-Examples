@@ -4,51 +4,6 @@
 
 This module implements RF (Radio Frequency) positioning algorithms described in **Chapter 4** of *Principles of Indoor Positioning and Indoor Navigation*. It provides simulation-based examples of various RF positioning techniques including TOA, TDOA, AOA, and RSS-based positioning.
 
-## Architecture Diagrams
-
-To help you understand the code structure and execution flow, we provide visual diagrams:
-
-### Component Architecture
-
-![Chapter 4 Component View](../docs/architecture/ipin_ch4_component_clean.svg)
-
-This diagram shows:
-- **Entry points**: `README.md` → Four example scripts
-- **Core library**: `core/rf/` containing measurement models (TOA/TDOA/AOA/RSS/RTT), positioning solvers, and DOP helpers
-- **Datasets**: Optional `data/sim/ch4_rf_*` with different beacon geometries (square, linear, optimal, NLOS)
-- **Output**: All examples save results to `ch4_rf_point_positioning/figs/`
-- **Dependencies**: How each example imports from `core.rf` modules
-
-### Execution Flow
-
-![Chapter 4 Execution Flow](../docs/architecture/ipin_ch4_flow_clean.svg)
-
-This diagram illustrates the complete execution pipeline for all four examples:
-
-1. **example_toa_positioning.py**: 
-   - Setup anchor geometry → Generate TOA measurements (with optional clock bias, RSS, RTT) → Solve with TOAPositioner (iterative LS) → Plot geometry and convergence
-   - Demonstrates basic TOA positioning with various measurement types
-
-2. **example_tdoa_positioning.py**: 
-   - Setup beacons → Simulate TOA ranges and form TDOA differences → Build TDOA covariance matrix → Solve with closed-form (Fang/Chan) OR iterative LS → Compare vs TOA baseline
-   - Shows TDOA covariance structure (Eq. 4.42) and closed-form vs iterative comparison
-
-3. **example_aoa_positioning.py**: 
-   - Setup anchors (2D/3D) → Compute AOA (azimuth/elevation) with angle noise → Solve with AOAPositioner (iterative WLS) + optional closed-form (OVE/PLE) → Compare methods
-   - Demonstrates ENU coordinate convention and angle-based positioning
-
-4. **example_comparison.py**: 
-   - Two modes:
-     - **Geometry study** (`--compare-geometry`): Compute GDOP for TOA/TDOA/AOA across different beacon layouts
-     - **Method comparison** (default): Load dataset OR generate inline scenario → Run all solvers (TOA/TDOA/AOA + RSS ranging) → Aggregate errors and convergence stats → Plot comparison
-   - Comprehensive performance evaluation across all RF methods
-
-**All examples call `core.rf`** modules for measurement models, positioning solvers, and DOP computation.
-
-**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
-- `ipin_ch4_component_overview.puml` - Component relationships
-- `ipin_ch4_activity_flow.puml` - High-level activity flow
-
 ## Quick Start
 
 ```bash
@@ -690,6 +645,53 @@ RF Positioning Methods Comparison
 - **Top-Right:** Error CDF at 10cm noise - TOA/TDOA/AOA achieve sub-meter accuracy, RSS shows larger spread
 - **Bottom-Left:** Error distribution box plots - RSS has significantly higher variance
 - **Bottom-Right:** Convergence success rate - TOA/TDOA/AOA maintain high success, RSS drops with noise
+
+## Architecture Diagrams
+
+To help you understand the code structure and execution flow, we provide visual diagrams:
+
+### Component Architecture
+
+![Chapter 4 Component View](../docs/architecture/ipin_ch4_component_clean.svg)
+
+This diagram shows:
+- **Entry points**: `README.md` → Four example scripts
+- **Core library**: `core/rf/` containing measurement models (TOA/TDOA/AOA/RSS/RTT), positioning solvers, and DOP helpers
+- **Datasets**: Optional `data/sim/ch4_rf_*` with different beacon geometries (square, linear, optimal, NLOS)
+- **Output**: All examples save results to `ch4_rf_point_positioning/figs/`
+- **Dependencies**: How each example imports from `core.rf` modules
+
+### Execution Flow
+
+![Chapter 4 Execution Flow](../docs/architecture/ipin_ch4_flow_clean.svg)
+
+This diagram illustrates the complete execution pipeline for all four examples:
+
+1. **example_toa_positioning.py**: 
+   - Setup anchor geometry → Generate TOA measurements (with optional clock bias, RSS, RTT) → Solve with TOAPositioner (iterative LS) → Plot geometry and convergence
+   - Demonstrates basic TOA positioning with various measurement types
+
+2. **example_tdoa_positioning.py**: 
+   - Setup beacons → Simulate TOA ranges and form TDOA differences → Build TDOA covariance matrix → Solve with closed-form (Fang/Chan) OR iterative LS → Compare vs TOA baseline
+   - Shows TDOA covariance structure (Eq. 4.42) and closed-form vs iterative comparison
+
+3. **example_aoa_positioning.py**: 
+   - Setup anchors (2D/3D) → Compute AOA (azimuth/elevation) with angle noise → Solve with AOAPositioner (iterative WLS) + optional closed-form (OVE/PLE) → Compare methods
+   - Demonstrates ENU coordinate convention and angle-based positioning
+
+4. **example_comparison.py**: 
+   - Two modes:
+     - **Geometry study** (`--compare-geometry`): Compute GDOP for TOA/TDOA/AOA across different beacon layouts
+     - **Method comparison** (default): Load dataset OR generate inline scenario → Run all solvers (TOA/TDOA/AOA + RSS ranging) → Aggregate errors and convergence stats → Plot comparison
+   - Comprehensive performance evaluation across all RF methods
+
+**All examples call `core.rf`** modules for measurement models, positioning solvers, and DOP computation.
+
+**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
+- `ipin_ch4_component_overview.puml` - Component relationships
+- `ipin_ch4_activity_flow.puml` - High-level activity flow
+
+---
 
 ## File Structure
 

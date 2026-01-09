@@ -15,55 +15,6 @@ The chapter implements:
 - **Loop closure detection** for drift reduction
 - **Visual SLAM** with camera models and bundle adjustment
 
-## Architecture Diagrams
-
-For a visual understanding of the chapter's implementation, refer to the following diagrams:
-
-### Component Architecture
-
-![Component Architecture](../docs/architecture/ipin_ch7_component_clean.svg)
-
-This diagram shows:
-- **Example Scripts**: Two demonstration scripts (`example_pose_graph_slam.py`, `example_bundle_adjustment.py`)
-- **Core Modules**: Reusable SLAM building blocks in `core/slam/`:
-  - `se2.py` (SE(2) operations for 2D SLAM)
-  - `scan_matching.py` (ICP helpers for LiDAR scan alignment)
-  - `ndt.py` (Normal Distributions Transform, optional)
-  - `camera.py` (camera projection + distortion models)
-  - `factors.py` (factor constructors for pose graph and bundle adjustment)
-  - `types.py` (Pose2 and camera intrinsics)
-- **Nonlinear Solver**: `core/estimators/factor_graph.py` (FactorGraph with Gauss-Newton/Levenberg-Marquardt optimization)
-- **Optional Datasets**: Two pre-generated datasets in `data/sim/`:
-  - `ch7_slam_2d_square/` (square trajectory with loop closure)
-  - `ch7_slam_2d_high_drift/` (high drift scenario showing SLAM's value)
-- **Output**: Generated figures saved to `figs/` subdirectory
-
-**Source**: PlantUML source available at [`docs/architecture/ipin_ch7_component_overview.puml`](../docs/architecture/ipin_ch7_component_overview.puml)
-
-### Execution Flow
-
-![Execution Flow](../docs/architecture/ipin_ch7_flow_clean.svg)
-
-This diagram illustrates the execution pipeline for each example script:
-
-**A) Pose Graph SLAM** (`example_pose_graph_slam.py`):
-1. Parse args / config (optional `--data_dir`)
-2. Load dataset OR generate synthetic poses + scans + loop closures
-3. Estimate relative transforms (ICP scan matching, Eq. 7.10-7.11)
-4. Build factor graph (prior + odometry factors + loop closure factors)
-5. Optimize (Gauss-Newton / Levenberg-Marquardt) → corrected trajectory
-6. Visualize + save `ch7_slam/figs/*.svg`
-
-**B) Visual Bundle Adjustment** (`example_bundle_adjustment.py`):
-1. Generate synthetic camera trajectory + 3D landmarks
-2. Simulate camera observations (project + noise, Eqs. 7.40-7.43)
-3. Perturb initial poses/landmarks (add noise to create initialization challenge)
-4. Build factor graph (reprojection factors + priors, Eq. 7.70)
-5. Optimize (Gauss-Newton / Levenberg-Marquardt) → refined poses + landmarks
-6. Visualize + save `ch7_slam/figs/*.svg`
-
-**Source**: PlantUML source available at [`docs/architecture/ipin_ch7_activity_flow.puml`](../docs/architecture/ipin_ch7_activity_flow.puml)
-
 ## Quick Start
 
 ```bash
@@ -270,6 +221,57 @@ where T_i is an earlier pose, T_j is the current pose, and ΔT_ij' is the observ
 - **Objective**: Minimize sum of squared reprojection errors (Eq. 7.70)
 - **Challenge**: Scale uncertainty in monocular vision (Section 7.4.2)
 - **Result**: Globally consistent reconstruction across multiple views
+
+## Architecture Diagrams
+
+For a visual understanding of the chapter's implementation, refer to the following diagrams:
+
+### Component Architecture
+
+![Component Architecture](../docs/architecture/ipin_ch7_component_clean.svg)
+
+This diagram shows:
+- **Example Scripts**: Two demonstration scripts (`example_pose_graph_slam.py`, `example_bundle_adjustment.py`)
+- **Core Modules**: Reusable SLAM building blocks in `core/slam/`:
+  - `se2.py` (SE(2) operations for 2D SLAM)
+  - `scan_matching.py` (ICP helpers for LiDAR scan alignment)
+  - `ndt.py` (Normal Distributions Transform, optional)
+  - `camera.py` (camera projection + distortion models)
+  - `factors.py` (factor constructors for pose graph and bundle adjustment)
+  - `types.py` (Pose2 and camera intrinsics)
+- **Nonlinear Solver**: `core/estimators/factor_graph.py` (FactorGraph with Gauss-Newton/Levenberg-Marquardt optimization)
+- **Optional Datasets**: Two pre-generated datasets in `data/sim/`:
+  - `ch7_slam_2d_square/` (square trajectory with loop closure)
+  - `ch7_slam_2d_high_drift/` (high drift scenario showing SLAM's value)
+- **Output**: Generated figures saved to `figs/` subdirectory
+
+**Source**: PlantUML source available at [`docs/architecture/ipin_ch7_component_overview.puml`](../docs/architecture/ipin_ch7_component_overview.puml)
+
+### Execution Flow
+
+![Execution Flow](../docs/architecture/ipin_ch7_flow_clean.svg)
+
+This diagram illustrates the execution pipeline for each example script:
+
+**A) Pose Graph SLAM** (`example_pose_graph_slam.py`):
+1. Parse args / config (optional `--data_dir`)
+2. Load dataset OR generate synthetic poses + scans + loop closures
+3. Estimate relative transforms (ICP scan matching, Eq. 7.10-7.11)
+4. Build factor graph (prior + odometry factors + loop closure factors)
+5. Optimize (Gauss-Newton / Levenberg-Marquardt) → corrected trajectory
+6. Visualize + save `ch7_slam/figs/*.svg`
+
+**B) Visual Bundle Adjustment** (`example_bundle_adjustment.py`):
+1. Generate synthetic camera trajectory + 3D landmarks
+2. Simulate camera observations (project + noise, Eqs. 7.40-7.43)
+3. Perturb initial poses/landmarks (add noise to create initialization challenge)
+4. Build factor graph (reprojection factors + priors, Eq. 7.70)
+5. Optimize (Gauss-Newton / Levenberg-Marquardt) → refined poses + landmarks
+6. Visualize + save `ch7_slam/figs/*.svg`
+
+**Source**: PlantUML source available at [`docs/architecture/ipin_ch7_activity_flow.puml`](../docs/architecture/ipin_ch7_activity_flow.puml)
+
+---
 
 ## File Structure
 
