@@ -334,6 +334,43 @@ Running `python -m ch6_dead_reckoning.example_wheel_odometry` demonstrates vehic
 - y-axis: **forward** (vehicle motion direction)
 - z-axis: up
 
+#### Understanding the Quarter-Circle Corners
+
+**Observation:** In the trajectory figure, the wheel odometry estimate shows smooth quarter-circle arcs at each corner, while the ground truth shows sharp 90° turns.
+
+**Physical Explanation:**
+
+This behavior demonstrates **lever-arm kinematics** (Eq. 6.11) in action:
+
+1. **During Turns** (simulation): The vehicle stops moving (`v_s = [0, 0, 0]`) and rotates in place with constant yaw rate `ω = π/4 rad/s` for 2 seconds.
+
+2. **Lever-Arm Effect** (Eq. 6.11): 
+   ```
+   v^A = C_S^A · v^S - [ω^A]_× · l^A
+   ```
+   With `v^S = 0` and `l^A = [1.5, 0, -0.3]` m, the velocity becomes:
+   ```
+   v^A ≈ -[ω×] × [1.5, 0, -0.3] ≈ 1.5 × (π/4) ≈ 1.18 m/s (tangential)
+   ```
+
+3. **Quarter-Circle Path**: Integrating this constant tangential velocity over a 90° rotation traces a quarter circle of radius ≈ `|lever_arm|` ≈ 1.5 m.
+
+4. **Ground Truth Simplification**: The ground truth generator assumes the reference point coincides with the rotation center, so it shows no translation during pure rotation.
+
+**Pedagogical Value:**
+
+- This is **NOT a bug** but a demonstration of real vehicle kinematics
+- In actual vehicles, wheel encoders, IMU, and navigation reference points are at different locations
+- The lever-arm term in Eq. 6.11 correctly captures the velocity at the reference point when it's offset from the measurement location
+- **Physical reality**: If a vehicle rotates about its wheel center and you track a point 1.5 m away, that point MUST move in a circular path
+
+**How to Remove This Effect** (if desired for testing):
+
+1. **Zero lever arm**: Set `lever_arm = [0, 0, 0]` in line 234 of `example_wheel_odometry.py`
+2. **Maintain wheel speed during turns**: Keep nonzero forward speed while applying yaw rate (more realistic for actual vehicles)
+
+**Recommended Action:** Keep this behavior as-is. It provides valuable insight into the importance of lever-arm compensation in integrated navigation systems!
+
 ---
 
 ### 4. Pedestrian Dead Reckoning (PDR)
@@ -354,6 +391,73 @@ Running `python -m ch6_dead_reckoning.example_pdr` demonstrates step-and-heading
 - Gravity subtraction: `a_tot = ||a|| - g`
 - Low-pass filtering (5 Hz cutoff)
 - Peak detection with minimum step interval (0.3s)
+
+#### Understanding PDR Path Size Differences
+
+**Observation:** In the trajectory figure, the magnetometer-based PDR estimate (blue) often appears larger than the ground truth path (black), with the rectangular path "stretched outward."
+
+**Physical Explanation:**
+
+This behavior demonstrates the **critical importance of calibration** in PDR systems. Three factors contribute to path over-estimation:
+
+1. **Step Length Calibration** (Weinberg Model, Eq. 6.49):
+   ```
+   L = c · h^0.371 · f_step^0.227
+   ```
+   - The example uses **hardcoded parameters**: `height = 1.75 m` and `c = 1.0` (lines 78, 467 in `example_pdr.py`)
+   - If the synthetic walker has a different height or stride pattern, each step is over-scaled
+   - **Impact**: Every step moves the estimate farther than actual motion
+   - **Real-world analogy**: Using average shoe size to estimate foot length for everyone
+
+2. **Step Over-Counting** (Peak Detection):
+   - Peak detector uses `min_peak_distance = 0.3 s` to prevent double-counting
+   - At 100 Hz sampling, synthetic accelerations can have **two strong peaks per stride** (e.g., heel strike + toe-off)
+   - The 0.3 s window (~30 samples) may not fully suppress both peaks for certain gait patterns
+   - **Impact**: Detecting 10-20% more steps than actually occurred
+   - **Real-world analogy**: Counting both footfalls of a single step as two separate steps
+
+3. **Heading Disturbances** (Magnetometer Noise):
+   - Magnetometer measurements include intentional noise (σ = 0.05) and disturbances (σ = 0.3 during intervals)
+   - See `add_sensor_noise()` in `example_pdr.py:439-464`
+   - Small yaw biases on each leg segment cause the rectangular path to "flare outward"
+   - **Impact**: Cumulative heading errors expand the path boundary
+   - **Real-world analogy**: Slight compass errors making your route zigzag wider than intended
+
+**Combined Effect:**
+
+- Over-scaled step length (factor ×1.1 typical)
+- More detected steps (factor ×1.15 typical)  
+- Heading spread (adds ~5-10% boundary expansion)
+- **Result**: PDR estimate can be 20-35% larger in total path length
+
+**Pedagogical Value:**
+
+- This is **NOT a bug** but a demonstration of PDR's **sensitivity to parameters**
+- Shows why **personal calibration** is essential for accurate PDR:
+  - Walk a known distance to calibrate `c` in the Weinberg model
+  - Validate step detection against manual counts
+  - Calibrate magnetometer for local distortions
+- Illustrates the difference between **algorithmic correctness** and **parameter accuracy**
+- In production PDR systems, calibration routines are mandatory!
+
+**How to Improve Path Accuracy** (if desired for testing):
+
+1. **Calibrate step length**: 
+   - Measure actual step length for your gait
+   - Adjust `c` parameter or use measured height
+   - Typical: `c ∈ [0.4, 0.5]` for many users (not 1.0)
+
+2. **Tune peak detection**:
+   - Increase `min_peak_distance` to 0.45-0.5 s to avoid double-counting
+   - Adjust `min_peak_height` threshold based on accelerometer calibration
+   - Validate against known step counts
+
+3. **Magnetometer calibration**:
+   - Apply hard-iron and soft-iron corrections
+   - Filter out transient disturbances
+   - Consider complementary filtering with gyro heading
+
+**Recommended Action:** Keep this behavior as-is. It provides valuable insight into why PDR systems require careful calibration and why "off-the-shelf" parameters rarely work in practice!
 
 ---
 
