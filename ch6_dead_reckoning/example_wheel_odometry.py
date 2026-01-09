@@ -51,7 +51,12 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
         segment_time = side_time + turn_time  # 6 seconds per segment
         
         current_pos = np.array([0.0, 0.0, 0.0])
-        current_heading = 0.0  # Start facing east
+        # Initial heading: 0° = East in ENU frame (see docs/ch6_frame_conventions.md)
+        # NOTE FOR STUDENTS: This choice is arbitrary for simulation purposes.
+        # In real applications, you would estimate initial heading from sensors
+        # (magnetometer, GPS velocity, manual calibration). The wheel odometry
+        # algorithm works identically regardless of initial heading!
+        current_heading = 0.0  # Start facing East (0° in ENU)
         
         for k in range(N):
             t_cycle = t[k] % (segment_time * 4)  # 4 sides

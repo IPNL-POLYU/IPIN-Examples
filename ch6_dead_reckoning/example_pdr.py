@@ -124,8 +124,12 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75) -> Dict:
     heading_mag = np.zeros(N)
     
     # Initialize headings
-    heading_gyro[0] = 0.0
-    heading_mag[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)
+    # NOTE FOR STUDENTS: Gyro heading starts at 0° (East in ENU) as a simulation
+    # choice. In real PDR systems, initial heading MUST be calibrated from an
+    # absolute reference (magnetometer, GPS, or user input) because gyros measure
+    # only CHANGES in heading, not absolute direction!
+    heading_gyro[0] = 0.0  # Start at 0° (East), will drift due to gyro bias
+    heading_mag[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)  # Absolute reference
     
     # Run PDR with gyro heading
     for k in range(1, N):
@@ -338,6 +342,10 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     v_walk = 1.4  # m/s (typical walking speed)
     
     # Generate trajectory (2D horizontal + z=0)
+    # NOTE FOR STUDENTS: This corridor trajectory has headings that CHANGE at each
+    # corner (East → North → West → South). The heading is computed from the
+    # direction between waypoints, not preset. This tests PDR's ability to handle
+    # 90° turns, which is critical for indoor navigation!
     pos_2d = np.zeros((N, 2))
     heading_true = np.zeros(N)
     vel_2d = np.zeros((N, 2))
@@ -490,8 +498,10 @@ def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75):
     step_count = len(step_indices)
     print(f"  Detected {step_count} steps using peak detection")
     
-    # Initialize heading
-    heading_est[0] = 0.0
+    # Initialize heading (gyro integration requires initial heading)
+    # NOTE FOR STUDENTS: Starting at 0° for simulation simplicity. In practice,
+    # use magnetometer or GPS for initial heading calibration!
+    heading_est[0] = 0.0  # Initial heading (0° = East in ENU)
     
     # Process time series
     for k in range(1, N):
@@ -547,8 +557,10 @@ def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75):
     step_count = len(step_indices)
     print(f"  Detected {step_count} steps using peak detection")
     
-    # Initialize heading
-    heading_est[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)
+    # Initialize heading from magnetometer (absolute reference)
+    # NOTE FOR STUDENTS: Unlike gyro heading which can start anywhere, magnetometer
+    # provides an absolute heading reference. This is the proper way to initialize!
+    heading_est[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)  # Absolute heading
     
     # Process time series
     for k in range(1, N):

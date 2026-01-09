@@ -61,7 +61,11 @@ def generate_mixed_trajectory(duration=120.0, dt=0.01, frame=None):
     
     pos_true = np.zeros((N, 3))
     vel_true = np.zeros((N, 3))
-    heading_true = np.zeros(N)
+    # NOTE FOR STUDENTS: In this comparison example, heading is DERIVED from the
+    # direction between waypoints (computed dynamically below). This creates a
+    # realistic rectangular path where heading changes at corners. The trajectory
+    # is shared by ALL methods (IMU, ZUPT, wheel odom, PDR) for fair comparison.
+    heading_true = np.zeros(N)  # Computed from waypoint directions
     stance_mask = np.zeros(N, dtype=bool)
     wheel_speed_true = np.zeros((N, 3))
     
@@ -116,9 +120,10 @@ def generate_mixed_trajectory(duration=120.0, dt=0.01, frame=None):
         alpha = t_seg / segment_times[current_wp]
         pos_true[k, :2] = (1-alpha) * waypoints[current_wp] + alpha * waypoints[current_wp+1]
         
-        # Heading
+        # Heading derived from direction between waypoints
+        # This creates: 0° (East), 90° (North), 180° (West), -90° (South) segments
         delta = waypoints[current_wp+1] - waypoints[current_wp]
-        heading_true[k] = np.arctan2(delta[1], delta[0])
+        heading_true[k] = np.arctan2(delta[1], delta[0])  # ENU: atan2(North, East)
         
         # Velocity
         vel_true[k, :2] = v_walk * np.array([np.cos(heading_true[k]), np.sin(heading_true[k])])

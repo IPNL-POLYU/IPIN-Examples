@@ -64,8 +64,12 @@ def generate_building_walk(duration=180.0, dt=0.1):
         (170, 180, 0), # Ground floor
     ]
     
-    # Heading: rotating while walking
-    heading_rate = np.deg2rad(20.0)  # 20 deg/s rotation
+    # Heading: continuously rotating while walking
+    # NOTE FOR STUDENTS: This trajectory has CONTINUOUSLY CHANGING heading
+    # (20°/s rotation) to test magnetometer heading estimation under dynamic
+    # conditions. This is different from fixed-heading examples because we're
+    # specifically demonstrating magnetometer performance with magnetic disturbances.
+    heading_rate = np.deg2rad(20.0)  # 20 deg/s continuous rotation
     
     for k in range(N):
         # Determine current floor

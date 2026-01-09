@@ -76,7 +76,11 @@ def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None, lat_deg=45.
     vel_true = np.column_stack([vx, vy, vz])
     
     # Attitude (yaw follows velocity direction, roll/pitch = 0)
-    yaw = np.arctan2(vy, vx)
+    # NOTE FOR STUDENTS: Here, heading is DERIVED from the velocity vector, not
+    # preset to a fixed value. This creates a naturally varying heading trajectory
+    # that demonstrates IMU attitude tracking. The figure-8 path continuously
+    # changes direction, testing the gyroscope integration accuracy.
+    yaw = np.arctan2(vy, vx)  # Heading = direction of velocity vector
     
     # Convert to quaternions (scalar-first, body-to-map)
     quat_true = np.column_stack([

@@ -66,7 +66,12 @@ def generate_walking_trajectory(
     stance_mask = np.zeros(N, dtype=bool)
     
     current_pos = np.array([0.0, 0.0, 0.0])
-    current_heading = 0.0  # Forward (ENU: 0=East)
+    # Initial heading: 0° = East in ENU frame
+    # NOTE FOR STUDENTS: This is set to 0° (East) to create a simple forward
+    # walking trajectory. The focus here is on ZUPT stance detection, not heading
+    # estimation. In real foot-mounted IMU applications, initial heading would be
+    # calibrated from magnetometer or estimated during initialization phase.
+    current_heading = 0.0  # Forward (ENU: 0° = East)
     
     for k in range(N):
         t_cycle = t[k] % cycle_duration
@@ -97,10 +102,14 @@ def generate_walking_trajectory(
     
     # Create quaternion trajectory (yaw follows heading, roll/pitch = 0)
     # Compute yaw from velocity
+    # NOTE FOR STUDENTS: During walking, heading follows velocity direction.
+    # During stance phases (stopped), heading is maintained from previous step.
+    # This mimics real foot-mounted IMU where the foot orientation doesn't change
+    # significantly during stance phase.
     yaw = np.zeros(N)
     for k in range(N):
         if np.linalg.norm(vel_true[k, :2]) > 0.01:
-            yaw[k] = np.arctan2(vel_true[k, 1], vel_true[k, 0])
+            yaw[k] = np.arctan2(vel_true[k, 1], vel_true[k, 0])  # Heading from velocity
         elif k > 0:
             yaw[k] = yaw[k - 1]  # Maintain previous heading during stance
     
