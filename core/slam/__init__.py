@@ -91,6 +91,14 @@ from .se2 import (
     se2_to_matrix,
     wrap_angle,
 )
+from .frontend_2d import SlamFrontend2D, MatchQuality
+from .loop_closure_2d import LoopClosureDetector2D, LoopClosure, LoopClosureCandidate
+from .scan_descriptor_2d import (
+    compute_scan_descriptor,
+    compute_descriptor_similarity,
+    batch_compute_descriptors,
+)
+from .submap_2d import Submap2D
 from .types import CameraIntrinsics, PointCloud2D, PointCloud3D, Pose2, VoxelGrid
 
 __all__ = [
@@ -100,6 +108,15 @@ __all__ = [
     "PointCloud2D",
     "PointCloud3D",
     "VoxelGrid",
+    "Submap2D",
+    "SlamFrontend2D",
+    "MatchQuality",
+    "LoopClosureDetector2D",
+    "LoopClosure",
+    "LoopClosureCandidate",
+    "compute_scan_descriptor",
+    "compute_descriptor_similarity",
+    "batch_compute_descriptors",
     # SE(2) operations
     "se2_compose",
     "se2_inverse",
