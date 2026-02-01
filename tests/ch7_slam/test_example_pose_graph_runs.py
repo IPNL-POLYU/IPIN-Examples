@@ -81,7 +81,7 @@ class TestExamplePoseGraphSLAMRuns(unittest.TestCase):
         self.assertIn("SLAM PIPELINE COMPLETE", result.stdout)
         self.assertIn("observation-based", result.stdout,
                      "Should use observation-based loop closure")
-        self.assertIn("Improvement", result.stdout,
+        self.assertIn("improvement", result.stdout,
                      "Should show RMSE improvement")
 
     def test_high_drift_dataset_mode_runs_without_error(self):

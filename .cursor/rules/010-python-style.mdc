@@ -1,3 +1,21 @@
 ---
+description: Python guardrails for this repo (PEP8 + Google PyGuide, typing, docstrings, formatting).
+globs: ["**/*.py"]
 alwaysApply: true
 ---
+
+# Python style (always-on)
+
+Follow:
+- PEP 8 + Google Python Style Guide (authoritative baseline)
+- Format with **Black** (line length **88**) and keep formatting consistent.
+
+Requirements:
+- Type hints for all non-trivial functions (params + return). Prefer `Optional[T]` over `Union[T, None]`.
+- Google-style docstrings for modules/classes/functions. If implementing book equations, cite section/equation in docstrings.
+- Imports: absolute imports; grouped (stdlib / third-party / local); no wildcard imports.
+- Error handling: no bare `except:`; raise/catch specific exceptions.
+- Keep functions small and single-purpose; meaningful names.
+
+Note:
+- If repo has tool configs (pyproject.toml/ruff.toml/mypy.ini), follow them over defaults.
