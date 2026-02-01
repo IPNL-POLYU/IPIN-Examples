@@ -6,11 +6,11 @@ This chapter demonstrates a **complete observation-driven 2D SLAM pipeline**:
 
 | Stage | Description | Performance |
 |-------|-------------|-------------|
-| **1. Front-End** | Prediction → Scan-to-map ICP → Map update | ~70% local improvement |
-| **2. Loop Closure** | Observation-based detection + ICP verification | ~20 closures/trajectory |
-| **3. Back-End** | Pose graph optimization | ~50% full improvement |
+| **1. Front-End** | Prediction → Scan-to-map ICP → Map update | ~36% local improvement |
+| **2. Loop Closure** | Observation-based detection + ICP verification | 5+ closures/trajectory |
+| **3. Back-End** | Pose graph optimization | ~63% full improvement |
 
-**Key:** Front-end now executes full scan-to-map alignment (not just odometry copy).
+**Default:** Square trajectory (8m x 8m, 3 laps) with asymmetric room features.
 
 ---
 
@@ -19,8 +19,14 @@ This chapter demonstrates a **complete observation-driven 2D SLAM pipeline**:
 ### Run the Main Example
 
 ```bash
-# Full SLAM pipeline (synthetic corridor data)
+# Full SLAM pipeline (default: square trajectory, 3 laps)
 python -m ch7_slam.example_pose_graph_slam
+
+# With corridor trajectory (legacy)
+python -m ch7_slam.example_pose_graph_slam --trajectory corridor
+
+# With 2 laps (faster)
+python -m ch7_slam.example_pose_graph_slam --laps 2
 
 # With pre-generated dataset
 python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square
@@ -198,18 +204,18 @@ The script generates a comprehensive figure showing:
 
 ---
 
-## Performance Summary
+## Performance Summary (Default: Square, 3 laps)
 
 | Stage | RMSE | Improvement | Notes |
 |-------|------|-------------|-------|
-| **Odometry** | 0.24 m | baseline | Raw sensor integration |
-| **Front-end** | 0.07 m | **+72%** ✅ | Scan-to-map ICP |
-| **Full SLAM** | 0.11 m | **+53%** | + loop closures |
+| **Odometry** | 0.85 m | baseline | Raw sensor integration |
+| **Front-end** | 0.54 m | **+36%** ✅ | Scan-to-map ICP |
+| **Full SLAM** | 0.31 m | **+63%** | + 5 loop closures |
 
 **Verification Checks:**
-- `Frontend converged ratio: 96.7%`
-- `max|frontend - odom| translation: 0.41 m` (confirms ICP is working)
+- `Detected 5 loop closures` ✅
 - `Frontend RMSE <= Odometry RMSE` ✅
+- `Optimized RMSE <= 0.95 * Odometry RMSE` ✅ (>5% improvement)
 
 ---
 

@@ -18,13 +18,17 @@ uses full SE(3) poses with rotation matrix R_i and translation t_i.
 
 Usage:
     python -m ch7_slam.example_bundle_adjustment
+    python -m ch7_slam.example_bundle_adjustment --animate  # Generate GIF
 
 Author: Li-Ta Hsu
 Date: December 2025
 """
 
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
+from matplotlib.animation import FuncAnimation, PillowWriter
+from pathlib import Path
 from typing import List, Tuple, Dict
 
 from core.slam import (
@@ -199,6 +203,151 @@ def add_noise_to_estimates(
     return noisy_poses, noisy_landmarks
 
 
+def create_ba_animation(
+    poses_true: List[np.ndarray],
+    landmarks_true: np.ndarray,
+    poses_history: List[List[np.ndarray]],
+    landmarks_history: List[np.ndarray],
+    error_history: List[float],
+    observations: Dict[int, List[Tuple[int, np.ndarray]]],
+    n_poses: int,
+    output_path: str = "ch7_slam/figs/bundle_adjustment.gif",
+    fps: int = 3,
+) -> None:
+    """Create animated GIF showing bundle adjustment optimization.
+    
+    Shows two panels:
+    1. Top-down view: Camera poses, landmarks, and observation constraints
+    2. Error vs iteration: Convergence curve with current marker
+    
+    Args:
+        poses_true: Ground truth camera poses
+        landmarks_true: Ground truth 3D landmarks
+        poses_history: List of pose states per iteration
+        landmarks_history: List of landmark states per iteration
+        error_history: Optimization error per iteration
+        observations: Camera observations (for constraint lines)
+        n_poses: Number of camera poses
+        output_path: Path to save GIF
+        fps: Frames per second
+    """
+    n_frames = len(poses_history)
+    n_landmarks = len(landmarks_true)
+    
+    # Create figure with 2 panels
+    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
+    fig.suptitle("Bundle Adjustment Optimization", fontsize=14)
+    
+    # Compute bounds
+    all_poses = poses_history[0] + poses_history[-1]
+    all_x = [p[0] for p in all_poses] + list(landmarks_true[:, 0])
+    all_y = [p[1] for p in all_poses] + list(landmarks_true[:, 1])
+    x_margin = (max(all_x) - min(all_x)) * 0.2 + 1
+    y_margin = (max(all_y) - min(all_y)) * 0.2 + 1
+    xlim = (min(all_x) - x_margin, max(all_x) + x_margin)
+    ylim = (min(all_y) - y_margin, max(all_y) + y_margin)
+    
+    # Panel 1: Top-down view
+    ax1.set_xlim(xlim)
+    ax1.set_ylim(ylim)
+    ax1.set_xlabel('X (m)')
+    ax1.set_ylabel('Y (m)')
+    ax1.set_aspect('equal')
+    ax1.grid(True, alpha=0.3)
+    
+    # Static elements: ground truth
+    true_xy = np.array([[p[0], p[1]] for p in poses_true])
+    ax1.plot(true_xy[:, 0], true_xy[:, 1], 'g-', linewidth=2, alpha=0.5, label='Truth')
+    ax1.scatter(landmarks_true[:, 0], landmarks_true[:, 1], 
+                c='gray', marker='x', s=50, alpha=0.5, label='Landmarks (true)')
+    
+    # Dynamic elements
+    pose_scatter = ax1.scatter([], [], c='blue', marker='^', s=100, label='Cameras')
+    landmark_scatter = ax1.scatter([], [], c='red', marker='o', s=40, alpha=0.7, label='Landmarks')
+    constraint_lines = []
+    
+    ax1.legend(loc='upper right', fontsize=8)
+    
+    # Panel 2: Error vs iteration
+    ax2.set_xlim(-0.5, n_frames - 0.5)
+    ax2.set_ylim(0, max(error_history) * 1.2)
+    ax2.set_xlabel('Iteration')
+    ax2.set_ylabel('Total Error')
+    ax2.set_title('Convergence')
+    ax2.grid(True, alpha=0.3)
+    
+    error_line, = ax2.plot([], [], 'b-', linewidth=2)
+    error_marker, = ax2.plot([], [], 'ro', markersize=10)
+    
+    # Pre-compute constraint subset for visualization (limit for clarity)
+    constraint_pairs = []
+    for pose_id, obs_list in observations.items():
+        for landmark_id, _ in obs_list[:3]:  # Max 3 constraints per pose
+            constraint_pairs.append((pose_id, landmark_id))
+    
+    def init():
+        return []
+    
+    def update(frame):
+        artists = []
+        
+        # Get current state
+        poses_current = poses_history[frame]
+        landmarks_current = landmarks_history[frame]
+        
+        # Update pose positions
+        pose_xy = np.array([[p[0], p[1]] for p in poses_current])
+        pose_scatter.set_offsets(pose_xy)
+        
+        # Update landmark positions
+        landmark_xy = landmarks_current[:, :2]
+        landmark_scatter.set_offsets(landmark_xy)
+        
+        # Remove old constraint lines
+        for line in constraint_lines:
+            line.remove()
+        constraint_lines.clear()
+        
+        # Draw constraint lines (camera to landmark)
+        for pose_id, landmark_id in constraint_pairs:
+            px, py = poses_current[pose_id][0], poses_current[pose_id][1]
+            lx, ly = landmarks_current[landmark_id][0], landmarks_current[landmark_id][1]
+            line, = ax1.plot([px, lx], [py, ly], 'purple', linewidth=0.5, alpha=0.3)
+            constraint_lines.append(line)
+        
+        # Update error plot
+        error_line.set_data(range(frame + 1), error_history[:frame + 1])
+        error_marker.set_data([frame], [error_history[frame]])
+        
+        # Update titles
+        ax1.set_title(f'Top View (iteration {frame})')
+        
+        if frame == 0:
+            ax2.set_title('Convergence (initial)')
+        elif frame == n_frames - 1:
+            ax2.set_title(f'Convergence (final error: {error_history[-1]:.4f})')
+        else:
+            ax2.set_title(f'Convergence (error: {error_history[frame]:.4f})')
+        
+        return artists
+    
+    # Create animation
+    print(f"   Creating animation with {n_frames} frames...")
+    anim = FuncAnimation(fig, update, frames=n_frames, init_func=init,
+                        interval=1000//fps, blit=False)
+    
+    # Save as GIF
+    output_dir = Path(output_path).parent
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    print(f"   Saving GIF to {output_path}...")
+    writer = PillowWriter(fps=fps)
+    anim.save(output_path, writer=writer)
+    
+    plt.close(fig)
+    print(f"[OK] Saved animation: {output_path}")
+
+
 def plot_bundle_adjustment_results(
     poses_true: List[np.ndarray],
     poses_init: List[np.ndarray],
@@ -308,8 +457,12 @@ def plot_bundle_adjustment_results(
             pass
 
 
-def main():
-    """Run complete bundle adjustment example."""
+def main(animate: bool = False):
+    """Run complete bundle adjustment example.
+    
+    Args:
+        animate: If True, generate animated GIF showing optimization.
+    """
     print("=" * 80)
     print("CHAPTER 7: VISUAL BUNDLE ADJUSTMENT EXAMPLE")
     print("=" * 80)
@@ -435,19 +588,89 @@ def main():
     print(f"   Factors: {n_factors} ({n_factors-1} reprojection + 1 prior)")
 
     # ------------------------------------------------------------------------
-    # 6. Optimize Bundle Adjustment
+    # 6. Optimize Bundle Adjustment (with state tracking for animation)
     # ------------------------------------------------------------------------
     print("\n6. Running bundle adjustment optimization...")
     
     initial_error = graph.compute_error()
     print(f"   Initial reprojection error: {initial_error:.6f}")
     
-    # Run optimization (Gauss-Newton)
-    optimized_vars, error_history = graph.optimize(
-        method="gauss_newton",
-        max_iterations=15,
-        tol=1e-3,
-    )
+    # Track per-iteration states for animation
+    poses_history = []
+    landmarks_history = []
+    error_history = [initial_error]
+    
+    # Store initial state
+    poses_history.append([graph.variables[i].copy() for i in range(n_poses)])
+    landmarks_history.append(np.array([graph.variables[n_poses + i].copy() for i in range(n_landmarks)]))
+    
+    # Custom Levenberg-Marquardt loop to capture per-iteration states
+    # LM is more stable for BA than pure Gauss-Newton
+    max_iterations = 25
+    tol = 1e-6  # Tighter tolerance for more iterations
+    mu = 10.0  # Higher initial damping for slower, smoother convergence
+    nu = 1.5   # Smaller damping increase factor
+    
+    for iteration in range(max_iterations):
+        # Build linearized system: H δx = b where b = -J^T Λ r
+        H, b = graph._build_linearized_system()
+        
+        # Solve damped system: (H + μI) δx = b (Levenberg-Marquardt)
+        try:
+            delta_x = np.linalg.solve(H + mu * np.eye(len(H)), b)
+        except np.linalg.LinAlgError:
+            delta_x = np.linalg.lstsq(H + mu * np.eye(len(H)), b, rcond=None)[0]
+        
+        # Compute predicted reduction
+        current_error = error_history[-1]
+        
+        # Save current state before update
+        saved_vars = {k: v.copy() for k, v in graph.variables.items()}
+        
+        # Apply update
+        graph._update_variables(delta_x)
+        
+        # Compute new error
+        new_error = graph.compute_error()
+        
+        # Compute gain ratio
+        predicted = delta_x @ (mu * delta_x + b)
+        actual = current_error - new_error
+        
+        if predicted > 0 and actual > 0:
+            # Accept update
+            gain_ratio = actual / predicted
+            
+            # Adjust damping based on gain ratio
+            if gain_ratio > 0.75:
+                mu = max(mu / 3.0, 1e-7)
+            elif gain_ratio < 0.25:
+                mu = min(mu * nu, 1e7)
+                nu *= 2
+        else:
+            # Reject update - increase damping and restore
+            graph.variables = saved_vars
+            mu = min(mu * nu, 1e7)
+            nu *= 2
+            continue
+        
+        error_history.append(new_error)
+        
+        # Store state after this iteration
+        poses_history.append([graph.variables[i].copy() for i in range(n_poses)])
+        landmarks_history.append(np.array([graph.variables[n_poses + i].copy() for i in range(n_landmarks)]))
+        
+        # Check convergence
+        if abs(current_error - new_error) < tol:
+            print(f"   Converged at iteration {iteration + 1}")
+            break
+        
+        if new_error < 1.0:
+            print(f"   Error below threshold at iteration {iteration + 1}")
+            break
+    
+    # Extract final optimized variables
+    optimized_vars = {var_id: var.copy() for var_id, var in graph.variables.items()}
     
     final_error = error_history[-1]
     print(f"   Final reprojection error: {final_error:.6f}")
@@ -500,6 +723,17 @@ def main():
         landmarks_true, landmarks_init, landmarks_opt,
         error_history
     )
+    
+    # Generate animation if requested
+    if animate:
+        print("\n9. Generating bundle adjustment animation...")
+        create_ba_animation(
+            poses_true, landmarks_true,
+            poses_history, landmarks_history, error_history,
+            observations, n_poses,
+            output_path="ch7_slam/figs/bundle_adjustment.gif",
+            fps=3,
+        )
 
     print()
     print("=" * 80)
@@ -522,5 +756,14 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="Chapter 7: Visual Bundle Adjustment Example"
+    )
+    parser.add_argument(
+        "--animate", action="store_true", default=False,
+        help="Generate animated GIF showing optimization process"
+    )
+    args = parser.parse_args()
+    
+    main(animate=args.animate)
 

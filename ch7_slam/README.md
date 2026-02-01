@@ -25,9 +25,9 @@ SLAM addresses the chicken-and-egg problem:
 | **2. Loop Closure** | Observation-based (descriptor + ICP verification) |
 | **3. Back-End** | Pose graph optimization with loop constraints |
 
-**Performance (Inline Mode):**
-- Front-end: ~70% RMSE improvement (local correction)
-- Full pipeline: ~50% RMSE improvement (with loop closures)
+**Performance (Inline Mode - Square Trajectory, 3 laps):**
+- Front-end: ~36% RMSE improvement (local correction via scan-to-map ICP)
+- Full pipeline: ~63% RMSE improvement (with loop closure constraints)
 
 ✅ **Key Features:**
 - **Observation-driven**: All constraints come from sensor measurements (odometry + LiDAR scans)
@@ -42,8 +42,14 @@ SLAM addresses the chicken-and-egg problem:
 ## Quick Start
 
 ```bash
-# Run complete SLAM pipeline (inline mode - full front-end + loop closure)
+# Run complete SLAM pipeline (default: square trajectory, 3 laps)
 python -m ch7_slam.example_pose_graph_slam
+
+# Run with corridor trajectory (legacy)
+python -m ch7_slam.example_pose_graph_slam --trajectory corridor
+
+# Run with 2 laps (faster)
+python -m ch7_slam.example_pose_graph_slam --laps 2
 
 # Run with pre-generated dataset
 python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square
@@ -59,6 +65,10 @@ python -m ch7_slam.example_bundle_adjustment
 ### Command-Line Flags
 
 **`example_pose_graph_slam.py`:**
+- `--trajectory <type>`: Trajectory type for inline mode (default: `square`)
+  - `square`: 8m x 8m square loop (default, best for demonstrating loop closure)
+  - `corridor`: Out-and-back corridor trajectory (legacy)
+- `--laps <n>`: Number of laps for square trajectory (default: 3)
 - `--data <dataset_name>`: Load pre-generated dataset from `data/sim/<dataset_name>/`
   - Available: `ch7_slam_2d_square`, `ch7_slam_2d_high_drift`
   - If omitted: Uses inline synthetic data generation
@@ -67,7 +77,8 @@ python -m ch7_slam.example_bundle_adjustment
 **Expected Outputs:**
 - Console: SLAM pipeline progress, RMSE metrics, improvement percentage
 - JSON Summary: `[SLAM_SUMMARY] {...}` for automated testing
-- Figure: `ch7_slam/figs/slam_with_maps.png` (trajectories + maps before/after + errors)
+- Static Figure: `ch7_slam/figs/slam_with_maps.png` (trajectories + maps before/after + errors)
+- Animation (with `--animate`): `ch7_slam/figs/slam_pipeline_square.gif` (dynamic SLAM visualization)
 
 ## 📂 Dataset Connection
 
@@ -159,7 +170,7 @@ for i, (odom_delta, scan) in enumerate(zip(odometry, scans)):
     # quality: convergence flag, residual, iterations
 ```
 
-**Performance:** Typical improvement of 80-90% over raw odometry (local alignment only)
+**Performance:** Typical improvement of 36% over raw odometry (local alignment only)
 
 #### 2. Loop Closure Detection: LoopClosureDetector2D (`core/slam/loop_closure_2d.py`)
 
@@ -224,7 +235,7 @@ graph = create_pose_graph(
 optimized_vars, history = graph.optimize(method="gauss_newton")
 ```
 
-**Performance:** Inline mode achieves ~30% RMSE improvement with observation-based loop closures
+**Performance:** Inline mode achieves ~63% RMSE improvement with observation-based loop closures
 
 #### 4. Visualization: Map Quality Assessment
 
@@ -447,19 +458,81 @@ CHAPTER 7: VISUAL BUNDLE ADJUSTMENT EXAMPLE
 - **Middle:** Position errors before and after optimization
 - **Right:** Optimization convergence curve
 
+## Dynamic Demos (Animated GIFs)
+
+Static figures are useful summaries, but **animations show the SLAM process evolving over time**. These GIFs demonstrate:
+- How the map grows incrementally
+- How loop closures appear and constraints are added
+- How optimization corrects accumulated drift
+
+### SLAM Pipeline Animation
+
+Generate the SLAM animation with:
+
+```bash
+python -m ch7_slam.example_pose_graph_slam --animate --trajectory square
+```
+
+**Output:** `ch7_slam/figs/slam_pipeline_square.gif`
+
+![SLAM Pipeline Animation](figs/slam_pipeline_square.gif)
+
+*This animation shows three panels:*
+- **Left (Map + Trajectory):** Map points accumulate as robot moves; trajectories (truth/odom/frontend) evolve; current pose and scan highlighted
+- **Middle (Constraints):** Odometry edges (gray) connect consecutive poses; loop closure edges (magenta) appear when detected
+- **Right (Error):** Position error vs time; vertical lines mark loop closures
+
+**Phase 1:** Front-end (poses 1 to N) shows map building and trajectory estimation
+**Phase 2:** Optimization (frames N+1 to end) shows trajectory correction from frontend → optimized
+
+### Bundle Adjustment Animation
+
+Generate the BA animation with:
+
+```bash
+python -m ch7_slam.example_bundle_adjustment --animate
+```
+
+**Output:** `ch7_slam/figs/bundle_adjustment.gif`
+
+![Bundle Adjustment Animation](figs/bundle_adjustment.gif)
+
+*This animation shows two panels:*
+- **Left (Top View):** Camera poses (triangles) and landmarks (circles) move from initial (noisy) positions toward optimized positions; observation constraints shown as purple lines
+- **Right (Convergence):** Total error decreases over iterations with moving marker
+
+**Key Insight:** Unlike interpolating init→final, this shows **real per-iteration states** from the Levenberg-Marquardt optimizer, demonstrating how poses and landmarks jointly converge.
+
+### Reproducing All Artifacts
+
+```bash
+# Generate static SLAM figure (always produced)
+python -m ch7_slam.example_pose_graph_slam
+
+# Generate SLAM animation (square trajectory)
+python -m ch7_slam.example_pose_graph_slam --animate --trajectory square
+
+# Generate static BA figure
+python -m ch7_slam.example_bundle_adjustment
+
+# Generate BA animation
+python -m ch7_slam.example_bundle_adjustment --animate
+```
+
 ## Performance Summary
 
-### Actual Results from Implementation
+### Actual Results from Implementation (Default: Square, 3 laps)
 
 | Stage | RMSE | Improvement | Notes |
 |-------|------|-------------|-------|
-| **Odometry** (baseline) | 0.24 m | - | Raw sensor integration |
-| **Front-end** (local) | 0.07 m | **+72%** | Scan-to-map ICP correction |
-| **Full Pipeline** (global) | 0.11 m | **+53%** | With loop closures |
+| **Odometry** (baseline) | 0.85 m | - | Raw sensor integration with drift |
+| **Front-end** (local) | 0.54 m | **+36%** | Scan-to-map ICP correction |
+| **Full Pipeline** (global) | 0.31 m | **+63%** | With 5 loop closures |
 
 **Key Insights:**
-- **Front-end:** Achieves ~70% local drift correction via scan-to-map ICP
-- **Loop closures:** 21 observation-based closures detected (descriptor + ICP verification)
+- **Trajectory:** Square 8m x 8m loop with 3 laps (145 poses)
+- **Environment:** Room with asymmetric features for reliable ICP
+- **Loop closures:** 5 observation-based closures detected (descriptor + ICP verification)
 - **Consistency check:** `max|frontend - odom|` > 0 confirms front-end is working
 - **Machine-readable output:** `[SLAM_SUMMARY]` JSON line for automated testing
 
@@ -471,19 +544,19 @@ CHAPTER 7: VISUAL BUNDLE ADJUSTMENT EXAMPLE
 - **Prediction**: Integrate odometry deltas using SE(2) composition
 - **Correction**: ICP scan-to-map alignment for drift reduction
 - **Map Update**: Accumulate scans into local submap with voxel downsampling
-- **Performance**: ~90% local improvement over raw odometry
+- **Performance**: ~36% local improvement over raw odometry
 
 **2. Loop Closure: Observation-Based Detection**
 - **Descriptor**: Range histogram (rotation-invariant, fast computation)
 - **Candidate Selection**: Cosine similarity between descriptors
 - **Geometric Verification**: ICP alignment + residual/convergence checks
-- **Performance**: Finds 2-3x more loop closures than oracle methods
+- **Performance**: Finds multiple loop closures per lap on square trajectory
 
 **3. Back-End: Pose Graph Optimization**
 - **Structure**: Sparse factor graph with poses as variables
 - **Factors**: Prior (anchor) + odometry (sequential) + loop closure (long-range)
 - **Solver**: Gauss-Newton with sparse Cholesky factorization
-- **Performance**: ~53% total improvement (front-end: 72%, backend refines further)
+- **Performance**: ~63% total improvement (front-end: 36%, backend adds ~27%)
 
 **4. Visualization: Map Quality Assessment**
 - **Before**: Map from odometry poses (shows drift/misalignment)
