@@ -79,6 +79,7 @@ class SlamFrontend2D:
         submap_voxel_size: float = 0.1,
         min_map_points: int = 10,
         max_icp_residual: float = 1.0,
+        initial_pose: Optional[np.ndarray] = None,
     ):
         """Initialize SLAM front-end.
         
@@ -90,6 +91,9 @@ class SlamFrontend2D:
                            If submap has fewer points, use prediction only.
             max_icp_residual: Maximum ICP residual to accept as valid match.
                              Higher residuals are rejected and prediction is used.
+            initial_pose: Initial pose [x, y, yaw] for first step. If None, uses
+                         origin [0, 0, 0]. Set this to odometry's starting pose
+                         for trajectories that don't start at origin.
         """
         self.submap = Submap2D()
         self.pose_est: Optional[np.ndarray] = None
@@ -99,6 +103,7 @@ class SlamFrontend2D:
         self.voxel_size = submap_voxel_size
         self.min_map_points = min_map_points
         self.max_icp_residual = max_icp_residual
+        self._initial_pose = initial_pose
     
     def step(
         self,
@@ -185,8 +190,11 @@ class SlamFrontend2D:
         Returns:
             Result dictionary with initialization values.
         """
-        # Initialize at origin (or could use GPS/prior if available)
-        self.pose_est = np.array([0.0, 0.0, 0.0])
+        # Initialize at specified pose or origin
+        if self._initial_pose is not None:
+            self.pose_est = np.array(self._initial_pose, dtype=float)
+        else:
+            self.pose_est = np.array([0.0, 0.0, 0.0])
         
         # Add first scan to submap
         self.submap.add_scan(self.pose_est, scan)

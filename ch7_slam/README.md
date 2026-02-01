@@ -12,10 +12,22 @@ SLAM addresses the chicken-and-egg problem:
 ### What This Implementation Provides
 
 ✅ **Complete End-to-End 2D LiDAR SLAM Pipeline:**
-1. **Front-end**: Odometry integration → scan-to-map alignment (ICP) → local map building
-2. **Loop Closure**: Observation-based detection using scan descriptor similarity + ICP verification
-3. **Back-end**: Pose graph optimization with loop closure constraints
+1. **Odometry Integration**: Noisy sensor-based pose estimates (with drift)
+2. **Loop Closure Detection**: Observation-based using scan descriptor similarity + ICP verification
+3. **Back-end Optimization**: Pose graph optimization with loop closure constraints
 4. **Visualization**: Maps before/after optimization showing quality improvement
+
+✅ **Complete End-to-End SLAM Pipeline:**
+
+| Stage | Description |
+|-------|-------------|
+| **1. Front-End** | Prediction (odom) → Scan-to-map ICP → Map update |
+| **2. Loop Closure** | Observation-based (descriptor + ICP verification) |
+| **3. Back-End** | Pose graph optimization with loop constraints |
+
+**Performance (Inline Mode):**
+- Front-end: ~70% RMSE improvement (local correction)
+- Full pipeline: ~50% RMSE improvement (with loop closures)
 
 ✅ **Key Features:**
 - **Observation-driven**: All constraints come from sensor measurements (odometry + LiDAR scans)
@@ -25,18 +37,16 @@ SLAM addresses the chicken-and-egg problem:
 
 ✅ **Additional Components:**
 - **Visual SLAM**: Camera models, bundle adjustment with reprojection error minimization
-- **Scan matching**: ICP and NDT algorithms for point cloud alignment
+- **Scan matching**: ICP algorithm for point cloud alignment (NDT available but not used in main script)
 
 ## Quick Start
 
 ```bash
-# Run complete SLAM pipeline (inline synthetic data)
+# Run complete SLAM pipeline (inline mode - full front-end + loop closure)
 python -m ch7_slam.example_pose_graph_slam
 
-# Run with square trajectory dataset (35% RMSE improvement)
+# Run with pre-generated dataset
 python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square
-
-# Run high-drift scenario (21% RMSE improvement)
 python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_high_drift
 
 # Run SLAM front-end demonstration (prediction → correction → map update)
@@ -52,9 +62,11 @@ python -m ch7_slam.example_bundle_adjustment
 - `--data <dataset_name>`: Load pre-generated dataset from `data/sim/<dataset_name>/`
   - Available: `ch7_slam_2d_square`, `ch7_slam_2d_high_drift`
   - If omitted: Uses inline synthetic data generation
+- `--loop_oracle`: [DEPRECATED] Use distance-based oracle instead of observation-based detection
 
 **Expected Outputs:**
 - Console: SLAM pipeline progress, RMSE metrics, improvement percentage
+- JSON Summary: `[SLAM_SUMMARY] {...}` for automated testing
 - Figure: `ch7_slam/figs/slam_with_maps.png` (trajectories + maps before/after + errors)
 
 ## 📂 Dataset Connection
@@ -87,16 +99,18 @@ The implementation demonstrates a **complete observation-driven SLAM system** wh
 ```
 ┌─────────────────────────────────────────────────────────────────┐
 │ INPUT: Raw Sensor Data                                          │
-│   - Wheel odometry (with drift)                                 │
-│   - LiDAR scans (2D point clouds)                               │
+│   - LiDAR scans (generated from TRUE poses - sensor reality!)   │
+│   - Noisy odometry (with realistic drift)                       │
+│   DO NOT generate scans from odom/estimates - that's circular!  │
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
-│ FRONT-END: Online Pose Estimation                               │
-│   1. Prediction: integrate noisy odometry                       │
-│   2. Correction: scan-to-map alignment (ICP)                    │
-│   3. Map Update: accumulate scans into local submap             │
-│   Output: Refined trajectory with reduced drift                 │
+│ FRONT-END: Online Pose Estimation (SlamFrontend2D)              │
+│   1. Initialization: first scan + odometry starting pose        │
+│   2. Prediction: integrate noisy odometry delta                 │
+│   3. Correction: scan-to-map alignment (ICP)                    │
+│   4. Map Update: accumulate scans into local submap             │
+│   Output: Refined trajectory (~70% local drift correction)      │
 └─────────────────────────────────────────────────────────────────┘
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
@@ -109,8 +123,8 @@ The implementation demonstrates a **complete observation-driven SLAM system** wh
                             ↓
 ┌─────────────────────────────────────────────────────────────────┐
 │ BACK-END: Pose Graph Optimization                               │
-│   1. Initial Values: front-end trajectory (or odometry)         │
-│   2. Odometry Factors: from sensor measurements                 │
+│   1. Initial Values: front-end trajectory                       │
+│   2. Odometry Factors: from front-end deltas                    │
 │   3. Loop Closure Factors: observation-based, ICP-verified      │
 │   4. Optimize: Gauss-Newton solver                              │
 │   Output: Globally consistent trajectory                        │
@@ -119,8 +133,7 @@ The implementation demonstrates a **complete observation-driven SLAM system** wh
 ┌─────────────────────────────────────────────────────────────────┐
 │ VISUALIZATION: Quality Assessment                               │
 │   1. Reconstruct maps: transform scans using poses              │
-│   2. Compare: map before (odometry) vs after (optimized)        │
-│   3. Metrics: RMSE improvement, map tightening percentage       │
+│   2. Compare: map before (front-end) vs after (optimized)       │
 │   Output: Visual proof of optimization effectiveness            │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -211,7 +224,7 @@ graph = create_pose_graph(
 optimized_vars, history = graph.optimize(method="gauss_newton")
 ```
 
-**Performance:** Achieves 20-35% RMSE improvement with observation-based loop closures
+**Performance:** Inline mode achieves ~30% RMSE improvement with observation-based loop closures
 
 #### 4. Visualization: Map Quality Assessment
 
@@ -438,19 +451,17 @@ CHAPTER 7: VISUAL BUNDLE ADJUSTMENT EXAMPLE
 
 ### Actual Results from Implementation
 
-| Method | Dataset | Input | RMSE | Improvement | Loop Closures |
-|--------|---------|-------|------|-------------|---------------|
-| **Odometry only** | Square | Wheel encoders | 0.328 m | Baseline | - |
-| **Front-end only** | Synthetic | + LiDAR ICP | 0.015 m | 90%+ | None |
-| **Full SLAM** | Square | + Loop closure | 0.213 m | **+35%** | 5 (obs-based) |
-| **Full SLAM** | High drift | + Loop closure | 0.627 m | **+21%** | 5 (obs-based) |
-| **Bundle Adjustment** | Synthetic | Camera images | ~0.01 m | 98%+ | N/A |
+| Stage | RMSE | Improvement | Notes |
+|-------|------|-------------|-------|
+| **Odometry** (baseline) | 0.24 m | - | Raw sensor integration |
+| **Front-end** (local) | 0.07 m | **+72%** | Scan-to-map ICP correction |
+| **Full Pipeline** (global) | 0.11 m | **+53%** | With loop closures |
 
 **Key Insights:**
-- **Front-end (local):** 90% improvement through scan-to-map alignment
-- **Back-end (global):** Additional 20-35% improvement through loop closure
-- **Observation-based:** Finds 2.5x more loop closures than oracle-provided indices
-- **Map quality:** 3-8% point count reduction (tightening) after optimization
+- **Front-end:** Achieves ~70% local drift correction via scan-to-map ICP
+- **Loop closures:** 21 observation-based closures detected (descriptor + ICP verification)
+- **Consistency check:** `max|frontend - odom|` > 0 confirms front-end is working
+- **Machine-readable output:** `[SLAM_SUMMARY]` JSON line for automated testing
 
 ## Key Concepts
 
@@ -472,7 +483,7 @@ CHAPTER 7: VISUAL BUNDLE ADJUSTMENT EXAMPLE
 - **Structure**: Sparse factor graph with poses as variables
 - **Factors**: Prior (anchor) + odometry (sequential) + loop closure (long-range)
 - **Solver**: Gauss-Newton with sparse Cholesky factorization
-- **Performance**: Additional 20-35% global improvement
+- **Performance**: ~53% total improvement (front-end: 72%, backend refines further)
 
 **4. Visualization: Map Quality Assessment**
 - **Before**: Map from odometry poses (shows drift/misalignment)

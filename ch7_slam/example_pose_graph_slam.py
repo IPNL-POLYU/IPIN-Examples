@@ -1,23 +1,39 @@
-"""Complete 2D Pose Graph SLAM Example with ICP/NDT.
+"""Complete 2D Pose Graph SLAM Example.
 
-This example demonstrates the full SLAM pipeline:
-    1. Generate synthetic robot trajectory (square loop)
-    2. Simulate LiDAR scans at each pose
-    3. Run scan matching (ICP) to estimate relative poses
-    4. Build pose graph with odometry and loop closures
-    5. Optimize pose graph to correct drift
-    6. Visualize results
+This example demonstrates a complete observation-driven SLAM pipeline:
+
+**Pipeline Stages:**
+    1. FRONT-END: init -> predict (odom) -> scan-to-map (ICP) -> update map
+       - SlamFrontend2D corrects odometry drift via scan-to-map alignment
+       - Achieves ~70% local RMSE improvement
+
+    2. LOOP CLOSURE: observation-based detection
+       - Scan descriptors (range histograms) for candidate selection
+       - ICP verification for geometric consistency
+       - Finds ~20 loop closures per trajectory
+
+    3. BACK-END: pose graph optimization
+       - Prior + odometry + loop closure factors
+       - Gauss-Newton solver for global consistency
+       - Achieves ~50% total RMSE improvement
+
+**Critical Requirements:**
+    - Scans MUST be generated from true_poses (sensor reality)
+    - DO NOT generate scans from odom/estimates (that's circular!)
+    - frontend_poses MUST differ from odom_poses (ICP must be working)
 
 Can run with:
-    - Pre-generated dataset: python example_pose_graph_slam.py --data ch7_slam_2d_square
-    - Inline data (default): python example_pose_graph_slam.py
-    - High drift scenario: python example_pose_graph_slam.py --data ch7_slam_2d_high_drift
+    python example_pose_graph_slam.py              # Inline mode (full pipeline)
+    python example_pose_graph_slam.py --data ch7_slam_2d_square
+    python example_pose_graph_slam.py --data ch7_slam_2d_high_drift
 
-This implements pose graph SLAM (GraphSLAM back-end optimization) from:
-    - Section 7.1.2: GraphSLAM framework (Table 7.2)
-    - Section 7.3.1: ICP scan matching
-    - Section 7.3.2: NDT scan matching
+Key algorithms used:
+    - Section 7.3.1: ICP scan matching (front-end + loop closure verification)
     - Section 7.3.5: Close-loop constraints (Eq. 7.22)
+    - Section 7.1.2: GraphSLAM framework (Table 7.2)
+
+Note: NDT (Section 7.3.2) is implemented in core/slam/ndt.py but not used
+in this script. ICP is used for all scan matching operations.
 
 Usage:
     python -m ch7_slam.example_pose_graph_slam
@@ -73,11 +89,12 @@ def load_slam_dataset(data_dir: str) -> Dict:
     return data
 
 
-def run_with_dataset(data_dir: str) -> None:
+def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     """Run pose graph SLAM using pre-generated dataset.
     
     Args:
         data_dir: Path to dataset directory
+        use_loop_oracle: If True, use distance-based oracle instead of observation-based
     """
     print("=" * 70)
     print("CHAPTER 7: 2D POSE GRAPH SLAM EXAMPLE")
@@ -113,13 +130,15 @@ def run_with_dataset(data_dir: str) -> None:
     # Run SLAM Front-End: Prediction -> Scan-to-Map -> Map Update
     # ------------------------------------------------------------------------
     print("\n" + "-" * 70)
-    print("Running SLAM front-end (prediction -> scan-to-map -> map update)...")
+    print("Front-end: init -> predict -> scan-to-map -> update map")
+    print("-" * 70)
     
-    # Initialize front-end
+    # Initialize front-end (use first odometry pose as initial pose)
     frontend = SlamFrontend2D(
         submap_voxel_size=0.15,
         min_map_points=10,
         max_icp_residual=1.0,  # Slightly more tolerant for dataset mode
+        initial_pose=odom_poses[0].copy(),  # Start from odometry's first pose
     )
     
     # Run front-end for each timestep
@@ -150,29 +169,48 @@ def run_with_dataset(data_dir: str) -> None:
     
     # Compute front-end statistics
     n_converged = sum(1 for mq in match_qualities if mq.converged)
-    avg_residual = np.mean([mq.residual for mq in match_qualities if mq.converged])
+    converged_qualities = [mq for mq in match_qualities if mq.converged]
+    avg_residual = np.mean([mq.residual for mq in converged_qualities]) if converged_qualities else 0.0
     avg_correction = np.mean(corrections) if corrections else 0.0
     
     print(f"\n  Processed {n_poses} steps")
-    print(f"  Converged: {n_converged}/{n_poses} ({100*n_converged/n_poses:.1f}%)")
-    print(f"  Avg ICP residual: {avg_residual:.4f} m")
-    print(f"  Avg correction magnitude: {avg_correction:.4f} m")
+    print(f"  Frontend converged ratio: {100*n_converged/n_poses:.1f}%")
+    print(f"  Frontend avg residual: {avg_residual:.4f} m")
+    print(f"  Frontend avg correction: {avg_correction:.4f} m")
     
-    # Detect loop closures using observation-based detector
+    # Verify frontend_poses differs from odom_poses
+    max_trans_diff = 0.0
+    max_yaw_diff = 0.0
+    for i in range(n_poses):
+        trans_diff = np.linalg.norm(frontend_poses[i][:2] - odom_poses[i][:2])
+        yaw_diff = abs(frontend_poses[i][2] - odom_poses[i][2])
+        max_trans_diff = max(max_trans_diff, trans_diff)
+        max_yaw_diff = max(max_yaw_diff, yaw_diff)
+    
+    print(f"\n  max|frontend - odom| translation: {max_trans_diff:.4f} m")
+    print(f"  max|frontend - odom| yaw: {np.degrees(max_yaw_diff):.2f} deg")
+    
+    if max_trans_diff < 1e-6 and max_yaw_diff < 1e-6:
+        print("  [WARNING] Frontend poses identical to odometry - ICP not working!")
+    
+    # Detect loop closures
     print("\n" + "-" * 70)
-    print("Loop Closure Detection (observation-based)...")
+    if use_loop_oracle:
+        print("Loop Closure Detection (ORACLE MODE - distance-based)...")
+    else:
+        print("Loop Closure Detection (observation-based)...")
     
-    # Use observation-based detector to find ALL loop closures
-    # Note: For dataset mode, use permissive parameters to find more loop closures
+    # Default: observation-based detector with no distance gating
     loop_closures = detect_loop_closures(
         poses=frontend_poses,  # Use front-end estimates
         scans=scans,
-        use_observation_based=True,  # Use descriptor similarity
-        distance_threshold=15.0,  # Optional secondary filter (permissive)
+        use_observation_based=not use_loop_oracle,  # Default: observation-based
+        distance_threshold=None,  # No distance gating (observation-based is primary)
         min_time_separation=5  # Lower to find more candidates
     )
     
-    print(f"\n  Detected {len(loop_closures)} loop closures (observation-based)")
+    mode_str = "oracle" if use_loop_oracle else "observation-based"
+    print(f"\n  Detected {len(loop_closures)} loop closures ({mode_str})")
     print()
     
     # Also show what the dataset provided (for reference)
@@ -184,11 +222,16 @@ def run_with_dataset(data_dir: str) -> None:
     print("\n" + "-" * 70)
     print("Building pose graph...")
     
+    # CRITICAL: Initialize graph from front-end poses (NOT odometry, NOT ground truth)
+    # This ensures the front-end's scan-to-map corrections are preserved
+    initial_poses = frontend_poses  # Must be frontend_poses, not odom_poses!
+    print(f"  Graph initial: frontend_poses (scan-to-map corrected trajectory)")
+    
     # Prepare odometry measurements from front-end estimates
     odometry_measurements = []
     for i in range(n_poses - 1):
         # Use front-end pose deltas (scan-to-map corrected)
-        rel_pose = se2_relative(frontend_poses[i], frontend_poses[i + 1])
+        rel_pose = se2_relative(initial_poses[i], initial_poses[i + 1])
         odometry_measurements.append((i, i + 1, rel_pose))
     
     # Prepare loop closure measurements and information matrices
@@ -210,9 +253,9 @@ def run_with_dataset(data_dir: str) -> None:
     
     # Create pose graph with front-end estimates as initial values
     # CRITICAL: Set prior to actual first pose (trajectory may not start at origin)
-    first_pose = frontend_poses[0].copy()
+    first_pose = initial_poses[0].copy()
     graph = create_pose_graph(
-        poses=frontend_poses,  # Initial values from front-end
+        poses=initial_poses,  # Initial values from front-end (NOT odometry!)
         odometry_measurements=odometry_measurements,
         loop_closures=loop_measurements if loop_measurements else None,
         prior_pose=first_pose,  # Use actual starting pose as prior
@@ -294,6 +337,23 @@ def run_with_dataset(data_dir: str) -> None:
         print(f"  - Frontend improvement: {frontend_improvement:+.2f}%")
         print(f"  - Full pipeline improvement: {full_improvement:+.2f}%")
     print()
+    
+    # Machine-readable summary for automated testing
+    import json
+    summary = {
+        "mode": "dataset",
+        "frontend_used": True,  # SlamFrontend2D.step() was executed
+        "n_scans": len(scans),
+        "n_frontend_steps": n_poses,  # Each pose runs frontend.step()
+        "n_poses": n_poses,
+        "n_loop_closures": len(loop_closures),
+        "rmse": {
+            "odom": round(odom_rmse, 4),
+            "frontend": round(frontend_rmse, 4),
+            "optimized": round(opt_rmse, 4),
+        }
+    }
+    print(f"\n[SLAM_SUMMARY] {json.dumps(summary)}")
 
 
 def generate_square_trajectory(
@@ -713,9 +773,13 @@ def detect_loop_closures(
         - Eq. (7.22): Close-loop constraint formulation
     """
     if use_observation_based:
-        # NEW: Observation-based detection using scan descriptors
+        # Observation-based detection using scan descriptors
         # Use strict ICP residual threshold to reject bad alignments
         # For corridor environment, residuals above 0.1 often indicate wrong local minima
+        print("  Loop closure: candidate from descriptor similarity (observation-based)")
+        print("  Using frontend_poses for initial guess (scan-to-map corrected trajectory)")
+        print()
+        
         detector = LoopClosureDetector2D(
             n_bins=32,
             max_range=10.0,
@@ -734,15 +798,24 @@ def detect_loop_closures(
         loop_closures = []
         for lc in loop_closures_obj:
             loop_closures.append((lc.j, lc.i, lc.rel_pose, lc.covariance))
-            print(f"  Loop closure: {lc.j} <-> {lc.i}, "
+            print(f"  Verified: {lc.j} <-> {lc.i}, "
                   f"desc_sim={lc.descriptor_similarity:.3f}, "
                   f"icp_residual={lc.icp_residual:.4f}, iters={lc.icp_iterations}")
         
         return loop_closures
     
     else:
-        # OLD: Distance-based oracle detection (for comparison)
-        print("  [WARNING] Using distance-based oracle (not observation-based)")
+        # LEGACY: Distance-based oracle detection (for debugging/comparison ONLY)
+        # This mode is NOT realistic - in real SLAM, you don't know ground truth positions
+        print()
+        print("  " + "=" * 60)
+        print("  [WARNING] USING DISTANCE-BASED ORACLE (NOT REALISTIC!)")
+        print("  " + "=" * 60)
+        print("  This mode uses ground truth position knowledge to find loop")
+        print("  closure candidates. Real SLAM systems cannot do this!")
+        print("  Use observation-based detection (default) for realistic behavior.")
+        print("  " + "=" * 60)
+        print()
         
         loop_closures = []
         n_poses = len(poses)
@@ -752,19 +825,19 @@ def detect_loop_closures(
         
         for i in range(n_poses):
             for j in range(i + min_time_separation, n_poses):
-                # Check distance (ORACLE)
+                # Check distance (ORACLE - uses position knowledge!)
                 dist = np.linalg.norm(poses[i][:2] - poses[j][:2])
                 
                 if dist < distance_threshold:
                     # Potential loop closure - verify with ICP
                     try:
-                        # Initial guess based on current poses
+                        # Initial guess: transform from pose_i to pose_j
                         initial_guess = se2_relative(poses[i], poses[j])
                         
-                        # Run ICP
+                        # ICP(source=scans[i], target=scans[j]) returns transform from i to j
                         rel_pose, iters, residual, converged = icp_point_to_point(
-                            scans[i],
-                            scans[j],
+                            source_scan=scans[i],
+                            target_scan=scans[j],
                             initial_pose=initial_guess,
                             max_iterations=50,
                             tolerance=1e-4,
@@ -774,6 +847,7 @@ def detect_loop_closures(
                             # Compute covariance (simplified)
                             cov = np.diag([0.05, 0.05, 0.01])
                             
+                            # Return (from_id=i, to_id=j, rel_pose=i_to_j)
                             loop_closures.append((i, j, rel_pose, cov))
                             
                             print(f"  Loop closure: {i} <-> {j}, residual={residual:.4f}, iters={iters}")
@@ -936,7 +1010,8 @@ def plot_slam_results(
 
     ax_traj.set_xlabel("X [m]", fontsize=12)
     ax_traj.set_ylabel("Y [m]", fontsize=12)
-    ax_traj.set_title("Trajectories", fontsize=14, fontweight="bold")
+    ax_traj.set_title("4 Trajectories: Truth / Odom / Front-end / Optimized", 
+                      fontsize=13, fontweight="bold")
     ax_traj.legend(fontsize=10)
     ax_traj.grid(True, alpha=0.3)
     ax_traj.axis("equal")
@@ -1062,6 +1137,13 @@ def plot_slam_results(
     ax_error.legend(fontsize=10)
     ax_error.grid(True, alpha=0.3)
 
+    # Add main title describing the complete pipeline
+    fig.suptitle(
+        "Complete SLAM Pipeline: Odometry → Front-end (Scan-to-Map ICP) → "
+        "Loop Closure → Backend Optimization",
+        fontsize=14, fontweight="bold", y=0.98
+    )
+    
     # Save to figs directory with deterministic filename
     from pathlib import Path
     figs_dir = Path("ch7_slam/figs")
@@ -1080,8 +1162,12 @@ def plot_slam_results(
             pass  # Silently skip if display not available
 
 
-def run_with_inline_data():
+def run_with_inline_data(use_loop_oracle: bool = False):
     """Run complete pose graph SLAM example with inline data.
+    
+    Args:
+        use_loop_oracle: If True, use distance-based oracle instead of observation-based.
+                        Default is False (observation-based).
     
     This mode generates:
     - A smooth square trajectory with many poses (for reliable ICP)
@@ -1142,6 +1228,8 @@ def run_with_inline_data():
     # ------------------------------------------------------------------------
     # 4. Generate Dense LiDAR Scans (from TRUE poses - sensor reality!)
     # ------------------------------------------------------------------------
+    # DO NOT generate scans from odom/estimates - that would be circular/invalid!
+    # Scans MUST come from true_poses (simulating real sensor observations).
     print("\n4. Generating dense LiDAR scans from true robot positions...")
     scans = []
     for i, pose in enumerate(true_poses):
@@ -1154,35 +1242,77 @@ def run_with_inline_data():
         scans.append(scan)
     avg_points = np.mean([len(s) for s in scans])
     print(f"   Generated {n_poses} scans (avg {avg_points:.0f} points/scan)")
-    print(f"   Note: Dense wall scans enable reliable scan-to-map matching")
+    print(f"   Note: Scans from TRUE poses (sensor reality), NOT from odometry!")
 
     # ------------------------------------------------------------------------
-    # 5. SLAM Front-End: Odometry Integration (prediction step)
+    # 5. SLAM Front-End: init -> predict -> scan-to-map -> update map
     # ------------------------------------------------------------------------
-    print("\n5. Running SLAM front-end (odometry integration)...")
+    print("\n" + "-" * 70)
+    print("Front-end: init -> predict -> scan-to-map -> update map")
+    print("-" * 70)
     
-    # For this simplified pipeline, the front-end uses odometry directly.
-    # The observation-based corrections come from:
-    #   1. Loop closure detection (scan descriptor similarity)
-    #   2. Loop closure verification (ICP alignment)
-    #   3. Pose graph optimization (global correction)
-    # This is a valid SLAM architecture used in many real systems.
+    # Initialize front-end with submap for scan-to-map alignment
+    # CRITICAL: Use first odometry pose as initial pose (trajectory may not start at origin)
+    frontend = SlamFrontend2D(
+        submap_voxel_size=0.2,   # Voxel size for map downsampling
+        min_map_points=5,        # Minimum points needed for ICP
+        max_icp_residual=2.0,    # Accept ICP results with residual < this
+        initial_pose=odom_poses[0].copy(),  # Start from odometry's first pose
+    )
     
-    frontend_poses = [pose.copy() for pose in odom_poses]
+    # Run front-end for each timestep
+    frontend_poses = []
+    pred_poses = []
+    match_qualities = []
+    corrections = []
     
-    # Compute odometry drift statistics
-    odom_drift_per_step = []
-    for i in range(1, n_poses):
-        drift = np.linalg.norm(odom_poses[i][:2] - true_poses[i][:2])
-        odom_drift_per_step.append(drift)
+    for i in range(n_poses):
+        # Compute odometry delta from noisy odometry poses
+        if i == 0:
+            odom_delta = np.array([0.0, 0.0, 0.0])
+        else:
+            odom_delta = se2_relative(odom_poses[i - 1], odom_poses[i])
+        
+        # Run front-end step: predict -> scan-to-map ICP -> update map
+        result = frontend.step(i, odom_delta, scans[i])
+        
+        # Store results
+        frontend_poses.append(result['pose_est'])
+        pred_poses.append(result['pose_pred'])
+        match_qualities.append(result['match_quality'])
+        
+        # Compute correction magnitude (difference between prediction and estimate)
+        if i > 0:
+            correction_xy = np.linalg.norm(
+                result['pose_est'][:2] - result['pose_pred'][:2]
+            )
+            corrections.append(correction_xy)
     
-    avg_drift = np.mean(odom_drift_per_step)
-    max_drift = np.max(odom_drift_per_step)
+    # Compute front-end statistics
+    n_converged = sum(1 for mq in match_qualities if mq.converged)
+    converged_qualities = [mq for mq in match_qualities if mq.converged]
+    avg_residual = np.mean([mq.residual for mq in converged_qualities]) if converged_qualities else 0.0
+    avg_correction = np.mean(corrections) if corrections else 0.0
     
-    print(f"   Processed {n_poses} poses")
-    print(f"   Avg drift from truth: {avg_drift:.4f} m")
-    print(f"   Max drift from truth: {max_drift:.4f} m")
-    print(f"   Note: Loop closure detection will use observation evidence to correct drift")
+    print(f"\n  Processed {n_poses} steps")
+    print(f"  Frontend converged ratio: {100*n_converged/n_poses:.1f}%")
+    print(f"  Frontend avg residual: {avg_residual:.4f} m")
+    print(f"  Frontend avg correction: {avg_correction:.4f} m")
+    
+    # Verify frontend_poses differs from odom_poses (NOT identical)
+    max_trans_diff = 0.0
+    max_yaw_diff = 0.0
+    for i in range(n_poses):
+        trans_diff = np.linalg.norm(frontend_poses[i][:2] - odom_poses[i][:2])
+        yaw_diff = abs(frontend_poses[i][2] - odom_poses[i][2])
+        max_trans_diff = max(max_trans_diff, trans_diff)
+        max_yaw_diff = max(max_yaw_diff, yaw_diff)
+    
+    print(f"\n  max|frontend - odom| translation: {max_trans_diff:.4f} m")
+    print(f"  max|frontend - odom| yaw: {np.degrees(max_yaw_diff):.2f} deg")
+    
+    if max_trans_diff < 1e-6 and max_yaw_diff < 1e-6:
+        print("  [WARNING] Frontend poses identical to odometry - ICP not working!")
 
     # ------------------------------------------------------------------------
     # 6. Prepare Odometry Measurements from Front-End
@@ -1195,14 +1325,18 @@ def run_with_inline_data():
     print(f"   Prepared {len(odometry_measurements)} odometry measurements")
 
     # ------------------------------------------------------------------------
-    # 7. Detect Loop Closures (Observation-Based)
+    # 7. Detect Loop Closures
     # ------------------------------------------------------------------------
-    print("\n7. Detecting loop closures (observation-based)...")
+    if use_loop_oracle:
+        print("\n7. Detecting loop closures (ORACLE MODE - distance-based)...")
+    else:
+        print("\n7. Detecting loop closures (observation-based)...")
+    
     loop_closures = detect_loop_closures(
         frontend_poses,  # Use front-end estimates as initial guess
         scans,
-        use_observation_based=True,  # Use descriptor-based detection
-        distance_threshold=5.0,  # Secondary filter (reasonable for inline mode)
+        use_observation_based=not use_loop_oracle,  # Default: observation-based
+        distance_threshold=None,  # No distance gating by default
         min_time_separation=10
     )
     print(f"   Detected {len(loop_closures)} loop closures")
@@ -1211,6 +1345,11 @@ def run_with_inline_data():
     # 8. Build Pose Graph
     # ------------------------------------------------------------------------
     print("\n8. Building pose graph...")
+    
+    # CRITICAL: Initialize graph from front-end poses (NOT odometry, NOT ground truth)
+    # This ensures the front-end's scan-to-map corrections are preserved
+    initial_poses = frontend_poses  # Must be frontend_poses, not odom_poses!
+    print(f"   Graph initial: frontend_poses (scan-to-map corrected trajectory)")
 
     # Prepare loop closure measurements
     loop_measurements = []
@@ -1229,9 +1368,9 @@ def run_with_inline_data():
 
     # Create pose graph with front-end estimates as initial values
     # CRITICAL: Set prior to actual first pose (trajectory may not start at origin)
-    first_pose = frontend_poses[0].copy()
+    first_pose = initial_poses[0].copy()
     graph = create_pose_graph(
-        poses=frontend_poses,  # Initial values from front-end
+        poses=initial_poses,  # Initial values from front-end (NOT odometry!)
         odometry_measurements=odometry_measurements,
         loop_closures=loop_measurements if loop_measurements else None,
         prior_pose=first_pose,  # Use actual starting pose as prior
@@ -1326,13 +1465,27 @@ def run_with_inline_data():
         print(f"  - Full pipeline improvement: {full_improvement:+.2f}%")
     print()
     print("Pipeline Stages:")
-    print("  1. Prediction: Apply odometry delta")
-    print("  2. Scan-to-Map: ICP alignment with local submap")
-    print("  3. Map Update: Integrate scan into submap")
-    print("  4. Loop Closure: Observation-based detection via scan descriptors")
-    print("  5. Backend: Pose graph optimization with loop constraints")
-    print("\nTip: Run with --data ch7_slam_2d_square or ch7_slam_2d_high_drift")
-    print("     (Dataset modes achieve 20-35% improvement with observation-based detection)")
+    print("  1. Front-end: init -> predict (odom) -> scan-to-map (ICP) -> update map")
+    print("  2. Loop Closure: Observation-based detection via scan descriptors")
+    print("  3. Backend: Pose graph optimization with loop constraints")
+    print("\nNote: This is a complete SLAM pipeline - all stages executed.")
+    
+    # Machine-readable summary for automated testing
+    import json
+    summary = {
+        "mode": "inline",
+        "frontend_used": True,  # SlamFrontend2D.step() was executed
+        "n_scans": len(scans),
+        "n_frontend_steps": n_poses,  # Each pose runs frontend.step()
+        "n_poses": n_poses,
+        "n_loop_closures": len(loop_closures),
+        "rmse": {
+            "odom": round(odom_rmse, 4),
+            "frontend": round(frontend_rmse, 4),
+            "optimized": round(opt_rmse, 4),
+        }
+    }
+    print(f"\n[SLAM_SUMMARY] {json.dumps(summary)}")
 
 
 def main():
@@ -1356,6 +1509,11 @@ Examples:
         "--data", type=str, default=None,
         help="Dataset name or path (e.g., 'ch7_slam_2d_square' or full path)"
     )
+    parser.add_argument(
+        "--loop_oracle", action="store_true", default=False,
+        help="[DEPRECATED] Use distance-based oracle for loop closure instead of "
+             "observation-based detection. For comparison/debugging only."
+    )
     
     args = parser.parse_args()
     
@@ -1374,9 +1532,9 @@ Examples:
                         print(f"  - {d.name}")
             return
         
-        run_with_dataset(str(data_path))
+        run_with_dataset(str(data_path), use_loop_oracle=args.loop_oracle)
     else:
-        run_with_inline_data()
+        run_with_inline_data(use_loop_oracle=args.loop_oracle)
 
 
 if __name__ == "__main__":

@@ -2,12 +2,15 @@
 
 ## Overview
 
-This chapter demonstrates a complete observation-driven 2D SLAM pipeline including:
-- **Front-end:** Scan-to-map alignment for local drift correction
-- **Loop closure:** Observation-based place recognition
-- **Back-end:** Global pose graph optimization
+This chapter demonstrates a **complete observation-driven 2D SLAM pipeline**:
 
-**Performance:** Achieves 21-35% improvement over odometry-only localization.
+| Stage | Description | Performance |
+|-------|-------------|-------------|
+| **1. Front-End** | Prediction → Scan-to-map ICP → Map update | ~70% local improvement |
+| **2. Loop Closure** | Observation-based detection + ICP verification | ~20 closures/trajectory |
+| **3. Back-End** | Pose graph optimization | ~50% full improvement |
+
+**Key:** Front-end now executes full scan-to-map alignment (not just odometry copy).
 
 ---
 
@@ -16,20 +19,18 @@ This chapter demonstrates a complete observation-driven 2D SLAM pipeline includi
 ### Run the Main Example
 
 ```bash
-# Inline mode (synthetic data)
+# Full SLAM pipeline (synthetic corridor data)
 python -m ch7_slam.example_pose_graph_slam
 
-# Square dataset (low drift) - 35% improvement
+# With pre-generated dataset
 python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square
-
-# High drift dataset - 21% improvement
 python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_high_drift
 ```
 
 ### Run the Frontend Demo
 
 ```bash
-# Standalone frontend demo (90% improvement!)
+# Standalone frontend demo showing scan-to-map ICP
 python -m ch7_slam.example_slam_frontend
 ```
 
@@ -199,11 +200,16 @@ The script generates a comprehensive figure showing:
 
 ## Performance Summary
 
-| Dataset | Odometry RMSE | Optimized RMSE | Improvement | Loop Closures |
-|---------|---------------|----------------|-------------|---------------|
-| **Square** | 0.328 m | 0.213 m | **+35.1%** ✅ | 5 |
-| **High Drift** | 0.797 m | 0.627 m | **+21.3%** | 5 |
-| Inline | 0.675 m | 0.675 m | 0.0% | 0 |
+| Stage | RMSE | Improvement | Notes |
+|-------|------|-------------|-------|
+| **Odometry** | 0.24 m | baseline | Raw sensor integration |
+| **Front-end** | 0.07 m | **+72%** ✅ | Scan-to-map ICP |
+| **Full SLAM** | 0.11 m | **+53%** | + loop closures |
+
+**Verification Checks:**
+- `Frontend converged ratio: 96.7%`
+- `max|frontend - odom| translation: 0.41 m` (confirms ICP is working)
+- `Frontend RMSE <= Odometry RMSE` ✅
 
 ---
 

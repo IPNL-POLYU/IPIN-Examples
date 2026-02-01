@@ -294,18 +294,21 @@ class LoopClosureDetector2D:
         if len(scan_i) < 5 or len(scan_j) < 5:
             return None
         
-        # Initial guess for ICP
+        # Initial guess for ICP: transform from j (earlier) to i (later)
+        # This is se2_relative(pose_j, pose_i) = inv(pose_j) @ pose_i
         if pose_i is not None and pose_j is not None:
             initial_guess = se2_relative(pose_j, pose_i)
         else:
             initial_guess = np.array([0.0, 0.0, 0.0])
         
-        # Run ICP
+        # Run ICP to find transform from j to i
+        # ICP(source, target) returns transform that aligns source to target
+        # So ICP(scan_j, scan_i) returns transform from frame_j to frame_i
         try:
             rel_pose, iters, residual, converged = icp_point_to_point(
-                source_scan=scan_i,
-                target_scan=scan_j,
-                initial_pose=initial_guess,
+                source_scan=scan_j,  # Earlier scan (match)
+                target_scan=scan_i,  # Later scan (query)
+                initial_pose=initial_guess,  # Initial guess: j to i
                 max_iterations=self.icp_max_iterations,
                 tolerance=self.icp_tolerance,
             )
