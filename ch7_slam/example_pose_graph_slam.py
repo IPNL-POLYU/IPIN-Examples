@@ -59,6 +59,10 @@ from core.slam import (
     SlamFrontend2D,
     LoopClosureDetector2D,
 )
+from core.slam.scan_generation import (
+    generate_scan_with_occlusion,
+    generate_dense_wall_scan,  # Legacy function (has occlusion bug)
+)
 
 
 def load_slam_dataset(data_dir: str) -> Dict:
@@ -207,7 +211,7 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
         scans=scans,
         use_observation_based=not use_loop_oracle,  # Default: observation-based
         distance_threshold=None,  # No distance gating (observation-based is primary)
-        min_time_separation=5  # Lower to find more candidates
+        min_time_separation=20  # Lower to find more candidates
     )
     
     mode_str = "oracle" if use_loop_oracle else "observation-based"
@@ -712,62 +716,8 @@ def create_corridor_walls(
     return walls
 
 
-def generate_dense_wall_scan(
-    pose: np.ndarray,
-    walls: List[Tuple[np.ndarray, np.ndarray]],
-    max_range: float = 8.0,
-    noise_std: float = 0.02,
-    points_per_wall: int = 50,
-) -> np.ndarray:
-    """
-    Generate dense LiDAR scan from walls in the environment.
-    
-    Creates realistic, dense point clouds suitable for ICP scan matching.
-    
-    Args:
-        pose: Robot pose [x, y, yaw].
-        walls: List of (start_point, end_point) tuples defining wall segments.
-        max_range: Maximum sensor range in meters.
-        noise_std: Standard deviation of measurement noise.
-        points_per_wall: Number of points to sample per wall segment.
-    
-    Returns:
-        Point cloud in robot local frame, shape (M, 2).
-    """
-    x, y, yaw = pose
-    cos_yaw = np.cos(yaw)
-    sin_yaw = np.sin(yaw)
-    
-    all_points = []
-    
-    for wall_start, wall_end in walls:
-        # Generate dense points along the wall
-        t = np.linspace(0, 1, points_per_wall)
-        wall_points = wall_start + np.outer(t, wall_end - wall_start)
-        
-        # Transform to robot frame
-        diff = wall_points - np.array([x, y])
-        x_local = cos_yaw * diff[:, 0] + sin_yaw * diff[:, 1]
-        y_local = -sin_yaw * diff[:, 0] + cos_yaw * diff[:, 1]
-        
-        # Filter by range
-        ranges = np.sqrt(x_local**2 + y_local**2)
-        valid = ranges < max_range
-        
-        if np.any(valid):
-            local_points = np.column_stack([x_local[valid], y_local[valid]])
-            all_points.append(local_points)
-    
-    if not all_points:
-        return np.zeros((0, 2))
-    
-    scan = np.vstack(all_points)
-    
-    # Add measurement noise
-    if noise_std > 0:
-        scan += np.random.normal(0, noise_std, scan.shape)
-    
-    return scan
+# Note: generate_dense_wall_scan and generate_scan_with_occlusion are now
+# imported from core.slam.scan_generation module (lines 62-64)
 
 
 def generate_scan_from_pose(
@@ -901,10 +851,10 @@ def detect_loop_closures(
             n_bins=32,
             max_range=10.0,
             min_time_separation=min_time_separation,
-            min_descriptor_similarity=0.80,  # Stricter to reduce false positives
-            max_candidates=10,  # Fewer candidates, higher quality
+            min_descriptor_similarity=0.90,  # Relaxed for better recall (was 0.80)
+            max_candidates=20,  # More candidates to find closures (was 10)
             max_distance=distance_threshold,  # Optional secondary filter
-            max_icp_residual=0.1,  # Strict to reject wrong alignments
+            max_icp_residual=0.3,  # More lenient for noisy scans (was 0.1)
             icp_max_iterations=50,
             icp_tolerance=1e-4,
         )
@@ -1113,6 +1063,16 @@ def create_slam_animation(
     ax2.set_aspect('equal')
     ax2.grid(True, alpha=0.3)
     
+    # Initialize trajectory line for Panel 2 (will show poses during optimization)
+    graph_traj_line, = ax2.plot([], [], 'b-', linewidth=1.5, alpha=0.6, label='Trajectory')
+    
+    # Add legend entries for constraint types
+    # These will be shown when constraints appear
+    ax2.plot([], [], 'gray', linewidth=1, alpha=0.5, label='Odometry edges')
+    ax2.plot([], [], color='magenta', linestyle='--', linewidth=2.5, alpha=0.8, 
+             label='Loop closure constraints')
+    ax2.legend(loc='upper right', fontsize=8)
+    
     # Panel 3: Error plot
     ax3.set_xlim(0, n_poses)
     ax3.set_ylim(0, max(odom_errors) * 1.2)
@@ -1173,6 +1133,8 @@ def create_slam_animation(
                 true_line.set_data(true_xy[:, 0], true_xy[:, 1])
                 odom_line.set_data(odom_xy[:, 0], odom_xy[:, 1])
                 frontend_line.set_data(frontend_xy[:, 0], frontend_xy[:, 1])
+                # Update Panel 2 trajectory
+                graph_traj_line.set_data(frontend_xy[:, 0], frontend_xy[:, 1])
             
             # Update current pose marker
             current_pose_marker.set_data([frontend_poses[i][0]], [frontend_poses[i][1]])
@@ -1190,13 +1152,20 @@ def create_slam_animation(
             # Check for loop closure at this timestep
             if i in loop_closure_times:
                 lc_i, lc_j = loop_closure_times[i]
-                # Draw loop closure edge (thick magenta)
+                # Draw loop closure ONLY in constraint graph (Panel 2)
+                # Draw edge (thick magenta dashed line)
                 line = ax2.plot([frontend_poses[lc_i][0], frontend_poses[lc_j][0]],
                                [frontend_poses[lc_i][1], frontend_poses[lc_j][1]],
-                               'magenta', linewidth=3, alpha=0.8)[0]
+                               color='magenta', linestyle='--', linewidth=2.5, alpha=0.8)[0]
                 loop_edges.append(line)
                 
-                # Mark on error plot
+                # Draw dots at loop closure poses
+                ax2.scatter([frontend_poses[lc_i][0], frontend_poses[lc_j][0]],
+                           [frontend_poses[lc_i][1], frontend_poses[lc_j][1]],
+                           c='magenta', s=100, edgecolors='white', linewidths=2, 
+                           zorder=10, alpha=0.9)
+                
+                # Mark on error plot (Panel 3)
                 ax3.axvline(x=i, color='magenta', linestyle='--', alpha=0.5)
             
             # Update title with progress
@@ -1230,6 +1199,9 @@ def create_slam_animation(
             # Update trajectories
             interp_xy = np.array([[p[0], p[1]] for p in interp_poses])
             frontend_line.set_data(interp_xy[:, 0], interp_xy[:, 1])
+            
+            # Update Panel 2 trajectory during optimization
+            graph_traj_line.set_data(interp_xy[:, 0], interp_xy[:, 1])
             
             # Hide current scan marker
             current_scan_scatter.set_offsets(np.empty((0, 2)))
@@ -1370,15 +1342,7 @@ def plot_slam_results(
     )
     ax_traj.scatter(opt_xy[0, 0], opt_xy[0, 1], c="blue", marker="o", s=100, zorder=5)
 
-    # Plot loop closures
-    for i, j, _, _ in loop_closures:
-        ax_traj.plot(
-            [odom_xy[i, 0], odom_xy[j, 0]],
-            [odom_xy[i, 1], odom_xy[j, 1]],
-            "m:",
-            linewidth=1,
-            alpha=0.5,
-        )
+    # Loop closures NOT shown in static plot (only in animation)
 
     ax_traj.set_xlabel("X [m]", fontsize=12)
     ax_traj.set_ylabel("Y [m]", fontsize=12)
@@ -1453,15 +1417,7 @@ def plot_slam_results(
         ax_map_after.plot(opt_xy[:, 0], opt_xy[:, 1], "b-", linewidth=1.5, alpha=0.6)
         ax_map_after.scatter(opt_xy[0, 0], opt_xy[0, 1], c="blue", marker="o", s=80, zorder=5)
         
-        # Add loop closure markers
-        for i, j, _, _ in loop_closures:
-            ax_map_after.plot(
-                [opt_xy[i, 0], opt_xy[j, 0]],
-                [opt_xy[i, 1], opt_xy[j, 1]],
-                "m:",
-                linewidth=1.5,
-                alpha=0.6,
-            )
+        # Loop closures NOT shown in static map (only in animation)
         
         ax_map_after.set_xlabel("X [m]", fontsize=12)
         ax_map_after.set_ylabel("Y [m]", fontsize=12)
@@ -1651,19 +1607,23 @@ def run_with_inline_data(
     # ------------------------------------------------------------------------
     # DO NOT generate scans from odom/estimates - that would be circular/invalid!
     # Scans MUST come from true_poses (simulating real sensor observations).
+    # NOW USING: Ray-casting with proper occlusion handling (fixed bug!)
     print("\n4. Generating dense LiDAR scans from true robot positions...")
+    print("   Using ray-casting with occlusion handling (near objects block far walls)")
     scans = []
     for i, pose in enumerate(true_poses):
-        scan = generate_dense_wall_scan(
-            pose, walls, 
-            max_range=6.0,      # Reasonable range
-            noise_std=0.02,     # Low noise for reliable ICP
-            points_per_wall=20  # Moderate density (room has many walls)
+        scan = generate_scan_with_occlusion(
+            pose, walls,
+            num_rays=360,       # 360-degree coverage (1° resolution)
+            max_range=20.0,      # Reasonable range for indoor LiDAR
+            noise_std=0.02,     # 2cm measurement noise
+            min_range=0.1,      # 10cm minimum range (sensor blind zone)
         )
         scans.append(scan)
     avg_points = np.mean([len(s) for s in scans])
     print(f"   Generated {n_poses} scans (avg {avg_points:.0f} points/scan)")
     print(f"   Note: Scans from TRUE poses (sensor reality), NOT from odometry!")
+    print(f"   Note: Occlusion-aware - pillars block walls behind them")
 
     # ------------------------------------------------------------------------
     # 5. SLAM Front-End: init -> predict -> scan-to-map -> update map

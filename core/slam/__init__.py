@@ -82,6 +82,11 @@ from .scan_matching import (
     find_correspondences,
     icp_point_to_point,
 )
+from .scan_generation import (
+    generate_scan_with_occlusion,
+    generate_dense_wall_scan,
+    ray_segment_intersection,
+)
 from .se2 import (
     se2_apply,
     se2_compose,
@@ -131,6 +136,10 @@ __all__ = [
     "align_svd",
     "icp_point_to_point",
     "compute_icp_covariance",
+    # Scan generation
+    "generate_scan_with_occlusion",
+    "generate_dense_wall_scan",
+    "ray_segment_intersection",
     # NDT alignment
     "build_ndt_map",
     "ndt_score",
