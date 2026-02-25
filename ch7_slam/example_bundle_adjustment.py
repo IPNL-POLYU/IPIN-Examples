@@ -499,7 +499,7 @@ def main(animate: bool = False):
     print(f"   Generated {n_poses} camera poses (circular trajectory)")
     
     # Landmarks (3D features in the scene)
-    n_landmarks = 15
+    n_landmarks = 6  # Reduced from 15 for easier tracking in visualization
     landmarks_true = generate_landmarks(n_landmarks=n_landmarks, area_size=4.0)
     print(f"   Generated {n_landmarks} 3D landmarks")
 
@@ -528,8 +528,8 @@ def main(animate: bool = False):
     poses_init, landmarks_init = add_noise_to_estimates(
         poses_true,
         landmarks_true,
-        pose_noise=0.05,      # 5cm position, ~3deg heading (start closer for stability)
-        landmark_noise=0.1,   # 10cm landmark position
+        pose_noise=0.3,      # 30cm position, ~17deg heading (larger noise for better visualization)
+        landmark_noise=0.5,   # 50cm landmark position (increased from 10cm)
     )
     
     pose_init_rmse = np.sqrt(np.mean([
@@ -628,7 +628,7 @@ def main(animate: bool = False):
         saved_vars = {k: v.copy() for k, v in graph.variables.items()}
         
         # Apply update
-        graph._update_variables(delta_x)
+        graph._update_variables(delta_x * 0.3)  # Apply only 30% of step for slower convergence
         
         # Compute new error
         new_error = graph.compute_error()
