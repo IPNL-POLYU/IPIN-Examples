@@ -246,94 +246,129 @@ def fit_classifier(
     )
 
 
+def fit_floor_classifier(
+    db: FingerprintDatabase,
+    n_estimators: int = 50,
+    random_state: int = 42,
+) -> "RandomForestClassifier":
+    """Train a Random Forest classifier for floor detection (offline).
+
+    This factory produces a model that can be passed to
+    ``hierarchical_localize(coarse_model=...)`` so that inference never
+    re-trains the classifier.
+
+    Args:
+        db: Fingerprint database with multi-floor data.
+        n_estimators: Number of trees in the forest.
+        random_state: Seed for reproducibility.
+
+    Returns:
+        Fitted ``RandomForestClassifier`` ready for ``predict()``.
+
+    Raises:
+        ImportError: If scikit-learn is not installed.
+        ValueError: If the database contains only one floor.
+
+    References:
+        Chapter 5, Section 5.2: Classification-based coarse localisation.
+    """
+    if not SKLEARN_AVAILABLE:
+        raise ImportError(
+            "scikit-learn is required for floor classification. "
+            "Install it with: pip install scikit-learn"
+        )
+    if db.n_floors <= 1:
+        raise ValueError(
+            "fit_floor_classifier requires a multi-floor database "
+            f"(got {db.n_floors} floor(s))."
+        )
+
+    features = db.get_mean_features()
+    floor_labels = db.floor_ids
+
+    clf = RandomForestClassifier(
+        n_estimators=n_estimators, random_state=random_state,
+    )
+    clf.fit(features, floor_labels)
+    return clf
+
+
 def hierarchical_localize(
     z: Fingerprint,
     db: FingerprintDatabase,
     coarse_method: Literal["floor", "random_forest"] = "floor",
     fine_method: Literal["nn", "knn", "map", "posterior_mean"] = "knn",
+    coarse_model: Optional[object] = None,
     **fine_method_kwargs,
 ) -> Tuple[Location, dict]:
-    """
-    Hierarchical coarse-to-fine localization.
-    
-    This function implements the two-step hierarchical approach discussed in
-    Chapter 5: first classify into coarse regions (floor, zone), then perform
-    fine-grained localization within that region.
-    
+    """Hierarchical coarse-to-fine localization.
+
+    Implements the two-step approach from Chapter 5: first classify into a
+    coarse region (floor / zone), then run fine-grained localization within
+    that region.
+
     Args:
-        z: Query fingerprint, shape (N,)
-        db: FingerprintDatabase
-        coarse_method: Coarse classification method:
-                      - "floor": Classify floor first (if multi-floor)
-                      - "random_forest": Use RF classifier for coarse regions
-        fine_method: Fine localization method:
-                    - "nn": Nearest neighbor
-                    - "knn": k-Nearest neighbors
-                    - "map": Maximum a posteriori (Bayesian)
-                    - "posterior_mean": Posterior mean (Bayesian)
-        **fine_method_kwargs: Arguments for fine localization method
-    
+        z: Query fingerprint, shape (N,).
+        db: FingerprintDatabase.
+        coarse_method: Coarse classification strategy:
+            - ``"floor"``: nearest-neighbour floor classification.
+            - ``"random_forest"``: Random Forest floor classifier.
+        fine_method: Fine localization method (``"nn"``, ``"knn"``,
+            ``"map"``, ``"posterior_mean"``).
+        coarse_model: Optional pre-trained coarse classifier (e.g. the
+            return value of :func:`fit_floor_classifier`).  When provided
+            the classifier is used directly instead of being re-trained on
+            every call.
+        **fine_method_kwargs: Forwarded to the fine localization function.
+
     Returns:
-        Tuple of (predicted_location, info_dict)
-    
+        Tuple of ``(predicted_location, info_dict)``.
+
     Examples:
-        >>> # Two-step: classify floor, then k-NN
+        >>> # Offline: train once
+        >>> clf = fit_floor_classifier(db)
+        >>> # Online: re-use the trained model
         >>> pos, info = hierarchical_localize(
-        ...     query,
-        ...     db,
-        ...     coarse_method="floor",
-        ...     fine_method="knn",
-        ...     k=5
+        ...     query, db,
+        ...     coarse_method="random_forest",
+        ...     coarse_model=clf,
+        ...     fine_method="knn", k=5,
         ... )
-        >>> print(f"Coarse: Floor {info['coarse_floor']}, Fine: {pos}")
-    
+
     References:
-        Chapter 5, Section 5.2: Discusses hierarchical classification approach
-        for improved accuracy and efficiency.
+        Chapter 5, Section 5.2: Hierarchical classification approach.
     """
     info = {"coarse_method": coarse_method, "fine_method": fine_method}
-    
+
     # Step 1: Coarse classification
     if coarse_method == "floor":
-        # Floor classification (simple approach for multi-floor)
         if db.n_floors == 1:
-            # Single floor, skip coarse step
             floor_id = db.floor_ids[0]
             info["coarse_floor"] = int(floor_id)
         else:
-            # Classify floor using simple nearest neighbor
             from .deterministic import nn_localize
-            
-            # NN without floor constraint to get initial floor estimate
+
             pos_nn = nn_localize(z, db, floor_id=None)
-            
-            # Find which floor this position belongs to
-            # (Find closest RP and use its floor)
             distances = np.linalg.norm(db.locations - pos_nn, axis=1)
             closest_rp_idx = np.argmin(distances)
             floor_id = db.floor_ids[closest_rp_idx]
             info["coarse_floor"] = int(floor_id)
-    
+
     elif coarse_method == "random_forest":
-        # Use Random Forest for coarse region classification
-        # For simplicity, classify floor first
         if not SKLEARN_AVAILABLE:
             raise ImportError("scikit-learn required for random_forest coarse method")
-        
-        # Train floor classifier if multi-floor
+
         if db.n_floors > 1:
-            features = db.get_mean_features()
-            floor_labels = db.floor_ids
-            
-            rf_floor = RandomForestClassifier(n_estimators=50, random_state=42)
-            rf_floor.fit(features, floor_labels)
-            
-            floor_id = rf_floor.predict(z.reshape(1, -1))[0]
+            if coarse_model is not None:
+                clf = coarse_model
+            else:
+                clf = fit_floor_classifier(db)
+            floor_id = clf.predict(z.reshape(1, -1))[0]
             info["coarse_floor"] = int(floor_id)
         else:
             floor_id = db.floor_ids[0]
             info["coarse_floor"] = int(floor_id)
-    
+
     else:
         raise ValueError(
             f"Unknown coarse_method '{coarse_method}'. Use 'floor' or 'random_forest'."

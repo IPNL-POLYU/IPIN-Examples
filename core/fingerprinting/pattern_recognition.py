@@ -1,14 +1,18 @@
-"""Pattern recognition methods for fingerprinting (Chapter 5).
+"""Pattern recognition regression localizer for fingerprinting (Chapter 5).
 
-This module implements linear regression-based fingerprinting, treating
-localization as a supervised learning regression problem.
+This module implements a *direct mapping* from RSS fingerprint space to
+physical location space via linear regression.  It does **not** model RF
+propagation (path-loss, fading, etc.); instead it learns the inverse
+relationship from data:
 
-Key concept:
-    Learn mapping f: z → x where z is RSS fingerprint and x is location.
-    Use linear model: x̂ = Wz + b
+    x_hat = W z + b
+
+where ``z`` is the observed RSS vector (N APs) and ``x_hat`` is the
+predicted location.  This is a supervised regression problem, not a
+signal-strength generator.
 
 Author: Li-Ta Hsu
-Date: 2024
+Date: Jan 2026
 """
 
 from dataclasses import dataclass
@@ -21,37 +25,32 @@ from .types import Fingerprint, FingerprintDatabase, Location
 
 @dataclass
 class LinearRegressionLocalizer:
-    """
-    Linear regression model for fingerprint-based localization.
+    """Direct regression localizer: RSS fingerprint -> location.
 
-    This model learns a linear mapping from RSS fingerprint space to
-    location space. For each coordinate dimension, it fits:
+    Learns a linear mapping ``x_hat = W z + b`` from the fingerprint
+    feature space to physical coordinates.  This is a *regression*
+    localizer (not an RF propagation model).  The weight matrix ``W``
+    encodes the learned inverse relationship between received signal
+    strengths and spatial position.
+
+    For each coordinate dimension *d* the model fits:
+
         x_d = w_d^T z + b_d
 
-    where w_d is the weight vector for dimension d, and b_d is the bias.
-
-    The model can be trained separately per floor or across all floors.
-    For multi-floor localization, use separate models per floor.
-
     Attributes:
-        weights: Weight matrix W, shape (d, N) where d is location dimension
-                 (2D or 3D) and N is number of features (APs).
+        weights: Weight matrix W, shape (d, N) where d is location
+            dimension (2D or 3D) and N is number of features (APs).
         bias: Bias vector b, shape (d,).
-        floor_id: Optional floor identifier. If set, model is trained only
-                  on data from this floor. If None, trained on all floors.
+        floor_id: Optional floor identifier.  If set, model is trained
+            only on data from this floor.
         n_training_samples: Number of samples used for training.
         meta: Metadata dictionary (e.g., AP IDs, building info).
 
     Example:
         >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
-        >>> 
-        >>> # Train separate model for floor 0
         >>> model_floor0 = LinearRegressionLocalizer.fit(db, floor_id=0)
-        >>> 
-        >>> # Predict location
         >>> z_query = np.array([-51, -61, -71])
         >>> x_hat = model_floor0.predict(z_query)
-        >>> print(f"Predicted location: {x_hat}")
 
     References:
         Chapter 5: Pattern recognition approach to fingerprinting.

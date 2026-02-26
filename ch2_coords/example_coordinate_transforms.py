@@ -36,6 +36,7 @@ from core.coords import (
     euler_to_quat,
     euler_to_rotation_matrix,
     llh_to_ecef,
+    quat_to_euler,
     quat_to_rotation_matrix,
     rotation_matrix_to_euler,
 )
@@ -293,11 +294,32 @@ def run_with_inline_data() -> None:
     v_nav = R_nav_body @ v_body
     print(f"Vector in navigation frame: {v_nav}")
 
-    # Example 6: Round-trip rotation conversions
-    print("\n6. Round-trip Rotation Conversions")
+    # Example 6: Quaternion -> Euler (direct, Eqs. 2.22-2.23)
+    print("\n6. Quaternion -> Euler (Eqs. 2.22-2.23)")
     print("-" * 70)
 
-    # Euler -> matrix -> Euler
+    euler_from_quat = quat_to_euler(q)
+    print(f"Quaternion: {q}")
+    print(f"Euler from quat_to_euler: "
+          f"[{np.rad2deg(euler_from_quat[0]):.1f}°, "
+          f"{np.rad2deg(euler_from_quat[1]):.1f}°, "
+          f"{np.rad2deg(euler_from_quat[2]):.1f}°]")
+    print(f"Original Euler:           "
+          f"[{np.rad2deg(roll):.1f}°, "
+          f"{np.rad2deg(pitch):.1f}°, "
+          f"{np.rad2deg(yaw):.1f}°]")
+
+    # Round-trip check: Euler -> Quat -> Euler
+    q_rt = euler_to_quat(roll, pitch, yaw)
+    euler_rt = quat_to_euler(q_rt)
+    rt_error = np.max(np.abs(np.array([roll, pitch, yaw]) - euler_rt))
+    print(f"\nRound-trip Euler->Quat->Euler error: {rt_error:.2e} rad "
+          f"({'PASS' if rt_error < 1e-9 else 'FAIL'})")
+
+    # Example 7: Round-trip rotation conversions (matrix path)
+    print("\n7. Round-trip Rotation Conversions (Matrix Path)")
+    print("-" * 70)
+
     R_from_euler = euler_to_rotation_matrix(roll, pitch, yaw)
     euler_recovered = rotation_matrix_to_euler(R_from_euler)
 
@@ -307,8 +329,8 @@ def run_with_inline_data() -> None:
           f"{np.rad2deg(euler_recovered[1]):.1f}°, "
           f"{np.rad2deg(euler_recovered[2]):.1f}°]")
 
-    # Example 7: Coordinate frame conversions
-    print("\n7. Practical Indoor Positioning Scenario")
+    # Example 8: Coordinate frame conversions
+    print("\n8. Practical Indoor Positioning Scenario")
     print("-" * 70)
 
     # Scenario: Indoor positioning system with reference at building entrance

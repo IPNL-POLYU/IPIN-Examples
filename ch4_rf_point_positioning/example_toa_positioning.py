@@ -171,28 +171,31 @@ def example_toa_with_clock_bias():
 
 
 def example_rss_positioning():
-    """Example 4: RSS-based ranging and positioning."""
+    """Example 4: RSS-based ranging and positioning.
+
+    Uses the log-distance path-loss model (Eq. 4.11):
+        P_R(d) = p_ref - 10 * eta * log10(d / d_ref)
+
+    where ``p_ref`` is the received power at the reference distance
+    ``d_ref = 1 m``.  A typical Wi-Fi beacon yields about -40 dBm at 1 m.
+    """
     print("\n" + "=" * 70)
     print("Example 4: RSS-Based Ranging")
     print("=" * 70)
 
-    # Transmitter parameters
-    tx_power_dbm = 0.0  # dBm
+    # Reference received power at d_ref = 1 m (typical Wi-Fi beacon)
+    p_ref_dbm = -40.0  # dBm at 1 m
     path_loss_exp = 2.5  # Indoor environment
 
     distances = np.array([1.0, 5.0, 10.0, 20.0])
 
-    print(f"\nTx power: {tx_power_dbm} dBm")
+    print(f"\nReference power (d=1m): {p_ref_dbm} dBm")
     print(f"Path loss exponent: {path_loss_exp}")
     print("\nDistance -> RSS -> Estimated Distance:")
 
     for dist in distances:
-        # Compute RSS
-        rss = rss_pathloss(tx_power_dbm, dist, path_loss_exp)
-
-        # Invert to estimate distance
-        dist_est = rss_to_distance(rss, tx_power_dbm, path_loss_exp)
-
+        rss = rss_pathloss(p_ref_dbm, dist, path_loss_exp)
+        dist_est = rss_to_distance(rss, p_ref_dbm, path_loss_exp)
         print(f"  {dist:5.1f} m -> {rss:7.2f} dBm -> {dist_est:5.1f} m")
 
     # RSS-based positioning example
@@ -200,26 +203,23 @@ def example_rss_positioning():
     anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
     true_pos = np.array([5.0, 5.0])
 
-    # Compute RSS at each anchor
     rss_measurements = []
     for anchor in anchors:
         dist = np.linalg.norm(anchor - true_pos)
-        rss = rss_pathloss(tx_power_dbm, dist, path_loss_exp)
+        rss = rss_pathloss(p_ref_dbm, dist, path_loss_exp)
         rss_measurements.append(rss)
 
     rss_measurements = np.array(rss_measurements)
     print(f"RSS measurements: {rss_measurements}")
 
-    # Convert RSS to ranges
     ranges_from_rss = np.array(
         [
-            rss_to_distance(rss, tx_power_dbm, path_loss_exp)
+            rss_to_distance(rss, p_ref_dbm, path_loss_exp)
             for rss in rss_measurements
         ]
     )
     print(f"Estimated ranges: {ranges_from_rss}")
 
-    # Position from RSS-derived ranges
     positioner = TOAPositioner(anchors, method="iterative_ls")
     estimated_pos, info = positioner.solve(
         ranges_from_rss, initial_guess=np.array([6.0, 6.0])
@@ -445,6 +445,70 @@ def example_rtt_measurement():
     return
 
 
+def example_wls_vs_ls():
+    """Example 6: Weighted Least Squares vs ordinary LS (Eq. 4.23).
+
+    Uses an asymmetric anchor layout with heterogeneous per-anchor
+    measurement noise to demonstrate the benefit of WLS weighting.
+    """
+    print("\n" + "=" * 70)
+    print("Example 6: WLS vs LS with Asymmetric Geometry")
+    print("=" * 70)
+
+    np.random.seed(42)
+
+    # Deliberately asymmetric layout: three close anchors on the left,
+    # one distant anchor on the right.
+    anchors = np.array(
+        [[0, 0], [0, 8], [2, 4], [15, 5]], dtype=float,
+    )
+    true_pos = np.array([6.0, 4.0])
+
+    # Per-anchor noise std (far anchor has much higher noise)
+    sigma_per_anchor = np.array([0.1, 0.1, 0.1, 0.8])
+
+    print(f"\nAnchors:\n{anchors}")
+    print(f"True position: {true_pos}")
+    print(f"Per-anchor noise std (m): {sigma_per_anchor}")
+
+    n_trials = 200
+    errors_ls = []
+    errors_wls = []
+
+    for _ in range(n_trials):
+        true_ranges = np.array(
+            [toa_range(a, true_pos) for a in anchors]
+        )
+        noisy_ranges = true_ranges + np.random.randn(len(anchors)) * sigma_per_anchor
+
+        init = np.array([5.0, 5.0])
+
+        pos_ls, info_ls = TOAPositioner(anchors, method="iterative_ls").solve(
+            noisy_ranges, initial_guess=init,
+        )
+        cov = np.diag(sigma_per_anchor ** 2)
+        pos_wls, info_wls = TOAPositioner(anchors, method="iterative_wls").solve(
+            noisy_ranges, initial_guess=init, covariance=cov,
+        )
+
+        if info_ls["converged"]:
+            errors_ls.append(np.linalg.norm(pos_ls - true_pos))
+        if info_wls["converged"]:
+            errors_wls.append(np.linalg.norm(pos_wls - true_pos))
+
+    errors_ls = np.array(errors_ls)
+    errors_wls = np.array(errors_wls)
+
+    rmse_ls = np.sqrt(np.mean(errors_ls ** 2))
+    rmse_wls = np.sqrt(np.mean(errors_wls ** 2))
+
+    print(f"\nMonte-Carlo results ({n_trials} trials):")
+    print(f"  LS  RMSE: {rmse_ls:.3f} m   (converged {len(errors_ls)}/{n_trials})")
+    print(f"  WLS RMSE: {rmse_wls:.3f} m   (converged {len(errors_wls)}/{n_trials})")
+    print(f"  WLS improvement: {(1 - rmse_wls / rmse_ls) * 100:.1f}%")
+    print("\n  -> WLS down-weights the noisy far anchor, improving accuracy.")
+
+
 def main():
     """Run all TOA positioning examples."""
     print("\n" + "=" * 70)
@@ -465,6 +529,9 @@ def main():
 
     # Example 5: RTT model
     example_rtt_measurement()
+
+    # Example 6: WLS vs LS
+    example_wls_vs_ls()
 
     # Visualization
     print("\n" + "=" * 70)

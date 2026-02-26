@@ -21,6 +21,7 @@ except ImportError:
 from core.fingerprinting import (
     FingerprintDatabase,
     fit_classifier,
+    fit_floor_classifier,
     hierarchical_localize,
 )
 
@@ -466,6 +467,79 @@ class TestHierarchicalLocalize:
         
         with pytest.raises(ValueError, match="Unknown fine_method"):
             hierarchical_localize(query, db, fine_method="invalid")
+
+
+class TestFitFloorClassifier:
+    """Tests for fit_floor_classifier and the coarse_model parameter."""
+
+    @staticmethod
+    def _make_multi_floor_db():
+        locations = np.array([
+            [0, 0], [10, 0], [10, 10],
+            [0, 0], [10, 0], [10, 10],
+        ], dtype=float)
+        features = np.array([
+            [-50, -60, -70],
+            [-60, -50, -80],
+            [-70, -80, -50],
+            [-55, -65, -75],
+            [-65, -55, -85],
+            [-75, -85, -55],
+        ], dtype=float)
+        floor_ids = np.array([0, 0, 0, 1, 1, 1])
+        return FingerprintDatabase(
+            locations=locations,
+            features=features,
+            floor_ids=floor_ids,
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
+        )
+
+    def test_fit_returns_trained_classifier(self):
+        """fit_floor_classifier returns a fitted sklearn classifier."""
+        db = self._make_multi_floor_db()
+        clf = fit_floor_classifier(db)
+        assert hasattr(clf, "predict")
+        pred = clf.predict(db.get_mean_features()[:1])
+        assert pred[0] in {0, 1}
+
+    def test_single_floor_raises(self):
+        """fit_floor_classifier rejects single-floor databases."""
+        db = FingerprintDatabase(
+            locations=np.array([[0, 0], [10, 0]], dtype=float),
+            features=np.array([[-50, -60], [-60, -50]], dtype=float),
+            floor_ids=np.array([0, 0]),
+            meta={},
+        )
+        with pytest.raises(ValueError, match="multi-floor"):
+            fit_floor_classifier(db)
+
+    def test_hierarchical_with_pretrained_coarse_model(self):
+        """coarse_model skips re-training inside hierarchical_localize."""
+        db = self._make_multi_floor_db()
+        clf = fit_floor_classifier(db)
+
+        query = np.array([-58, -68, -78])
+        pos, info = hierarchical_localize(
+            query, db,
+            coarse_method="random_forest",
+            coarse_model=clf,
+            fine_method="knn", k=3,
+        )
+        assert pos.shape == (2,)
+        assert info["coarse_method"] == "random_forest"
+        assert "coarse_floor" in info
+
+    def test_hierarchical_without_coarse_model_still_works(self):
+        """Backward compat: coarse_model=None trains inline."""
+        db = self._make_multi_floor_db()
+        query = np.array([-58, -68, -78])
+        pos, info = hierarchical_localize(
+            query, db,
+            coarse_method="random_forest",
+            fine_method="knn", k=3,
+        )
+        assert pos.shape == (2,)
+        assert "coarse_floor" in info
 
 
 class TestIntegration:

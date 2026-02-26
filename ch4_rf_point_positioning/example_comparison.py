@@ -273,12 +273,23 @@ def generate_scenario(seed=42):
     return anchors, true_positions
 
 
-def toa_positioning_test(anchors, true_positions, noise_std=0.0):
-    """Test TOA positioning (inline mode)."""
+def toa_positioning_test(
+    anchors, true_positions, noise_std=0.0, clock_bias_m=0.0,
+):
+    """Test TOA positioning (inline mode).
+
+    Args:
+        anchors: Anchor positions, shape (K, 2).
+        true_positions: Ground-truth agent positions, shape (N, 2).
+        noise_std: Gaussian range-noise std in metres.
+        clock_bias_m: Shared receiver clock bias in metres, added to
+            every pseudorange.  TDOA differencing cancels this term.
+    """
     errors = []
 
     for true_pos in tqdm(true_positions, desc="  TOA", leave=False, unit="pt"):
         ranges = np.array([toa_range(anchor, true_pos) for anchor in anchors])
+        ranges += clock_bias_m
         if noise_std > 0:
             ranges += np.random.randn(len(ranges)) * noise_std
 
@@ -407,7 +418,13 @@ def rss_positioning_test(
 
 
 def run_inline_comparison():
-    """Run comparison with inline generated data (original behavior)."""
+    """Run comparison with inline generated data (original behavior).
+
+    Each measurement type now uses its own physically-meaningful noise
+    schedule so that the comparison is apples-to-apples.  A shared
+    receiver clock bias is injected into TOA pseudo-ranges to demonstrate
+    that TDOA differencing cancels it.
+    """
     print("=" * 70)
     print("RF Positioning Methods Comparison")
     print("(Using inline generated data)")
@@ -420,54 +437,59 @@ def run_inline_comparison():
     print(f"  Test points: {len(true_positions)}")
     print(f"  Area: 10m x 10m")
 
-    # Noise levels for different methods
-    # TOA/TDOA: range noise in meters
-    # AOA: angle noise in radians
-    # RSS: fading noise in dB (per book Eq. 4.12)
-    toa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]  # meters
-    rss_noise_levels = [0.0, 2.0, 4.0, 6.0, 8.0]   # dB (typical indoor: 4-8 dB)
+    # ---- Independent noise schedules per method ----
+    toa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]       # metres
+    tdoa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]       # metres
+    aoa_noise_levels_deg = [0.0, 1.0, 3.0, 5.0, 10.0]    # degrees
+    rss_noise_levels = [0.0, 2.0, 4.0, 6.0, 8.0]         # dB
+
+    # Shared clock bias (metres) added to TOA; cancels in TDOA diffs.
+    clock_bias_m = 1.5
+
+    n_levels = len(toa_noise_levels)
 
     results = {"TOA": [], "TDOA": [], "AOA": [], "RSS": []}
 
-    print("\nNoise configuration:")
-    print("  TOA/TDOA: Range noise (meters)")
-    print("  AOA: Angle noise (radians) = TOA_noise / 5")
-    print("  RSS: Long-term fading (dB) + Rayleigh short-term fading (Eq. 4.12)")
-    print("       - Long-term fading: Gaussian in dB (location-dependent)")
-    print("       - Short-term fading: Rayleigh amplitude (mitigated by averaging)")
-    print("       - 5 samples averaged to reduce short-term fading variance")
+    print("\nNoise configuration (independent per method):")
+    print(f"  TOA : range noise {toa_noise_levels} m  (+ clock bias {clock_bias_m} m)")
+    print(f"  TDOA: range noise {tdoa_noise_levels} m  (clock bias cancels)")
+    print(f"  AOA : angle noise {aoa_noise_levels_deg} deg")
+    print(f"  RSS : long-term fading {rss_noise_levels} dB + Rayleigh short-term")
 
-    # RSS fading configuration
-    sigma_short_linear = 0.5  # Rayleigh scale (moderate short-term fading)
-    n_samples_avg = 5  # Average 5 samples to reduce short-term fading
+    sigma_short_linear = 0.5
+    n_samples_avg = 5
 
     print("\nTesting noise levels...")
     start_time = time.time()
 
-    for i, (toa_noise, rss_fading_db) in enumerate(
-        tqdm(
-            list(zip(toa_noise_levels, rss_noise_levels)),
-            desc="Overall progress",
-            unit="level",
+    for i in tqdm(range(n_levels), desc="Overall progress", unit="level"):
+        toa_noise = toa_noise_levels[i]
+        tdoa_noise = tdoa_noise_levels[i]
+        aoa_noise_rad = np.deg2rad(aoa_noise_levels_deg[i])
+        rss_fading_db = rss_noise_levels[i]
+
+        print(
+            f"\n[{i+1}/{n_levels}] TOA: {toa_noise:.2f}m (+bias {clock_bias_m}m), "
+            f"TDOA: {tdoa_noise:.2f}m, "
+            f"AOA: {aoa_noise_levels_deg[i]:.1f}deg, "
+            f"RSS: {rss_fading_db:.1f}dB"
         )
-    ):
-        print(f"\n[{i+1}/{len(toa_noise_levels)}] TOA/TDOA: {toa_noise:.2f}m, "
-              f"RSS long-term: {rss_fading_db:.1f}dB")
 
-        results["TOA"].append(toa_positioning_test(anchors, true_positions, toa_noise))
-        results["TDOA"].append(tdoa_positioning_test(anchors, true_positions, toa_noise))
-
-        angle_noise = toa_noise / 5.0  # radians
-        results["AOA"].append(aoa_positioning_test(anchors, true_positions, angle_noise))
-
-        # RSS uses full fading model per book (Eq. 4.12):
-        # - omega_long: Gaussian in dB (location-dependent shadowing)
-        # - omega_short: Rayleigh amplitude fading (multipath, time-varying)
-        # Averaging n samples reduces short-term fading variance
+        results["TOA"].append(
+            toa_positioning_test(
+                anchors, true_positions, toa_noise,
+                clock_bias_m=clock_bias_m,
+            )
+        )
+        results["TDOA"].append(
+            tdoa_positioning_test(anchors, true_positions, tdoa_noise)
+        )
+        results["AOA"].append(
+            aoa_positioning_test(anchors, true_positions, aoa_noise_rad)
+        )
         results["RSS"].append(
             rss_positioning_test(
-                anchors,
-                true_positions,
+                anchors, true_positions,
                 sigma_long_db=rss_fading_db,
                 sigma_short_linear=sigma_short_linear,
                 n_samples_avg=n_samples_avg,
@@ -479,42 +501,31 @@ def run_inline_comparison():
     print(f"\nAll tests completed in {elapsed_time:.2f}s")
 
     print("\n" + "=" * 70)
-    print("Results Summary (RMSE in meters)")
+    print("Results Summary (RMSE in metres)")
     print("=" * 70)
+    print(f"  Clock bias: {clock_bias_m} m (TOA only; cancels in TDOA)")
     print(f"  RSS config: Rayleigh short-term (sigma={sigma_short_linear}), "
           f"{n_samples_avg} samples averaged")
-    print(f"{'TOA/TDOA':<12} {'RSS Long':<12} {'TOA':<10} {'TDOA':<10} {'AOA':<10} {'RSS':<10}")
-    print("-" * 70)
+    header = (
+        f"{'Level':<6} {'TOA(m)':<10} {'TDOA(m)':<10} "
+        f"{'AOA(deg)':<10} {'RSS(dB)':<10} "
+        f"{'TOA':<10} {'TDOA':<10} {'AOA':<10} {'RSS':<10}"
+    )
+    print(header)
+    print("-" * len(header))
 
-    for i, (toa_noise, rss_fading_db) in enumerate(
-        zip(toa_noise_levels, rss_noise_levels)
-    ):
-        toa_str = f"{toa_noise:.2f}m"
-        rss_str = f"{rss_fading_db:.1f}dB"
-        toa_rmse = (
-            np.sqrt(np.mean(results["TOA"][i] ** 2))
-            if len(results["TOA"][i]) > 0
-            else np.nan
-        )
-        tdoa_rmse = (
-            np.sqrt(np.mean(results["TDOA"][i] ** 2))
-            if len(results["TDOA"][i]) > 0
-            else np.nan
-        )
-        aoa_rmse = (
-            np.sqrt(np.mean(results["AOA"][i] ** 2))
-            if len(results["AOA"][i]) > 0
-            else np.nan
-        )
-        rss_rmse = (
-            np.sqrt(np.mean(results["RSS"][i] ** 2))
-            if len(results["RSS"][i]) > 0
-            else np.nan
-        )
+    for i in range(n_levels):
+        def _rmse(arr):
+            return np.sqrt(np.mean(arr ** 2)) if len(arr) > 0 else np.nan
 
         print(
-            f"{toa_str:<12} {rss_str:<12} {toa_rmse:<10.3f} {tdoa_rmse:<10.3f} "
-            f"{aoa_rmse:<10.3f} {rss_rmse:<10.3f}"
+            f"{i+1:<6} "
+            f"{toa_noise_levels[i]:<10.2f} {tdoa_noise_levels[i]:<10.2f} "
+            f"{aoa_noise_levels_deg[i]:<10.1f} {rss_noise_levels[i]:<10.1f} "
+            f"{_rmse(results['TOA'][i]):<10.3f} "
+            f"{_rmse(results['TDOA'][i]):<10.3f} "
+            f"{_rmse(results['AOA'][i]):<10.3f} "
+            f"{_rmse(results['RSS'][i]):<10.3f}"
         )
 
     return toa_noise_levels, results

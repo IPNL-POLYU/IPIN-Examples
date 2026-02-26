@@ -37,6 +37,7 @@ Date: 2024
 from .classification import (
     ClassificationLocalizer,
     fit_classifier,
+    fit_floor_classifier,
     hierarchical_localize,
 )
 from .dataset import (
@@ -90,6 +91,7 @@ __all__ = [
     # Pattern recognition methods (classification)
     "ClassificationLocalizer",
     "fit_classifier",
+    "fit_floor_classifier",
     "hierarchical_localize",
     # Preprocessing
     "average_scans",

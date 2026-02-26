@@ -32,55 +32,128 @@ from core.fingerprinting import (
 )
 
 
-def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=42):
-    """Generate test query fingerprints."""
+def generate_test_queries(
+    db,
+    n_queries: int = 100,
+    floor_id: int = None,
+    noise_std: float = 0.0,
+    seed: int = 42,
+) -> tuple:
+    """Generate unbiased test queries via log-distance path-loss model.
+
+    Queries are synthesised from AP positions stored in ``db.meta`` using the
+    same physical propagation model that created the radio-map, so no
+    localization method is structurally favoured.  When AP metadata is
+    unavailable the function falls back to a train/test hold-out split of
+    existing reference-point fingerprints (with additive noise).
+
+    Args:
+        db: Fingerprint database (must carry ``ap_positions`` and
+            ``path_loss_model`` in ``meta`` for physics-based generation).
+        n_queries: Number of query points to generate.
+        floor_id: Restrict queries to a single floor.  ``None`` = random
+            floors.
+        noise_std: Additional Gaussian noise std (dBm) on top of the shadow
+            fading already produced by the path-loss model.
+        seed: Random seed for reproducibility.
+
+    Returns:
+        Tuple of ``(query_fingerprints, true_locations, floor_ids)``.
+    """
     np.random.seed(seed)
-    
+
+    ap_positions = db.meta.get("ap_positions")
+    pl_cfg = db.meta.get("path_loss_model", {})
+
+    if ap_positions is not None and pl_cfg:
+        return _generate_queries_pathloss(
+            db, np.asarray(ap_positions), pl_cfg,
+            n_queries=n_queries, floor_id=floor_id, noise_std=noise_std,
+        )
+
+    return _generate_queries_holdout(
+        db, n_queries=n_queries, floor_id=floor_id, noise_std=noise_std,
+    )
+
+
+def _generate_queries_pathloss(
+    db, ap_positions, pl_cfg, *, n_queries, floor_id, noise_std,
+):
+    """Physics-based query generation using the log-distance path-loss model."""
+    p0 = pl_cfg.get("P0_dBm", -30.0)
+    n_exp = pl_cfg.get("path_loss_exponent", 2.5)
+    sigma_shadow = pl_cfg.get("shadow_fading_std_dBm", 4.0)
+    floor_att_db = pl_cfg.get("floor_attenuation_dB", 15.0)
+    floor_height = db.meta.get("floor_height", 3.0)
+
     if floor_id is not None:
         mask = db.get_floor_mask(floor_id)
         rp_locs = db.locations[mask]
-        rp_features = db.features[mask]
         floor_ids_out = np.full(n_queries, floor_id)
     else:
         rp_locs = db.locations
-        rp_features = db.features
         floor_ids_out = np.random.choice(db.floor_list, n_queries)
-    
+
     min_x, max_x = rp_locs[:, 0].min(), rp_locs[:, 0].max()
     min_y, max_y = rp_locs[:, 1].min(), rp_locs[:, 1].max()
-    
+
     true_locs = np.column_stack([
         np.random.uniform(min_x, max_x, n_queries),
         np.random.uniform(min_y, max_y, n_queries),
     ])
-    
-    query_fingerprints = []
-    
-    for true_loc, fid in zip(true_locs, floor_ids_out):
-        if floor_id is not None:
-            dists = np.linalg.norm(rp_locs - true_loc, axis=1)
-        else:
-            floor_mask = db.floor_ids == fid
-            floor_rps = db.locations[floor_mask]
-            floor_features = db.features[floor_mask]
-            dists = np.linalg.norm(floor_rps - true_loc, axis=1)
-        
-        k_nearest = min(4, len(dists))
-        nearest_idx = np.argpartition(dists, k_nearest)[:k_nearest]
-        weights = 1.0 / (dists[nearest_idx] + 1e-3)
-        weights /= weights.sum()
-        
-        if floor_id is not None:
-            query_fp = np.sum(weights[:, None] * rp_features[nearest_idx], axis=0)
-        else:
-            query_fp = np.sum(weights[:, None] * floor_features[nearest_idx], axis=0)
-        
-        if noise_std > 0:
-            query_fp += np.random.randn(len(query_fp)) * noise_std
-        
-        query_fingerprints.append(query_fp)
-    
-    return np.array(query_fingerprints), true_locs, floor_ids_out
+
+    n_aps = len(ap_positions)
+    query_fingerprints = np.empty((n_queries, n_aps))
+
+    for qi in range(n_queries):
+        fid = floor_ids_out[qi]
+        device_z = fid * floor_height + 1.5
+        pos_3d = np.array([true_locs[qi, 0], true_locs[qi, 1], device_z])
+
+        for ai in range(n_aps):
+            ap = np.asarray(ap_positions[ai])
+            d = np.linalg.norm(pos_3d - ap)
+            d = max(d, 0.1)
+
+            rss = p0 - 10.0 * n_exp * np.log10(d)
+            rss += np.random.randn() * sigma_shadow
+
+            ap_floor = int(ap[2] / floor_height) if len(ap) > 2 else 0
+            rss -= abs(fid - ap_floor) * floor_att_db
+
+            if noise_std > 0:
+                rss += np.random.randn() * noise_std
+
+            query_fingerprints[qi, ai] = rss
+
+    return query_fingerprints, true_locs, floor_ids_out
+
+
+def _generate_queries_holdout(db, *, n_queries, floor_id, noise_std):
+    """Fallback: hold-out a random subset of RPs as test queries."""
+    if floor_id is not None:
+        mask = db.get_floor_mask(floor_id)
+        rp_locs = db.locations[mask]
+        rp_features = db.features[mask]
+    else:
+        rp_locs = db.locations
+        rp_features = db.features
+
+    n_rps = len(rp_locs)
+    indices = np.random.choice(n_rps, size=min(n_queries, n_rps), replace=True)
+
+    true_locs = rp_locs[indices]
+    query_fingerprints = rp_features[indices].copy().astype(float)
+
+    if noise_std > 0:
+        query_fingerprints += np.random.randn(*query_fingerprints.shape) * noise_std
+
+    if floor_id is not None:
+        floor_ids_out = np.full(len(true_locs), floor_id)
+    else:
+        floor_ids_out = np.random.choice(db.floor_list, len(true_locs))
+
+    return query_fingerprints, true_locs, floor_ids_out
 
 
 def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
