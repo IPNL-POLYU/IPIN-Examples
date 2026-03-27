@@ -261,13 +261,15 @@ def generate_scenario(seed=42):
     """Generate a test scenario with anchors and true positions (inline mode)."""
     np.random.seed(seed)
 
-    # Square anchor layout (10m x 10m area)
-    anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+    # Chapter 4 default: mildly asymmetric anchor geometry.
+    anchors = np.array(
+        [[0.0, 0.0], [12.0, 1.0], [10.5, 11.5], [1.5, 9.0]], dtype=float
+    )
 
     # Generate test positions
     n_points = 50
-    x = np.random.uniform(1, 9, n_points)
-    y = np.random.uniform(1, 9, n_points)
+    x = np.random.uniform(2.0, 10.0, n_points)
+    y = np.random.uniform(2.0, 9.5, n_points)
     true_positions = np.column_stack([x, y])
 
     return anchors, true_positions
@@ -295,7 +297,9 @@ def toa_positioning_test(
 
         try:
             positioner = TOAPositioner(anchors, method="iterative_ls")
-            est_pos, info = positioner.solve(ranges, initial_guess=np.array([5.0, 5.0]))
+            est_pos, info = positioner.solve(
+                ranges, initial_guess=np.mean(anchors, axis=0)
+            )
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_pos)
                 errors.append(error)
@@ -322,7 +326,9 @@ def tdoa_positioning_test(anchors, true_positions, noise_std=0.0):
 
         try:
             positioner = TDOAPositioner(anchors, reference_idx=0)
-            est_pos, info = positioner.solve(tdoa, initial_guess=np.array([5.0, 5.0]))
+            est_pos, info = positioner.solve(
+                tdoa, initial_guess=np.mean(anchors, axis=0)
+            )
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_pos)
                 errors.append(error)
@@ -333,18 +339,40 @@ def tdoa_positioning_test(anchors, true_positions, noise_std=0.0):
 
 
 def aoa_positioning_test(anchors, true_positions, noise_std=0.0):
-    """Test AOA positioning (inline mode)."""
+    """Test AOA positioning (inline mode) with stability guards.
+
+    Uses sigma-based weighting when angle noise is known and rejects
+    implausible far-field estimates to avoid numerical outliers from
+    near-singular AOA geometry.
+    """
     errors = []
+    anchors = np.asarray(anchors, dtype=float)
+    anchor_min = np.min(anchors, axis=0)
+    anchor_max = np.max(anchors, axis=0)
+    anchor_span = np.linalg.norm(anchor_max - anchor_min)
+    # Allow estimates moderately outside the anchor hull.
+    max_dist_from_centroid = 3.0 * anchor_span
+    centroid = np.mean(anchors, axis=0)
 
     for true_pos in tqdm(true_positions, desc="  AOA", leave=False, unit="pt"):
         aoa = np.array([aoa_azimuth(anchor, true_pos) for anchor in anchors])
         if noise_std > 0:
             aoa += np.random.randn(len(aoa)) * noise_std
+        # Normalize wrapped angles to [-pi, pi] for numerical consistency.
+        aoa = (aoa + np.pi) % (2.0 * np.pi) - np.pi
 
         try:
             positioner = AOAPositioner(anchors)
-            est_pos, info = positioner.solve(aoa, initial_guess=np.array([5.0, 5.0]))
+            solve_kwargs = {"initial_guess": centroid}
+            if noise_std > 0:
+                solve_kwargs["sigma_psi"] = noise_std
+
+            est_pos, info = positioner.solve(aoa, **solve_kwargs)
             if info["converged"]:
+                # Reject physically implausible solutions produced by
+                # poor angle conditioning (e.g., nearly parallel bearings).
+                if np.linalg.norm(est_pos - centroid) > max_dist_from_centroid:
+                    continue
                 error = np.linalg.norm(est_pos - true_pos)
                 errors.append(error)
         except Exception:
@@ -407,7 +435,9 @@ def rss_positioning_test(
 
         try:
             positioner = TOAPositioner(anchors, method="iterative_ls")
-            est_pos, info = positioner.solve(ranges, initial_guess=np.array([5.0, 5.0]))
+            est_pos, info = positioner.solve(
+                ranges, initial_guess=np.mean(anchors, axis=0)
+            )
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_pos)
                 errors.append(error)
@@ -435,7 +465,7 @@ def run_inline_comparison():
     print(f"Test scenario created:")
     print(f"  Anchors: {len(anchors)}")
     print(f"  Test points: {len(true_positions)}")
-    print(f"  Area: 10m x 10m")
+    print("  Area: irregular indoor region (asymmetric anchor layout)")
 
     # ---- Independent noise schedules per method ----
     toa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]       # metres

@@ -38,6 +38,15 @@ from core.rf import (
     aoa_tan_azimuth,
 )
 
+# Chapter 4 default anchor layouts.
+DEFAULT_ANCHORS_2D = np.array(
+    [[0.0, 0.0], [12.0, 1.0], [10.5, 11.5], [1.5, 9.0]], dtype=float
+)
+DEFAULT_ANCHORS_3D = np.array(
+    [[0.0, 0.0, 5.0], [12.0, 1.0, 5.0], [10.5, 11.5, 5.0], [1.5, 9.0, 5.0]],
+    dtype=float,
+)
+
 
 def demo_aoa_basic():
     """Demonstrate basic AOA positioning with I-WLS."""
@@ -45,9 +54,9 @@ def demo_aoa_basic():
     print("Demo 1: Basic AOA Positioning (I-WLS)")
     print("=" * 70)
 
-    # Setup anchors (4 anchors at corners) in ENU coordinates
+    # Setup anchors (4 anchors, asymmetric) in ENU coordinates
     # E=x, N=y in 2D
-    anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+    anchors = DEFAULT_ANCHORS_2D.copy()
 
     # True position
     true_position = np.array([4.0, 6.0])
@@ -213,9 +222,7 @@ def demo_minimum_anchors():
     anchor_configs = {
         "2 anchors": np.array([[0, 0], [10, 0]], dtype=float),
         "3 anchors": np.array([[0, 0], [10, 0], [5, 10]], dtype=float),
-        "4 anchors": np.array(
-            [[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float
-        ),
+        "4 anchors": DEFAULT_ANCHORS_2D.copy(),
     }
 
     print(f"\nTrue position (E, N): {true_position}")
@@ -256,7 +263,7 @@ def visualize_aoa_geometry():
     print("=" * 70)
 
     # Setup in ENU coordinates (E=x-axis, N=y-axis)
-    anchors = np.array([[0, 0], [12, 0], [12, 12], [0, 12]], dtype=float)
+    anchors = DEFAULT_ANCHORS_2D.copy()
     true_position = np.array([5.0, 7.0])
 
     # Generate AOA using new convention (Eq. 4.64: psi from North)
@@ -380,7 +387,7 @@ def demo_closed_form_algorithms():
 
     # === 2D Comparison ===
     print("\n--- 2D Comparison (I-WLS vs PLE) ---")
-    anchors_2d = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+    anchors_2d = DEFAULT_ANCHORS_2D.copy()
     true_pos_2d = np.array([4.0, 6.0])
 
     # Generate azimuth angles
@@ -405,9 +412,7 @@ def demo_closed_form_algorithms():
 
     # === 3D Comparison ===
     print("\n--- 3D Comparison (I-WLS vs OVE vs PLE) ---")
-    anchors_3d = np.array(
-        [[0, 0, 5], [10, 0, 5], [10, 10, 5], [0, 10, 5]], dtype=float
-    )
+    anchors_3d = DEFAULT_ANCHORS_3D.copy()
     true_pos_3d = np.array([4.0, 6.0, 0.0])
 
     # Generate angles
@@ -503,7 +508,7 @@ def demo_geometry_sensitivity():
 
     # Define different anchor geometries
     geometries = {
-        "Square (good)": np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float),
+        "Asymmetric (good)": DEFAULT_ANCHORS_2D.copy(),
         "Triangle (good)": np.array([[0, 0], [10, 0], [5, 10]], dtype=float),
         "Linear (poor)": np.array([[0, 0], [5, 0], [10, 0], [15, 0]], dtype=float),
         "Near-collinear (very poor)": np.array(
