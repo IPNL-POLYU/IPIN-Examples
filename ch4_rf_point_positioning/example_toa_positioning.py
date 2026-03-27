@@ -30,6 +30,12 @@ from core.rf import (
     toa_solve_with_clock_bias,
 )
 
+# Chapter 4 default anchor layout:
+# use a mildly irregular quadrilateral to avoid overly symmetric geometry.
+DEFAULT_ANCHORS_2D = np.array(
+    [[0.0, 0.0], [12.0, 1.0], [10.5, 11.5], [1.5, 9.0]], dtype=float
+)
+
 
 def example_toa_perfect():
     """Example 1: TOA positioning with perfect measurements."""
@@ -37,8 +43,8 @@ def example_toa_perfect():
     print("Example 1: TOA Positioning with Perfect Measurements")
     print("=" * 70)
 
-    # Square anchor layout
-    anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+    # Chapter 4 default: asymmetric anchor layout.
+    anchors = DEFAULT_ANCHORS_2D.copy()
     true_pos = np.array([5.0, 5.0])
 
     print(f"\nAnchor positions:\n{anchors}")
@@ -73,7 +79,7 @@ def example_toa_with_noise():
 
     np.random.seed(42)
 
-    anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+    anchors = DEFAULT_ANCHORS_2D.copy()
     true_pos = np.array([3.0, 7.0])
 
     print(f"\nTrue position: {true_pos}")
@@ -118,7 +124,7 @@ def example_toa_with_clock_bias():
     print("Example 3: Joint Position and Clock Bias Estimation")
     print("=" * 70)
 
-    anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+    anchors = DEFAULT_ANCHORS_2D.copy()
     true_pos = np.array([5.0, 5.0])
 
     # Define clock bias in SECONDS (timing domain)
@@ -200,7 +206,7 @@ def example_rss_positioning():
 
     # RSS-based positioning example
     print("\nRSS-Based Positioning:")
-    anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+    anchors = DEFAULT_ANCHORS_2D.copy()
     true_pos = np.array([5.0, 5.0])
 
     rss_measurements = []
@@ -457,12 +463,15 @@ def example_wls_vs_ls():
 
     np.random.seed(42)
 
-    # Deliberately asymmetric layout: three close anchors on the left,
-    # one distant anchor on the right.
+    # Deliberately asymmetric layout:
+    # - three anchors clustered on the lower-left
+    # - one anchor far to the upper-right
+    # - user position shifted toward the far anchor side
+    # This avoids near-symmetry and emphasizes WLS benefit.
     anchors = np.array(
-        [[0, 0], [0, 8], [2, 4], [15, 5]], dtype=float,
+        [[0, 0], [1, 9], [4, 2], [19, 15]], dtype=float,
     )
-    true_pos = np.array([6.0, 4.0])
+    true_pos = np.array([11.5, 6.5])
 
     # Per-anchor noise std (far anchor has much higher noise)
     sigma_per_anchor = np.array([0.1, 0.1, 0.1, 0.8])
@@ -481,7 +490,7 @@ def example_wls_vs_ls():
         )
         noisy_ranges = true_ranges + np.random.randn(len(anchors)) * sigma_per_anchor
 
-        init = np.array([5.0, 5.0])
+        init = np.array([8.0, 8.0])
 
         pos_ls, info_ls = TOAPositioner(anchors, method="iterative_ls").solve(
             noisy_ranges, initial_guess=init,
@@ -540,9 +549,11 @@ def main():
 
     fig = plot_toa_positioning(anchors1, true_pos1, est_pos1, info1["history"])
     plt.savefig(
-        "ch4_rf_point_positioning/toa_positioning_example.png", dpi=150, bbox_inches="tight"
+        "ch4_rf_point_positioning/figs/toa_positioning_example.png",
+        dpi=150,
+        bbox_inches="tight",
     )
-    print("\nFigure saved: toa_positioning_example.png")
+    print("\nFigure saved: ch4_rf_point_positioning/figs/toa_positioning_example.png")
 
     plt.show()
 

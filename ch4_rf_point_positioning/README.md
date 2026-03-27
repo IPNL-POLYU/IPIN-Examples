@@ -4,6 +4,10 @@
 
 This module implements RF (Radio Frequency) positioning algorithms described in **Chapter 4** of *Principles of Indoor Positioning and Indoor Navigation*. It provides simulation-based examples of various RF positioning techniques including TOA, TDOA, AOA, and RSS-based positioning.
 
+**Anchor-setting convention in this chapter:**
+- Inline demos use a shared **asymmetric** anchor layout to reduce symmetry bias.
+- Square/circular/linear layouts are retained for explicit geometry-comparison datasets only.
+
 ## Quick Start
 
 ```bash
@@ -330,7 +334,7 @@ This properly accounts for:
 from core.rf import AOAPositioner, aoa_angle_vector
 import numpy as np
 
-anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+anchors = np.array([[0, 0], [12, 1], [10.5, 11.5], [1.5, 9]], dtype=float)
 aoa = aoa_angle_vector(anchors, np.array([4.0, 6.0]))
 
 positioner = AOAPositioner(anchors)
@@ -424,8 +428,8 @@ Where σ symbols are **standard deviations** (not variances):
 ```python
 from core.rf import compute_geometry_matrix, compute_dop, position_error_from_dop
 
-# Square anchor layout
-anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+# Default inline anchor layout (asymmetric)
+anchors = np.array([[0, 0], [12, 1], [10.5, 11.5], [1.5, 9]], dtype=float)
 position = np.array([5.0, 5.0])
 
 # Compute geometry matrix and DOP
@@ -455,8 +459,8 @@ print(f"Expected horizontal error: {sigma_horizontal:.2f} m")  # 0.42 m
 import numpy as np
 from core.rf import TOAPositioner
 
-# Define anchor layout (square)
-anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+# Define default Chapter 4 inline layout (asymmetric)
+anchors = np.array([[0, 0], [12, 1], [10.5, 11.5], [1.5, 9]], dtype=float)
 
 # True position and compute ranges
 true_pos = np.array([5.0, 5.0])
@@ -568,7 +572,7 @@ print(f"Total fading {total_fading:.1f} dB -> {factor:.2f}x distance")
 ```python
 from core.rf import TDOAPositioner
 
-anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+anchors = np.array([[0, 0], [12, 1], [10.5, 11.5], [1.5, 9]], dtype=float)
 true_pos = np.array([5.0, 5.0])
 
 # Compute TDOA measurements (relative to anchor 0)
@@ -595,7 +599,7 @@ Chapter 4: TOA Positioning Example
 ======================================================================
 
 --- Setting up test scenario ---
-  Anchors: 4 anchors in square configuration (10m x 10m)
+  Anchors: 4 anchors in asymmetric configuration
   True position: [5.0, 5.0] m
 
 --- TOA Positioning (Perfect Measurements) ---

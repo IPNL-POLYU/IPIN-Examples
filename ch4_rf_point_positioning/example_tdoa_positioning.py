@@ -25,6 +25,14 @@ from core.rf import (
     toa_fang_solver,
 )
 
+# Chapter 4 default anchor layouts.
+DEFAULT_ANCHORS_2D = np.array(
+    [[0.0, 0.0], [12.0, 1.0], [10.5, 11.5], [1.5, 9.0]], dtype=float
+)
+DEFAULT_ANCHORS_2D_WITH_EXTRA = np.array(
+    [[0.0, 0.0], [12.0, 1.0], [10.5, 11.5], [1.5, 9.0], [6.0, 3.5]], dtype=float
+)
+
 
 def demo_tdoa_basic():
     """Demonstrate basic TDOA positioning with I-WLS."""
@@ -32,10 +40,8 @@ def demo_tdoa_basic():
     print("Demo 1: Basic TDOA Positioning (I-WLS)")
     print("=" * 70)
 
-    # Setup anchors (5 anchors in a larger area)
-    anchors = np.array(
-        [[0, 0], [15, 0], [15, 15], [0, 15], [7.5, 7.5]], dtype=float
-    )
+    # Setup anchors (5 anchors, asymmetric)
+    anchors = DEFAULT_ANCHORS_2D_WITH_EXTRA.copy()
 
     # True position
     true_position = np.array([5.0, 8.0])
@@ -76,9 +82,7 @@ def demo_tdoa_with_noise():
     print("=" * 70)
 
     # Setup
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float
-    )
+    anchors = DEFAULT_ANCHORS_2D_WITH_EXTRA.copy()
     true_position = np.array([7.0, 12.0])
 
     # Generate noiseless TDOA
@@ -162,9 +166,7 @@ def demo_correlated_covariance():
     print("=" * 70)
 
     # Setup: 5 anchors with heterogeneous noise levels
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float
-    )
+    anchors = DEFAULT_ANCHORS_2D_WITH_EXTRA.copy()
 
     # True position
     true_position = np.array([7.0, 12.0])
@@ -300,9 +302,7 @@ def demo_covariance_sensitivity():
     print("=" * 70)
 
     # Setup: 4 anchors
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20]], dtype=float
-    )
+    anchors = DEFAULT_ANCHORS_2D.copy()
     true_position = np.array([8.0, 12.0])
 
     print(f"\nTrue position: {true_position}")
@@ -476,10 +476,8 @@ def demo_geometry_effect():
 
     true_position = np.array([5.0, 5.0])
 
-    # Good geometry: anchors surrounding the target
-    good_anchors = np.array(
-        [[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float
-    )
+    # Good geometry: anchors surrounding the target (asymmetric quadrilateral)
+    good_anchors = DEFAULT_ANCHORS_2D.copy()
 
     # Poor geometry: anchors on one side
     poor_anchors = np.array(
@@ -492,7 +490,7 @@ def demo_geometry_effect():
     print(f"Noise std: {noise_std} m")
 
     # Test with good geometry
-    print("\n--- Good Geometry (surrounding) ---")
+    print("\n--- Good Geometry (surrounding, asymmetric) ---")
     dist_ref = np.linalg.norm(true_position - good_anchors[0])
     tdoa_good = np.array(
         [
@@ -571,8 +569,8 @@ def demo_fang_toa_solver():
     print("Demo 7: Fang's TOA Closed-Form vs I-WLS (Eqs. 4.43-4.49)")
     print("=" * 70)
 
-    # Setup: 4 anchors in a square
-    anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20]], dtype=float)
+    # Setup: 4 anchors with default asymmetric geometry
+    anchors = DEFAULT_ANCHORS_2D.copy()
     true_position = np.array([7.0, 12.0])
 
     print(f"\nTrue position: {true_position}")
@@ -669,10 +667,8 @@ def demo_chan_tdoa_solver():
     print("Demo 8: Chan's TDOA Closed-Form vs I-WLS (Eqs. 4.50-4.62)")
     print("=" * 70)
 
-    # Setup: 5 anchors for good geometry
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float
-    )
+    # Setup: 5 anchors with default asymmetric geometry
+    anchors = DEFAULT_ANCHORS_2D_WITH_EXTRA.copy()
     true_position = np.array([8.0, 12.0])
     ref_idx = 0
 
@@ -791,9 +787,7 @@ def demo_closed_form_comparison():
     print("=" * 70)
 
     # Setup
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float
-    )
+    anchors = DEFAULT_ANCHORS_2D_WITH_EXTRA.copy()
     true_position = np.array([7.5, 11.0])
     ref_idx = 0
 
