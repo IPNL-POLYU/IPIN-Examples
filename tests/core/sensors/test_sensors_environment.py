@@ -82,6 +82,18 @@ class TestMagTiltCompensate(unittest.TestCase):
         mag_compensated = np.linalg.norm(mag_comp)
         assert np.isclose(mag_original, mag_compensated, atol=0.01)
 
+    def test_mag_tilt_compensate_matches_book_eq_6_52(self) -> None:
+        """Tilt compensation must equal the closed form of book Eq. (6.52)."""
+        mag = np.array([20.0, 10.0, -40.0])
+        roll, pitch = 0.2, 0.3
+        mx, my, mz = mag
+        ct, st = np.cos(pitch), np.sin(pitch)
+        cr, sr = np.cos(roll), np.sin(roll)
+        Mx = mx * ct + mz * st
+        My = my * cr + mx * st * sr - mz * ct * sr
+        out = mag_tilt_compensate(mag, roll, pitch)
+        np.testing.assert_allclose(out[:2], [Mx, My], atol=1e-12)
+
     def test_mag_tilt_compensate_invalid_shape(self) -> None:
         """Test that invalid mag shape raises error."""
         mag_bad = np.array([20.0, 10.0])  # Wrong: should be (3,)
@@ -163,6 +175,28 @@ class TestMagHeading(unittest.TestCase):
 
         # Should still compute heading (after tilt compensation)
         assert -np.pi <= heading <= np.pi
+
+    def test_mag_heading_tilt_invariant(self) -> None:
+        """Heading must be invariant to roll/pitch (the point of Eq. 6.52).
+
+        Generates the body-frame field for a fixed level field via the forward
+        tilt body = Ry(pitch) @ Rx(roll) @ level, then checks the recovered
+        heading is the same for any tilt.
+        """
+        def Rx(a):
+            return np.array([[1, 0, 0], [0, np.cos(a), np.sin(a)], [0, -np.sin(a), np.cos(a)]])
+
+        def Ry(a):
+            return np.array([[np.cos(a), 0, -np.sin(a)], [0, 1, 0], [np.sin(a), 0, np.cos(a)]])
+
+        m_level = np.array([18.0, 7.0, 35.0])
+        target = np.arctan2(m_level[1], m_level[0])
+        for roll, pitch in [(0.0, 0.0), (0.3, 0.0), (0.0, 0.4), (0.3, -0.4), (-0.5, 0.6), (0.7, 0.7)]:
+            mag_b = Ry(pitch) @ Rx(roll) @ m_level
+            heading = mag_heading(mag_b, roll, pitch)
+            assert np.isclose(heading, target, atol=1e-9), (
+                f"heading not tilt-invariant at roll={roll}, pitch={pitch}"
+            )
 
     def test_mag_heading_wrapping(self) -> None:
         """Test that heading is wrapped to [-π, π]."""

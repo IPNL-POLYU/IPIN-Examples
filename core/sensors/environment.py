@@ -75,13 +75,12 @@ def mag_tilt_compensate(
         M_x = m̃_x cos(θ) + m̃_z sin(θ)
         M_y = m̃_y cos(ϕ) + m̃_x sin(θ)sin(ϕ) - m̃_z cos(θ)sin(ϕ)
     
-    where θ = pitch, ϕ = roll, and [m̃_x, m̃_y, m̃_z] = mag_b.
-    
-    In matrix form: mag_h = R_x(-roll) @ R_y(-pitch) @ mag_b
-    
-    Note the rotation order: pitch rotation FIRST (applied closest to mag_b),
-    then roll rotation. This ensures M_y contains pitch-dependent terms as
-    shown in Eq. (6.52).
+    where θ = pitch, ϕ = roll, and [m̃_x, m̃_y, m̃_z] = mag_b. The third
+    (vertical) component is Mz = m̃_y sin(ϕ) - m̃_x sin(θ)cos(ϕ) + m̃_z cos(θ)cos(ϕ).
+
+    This inverts the forward tilt body = R_y(pitch) @ R_x(roll) @ level, so the
+    output is tilt-invariant: mag_heading = atan2(My, Mx) recovers the same yaw
+    for any roll/pitch. Implemented directly from Eq. (6.52) to match the book.
 
     Tilt compensation rotates the magnetic field vector from the tilted
     body frame to the horizontal plane, removing the effect of device
@@ -133,23 +132,19 @@ def mag_tilt_compensate(
     if mag_b.shape != (3,):
         raise ValueError(f"mag_b must have shape (3,), got {mag_b.shape}")
 
-    # Rotation matrices for roll and pitch (negative to undo body rotation)
-    # R_x(-roll): rotation about x-axis
-    c_roll = np.cos(-roll)
-    s_roll = np.sin(-roll)
-    R_x = np.array([[1, 0, 0], [0, c_roll, -s_roll], [0, s_roll, c_roll]])
+    mx, my, mz = mag_b
+    ct, st = np.cos(pitch), np.sin(pitch)  # theta = pitch
+    cr, sr = np.cos(roll), np.sin(roll)  # phi = roll
 
-    # R_y(-pitch): rotation about y-axis
-    c_pitch = np.cos(-pitch)
-    s_pitch = np.sin(-pitch)
-    R_y = np.array([[c_pitch, 0, s_pitch], [0, 1, 0], [-s_pitch, 0, c_pitch]])
+    # Book Eq. (6.52), implemented directly (not as a matrix product) so it
+    # matches the book exactly. This inverts the forward tilt
+    # body = Ry(pitch) @ Rx(roll) @ level, so the result is tilt-invariant and
+    # mag_heading = atan2(My, Mx) recovers the same yaw for any roll/pitch.
+    Mx = mx * ct + mz * st
+    My = my * cr + mx * st * sr - mz * ct * sr
+    Mz = my * sr - mx * st * cr + mz * ct * cr
 
-    # Tilt compensation (Eq. 6.52): mag_h = R_x @ R_y @ mag_b
-    # Rotation order: pitch first (R_y), then roll (R_x)
-    # This ensures M_y contains pitch-dependent terms as in Eq. 6.52
-    mag_compensated = R_x @ R_y @ mag_b
-
-    return mag_compensated
+    return np.array([Mx, My, Mz])
 
 
 def mag_heading(

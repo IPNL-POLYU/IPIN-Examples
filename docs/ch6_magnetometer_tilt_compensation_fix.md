@@ -43,24 +43,29 @@ This approach:
 
 ## Solution
 
-### Fix 1: Correct Rotation Order
+### Fix 1: Implement Eq. (6.52) directly
 
-Changed rotation order from `R_y @ R_x` to `R_x @ R_y` in `mag_tilt_compensate()`:
+> **2026-07 correction.** An intermediate version implemented the tilt
+> compensation as a matrix product `R_x(-roll) @ R_y(-pitch) @ mag_b`, but the
+> matrix construction negated the angles a second time, so the result did **not**
+> match Eq. (6.52) (e.g. for roll=0.2, pitch=0.3, mag=[20,5,-40] it returned
+> Mx=30.9, My=-1.5 instead of the book's Mx=7.3, My=13.7) and the recovered
+> heading was **not tilt-invariant**. The unit tests passed only because they
+> checked weak properties (magnitude preserved), not the (6.52) values.
+
+`mag_tilt_compensate()` now computes Eq. (6.52) **directly** (no matrix product),
+so it matches the book by construction:
 
 ```python
-# OLD (incorrect):
-mag_compensated = R_y @ R_x @ mag_b  # pitch then roll
-
-# NEW (correct):
-mag_compensated = R_x @ R_y @ mag_b  # roll then pitch
+Mx = mx*cos(theta) + mz*sin(theta)
+My = my*cos(phi) + mx*sin(theta)*sin(phi) - mz*cos(theta)*sin(phi)
+Mz = my*sin(phi) - mx*sin(theta)*cos(phi) + mz*cos(theta)*cos(phi)
 ```
 
-**Matrix form:**
-```
-mag_h = R_x(-roll) @ R_y(-pitch) @ mag_b
-```
-
-This ensures pitch rotation is applied closest to mag_b, and M_y contains the pitch-dependent terms as shown in Eq. 6.52.
+This inverts the forward tilt `body = Ry(pitch) @ Rx(roll) @ level`, so the
+leveled field (and hence `mag_heading = atan2(My, Mx)`) is tilt-invariant. Two
+guard tests now lock this: `test_mag_tilt_compensate_matches_book_eq_6_52` and
+`test_mag_heading_tilt_invariant` (heading constant to < 1e-9 rad across roll/pitch).
 
 ### Fix 2: Proper Angle Wrapping
 
@@ -263,12 +268,9 @@ R_y(θ) = [ cos(θ)  0   sin(θ)]
          [-sin(θ)  0   cos(θ)]
 ```
 
-**Tilt compensation (Eq. 6.52):**
-```
-mag_h = R_x(-roll) @ R_y(-pitch) @ mag_b
-```
-
-Negative angles undo the body tilt to project into horizontal plane.
+**Tilt compensation (Eq. 6.52):** implemented directly (see Fix 1), equivalent
+to leveling the body field `level = R_x(-roll) @ R_y(-pitch) @ body` for the
+forward tilt `body = R_y(pitch) @ R_x(roll) @ level`.
 
 
 
