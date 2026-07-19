@@ -1133,21 +1133,28 @@
 # Deterministic Fingerprinting
 # ------------------------------------------------------------------------------
 
+# NOTE: corrected during the audit. Previously Eq. (5.3) was mapped to
+# log_likelihood; the Bayes posterior (5.3) is log_posterior, and the Gaussian
+# likelihood (5.6) was missing. Code verified against the book's worked example.
+
 - eq: "Eq. (5.1)"
   chapter: 5
-  description: "Nearest-Neighbor (NN) fingerprinting"
+  description: "Nearest-Neighbor (NN): i* = argmin_i D(z, f_i)"
   files:
     - path: "core/fingerprinting/deterministic.py"
       object: "nn_localize"
+    - path: "core/fingerprinting/deterministic.py"
+      object: "distance"
     - path: "ch5_fingerprinting/example_deterministic.py"
       object: "main"
   tests:
     - "tests/core/fingerprinting/test_deterministic.py"
-  notes: "Decision rule: i* = argmin_i D(z, f_i). Returns location of nearest RP."
+  verified_by: "tests/core/fingerprinting/test_deterministic.py"
+  notes: "Euclidean or Manhattan distance metric D; returns location of nearest RP."
 
 - eq: "Eq. (5.2)"
   chapter: 5
-  description: "k-Nearest-Neighbor (k-NN) fingerprinting"
+  description: "k-NN weighted average x_hat = sum w_i x_i / sum w_i"
   files:
     - path: "core/fingerprinting/deterministic.py"
       object: "knn_localize"
@@ -1155,7 +1162,8 @@
       object: "main"
   tests:
     - "tests/core/fingerprinting/test_deterministic.py"
-  notes: "Weighted average: x̂ = Σ w_i x_i / Σ w_i. Supports inverse distance and uniform weighting."
+  verified_by: "tests/core/fingerprinting/test_deterministic.py"
+  notes: "Inverse-distance weights w_i = 1/(D + eps) or uniform."
 
 # ------------------------------------------------------------------------------
 # Probabilistic Fingerprinting
@@ -1163,19 +1171,20 @@
 
 - eq: "Eq. (5.3)"
   chapter: 5
-  description: "Log-likelihood under Gaussian Naive Bayes"
+  description: "Bayes posterior P(x_i|z) = P(z|x_i) P(x_i) / P(z)"
   files:
     - path: "core/fingerprinting/probabilistic.py"
-      object: "log_likelihood"
+      object: "log_posterior"
     - path: "ch5_fingerprinting/example_probabilistic.py"
       object: "main"
   tests:
     - "tests/core/fingerprinting/test_probabilistic.py"
-  notes: "Log p(z|x_i) = Σ_j log N(z_j; μ_ij, σ_ij²). Assumes feature independence."
+  verified_by: "tests/core/fingerprinting/test_probabilistic.py"
+  notes: "Normalized in log space via log-sum-exp; uses the Gaussian likelihood (5.6)."
 
 - eq: "Eq. (5.4)"
   chapter: 5
-  description: "Maximum A Posteriori (MAP) localization"
+  description: "ML/MAP decision i* = argmax_i P(z|x_i) [P(x_i)]"
   files:
     - path: "core/fingerprinting/probabilistic.py"
       object: "map_localize"
@@ -1183,11 +1192,12 @@
       object: "main"
   tests:
     - "tests/core/fingerprinting/test_probabilistic.py"
-  notes: "MAP: i* = argmax_i p(x_i|z). Returns discrete position estimate."
+  verified_by: "tests/core/fingerprinting/test_probabilistic.py"
+  notes: "argmax posterior; equals ML under a uniform prior (book's assumption)."
 
 - eq: "Eq. (5.5)"
   chapter: 5
-  description: "Posterior mean localization"
+  description: "Posterior mean x_hat = sum P(x_i|z) x_i"
   files:
     - path: "core/fingerprinting/probabilistic.py"
       object: "posterior_mean_localize"
@@ -1195,15 +1205,29 @@
       object: "main"
   tests:
     - "tests/core/fingerprinting/test_probabilistic.py"
-  notes: "Posterior mean: x̂ = Σ p(x_i|z) x_i. Returns continuous position estimate."
+  verified_by: "tests/core/fingerprinting/test_probabilistic.py"
+  notes: "Continuous estimate E[x|z]; optional top-k truncation per book guidance."
 
-# ------------------------------------------------------------------------------
-# Pattern Recognition
-# ------------------------------------------------------------------------------
-
-- eq: "Linear Regression Model"
+- eq: "Eq. (5.6)"
   chapter: 5
-  description: "Linear regression localizer (ridge regression)"
+  description: "Gaussian likelihood L_i = N(z; mu_i, sigma_i^2)"
+  files:
+    - path: "core/fingerprinting/probabilistic.py"
+      object: "log_likelihood"
+    - path: "core/fingerprinting/probabilistic.py"
+      object: "fit_gaussian_naive_bayes"
+  tests:
+    - "tests/core/fingerprinting/test_probabilistic.py"
+  verified_by: "tests/core/fingerprinting/test_probabilistic.py"
+  notes: "Per-feature Gaussian; multi-AP via Naive-Bayes product (sum in log). Verified vs the book's 1D example (z=-58 -> B)."
+
+# ------------------------------------------------------------------------------
+# Pattern Recognition (Section 5.2 - ML methods, no numbered book equations)
+# ------------------------------------------------------------------------------
+
+- eq: "Section 5.2 (regression)"
+  chapter: 5
+  description: "Linear/ridge regression localizer x_hat = W z + b"
   files:
     - path: "core/fingerprinting/pattern_recognition.py"
       object: "LinearRegressionLocalizer"
@@ -1211,7 +1235,8 @@
       object: "main"
   tests:
     - "tests/core/fingerprinting/test_pattern_recognition.py"
-  notes: "Direct regression: x̂ = Wz + b. Ridge regularization prevents overfitting."
+  verified_by: "tests/core/fingerprinting/test_pattern_recognition.py"
+  notes: "Book Section 5.2.2 (regression); not a numbered equation."
 
 # ==============================================================================
 # Chapter 6: Dead Reckoning and Proprioceptive Sensors
