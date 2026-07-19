@@ -480,10 +480,10 @@ class TestStepLengthBookEq649(unittest.TestCase):
         L_offset = 0.7
         
         L = step_length_book_eq6_49(h_ref, SF_ref)
-        
-        # Expected: L_offset + 1.0 (since normalized terms are 1)
-        expected = L_offset + 1.0
-        assert np.isclose(L, expected, atol=0.01)
+
+        # At the reference point both deviation terms vanish, so L = L_offset * c.
+        expected = L_offset  # c = 1.0
+        assert np.isclose(L, expected, atol=1e-9)
 
     def test_step_length_increases_with_height(self) -> None:
         """Test that taller people have longer steps."""
@@ -515,12 +515,13 @@ class TestStepLengthBookEq649(unittest.TestCase):
         L_offset = 0.7
         
         L = step_length_book_eq6_49(h, SF, a, b, c, h_ref, SF_ref, L_offset)
-        
-        # Manual calculation: L = L_offset + c * (h/h_ref)^a * (SF/SF_ref)^b
-        h_norm = h / h_ref
-        SF_norm = SF / SF_ref
-        L_expected = L_offset + c * (h_norm**a) * (SF_norm**b)
-        
+
+        # Book Eq. (6.49):
+        #   SL = [L_offset + a*(h - h_ref) + b*(SF - SF_ref)*(h/h_ref)] * c
+        L_expected = (
+            L_offset + a * (h - h_ref) + b * (SF - SF_ref) * (h / h_ref)
+        ) * c
+
         assert np.isclose(L, L_expected)
 
     def test_step_length_custom_calibration(self) -> None:
@@ -532,11 +533,8 @@ class TestStepLengthBookEq649(unittest.TestCase):
         L_default = step_length_book_eq6_49(h, SF, c=1.0)
         L_custom = step_length_book_eq6_49(h, SF, c=c_custom)
         
-        # Custom c scales the non-offset term
-        # L = L_offset + c * (h/h_ref)^a * (SF/SF_ref)^b
-        # So L_custom - L_offset = 1.2 * (L_default - L_offset)
-        L_offset = 0.7
-        assert np.isclose(L_custom - L_offset, 1.2 * (L_default - L_offset))
+        # Book Eq. (6.49) multiplies the whole bracket by c, so L scales linearly.
+        assert np.isclose(L_custom, c_custom * L_default)
 
     def test_step_length_invalid_inputs(self) -> None:
         """Test that invalid inputs raise errors."""

@@ -26,7 +26,7 @@ References:
     Eq. (6.46): Total acceleration magnitude
     Eq. (6.47): Gravity-removed magnitude
     Eq. (6.48): Step frequency
-    Eq. (6.49): Step length (Weinberg model)
+    Eq. (6.49): Step length (linear height/frequency model)
     Eq. (6.50): 2D position update
 """
 
@@ -428,28 +428,29 @@ def step_length_book_eq6_49(
     """
     Estimate step length using book Eq. (6.49).
 
-    Implements the actual formula from Chapter 6, Eq. (6.49):
-        L = L_offset + c * ((h / h_ref)^a) * ((SF / SF_ref)^b)
+    Implements Chapter 6, Eq. (6.49):
+        SL = [L_offset + a*(h - h_ref) + b*(SF - SF_ref)*(h/h_ref)] * c
 
     where:
-        L: step length [m]
+        SL: step length [m]
         h: user height [m]
         SF: step frequency [Hz]
         h_ref: reference height (1.75 m)
         SF_ref: reference step frequency (1.79 Hz)
         L_offset: base step length (0.7 m)
-        a, b, c: empirical exponents
+        a, b: empirical linear coefficients (0.371, 0.227)
+        c: personal scaling factor (~1)
 
-    This is a height + frequency empirical model with an offset and reference
-    normalization terms, NOT a simple power-law.
+    This is a linear model in the height and frequency deviations from the
+    reference, with the frequency term scaled by (h/h_ref).
 
     Args:
         h: User height.
            Units: meters. Typical range: 1.5-2.0 m.
         SF: Step frequency.
             Units: Hz (steps per second). Typical range: 1.5-3.0 Hz.
-        a: Height exponent. Default: 0.371 (book value).
-        b: Frequency exponent. Default: 0.227 (book value).
+        a: Height coefficient. Default: 0.371 (book value).
+        b: Frequency coefficient. Default: 0.227 (book value).
         c: Scaling constant. Default: 1.0 (personal calibration factor).
         h_ref: Reference height. Default: 1.75 m (book value).
         SF_ref: Reference step frequency. Default: 1.79 Hz (book value).
@@ -457,23 +458,24 @@ def step_length_book_eq6_49(
 
     Returns:
         Step length L.
-        Units: meters. Typical range: 0.6-1.0 m.
+        Units: meters. Typical range: 0.5-0.9 m.
 
     Notes:
-        - This matches the book's Eq. (6.49) exactly
-        - The offset and reference terms make this model more physically realistic
-        - At h=h_ref and SF=SF_ref with c=1, L ≈ L_offset + 1.0 m
-        - Parameters can be calibrated per user for best accuracy
+        - Matches the book's Eq. (6.49) (linear-difference form; interpretation
+          confirmed with the author).
+        - At the reference (h=h_ref, SF=SF_ref) the step length is L_offset * c
+          (= 0.7 m for c=1), because both deviation terms vanish.
+        - Parameters can be calibrated per user for best accuracy.
 
     Example:
         >>> # Person at reference height and frequency
         >>> h, SF = 1.75, 1.79
         >>> L = step_length_book_eq6_49(h, SF)
-        >>> print(f"Step length: {L:.2f} m")  # ~1.7 m
-        >>> 
+        >>> print(f"Step length: {L:.2f} m")  # 0.70 m
+        >>>
         >>> # Taller person, faster walking
         >>> L_tall = step_length_book_eq6_49(h=1.90, SF=2.2)
-        >>> print(f"Step length (tall): {L_tall:.2f} m")
+        >>> print(f"Step length (tall): {L_tall:.2f} m")  # ~0.86 m
 
     Related Equations:
         - Eq. (6.48): Step frequency (SF)
@@ -494,10 +496,9 @@ def step_length_book_eq6_49(
     if SF_ref <= 0:
         raise ValueError(f"SF_ref must be positive, got {SF_ref}")
 
-    # Book Eq. (6.49): L = L_offset + c * (h/h_ref)^a * (SF/SF_ref)^b
-    h_norm = h / h_ref
-    SF_norm = SF / SF_ref
-    L = L_offset + c * (h_norm**a) * (SF_norm**b)
+    # Book Eq. (6.49):
+    #   SL = [L_offset + a*(h - h_ref) + b*(SF - SF_ref)*(h/h_ref)] * c
+    L = (L_offset + a * (h - h_ref) + b * (SF - SF_ref) * (h / h_ref)) * c
 
     return L
 
