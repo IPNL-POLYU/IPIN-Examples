@@ -2,25 +2,29 @@
 
 ## Equation → Code Mapping
 
-### Coordinate Transformations
+> Numbers follow the **final book**. Convention: roll→Y, pitch→X, yaw→Z;
+> `C` is the passive transform `x_new = C @ x_old`. See
+> `docs/ch2_equation_mapping.md` for the full note.
 
-| Equation | Description | Function | File | Tests Pass |
-|----------|-------------|----------|------|------------|
-| **Eq. (2.1)** | LLH → ECEF | `llh_to_ecef()` | `core/coords/transforms.py` | ✅ 5/5 |
-| **Eq. (2.2)** | ECEF → LLH | `ecef_to_llh()` | `core/coords/transforms.py` | ✅ 8/8 |
-| **Eq. (2.3)** | ECEF → ENU | `ecef_to_enu()` | `core/coords/transforms.py` | ✅ 9/9 |
-| **Eq. (2.4)** | ENU → ECEF | `enu_to_ecef()` | `core/coords/transforms.py` | ✅ 7/7 |
+### Section 2.1 — Coordinate Transformations
 
-### Rotation Representations
+| Equation | Description | Function | File |
+|----------|-------------|----------|------|
+| **Eq. (2.3)** | Map → Body (yaw) | `map_to_body()` / `body_to_map()` | `core/coords/transforms.py` |
+| **Eq. (2.5)** | ENU ↔ NED | `enu_to_ned()` / `ned_to_enu()` | `core/coords/transforms.py` |
+| **Eq. (2.6)** | ENU → Body | `enu_to_body()` | `core/coords/transforms.py` |
+| **Eq. (2.7)** | Body → ENU | `body_to_enu()` | `core/coords/transforms.py` |
+| **Eq. (2.9)** | LLH → ECEF | `llh_to_ecef()` (inv: `ecef_to_llh()`) | `core/coords/transforms.py` |
+| **Eq. (2.10)** | ECEF → ENU | `ecef_to_enu()` (inv: `enu_to_ecef()`) | `core/coords/transforms.py` |
 
-| Equation | Description | Function | File | Tests Pass |
-|----------|-------------|----------|------|------------|
-| **Eq. (2.5)** | Euler → Rotation Matrix | `euler_to_rotation_matrix()` | `core/coords/rotations.py` | ✅ 11/11 |
-| **Eq. (2.6)** | Rotation Matrix → Euler | `rotation_matrix_to_euler()` | `core/coords/rotations.py` | ✅ 11/11 |
-| **Eq. (2.7)** | Euler → Quaternion | `euler_to_quat()` | `core/coords/rotations.py` | ✅ 10/10 |
-| **Eq. (2.8)** | Quaternion → Euler | `quat_to_euler()` | `core/coords/rotations.py` | ✅ 9/9 |
-| **Eq. (2.9)** | Quaternion → Rotation Matrix | `quat_to_rotation_matrix()` | `core/coords/rotations.py` | ✅ 9/9 |
-| **Eq. (2.10)** | Rotation Matrix → Quaternion | `rotation_matrix_to_quat()` | `core/coords/rotations.py` | ✅ 10/10 |
+### Section 2.2 — Attitude Representations
+
+| Equation | Description | Function | File |
+|----------|-------------|----------|------|
+| **Eq. (2.14–2.17)** | Euler → Rotation Matrix | `euler_to_rotation_matrix()` (inv: `rotation_matrix_to_euler()`) | `core/coords/rotations.py` |
+| **Eq. (2.21)** | Quaternion → Rotation Matrix | `quat_to_rotation_matrix()` (inv: `rotation_matrix_to_quat()`, Shepperd) | `core/coords/rotations.py` |
+| **Eq. (2.22)** | Quaternion → Euler | `quat_to_euler()` | `core/coords/rotations.py` |
+| **Eq. (2.23)** | Euler → Quaternion | `euler_to_quat()` | `core/coords/rotations.py` |
 
 ---
 
@@ -28,12 +32,10 @@
 
 | Metric | Value |
 |--------|-------|
-| **Total Equations Mapped** | 10 |
-| **Functions Implemented** | 10 |
-| **Test Cases** | 47 |
-| **Subtests** | 27 |
-| **Pass Rate** | 100% ✅ |
-| **Documentation Files** | 4 |
+| **Implemented equations (indexed + verified)** | 14 |
+| **Coordinate/rotation functions** | 16 |
+| **Tests (`tests/core/coords/`)** | 55 passing |
+| **Index + verification gate** | `check_equation_index.py --strict` |
 
 ---
 

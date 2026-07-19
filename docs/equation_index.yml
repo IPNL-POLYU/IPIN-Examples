@@ -20,98 +20,197 @@
 # Chapter 2: Coordinate Systems and Attitude Representations
 # ==============================================================================
 
+# NOTE: equation numbers below follow the FINAL book. Eqs. (2.1), (2.2), (2.4),
+# (2.8), (2.20) are coordinate/quaternion vector DEFINITIONS (no standalone
+# function). Implemented transforms/conversions map to the numbers shown.
+
 - eq: "Eq. (2.1)"
   chapter: 2
-  description: "LLH to ECEF coordinate transformation"
-  files:
-    - path: "core/coords/transforms.py"
-      object: "llh_to_ecef"
-    - path: "ch2_coords/example_coordinate_transforms.py"
-      object: "main"
-  tests:
-    - "tests/core/coords/test_transforms.py::TestLLHtoECEF"
-    - "tests/core/coords/test_transforms.py::TestRoundTripLLHECEF"
-  notes: "Uses WGS84 ellipsoid parameters. Closed-form solution."
+  description: "Local body coordinate vector definition x_BODY = [x y z]^T"
+  files: []
+  notes: "Definition only (Section 2.1.1); no standalone function."
 
 - eq: "Eq. (2.2)"
   chapter: 2
-  description: "ECEF to LLH coordinate transformation (iterative)"
+  description: "Local map coordinate vector definition x_MAP = [x y z]^T"
+  files: []
+  notes: "Definition only (Section 2.1.2); no standalone function."
+
+- eq: "Eq. (2.3)"
+  chapter: 2
+  description: "Local map to local body transformation (yaw rotation Rz)"
   files:
+    - path: "core/coords/transforms.py"
+      object: "map_to_body"
+    - path: "core/coords/transforms.py"
+      object: "body_to_map"
+  tests:
+    - "tests/core/coords/test_transforms.py::TestMapBody"
+  verified_by: "tests/core/coords/test_transforms.py::TestMapBody"
+  notes: "x_body = Rz(yaw) (x_map - x_map_B); yaw-only case with optional origin offset."
+
+- eq: "Eq. (2.4)"
+  chapter: 2
+  description: "ENU coordinate vector definition x_ENU = [E N U]^T"
+  files: []
+  notes: "Definition only (Section 2.1.3); no standalone function."
+
+- eq: "Eq. (2.5)"
+  chapter: 2
+  description: "ENU to NED transformation (axis swap E<->N, U->D)"
+  files:
+    - path: "core/coords/transforms.py"
+      object: "enu_to_ned"
+    - path: "core/coords/transforms.py"
+      object: "ned_to_enu"
+  tests:
+    - "tests/core/coords/test_transforms.py::TestEnuNed"
+  verified_by: "tests/core/coords/test_transforms.py::TestEnuNed"
+  notes: "C^NED_ENU = [[0,1,0],[1,0,0],[0,0,-1]]; symmetric and its own inverse."
+
+- eq: "Eq. (2.6)"
+  chapter: 2
+  description: "ENU to local body transformation"
+  files:
+    - path: "core/coords/transforms.py"
+      object: "enu_to_body"
+  tests:
+    - "tests/core/coords/test_transforms.py::TestEnuBody"
+  verified_by: "tests/core/coords/test_transforms.py::TestEnuBody"
+  notes: "x_body = C^BODY_ENU (x_enu - x_enu_B); C from body attitude (Eq. (2.17))."
+
+- eq: "Eq. (2.7)"
+  chapter: 2
+  description: "Local body to ENU transformation"
+  files:
+    - path: "core/coords/transforms.py"
+      object: "body_to_enu"
+  tests:
+    - "tests/core/coords/test_transforms.py::TestEnuBody"
+  verified_by: "tests/core/coords/test_transforms.py::TestEnuBody"
+  notes: "x_enu = C^ENU_BODY (x_body - x_body_R); C^ENU_BODY = (C^BODY_ENU)^T."
+
+- eq: "Eq. (2.8)"
+  chapter: 2
+  description: "Geodetic (LLH) coordinate vector definition x_LLH = [phi lambda h]^T"
+  files: []
+  notes: "Definition only (Section 2.1.4); no standalone function."
+
+- eq: "Eq. (2.9)"
+  chapter: 2
+  description: "LLH to ECEF coordinate transformation (closed form)"
+  files:
+    - path: "core/coords/transforms.py"
+      object: "llh_to_ecef"
     - path: "core/coords/transforms.py"
       object: "ecef_to_llh"
     - path: "ch2_coords/example_coordinate_transforms.py"
       object: "main"
   tests:
-    - "tests/core/coords/test_transforms.py::TestECEFtoLLH"
+    - "tests/core/coords/test_transforms.py::TestLLHtoECEF"
     - "tests/core/coords/test_transforms.py::TestRoundTripLLHECEF"
-  notes: "Iterative algorithm with configurable tolerance (default 1e-12 m). Handles poles as special case."
+  verified_by: "tests/core/coords/test_transforms.py::TestLLHtoECEF"
+  notes: "WGS84 ellipsoid. ecef_to_llh is the iterative inverse (book refers to [2]; no closed form)."
 
-- eq: "Eq. (2.3)"
+- eq: "Eq. (2.10)"
   chapter: 2
   description: "ECEF to ENU (East-North-Up) local frame transformation"
   files:
     - path: "core/coords/transforms.py"
       object: "ecef_to_enu"
-    - path: "ch2_coords/example_coordinate_transforms.py"
-      object: "main"
-  tests:
-    - "tests/core/coords/test_transforms.py::TestECEFtoENU"
-    - "tests/core/coords/test_transforms.py::TestRoundTripECEFENU"
-  notes: "Rotation matrix from ECEF to local tangent plane at reference point."
-
-- eq: "Eq. (2.4)"
-  chapter: 2
-  description: "ENU to ECEF coordinate transformation"
-  files:
     - path: "core/coords/transforms.py"
       object: "enu_to_ecef"
     - path: "ch2_coords/example_coordinate_transforms.py"
       object: "main"
   tests:
-    - "tests/core/coords/test_transforms.py::TestENUtoECEF"
+    - "tests/core/coords/test_transforms.py::TestECEFtoENU"
     - "tests/core/coords/test_transforms.py::TestRoundTripECEFENU"
-  notes: "Inverse of ECEF to ENU transformation."
+  verified_by: "tests/core/coords/test_transforms.py::TestECEFtoENU"
+  notes: "Rotation from ECEF to local tangent plane; enu_to_ecef is the inverse (transpose + offset)."
 
-- eq: "Eq. (2.5)"
+- eq: "Eq. (2.11)"
   chapter: 2
-  description: "Euler angles to rotation matrix (ZYX convention)"
+  description: "Rotation (coordinate-transform) relation x_new = C x_old"
   files:
     - path: "core/coords/rotations.py"
       object: "euler_to_rotation_matrix"
-    - path: "ch2_coords/example_coordinate_transforms.py"
-      object: "main"
   tests:
     - "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix"
-    - "tests/core/coords/test_rotations.py::TestRoundTripEulerRotationMatrix"
-  notes: "ZYX (yaw-pitch-roll) Euler angle convention. Returns proper orthogonal matrix in SO(3)."
+  verified_by: "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix::test_matches_book_eq_2_17"
+  notes: "Passive coordinate transform; C is built by euler_to_rotation_matrix."
 
-- eq: "Eq. (2.6)"
+- eq: "Eq. (2.14)"
   chapter: 2
-  description: "Rotation matrix to Euler angles"
+  description: "Yaw rotation matrix Rz(psi) about the Z-axis"
   files:
+    - path: "core/coords/rotations.py"
+      object: "euler_to_rotation_matrix"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix"
+  verified_by: "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix::test_90_degree_yaw"
+  notes: "Composed inside euler_to_rotation_matrix; also used by map_to_body."
+
+- eq: "Eq. (2.15)"
+  chapter: 2
+  description: "Roll rotation matrix Ry(phi) about the Y-axis"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "euler_to_rotation_matrix"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix"
+  verified_by: "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix::test_90_degree_roll"
+  notes: "Book convention: roll is about the Y-axis. Composed inside euler_to_rotation_matrix."
+
+- eq: "Eq. (2.16)"
+  chapter: 2
+  description: "Pitch rotation matrix Rx(theta) about the X-axis"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "euler_to_rotation_matrix"
+  tests:
+    - "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix"
+  verified_by: "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix::test_90_degree_pitch"
+  notes: "Book convention: pitch is about the X-axis. Composed inside euler_to_rotation_matrix."
+
+- eq: "Eq. (2.17)"
+  chapter: 2
+  description: "Euler angles to rotation matrix C = Rx(pitch)Ry(roll)Rz(yaw)"
+  files:
+    - path: "core/coords/rotations.py"
+      object: "euler_to_rotation_matrix"
     - path: "core/coords/rotations.py"
       object: "rotation_matrix_to_euler"
     - path: "ch2_coords/example_coordinate_transforms.py"
       object: "main"
   tests:
-    - "tests/core/coords/test_rotations.py::TestRotationMatrixToEuler"
+    - "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix"
     - "tests/core/coords/test_rotations.py::TestRoundTripEulerRotationMatrix"
-  notes: "Handles gimbal lock at pitch = ±90° by setting roll = 0 by convention."
+  verified_by: "tests/core/coords/test_rotations.py::TestEulerToRotationMatrix::test_matches_book_eq_2_17"
+  notes: "Book convention: roll->Y, pitch->X, yaw->Z; passive form x_new = C x_old. Composed from Eqs. (2.14)-(2.16). rotation_matrix_to_euler is the inverse."
 
-- eq: "Eq. (2.7)"
+- eq: "Eq. (2.20)"
   chapter: 2
-  description: "Euler angles to quaternion"
+  description: "Quaternion vector definition q = [q0 q1 q2 q3] (scalar first)"
+  files: []
+  notes: "Definition only (Section 2.2.2.3); no standalone function."
+
+- eq: "Eq. (2.21)"
+  chapter: 2
+  description: "Quaternion to rotation matrix"
   files:
     - path: "core/coords/rotations.py"
-      object: "euler_to_quat"
+      object: "quat_to_rotation_matrix"
+    - path: "core/coords/rotations.py"
+      object: "rotation_matrix_to_quat"
     - path: "ch2_coords/example_coordinate_transforms.py"
       object: "main"
   tests:
-    - "tests/core/coords/test_rotations.py::TestEulerToQuaternion"
-    - "tests/core/coords/test_rotations.py::TestRoundTripEulerQuaternion"
-  notes: "Returns unit quaternion [qw, qx, qy, qz] with scalar-first convention."
+    - "tests/core/coords/test_rotations.py::TestQuaternionToRotationMatrix"
+    - "tests/core/coords/test_rotations.py::TestRoundTripQuaternionRotationMatrix"
+  verified_by: "tests/core/coords/test_rotations.py::TestRoundTripQuaternionRotationMatrix"
+  notes: "Passive form consistent with Eq. (2.17). rotation_matrix_to_quat is the Shepperd inverse (no explicit book equation)."
 
-- eq: "Eq. (2.8)"
+- eq: "Eq. (2.22)"
   chapter: 2
   description: "Quaternion to Euler angles"
   files:
@@ -122,33 +221,22 @@
   tests:
     - "tests/core/coords/test_rotations.py::TestQuaternionToEuler"
     - "tests/core/coords/test_rotations.py::TestRoundTripEulerQuaternion"
-  notes: "Expects unit quaternion [qw, qx, qy, qz]. Clamps arcsin argument to [-1, 1]."
+  verified_by: "tests/core/coords/test_rotations.py::TestQuaternionToEuler"
+  notes: "Returns [roll, pitch, yaw]; clamps arcsin argument to [-1, 1]."
 
-- eq: "Eq. (2.9)"
+- eq: "Eq. (2.23)"
   chapter: 2
-  description: "Quaternion to rotation matrix"
+  description: "Euler angles to quaternion"
   files:
     - path: "core/coords/rotations.py"
-      object: "quat_to_rotation_matrix"
+      object: "euler_to_quat"
     - path: "ch2_coords/example_coordinate_transforms.py"
       object: "main"
   tests:
-    - "tests/core/coords/test_rotations.py::TestQuaternionToRotationMatrix"
-    - "tests/core/coords/test_rotations.py::TestRoundTripQuaternionRotationMatrix"
-  notes: "Returns proper orthogonal matrix. Assumes input quaternion is normalized."
-
-- eq: "Eq. (2.10)"
-  chapter: 2
-  description: "Rotation matrix to quaternion (Shepperd's method)"
-  files:
-    - path: "core/coords/rotations.py"
-      object: "rotation_matrix_to_quat"
-    - path: "ch2_coords/example_coordinate_transforms.py"
-      object: "main"
-  tests:
-    - "tests/core/coords/test_rotations.py::TestRotationMatrixToQuaternion"
-    - "tests/core/coords/test_rotations.py::TestRoundTripQuaternionRotationMatrix"
-  notes: "Uses Shepperd's method for numerical stability. Chooses largest diagonal element. Normalizes output."
+    - "tests/core/coords/test_rotations.py::TestEulerToQuaternion"
+    - "tests/core/coords/test_rotations.py::TestRoundTripEulerQuaternion"
+  verified_by: "tests/core/coords/test_rotations.py::TestEulerToQuaternion"
+  notes: "Returns unit quaternion [q0, q1, q2, q3] (scalar first)."
 
 # ==============================================================================
 # Chapter 3: State Estimation and Filtering

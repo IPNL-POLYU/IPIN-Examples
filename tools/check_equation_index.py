@@ -160,6 +160,70 @@ def check_file_paths(entries: List[Dict], root: Path) -> List[str]:
     return errors
 
 
+def resolve_test_node(node: str, root: Path) -> bool:
+    """Check that a pytest-style test node id actually exists in the source.
+
+    Accepts ``path/to/test.py``, ``...::ClassName`` or
+    ``...::ClassName::test_method``. Verifies the file exists and that each
+    class/function name after ``::`` is defined in that file.
+
+    Args:
+        node: Test node id from a ``verified_by`` field.
+        root: Project root directory.
+
+    Returns:
+        True if the file exists and all referenced names are defined.
+    """
+    parts = node.split("::")
+    file_path = root / parts[0]
+    if not file_path.exists():
+        return False
+    if len(parts) == 1:
+        return True
+    try:
+        content = file_path.read_text(encoding="utf-8")
+    except Exception:
+        return False
+    for name in parts[1:]:
+        if not re.search(rf"(?:class|def)\s+{re.escape(name)}\b", content):
+            return False
+    return True
+
+
+def check_verification(
+    entries: List[Dict], root: Path
+) -> Tuple[List[str], List[Tuple[str, str]]]:
+    """Check that each *implemented* equation is backed by a conformance test.
+
+    Entries with a non-empty ``files`` list are considered implemented and must
+    carry a ``verified_by`` node that resolves to a real test. Definition-only
+    entries (empty ``files``) are exempt.
+
+    Args:
+        entries: Parsed index entries.
+        root: Project root directory.
+
+    Returns:
+        (verified_eq_ids, unverified) where ``unverified`` is a list of
+        (eq_id, verified_by_value) for implemented equations lacking a
+        resolvable ``verified_by``.
+    """
+    verified: List[str] = []
+    unverified: List[Tuple[str, str]] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if not entry.get("files"):
+            continue  # definition-only entry; no verification required
+        eq_id = str(entry.get("eq", "unknown"))
+        vb = entry.get("verified_by", "")
+        if vb and resolve_test_node(vb, root):
+            verified.append(eq_id)
+        else:
+            unverified.append((eq_id, vb or "<missing>"))
+    return verified, unverified
+
+
 def main():
     """Main entry point for equation index checker."""
     parser = argparse.ArgumentParser(
@@ -237,6 +301,18 @@ def main():
         print("[OK] All file paths in index are valid")
         print()
     
+    # Check verification: implemented equations must be backed by a real test.
+    verified, unverified = check_verification(entries, root)
+    implemented = len(verified) + len(unverified)
+    if unverified:
+        print("[WARNING] Implemented equations without a resolvable verified_by:")
+        for eq, vb in sorted(unverified):
+            print(f"   - {eq}  (verified_by: {vb})")
+        print()
+    else:
+        print("[OK] All implemented equations are backed by a conformance test")
+        print()
+
     # Summary
     print("=" * 60)
     print("SUMMARY")
@@ -245,14 +321,15 @@ def main():
     print(f"  Code references:       {len(code_equations)}")
     print(f"  Missing from index:    {len(missing_from_index)}")
     print(f"  File path errors:      {len(path_errors)}")
+    print(f"  Verified equations:    {len(verified)}/{implemented} implemented")
     print()
     
     # Determine exit code
-    if args.strict and (missing_from_index or path_errors):
+    if args.strict and (missing_from_index or path_errors or unverified):
         print("[FAILED] (strict mode)")
         return 1
-    elif path_errors:
-        print("[WARNING] (file path issues)")
+    elif path_errors or unverified:
+        print("[WARNING] (unresolved file paths or unverified equations)")
         return 0
     else:
         print("[PASSED]")

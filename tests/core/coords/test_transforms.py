@@ -10,7 +10,7 @@ Test cases include:
 - Known reference points (e.g., equator, poles, Greenwich)
 - Numerical accuracy and edge cases
 
-Reference: Chapter 2, Section 2.3 - Coordinate Transformations
+Reference: Chapter 2, Section 2.1 - Coordinate Systems and Transformations
 """
 
 import unittest
@@ -18,10 +18,16 @@ import unittest
 import numpy as np
 
 from core.coords.transforms import (
+    body_to_enu,
+    body_to_map,
     ecef_to_enu,
     ecef_to_llh,
+    enu_to_body,
     enu_to_ecef,
+    enu_to_ned,
     llh_to_ecef,
+    map_to_body,
+    ned_to_enu,
 )
 
 
@@ -312,6 +318,69 @@ class TestRoundTripECEFENU(unittest.TestCase):
 
                 # Check round-trip accuracy
                 np.testing.assert_allclose(xyz_result, xyz, atol=1e-3)
+
+
+class TestMapBody(unittest.TestCase):
+    """Test cases for local map <-> local body transforms (Eq. (2.3))."""
+
+    def test_pure_yaw_known_value(self) -> None:
+        """A 90 deg yaw maps map-frame +X to body-frame -Y (passive)."""
+        x_body = map_to_body(np.array([1.0, 0.0, 0.0]), np.pi / 2.0)
+        np.testing.assert_allclose(x_body, [0.0, -1.0, 0.0], atol=1e-9)
+
+    def test_translation_offset(self) -> None:
+        """Body origin offset in the map frame is subtracted before rotating."""
+        x_map = np.array([3.0, 1.0, 2.0])
+        origin = np.array([1.0, 1.0, 0.0])
+        x_body = map_to_body(x_map, 0.0, origin)
+        np.testing.assert_allclose(x_body, [2.0, 0.0, 2.0], atol=1e-9)
+
+    def test_round_trip(self) -> None:
+        """map -> body -> map recovers the original point."""
+        rng = np.random.default_rng(0)
+        for _ in range(20):
+            x_map = rng.uniform(-50.0, 50.0, 3)
+            yaw = rng.uniform(-np.pi, np.pi)
+            origin = rng.uniform(-10.0, 10.0, 3)
+            x_body = map_to_body(x_map, yaw, origin)
+            recovered = body_to_map(x_body, yaw, origin)
+            np.testing.assert_allclose(recovered, x_map, atol=1e-9)
+
+
+class TestEnuNed(unittest.TestCase):
+    """Test cases for ENU <-> NED transforms (Eq. (2.5))."""
+
+    def test_known_value(self) -> None:
+        """[E, N, U] -> [N, E, -U]."""
+        np.testing.assert_allclose(
+            enu_to_ned(np.array([1.0, 2.0, 3.0])), [2.0, 1.0, -3.0], atol=1e-12
+        )
+
+    def test_self_inverse(self) -> None:
+        """The ENU<->NED matrix is its own inverse."""
+        rng = np.random.default_rng(1)
+        for _ in range(20):
+            v = rng.uniform(-100.0, 100.0, 3)
+            np.testing.assert_allclose(ned_to_enu(enu_to_ned(v)), v, atol=1e-12)
+
+
+class TestEnuBody(unittest.TestCase):
+    """Test cases for ENU <-> local body transforms (Eqs. (2.6), (2.7))."""
+
+    def test_identity_attitude(self) -> None:
+        """Zero attitude with no offset is the identity map."""
+        v = np.array([1.0, 2.0, 3.0])
+        np.testing.assert_allclose(enu_to_body(v, 0.0, 0.0, 0.0), v, atol=1e-9)
+
+    def test_round_trip(self) -> None:
+        """enu -> body -> enu recovers the original point (coincident origins)."""
+        rng = np.random.default_rng(2)
+        for _ in range(20):
+            x_enu = rng.uniform(-50.0, 50.0, 3)
+            roll, pitch, yaw = rng.uniform(-np.pi, np.pi, 3)
+            x_body = enu_to_body(x_enu, roll, pitch, yaw)
+            recovered = body_to_enu(x_body, roll, pitch, yaw)
+            np.testing.assert_allclose(recovered, x_enu, atol=1e-9)
 
 
 if __name__ == "__main__":

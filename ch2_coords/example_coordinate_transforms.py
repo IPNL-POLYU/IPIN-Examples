@@ -166,15 +166,15 @@ def run_with_dataset(data_dir: str) -> None:
     print(f"Quaternion norm: {np.linalg.norm(quat_computed):.6f} (should be 1.0)")
     print(f"Rotation matrix determinant: {np.linalg.det(R_from_euler):.6f} (should be 1.0)")
     
-    # Example 5: Apply rotation to vector
-    print("\n5. Applying Rotations")
+    # Example 5: Apply the coordinate transform (passive: x_new = C @ x_old)
+    print("\n5. Applying the Coordinate Transform (x_new = C @ x_old)")
     print("-" * 70)
     
-    v_body = np.array([1.0, 0.0, 0.0])  # Forward in body frame
-    v_nav = R_from_quat @ v_body
+    x_old = np.array([1.0, 0.0, 0.0])  # a point in the old frame
+    x_new = R_from_quat @ x_old  # its coordinates in the rotated (new) frame
     
-    print(f"Vector in body frame: {v_body}")
-    print(f"Vector in navigation frame: [{v_nav[0]:.4f}, {v_nav[1]:.4f}, {v_nav[2]:.4f}]")
+    print(f"Point in old frame: {x_old}")
+    print(f"Coordinates in new frame: [{x_new[0]:.4f}, {x_new[1]:.4f}, {x_new[2]:.4f}]")
     
     print("\n" + "=" * 70)
     print("Dataset verification complete!")
@@ -281,18 +281,18 @@ def run_with_inline_data() -> None:
     print(f"  {q}")
     print(f"  Norm: {np.linalg.norm(q):.6f} (should be 1.0)")
 
-    # Example 5: Rotation application
-    print("\n5. Applying Rotation to Vector")
+    # Example 5: Apply the coordinate transform (passive: x_new = C @ x_old)
+    print("\n5. Applying the Coordinate Transform (x_new = C @ x_old)")
     print("-" * 70)
 
-    # Vector in body frame (e.g., sensor pointing forward)
-    v_body = np.array([1.0, 0.0, 0.0])
-    print(f"Vector in body frame: {v_body}")
+    # A point in the old frame (e.g., sensor pointing forward)
+    x_old = np.array([1.0, 0.0, 0.0])
+    print(f"Point in old frame: {x_old}")
 
-    # Rotate to navigation frame
-    R_nav_body = quat_to_rotation_matrix(q)
-    v_nav = R_nav_body @ v_body
-    print(f"Vector in navigation frame: {v_nav}")
+    # Apply the passive transform: its coordinates in the rotated (new) frame
+    C = quat_to_rotation_matrix(q)
+    x_new = C @ x_old
+    print(f"Coordinates in new frame: {x_new}")
 
     # Example 6: Quaternion -> Euler (direct, Eqs. 2.22-2.23)
     print("\n6. Quaternion -> Euler (Eqs. 2.22-2.23)")

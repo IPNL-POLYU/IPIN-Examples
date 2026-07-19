@@ -1,473 +1,115 @@
-# Chapter 2: Equation Mapping Summary
+# Chapter 2: Equation Mapping (Book → Code)
 
-## Overview
+Mapping between the equations in **Chapter 2** of *Principles of Indoor
+Positioning and Indoor Navigation* and their implementations in this repo.
 
-This document provides a comprehensive mapping between the equations in **Chapter 2** of *Principles of Indoor Positioning and Indoor Navigation* and their implementations in the codebase.
+**Status**: verified against the final book text (Section 2.1 Coordinate Systems
+and Transformations; Section 2.2 Attitude). Every implemented equation is backed
+by a conformance/round-trip test and is cross-checked by
+`tools/check_equation_index.py`.
 
-**Status**: ✓ All core equations implemented and tested  
-**Last Updated**: December 11, 2025
-
----
-
-## Quick Reference Table
-
-| Equation | Description | Implementation | Status |
-|----------|-------------|----------------|--------|
-| **Eq. (2.1)** | LLH → ECEF | `core/coords/transforms.py::llh_to_ecef()` | ✓ |
-| **Eq. (2.2)** | ECEF → LLH | `core/coords/transforms.py::ecef_to_llh()` | ✓ |
-| **Eq. (2.3)** | ECEF → ENU | `core/coords/transforms.py::ecef_to_enu()` | ✓ |
-| **Eq. (2.4)** | ENU → ECEF | `core/coords/transforms.py::enu_to_ecef()` | ✓ |
-| **Eq. (2.5)** | Euler → Rotation Matrix | `core/coords/rotations.py::euler_to_rotation_matrix()` | ✓ |
-| **Eq. (2.6)** | Rotation Matrix → Euler | `core/coords/rotations.py::rotation_matrix_to_euler()` | ✓ |
-| **Eq. (2.7)** | Euler → Quaternion | `core/coords/rotations.py::euler_to_quat()` | ✓ |
-| **Eq. (2.8)** | Quaternion → Euler | `core/coords/rotations.py::quat_to_euler()` | ✓ |
-| **Eq. (2.9)** | Quaternion → Rotation Matrix | `core/coords/rotations.py::quat_to_rotation_matrix()` | ✓ |
-| **Eq. (2.10)** | Rotation Matrix → Quaternion | `core/coords/rotations.py::rotation_matrix_to_quat()` | ✓ |
-
-**Legend:**
-- ✓ = Fully implemented and tested
-- ≈ = Partially implemented or with modifications
-- ✗ = Not yet implemented
+> **Audit note (correction).** An earlier version of this document mapped the ten
+> code functions to Eqs. (2.1)–(2.10) sequentially. That numbering was wrong: in
+> the book, Eqs. (2.1)–(2.10) are the coordinate-system transforms and
+> (2.11)–(2.23) are the attitude equations. The numbers below follow the actual
+> book. See the convention note before relying on the attitude functions.
 
 ---
 
-## Detailed Mapping
+## Conventions (from the book, Section 2.2)
 
-### 1. Coordinate Transformations (Section 2.3)
+Body frame is **X-right, Y-forward, Z-up**. In this frame the book defines:
 
-#### Eq. (2.1): LLH to ECEF Transformation
+- **roll = φ about the Y-axis** (Eq. (2.15))
+- **pitch = θ about the X-axis** (Eq. (2.16))
+- **yaw = ψ about the Z-axis** (Eq. (2.14))
 
-**Book Equation:**
-```
-x = (N + h) * cos(φ) * cos(λ)
-y = (N + h) * cos(φ) * sin(λ)
-z = (N(1-e²) + h) * sin(φ)
+This differs from the common aerospace convention (roll→X, pitch→Y). The code
+follows the **book** so that running it reproduces the book's equations.
 
-where N = a / √(1 - e² sin²(φ))
-```
-
-**Implementation:**
-```python
-# File: core/coords/transforms.py
-def llh_to_ecef(lat: float, lon: float, height: float) -> NDArray[np.float64]:
-    """Convert geodetic coordinates (LLH) to ECEF Cartesian coordinates.
-    
-    Reference:
-        Chapter 2, Eq. (2.1) - LLH to ECEF transformation
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_transforms.py::TestLLHtoECEF` (5 test cases)
-- Validates: Equator, poles, arbitrary points, height handling
-
-**Notes:**
-- Uses WGS84 ellipsoid parameters (a = 6378137.0 m, f = 1/298.257223563)
-- Closed-form solution (no iteration required)
-- Numerical accuracy: < 1e-9 m for reference points
+The rotation matrix `C` is the **passive coordinate transform** `x_new = C @ x_old`
+(Eqs. (2.11), (2.17)); the active (vector-rotating) matrix is its transpose.
+Quaternions are scalar-first `q = [q0, q1, q2, q3]` (Eq. (2.20)). Euler
+composition is `C = Rx(pitch) @ Ry(roll) @ Rz(yaw)` (Eq. (2.17)).
 
 ---
 
-#### Eq. (2.2): ECEF to LLH Transformation
+## Section 2.1 — Coordinate Systems and Transformations
 
-**Book Equation:**
-```
-Iterative solution:
-λ = atan2(y, x)
-φ = atan2(z, p(1 - e²N/(N+h)))
-h = p/cos(φ) - N
+| Book Eq. | Operation | Implementation | Status |
+|---|---|---|---|
+| (2.1) | Local body vector `x_BODY` | *definition — no function* | — |
+| (2.2) | Local map vector `x_MAP` | *definition — no function* | — |
+| **(2.3)** | Map → body (yaw `Rz`) | `transforms.py::map_to_body` / `body_to_map` | ✅ |
+| (2.4) | ENU vector `x_ENU` | *definition — no function* | — |
+| **(2.5)** | ENU ↔ NED | `transforms.py::enu_to_ned` / `ned_to_enu` | ✅ |
+| **(2.6)** | ENU → body | `transforms.py::enu_to_body` | ✅ |
+| **(2.7)** | Body → ENU | `transforms.py::body_to_enu` | ✅ |
+| (2.8) | Geodetic vector `x_LLH` | *definition — no function* | — |
+| **(2.9)** | LLH → ECEF (closed form) | `transforms.py::llh_to_ecef` | ✅ |
+| **(2.10)** | ECEF → ENU | `transforms.py::ecef_to_enu` | ✅ |
 
-where p = √(x² + y²)
-```
+Inverses without an explicit book equation:
 
-**Implementation:**
-```python
-# File: core/coords/transforms.py
-def ecef_to_llh(x: float, y: float, z: float, 
-                tol: float = 1e-12, max_iter: int = 10) -> NDArray[np.float64]:
-    """Convert ECEF Cartesian coordinates to geodetic coordinates (LLH).
-    
-    Reference:
-        Chapter 2, Eq. (2.2) - ECEF to LLH transformation (iterative)
-    """
-```
+- `ecef_to_llh` — iterative inverse of (2.9). The book states the geodetic
+  transform is done via ECEF with an iteration method and refers to Kaplan &
+  Hegarty [2]; no closed form is given.
+- `enu_to_ecef` — inverse of (2.10) (transpose of the rotation plus the
+  reference offset).
 
-**Test Coverage:**
-- `tests/core/coords/test_transforms.py::TestECEFtoLLH` (3 test cases)
-- `tests/core/coords/test_transforms.py::TestRoundTripLLHECEF` (5 test cases)
+## Section 2.2 — Attitude: Definition and Representation
 
-**Notes:**
-- Iterative algorithm with configurable tolerance (default 1e-12 m)
-- Handles poles as special case (p ≈ 0)
-- Converges in < 10 iterations for all practical cases
-- Round-trip accuracy: < 1e-3 m
+| Book Eq. | Operation | Implementation | Status |
+|---|---|---|---|
+| (2.11) | `x_new = C x_old` relation | `rotations.py::euler_to_rotation_matrix` | ✅ |
+| (2.12) | Orthogonality `C^-1 = C^T` | *property — used implicitly* | — |
+| (2.13) | Yaw example | *worked example* | — |
+| **(2.14)** | Yaw `Rz(ψ)` | composed in `euler_to_rotation_matrix` | ✅ |
+| **(2.15)** | Roll `Ry(φ)` (about Y) | composed in `euler_to_rotation_matrix` | ✅ |
+| **(2.16)** | Pitch `Rx(θ)` (about X) | composed in `euler_to_rotation_matrix` | ✅ |
+| **(2.17)** | Euler → `C` | `rotations.py::euler_to_rotation_matrix` (inverse: `rotation_matrix_to_euler`) | ✅ |
+| (2.18) | Rotation + translation | *general relation* | — |
+| (2.19) | Gimbal-lock example | *worked example* | — |
+| (2.20) | Quaternion `q = [q0..q3]` | scalar-first convention in `rotations.py` | — |
+| **(2.21)** | Quaternion → `C` | `rotations.py::quat_to_rotation_matrix` (inverse: `rotation_matrix_to_quat`, Shepperd) | ✅ |
+| **(2.22)** | Quaternion → Euler | `rotations.py::quat_to_euler` | ✅ |
+| **(2.23)** | Euler → quaternion | `rotations.py::euler_to_quat` | ✅ |
 
----
-
-#### Eq. (2.3): ECEF to ENU Transformation
-
-**Book Equation:**
-```
-[e]   [-sin(λ)          cos(λ)           0    ] [Δx]
-[n] = [-sin(φ)cos(λ)  -sin(φ)sin(λ)  cos(φ)] [Δy]
-[u]   [ cos(φ)cos(λ)   cos(φ)sin(λ)  sin(φ)] [Δz]
-
-where Δ = target - reference (in ECEF)
-```
-
-**Implementation:**
-```python
-# File: core/coords/transforms.py
-def ecef_to_enu(x: float, y: float, z: float,
-                lat_ref: float, lon_ref: float, height_ref: float) -> NDArray[np.float64]:
-    """Convert ECEF coordinates to local ENU coordinates.
-    
-    Reference:
-        Chapter 2, Eq. (2.3) - ECEF to ENU transformation
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_transforms.py::TestECEFtoENU` (4 test cases)
-- Validates: Origin, east/north/up displacements
-
-**Notes:**
-- Rotation matrix from ECEF to local tangent plane
-- Reference point can be arbitrary on WGS84 ellipsoid
-- Numerical accuracy: < 1 m for 100m displacements
+`rotation_matrix_to_quat` uses Shepperd's method and has **no explicit book
+equation**; it is the numerically-stable inverse of (2.21).
 
 ---
 
-#### Eq. (2.4): ENU to ECEF Transformation
+## Verification
 
-**Book Equation:**
-```
-[Δx]   [-sin(λ)        -sin(φ)cos(λ)   cos(φ)cos(λ)] [e]
-[Δy] = [ cos(λ)        -sin(φ)sin(λ)   cos(φ)sin(λ)] [n]
-[Δz]   [ 0              cos(φ)          sin(φ)     ] [u]
+The book's own attitude equations are mutually self-consistent: composing
+`(2.23) → (2.21)` reproduces `(2.17)`, and the Euler round-trip via `(2.22)`
+closes, to machine precision. The tests encode this:
 
-ECEF = reference_ECEF + Δ
-```
+- `tests/core/coords/test_rotations.py::TestEulerToRotationMatrix::test_matches_book_eq_2_17`
+  asserts `euler_to_rotation_matrix` equals the closed form printed in Eq. (2.17).
+- Round-trip and cross-conversion tests cover Euler ↔ matrix ↔ quaternion.
+- `tests/core/coords/test_transforms.py` covers the four frame transforms
+  (map↔body, ENU↔NED, ENU↔body) plus the geodetic chain.
 
-**Implementation:**
-```python
-# File: core/coords/transforms.py
-def enu_to_ecef(east: float, north: float, up: float,
-                lat_ref: float, lon_ref: float, height_ref: float) -> NDArray[np.float64]:
-    """Convert local ENU coordinates to ECEF coordinates.
-    
-    Reference:
-        Chapter 2, Eq. (2.4) - ENU to ECEF transformation
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_transforms.py::TestENUtoECEF` (2 test cases)
-- `tests/core/coords/test_transforms.py::TestRoundTripECEFENU` (5 test cases)
-
-**Notes:**
-- Inverse of ECEF → ENU (transpose of rotation matrix)
-- Round-trip accuracy: < 1e-3 m
-
----
-
-### 2. Rotation Representations (Section 2.4)
-
-#### Eq. (2.5): Euler Angles to Rotation Matrix
-
-**Book Equation:**
-```
-R = Rz(ψ) Ry(θ) Rx(φ)  [ZYX convention]
-
-R = [cy*cp   cy*sp*sr-sy*cr   cy*sp*cr+sy*sr]
-    [sy*cp   sy*sp*sr+cy*cr   sy*sp*cr-cy*sr]
-    [-sp     cp*sr            cp*cr         ]
-
-where c = cos, s = sin, φ=roll, θ=pitch, ψ=yaw
-```
-
-**Implementation:**
-```python
-# File: core/coords/rotations.py
-def euler_to_rotation_matrix(roll: float, pitch: float, yaw: float) -> NDArray[np.float64]:
-    """Convert Euler angles to rotation matrix.
-    
-    Reference:
-        Chapter 2, Eq. (2.5) - Euler to rotation matrix (ZYX convention)
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_rotations.py::TestEulerToRotationMatrix` (5 test cases)
-- Validates: Identity, 90° rotations, orthogonality, determinant
-
-**Notes:**
-- ZYX (yaw-pitch-roll) convention
-- Returns proper orthogonal matrix: R^T R = I, det(R) = 1
-- Numerical accuracy: < 1e-9
-
----
-
-#### Eq. (2.6): Rotation Matrix to Euler Angles
-
-**Book Equation:**
-```
-pitch = arcsin(-R[2,0])
-roll = atan2(R[2,1], R[2,2])
-yaw = atan2(R[1,0], R[0,0])
-
-Special case (gimbal lock): |R[2,0]| ≈ 1
-```
-
-**Implementation:**
-```python
-# File: core/coords/rotations.py
-def rotation_matrix_to_euler(R: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Convert rotation matrix to Euler angles.
-    
-    Reference:
-        Chapter 2, Eq. (2.6) - Rotation matrix to Euler angles
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_rotations.py::TestRotationMatrixToEuler` (5 test cases)
-- Validates: Identity, 90° yaw, gimbal lock (±90° pitch)
-
-**Notes:**
-- Handles gimbal lock by setting roll = 0 by convention
-- Round-trip accuracy: < 1e-9 radians
-
----
-
-#### Eq. (2.7): Euler Angles to Quaternion
-
-**Book Equation:**
-```
-qw = cr*cp*cy + sr*sp*sy
-qx = sr*cp*cy - cr*sp*sy
-qy = cr*sp*cy + sr*cp*sy
-qz = cr*cp*sy - sr*sp*cy
-
-where c = cos(angle/2), s = sin(angle/2)
-```
-
-**Implementation:**
-```python
-# File: core/coords/rotations.py
-def euler_to_quat(roll: float, pitch: float, yaw: float) -> NDArray[np.float64]:
-    """Convert Euler angles to quaternion.
-    
-    Reference:
-        Chapter 2, Eq. (2.7) - Euler to quaternion
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_rotations.py::TestEulerToQuaternion` (4 test cases)
-- Validates: Identity, normalization, 90° yaw, 180° rotation
-
-**Notes:**
-- Returns unit quaternion: ||q|| = 1
-- Quaternion convention: [qw, qx, qy, qz] (scalar first)
-
----
-
-#### Eq. (2.8): Quaternion to Euler Angles
-
-**Book Equation:**
-```
-roll = atan2(2(qw*qx + qy*qz), 1 - 2(qx² + qy²))
-pitch = arcsin(2(qw*qy - qz*qx))
-yaw = atan2(2(qw*qz + qx*qy), 1 - 2(qy² + qz²))
-```
-
-**Implementation:**
-```python
-# File: core/coords/rotations.py
-def quat_to_euler(q: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Convert quaternion to Euler angles.
-    
-    Reference:
-        Chapter 2, Eq. (2.8) - Quaternion to Euler angles
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_rotations.py::TestQuaternionToEuler` (3 test cases)
-- `tests/core/coords/test_rotations.py::TestRoundTripEulerQuaternion` (6 test cases)
-
-**Notes:**
-- Clamps arcsin argument to [-1, 1] to avoid numerical issues
-- Round-trip accuracy: < 1e-9 radians
-
----
-
-#### Eq. (2.9): Quaternion to Rotation Matrix
-
-**Book Equation:**
-```
-R = [1-2(qy²+qz²)   2(qx*qy-qw*qz)   2(qx*qz+qw*qy)]
-    [2(qx*qy+qw*qz) 1-2(qx²+qz²)     2(qy*qz-qw*qx)]
-    [2(qx*qz-qw*qy) 2(qy*qz+qw*qx)   1-2(qx²+qy²) ]
-```
-
-**Implementation:**
-```python
-# File: core/coords/rotations.py
-def quat_to_rotation_matrix(q: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Convert quaternion to rotation matrix.
-    
-    Reference:
-        Chapter 2, Eq. (2.9) - Quaternion to rotation matrix
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_rotations.py::TestQuaternionToRotationMatrix` (4 test cases)
-- Validates: Identity, orthogonality, 90° yaw
-
-**Notes:**
-- Assumes input quaternion is normalized
-- Returns proper orthogonal matrix
-
----
-
-#### Eq. (2.10): Rotation Matrix to Quaternion
-
-**Book Equation:**
-```
-Shepperd's method:
-Choose largest of {trace(R), R[0,0], R[1,1], R[2,2]}
-Compute quaternion components accordingly
-Normalize result
-```
-
-**Implementation:**
-```python
-# File: core/coords/rotations.py
-def rotation_matrix_to_quat(R: NDArray[np.float64]) -> NDArray[np.float64]:
-    """Convert rotation matrix to quaternion.
-    
-    Reference:
-        Chapter 2, Eq. (2.10) - Rotation matrix to quaternion (Shepperd)
-    """
-```
-
-**Test Coverage:**
-- `tests/core/coords/test_rotations.py::TestRotationMatrixToQuaternion` (5 test cases)
-- Validates: Identity, normalization, all Shepperd branches
-
-**Notes:**
-- Uses Shepperd's method for numerical stability
-- Handles quaternion double cover (q and -q represent same rotation)
-- Normalizes output to ensure unit quaternion
-
----
-
-## Test Summary
-
-### Overall Test Statistics
-
-| Category | Test Files | Test Cases | Subtests | Status |
-|----------|-----------|------------|----------|--------|
-| Coordinate Transforms | 1 | 15 | 12 | ✓ All Pass |
-| Rotation Conversions | 1 | 32 | 15 | ✓ All Pass |
-| **Total** | **2** | **47** | **27** | **✓ 100%** |
-
-### Test Execution
+Run:
 
 ```bash
 pytest tests/core/coords/ -v
-# =================== 47 passed, 27 subtests passed in 1.45s ====================
+python tools/check_equation_index.py --strict   # index + verification gate
 ```
 
-### Numerical Accuracy
-
-| Transformation Type | Accuracy Target | Achieved |
-|---------------------|----------------|----------|
-| LLH ↔ ECEF round-trip | < 1 m | < 1e-3 m ✓ |
-| ECEF ↔ ENU round-trip | < 1 m | < 1e-3 m ✓ |
-| Euler ↔ Matrix round-trip | < 1e-6 rad | < 1e-9 rad ✓ |
-| Euler ↔ Quaternion round-trip | < 1e-6 rad | < 1e-9 rad ✓ |
-| Quaternion ↔ Matrix round-trip | < 1e-6 rad | < 1e-9 rad ✓ |
-
----
-
-## Consistency Check
-
-### ✓ Consistent with Book
-
-All implemented equations follow the conventions and formulations described in Chapter 2:
-
-1. **Coordinate Systems**: WGS84 ellipsoid, ENU local frame
-2. **Euler Angle Convention**: ZYX (yaw-pitch-roll)
-3. **Quaternion Convention**: [qw, qx, qy, qz] (scalar first)
-4. **Rotation Matrix**: Body → Navigation frame transformation
-
-### Deviations and Extensions
-
-| Aspect | Book | Implementation | Reason |
-|--------|------|----------------|--------|
-| ECEF→LLH algorithm | May describe multiple methods | Iterative method only | Simplicity, adequate accuracy |
-| Gimbal lock handling | May not specify convention | Roll = 0 by convention | Standard practice |
-| Quaternion normalization | Assumed | Explicitly enforced | Numerical robustness |
-| Shepperd's method | May describe simpler methods | Full Shepperd implementation | Numerical stability |
-
-### Not Implemented (from Design Doc)
-
-| Feature | Status | Priority | Notes |
-|---------|--------|----------|-------|
-| ENU ↔ NED conversion | ✗ | Low | Simple axis permutation, can be added if needed |
-| Alternative ellipsoids | ✗ | Low | Only WGS84 supported |
-| Other Euler conventions | ✗ | Low | Only ZYX implemented |
-
----
-
-## Usage in Examples
-
-The equation implementations are demonstrated in:
-
-1. **`ch2_coords/example_coordinate_transforms.py`**
-   - Shows all 10 equation implementations
-   - Practical indoor positioning scenario
-   - Run: `python ch2_coords/example_coordinate_transforms.py`
-
-2. **Unit Tests**
-   - `tests/core/coords/test_transforms.py` - Coordinate transformations
-   - `tests/core/coords/test_rotations.py` - Rotation conversions
+`check_equation_index.py` now confirms every Chapter-2 code reference is indexed
+**and** backed by a resolvable `verified_by` test (not just that file paths
+exist).
 
 ---
 
 ## References
 
-1. **Chapter 2**: *Principles of Indoor Positioning and Indoor Navigation*
-   - Section 2.2: Coordinate Frames
-   - Section 2.3: Coordinate Transformations
-   - Section 2.4: Rotation Representations
-
-2. **WGS84 Ellipsoid**: NIMA Technical Report TR8350.2 (2000)
-
-3. **Shepperd's Method**: Shepperd, S.W. (1978). "Quaternion from rotation matrix." *Journal of Guidance and Control*, 1(3), 223-224.
-
----
-
-## Maintenance
-
-When updating Chapter 2 implementations:
-
-1. ✓ Update equation reference in function docstring
-2. ✓ Update this mapping document
-3. ✓ Update `docs/equation_index.yml`
-4. ✓ Add/update unit tests (minimum 3 test cases)
-5. ✓ Verify round-trip accuracy
-6. ✓ Run full test suite: `pytest tests/core/coords/ -v`
-
----
-
-**Document Version**: 1.0  
-**Last Updated**: December 11, 2025  
-**Maintainer**: Navigation Engineering Team
-
-
-
+1. Chapter 2, *Principles of Indoor Positioning and Indoor Navigation* — Section
+   2.1 (Coordinate Systems and Transformations) and Section 2.2 (Attitude).
+2. Kaplan, E. D., and C. Hegarty (eds.), *Understanding GPS/GNSS: Principles and
+   Applications*, Artech House, 2017.
+3. Shepperd, S. W. (1978). "Quaternion from Rotation Matrix." *Journal of
+   Guidance and Control*, 1(3), 223–224.

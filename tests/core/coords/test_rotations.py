@@ -10,7 +10,12 @@ Test cases include:
 - Orthogonality and normalization checks
 - Gimbal lock handling
 
-Reference: Chapter 2, Section 2.4 - Rotation Representations
+Conventions under test follow the book (Chapter 2, Section 2.2):
+- roll = phi about the Y-axis, pitch = theta about the X-axis,
+  yaw = psi about the Z-axis;
+- the rotation matrix C is the passive coordinate transform x_new = C @ x_old.
+
+Reference: Chapter 2, Section 2.2 - Attitude: Definition and Representation
 """
 
 import unittest
@@ -52,38 +57,54 @@ class TestEulerToRotationMatrix(unittest.TestCase):
         det = np.linalg.det(R)
         self.assertAlmostEqual(det, 1.0, places=9)
 
+    def test_matches_book_eq_2_17(self) -> None:
+        """Test that C equals the closed form printed in book Eq. (2.17)."""
+        roll, pitch, yaw = 0.3, 0.2, 0.1  # phi, theta, psi
+        cf, sf = np.cos(roll), np.sin(roll)
+        ct, st = np.cos(pitch), np.sin(pitch)
+        cy, sy = np.cos(yaw), np.sin(yaw)
+        expected = np.array(
+            [
+                [cf * cy, cf * sy, -sf],
+                [-ct * sy + st * sf * cy, ct * cy + st * sf * sy, st * cf],
+                [st * sy + ct * sf * cy, -st * cy + ct * sf * sy, ct * cf],
+            ]
+        )
+        R = euler_to_rotation_matrix(roll, pitch, yaw)
+        np.testing.assert_allclose(R, expected, atol=1e-12)
+
     def test_90_degree_yaw(self) -> None:
-        """Test 90° yaw rotation."""
+        """Test 90° yaw (about Z). Passive: x_new = C @ x_old."""
         R = euler_to_rotation_matrix(0.0, 0.0, np.pi / 2.0)
 
-        # 90° yaw should rotate x-axis to y-axis
-        v_body = np.array([1.0, 0.0, 0.0])
-        v_nav = R @ v_body
+        # A point on the old +X axis has new-frame coordinates [0, -1, 0].
+        x_old = np.array([1.0, 0.0, 0.0])
+        x_new = R @ x_old
 
-        expected = np.array([0.0, 1.0, 0.0])
-        np.testing.assert_allclose(v_nav, expected, atol=1e-9)
+        expected = np.array([0.0, -1.0, 0.0])
+        np.testing.assert_allclose(x_new, expected, atol=1e-9)
 
     def test_90_degree_pitch(self) -> None:
-        """Test 90° pitch rotation."""
+        """Test 90° pitch. In the book, pitch is about the X-axis."""
         R = euler_to_rotation_matrix(0.0, np.pi / 2.0, 0.0)
 
-        # 90° pitch should rotate x-axis to -z-axis
-        v_body = np.array([1.0, 0.0, 0.0])
-        v_nav = R @ v_body
+        # Point on the old +Y axis -> new-frame coordinates [0, 0, -1].
+        x_old = np.array([0.0, 1.0, 0.0])
+        x_new = R @ x_old
 
         expected = np.array([0.0, 0.0, -1.0])
-        np.testing.assert_allclose(v_nav, expected, atol=1e-9)
+        np.testing.assert_allclose(x_new, expected, atol=1e-9)
 
     def test_90_degree_roll(self) -> None:
-        """Test 90° roll rotation."""
+        """Test 90° roll. In the book, roll is about the Y-axis."""
         R = euler_to_rotation_matrix(np.pi / 2.0, 0.0, 0.0)
 
-        # 90° roll should rotate y-axis to z-axis
-        v_body = np.array([0.0, 1.0, 0.0])
-        v_nav = R @ v_body
+        # Point on the old +X axis -> new-frame coordinates [0, 0, 1].
+        x_old = np.array([1.0, 0.0, 0.0])
+        x_new = R @ x_old
 
         expected = np.array([0.0, 0.0, 1.0])
-        np.testing.assert_allclose(v_nav, expected, atol=1e-9)
+        np.testing.assert_allclose(x_new, expected, atol=1e-9)
 
 
 class TestRotationMatrixToEuler(unittest.TestCase):
@@ -106,26 +127,36 @@ class TestRotationMatrixToEuler(unittest.TestCase):
         np.testing.assert_allclose(euler, expected, atol=1e-9)
 
     def test_gimbal_lock_positive(self) -> None:
-        """Test gimbal lock at pitch = +90°."""
-        R = euler_to_rotation_matrix(0.3, np.pi / 2.0, 0.5)
+        """Test gimbal lock at roll = +90° (about Y in the book convention)."""
+        R = euler_to_rotation_matrix(np.pi / 2.0, 0.3, 0.5)
         euler = rotation_matrix_to_euler(R)
 
-        # At gimbal lock, pitch should be π/2
-        self.assertAlmostEqual(euler[1], np.pi / 2.0, places=9)
+        # At gimbal lock, roll should be +π/2
+        self.assertAlmostEqual(euler[0], np.pi / 2.0, places=9)
 
-        # Roll is set to zero by convention
-        self.assertAlmostEqual(euler[0], 0.0, places=9)
+        # Yaw is set to zero by convention (yaw and pitch are coupled here)
+        self.assertAlmostEqual(euler[2], 0.0, places=9)
+
+        # Recovered angles must still reconstruct the same matrix
+        np.testing.assert_allclose(
+            euler_to_rotation_matrix(*euler), R, atol=1e-9
+        )
 
     def test_gimbal_lock_negative(self) -> None:
-        """Test gimbal lock at pitch = -90°."""
-        R = euler_to_rotation_matrix(0.3, -np.pi / 2.0, 0.5)
+        """Test gimbal lock at roll = -90° (about Y in the book convention)."""
+        R = euler_to_rotation_matrix(-np.pi / 2.0, 0.3, 0.5)
         euler = rotation_matrix_to_euler(R)
 
-        # At gimbal lock, pitch should be -π/2
-        self.assertAlmostEqual(euler[1], -np.pi / 2.0, places=9)
+        # At gimbal lock, roll should be -π/2
+        self.assertAlmostEqual(euler[0], -np.pi / 2.0, places=9)
 
-        # Roll is set to zero by convention
-        self.assertAlmostEqual(euler[0], 0.0, places=9)
+        # Yaw is set to zero by convention
+        self.assertAlmostEqual(euler[2], 0.0, places=9)
+
+        # Recovered angles must still reconstruct the same matrix
+        np.testing.assert_allclose(
+            euler_to_rotation_matrix(*euler), R, atol=1e-9
+        )
 
     def test_invalid_matrix_shape(self) -> None:
         """Test that invalid matrix shape raises ValueError."""
@@ -286,16 +317,16 @@ class TestQuaternionToRotationMatrix(unittest.TestCase):
         self.assertAlmostEqual(det, 1.0, places=9)
 
     def test_90_degree_yaw(self) -> None:
-        """Test 90° yaw rotation."""
+        """Test 90° yaw. Passive: x_new = C @ x_old (consistent with Euler)."""
         q = euler_to_quat(0.0, 0.0, np.pi / 2.0)
         R = quat_to_rotation_matrix(q)
 
-        # 90° yaw should rotate x-axis to y-axis
-        v_body = np.array([1.0, 0.0, 0.0])
-        v_nav = R @ v_body
+        # A point on the old +X axis has new-frame coordinates [0, -1, 0].
+        x_old = np.array([1.0, 0.0, 0.0])
+        x_new = R @ x_old
 
-        expected = np.array([0.0, 1.0, 0.0])
-        np.testing.assert_allclose(v_nav, expected, atol=1e-9)
+        expected = np.array([0.0, -1.0, 0.0])
+        np.testing.assert_allclose(x_new, expected, atol=1e-9)
 
     def test_invalid_quaternion_shape(self) -> None:
         """Test that invalid quaternion shape raises ValueError."""

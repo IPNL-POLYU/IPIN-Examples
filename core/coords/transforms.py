@@ -10,11 +10,13 @@ WGS84 ellipsoid parameters:
 - Semi-minor axis (b): 6356752.314245 m
 - First eccentricity squared (e²): 0.00669437999014
 
-Reference: Chapter 2, Section 2.3 - Coordinate Transformations
+Reference: Chapter 2, Section 2.1 - Coordinate Systems and Transformations
 """
 
 import numpy as np
 from numpy.typing import NDArray
+
+from core.coords.rotations import euler_to_rotation_matrix
 
 # WGS84 ellipsoid parameters
 WGS84_A = 6378137.0  # Semi-major axis (m)
@@ -50,7 +52,7 @@ def llh_to_ecef(
         >>> print(f"ECEF: {xyz}")
 
     Reference:
-        Chapter 2, Eq. (2.1) - LLH to ECEF transformation
+        Chapter 2, Eq. (2.9) - LLH to ECEF transformation
     """
     # Radius of curvature in the prime vertical
     sin_lat = np.sin(lat)
@@ -95,7 +97,9 @@ def ecef_to_llh(
         ...       f"lon={np.rad2deg(llh[1]):.4f}°, h={llh[2]:.2f}m")
 
     Reference:
-        Chapter 2, Eq. (2.2) - ECEF to LLH transformation (iterative)
+        Chapter 2, Section 2.1.4 - inverse of Eq. (2.9), computed iteratively.
+        The book states this transform is done via ECEF with an iteration
+        method and refers to Kaplan & Hegarty [2]; no closed form is given.
     """
     # Longitude (exact)
     lon = np.arctan2(y, x)
@@ -169,7 +173,7 @@ def ecef_to_enu(
         >>> print(f"ENU: {enu}")
 
     Reference:
-        Chapter 2, Eq. (2.3) - ECEF to ENU transformation
+        Chapter 2, Eq. (2.10) - ECEF to ENU transformation
     """
     # Reference point in ECEF
     xyz_ref = llh_to_ecef(lat_ref, lon_ref, height_ref)
@@ -234,7 +238,8 @@ def enu_to_ecef(
         >>> print(f"ECEF: {xyz}")
 
     Reference:
-        Chapter 2, Eq. (2.4) - ENU to ECEF transformation
+        Chapter 2, inverse of Eq. (2.10) - ENU to ECEF transformation
+        (transpose of the ECEF->ENU rotation plus the reference offset).
     """
     # Reference point in ECEF
     xyz_ref = llh_to_ecef(lat_ref, lon_ref, height_ref)
@@ -262,3 +267,171 @@ def enu_to_ecef(
     xyz = xyz_ref + dxyz
 
     return xyz
+
+
+def map_to_body(
+    x_map: NDArray[np.float64],
+    yaw: float,
+    body_origin_map: NDArray[np.float64] | None = None,
+) -> NDArray[np.float64]:
+    """Transform a point from the local map frame to the local body frame.
+
+    Implements the yaw-only case where the XY-planes of the map and body
+    frames are parallel: ``x_body = Rz(yaw) @ (x_map - x_map_B)``.
+
+    Args:
+        x_map: Point in the local map frame, array [x, y, z] (meters).
+        yaw: Yaw angle psi in radians from the map X/Y axes to the body X/Y
+            axes (about the shared Z-axis).
+        body_origin_map: Position of the body-frame origin B expressed in the
+            map frame. Defaults to the origin (coincident frames).
+
+    Returns:
+        Point expressed in the local body frame, array [x, y, z] (meters).
+
+    Reference:
+        Chapter 2, Eq. (2.3) - local map to local body transformation.
+    """
+    cpsi, spsi = np.cos(yaw), np.sin(yaw)
+    rz = np.array(
+        [[cpsi, spsi, 0.0], [-spsi, cpsi, 0.0], [0.0, 0.0, 1.0]],
+        dtype=np.float64,
+    )
+    d = x_map if body_origin_map is None else x_map - body_origin_map
+    return rz @ np.asarray(d, dtype=np.float64)
+
+
+def body_to_map(
+    x_body: NDArray[np.float64],
+    yaw: float,
+    body_origin_map: NDArray[np.float64] | None = None,
+) -> NDArray[np.float64]:
+    """Transform a point from the local body frame back to the local map frame.
+
+    Inverse of :func:`map_to_body`:
+    ``x_map = Rz(yaw)^T @ x_body + x_map_B``.
+
+    Args:
+        x_body: Point in the local body frame, array [x, y, z] (meters).
+        yaw: Yaw angle psi in radians (about the shared Z-axis).
+        body_origin_map: Position of the body-frame origin B expressed in the
+            map frame. Defaults to the origin (coincident frames).
+
+    Returns:
+        Point expressed in the local map frame, array [x, y, z] (meters).
+
+    Reference:
+        Chapter 2, inverse of Eq. (2.3) - local body to local map.
+    """
+    cpsi, spsi = np.cos(yaw), np.sin(yaw)
+    rz = np.array(
+        [[cpsi, spsi, 0.0], [-spsi, cpsi, 0.0], [0.0, 0.0, 1.0]],
+        dtype=np.float64,
+    )
+    x_map = rz.T @ np.asarray(x_body, dtype=np.float64)
+    if body_origin_map is not None:
+        x_map = x_map + body_origin_map
+    return x_map
+
+
+# Rotation matrix C^NED_ENU that swaps E<->N and flips U->D (Eq. (2.5)).
+# It is symmetric and its own inverse, so ENU->NED and NED->ENU share it.
+_C_ENU_NED = np.array(
+    [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]], dtype=np.float64
+)
+
+
+def enu_to_ned(x_enu: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Transform a point from the ENU frame to the NED frame.
+
+    ``x_ned = C^NED_ENU @ x_enu`` with the axis swap E<->N and U->D.
+
+    Args:
+        x_enu: Point in the ENU frame, array [east, north, up] (meters).
+
+    Returns:
+        Point in the NED frame, array [north, east, down] (meters).
+
+    Reference:
+        Chapter 2, Eq. (2.5) - ENU to NED transformation.
+    """
+    return _C_ENU_NED @ np.asarray(x_enu, dtype=np.float64)
+
+
+def ned_to_enu(x_ned: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Transform a point from the NED frame to the ENU frame.
+
+    Inverse of :func:`enu_to_ned`; the transform matrix is its own inverse.
+
+    Args:
+        x_ned: Point in the NED frame, array [north, east, down] (meters).
+
+    Returns:
+        Point in the ENU frame, array [east, north, up] (meters).
+
+    Reference:
+        Chapter 2, Eq. (2.5) - NED to ENU (self-inverse of ENU to NED).
+    """
+    return _C_ENU_NED @ np.asarray(x_ned, dtype=np.float64)
+
+
+def enu_to_body(
+    x_enu: NDArray[np.float64],
+    roll: float,
+    pitch: float,
+    yaw: float,
+    body_origin_enu: NDArray[np.float64] | None = None,
+) -> NDArray[np.float64]:
+    """Transform a point from the ENU frame to the local body frame.
+
+    ``x_body = C^BODY_ENU @ (x_enu - x_enu_B)``, where the rotation matrix is
+    built from the body attitude via :func:`euler_to_rotation_matrix`.
+
+    Args:
+        x_enu: Point in the ENU frame, array [east, north, up] (meters).
+        roll: Body roll angle phi in radians (about the Y-axis).
+        pitch: Body pitch angle theta in radians (about the X-axis).
+        yaw: Body yaw angle psi in radians (about the Z-axis).
+        body_origin_enu: Position of the body-frame origin expressed in ENU.
+            Defaults to the origin (coincident frames).
+
+    Returns:
+        Point expressed in the local body frame, array [x, y, z] (meters).
+
+    Reference:
+        Chapter 2, Eq. (2.6) - ENU to local body transformation.
+    """
+    c_body_enu = euler_to_rotation_matrix(roll, pitch, yaw)
+    d = x_enu if body_origin_enu is None else x_enu - body_origin_enu
+    return c_body_enu @ np.asarray(d, dtype=np.float64)
+
+
+def body_to_enu(
+    x_body: NDArray[np.float64],
+    roll: float,
+    pitch: float,
+    yaw: float,
+    enu_origin_body: NDArray[np.float64] | None = None,
+) -> NDArray[np.float64]:
+    """Transform a point from the local body frame to the ENU frame.
+
+    ``x_enu = C^ENU_BODY @ (x_body - x_body_R)``, where
+    ``C^ENU_BODY = (C^BODY_ENU)^T`` is the transpose of the ENU->body matrix.
+
+    Args:
+        x_body: Point in the local body frame, array [x, y, z] (meters).
+        roll: Body roll angle phi in radians (about the Y-axis).
+        pitch: Body pitch angle theta in radians (about the X-axis).
+        yaw: Body yaw angle psi in radians (about the Z-axis).
+        enu_origin_body: Position of the ENU-frame origin expressed in the body
+            frame. Defaults to the origin (coincident frames).
+
+    Returns:
+        Point expressed in the ENU frame, array [east, north, up] (meters).
+
+    Reference:
+        Chapter 2, Eq. (2.7) - local body to ENU transformation.
+    """
+    c_enu_body = euler_to_rotation_matrix(roll, pitch, yaw).T
+    d = x_body if enu_origin_body is None else x_body - enu_origin_body
+    return c_enu_body @ np.asarray(d, dtype=np.float64)
