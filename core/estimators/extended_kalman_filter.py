@@ -10,7 +10,8 @@ Implements:
     - Eq. (3.22): EKF prediction
       x̂_k^- = f(x̂_{k-1}, u_k)
       P_k^- = F_{k-1} P_{k-1} F_{k-1}^T + Q
-    - EKF update (following Eq. (3.21))
+    - Eq. (3.23): EKF update
+      K_k = P_k^- H_k^T S_k^{-1}, x̂_k = x̂_k^- + K_k y_k, P_k = (I - K_k H_k) P_k^-
 """
 
 from typing import Callable, Optional, Tuple
@@ -143,7 +144,7 @@ class ExtendedKalmanFilter(StateEstimator):
         """
         Perform measurement update (correction step) for nonlinear system.
 
-        Implements EKF update (following Eq. (3.21)):
+        Implements EKF update, Eq. (3.23):
         - Measurement prediction: ẑ = h(x̂_k^-)
         - Jacobian computation: H_k = ∂h/∂x|_{x̂_k^-}
         - Innovation: ν = z - ẑ

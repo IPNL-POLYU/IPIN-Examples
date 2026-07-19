@@ -246,97 +246,211 @@
 # Least Squares Methods
 # ------------------------------------------------------------------------------
 
+# NOTE: numbers follow the final book. (3.1) cost function; (3.2) normal
+# equations; (3.3) OLS closed form; (3.4) nonlinear-LS optimality (Gauss-Newton).
+# Weighted LS (Section 3.1.1) and the robust estimators (Table 3.1) are not
+# numbered equations in the book.
+
 - eq: "Eq. (3.1)"
   chapter: 3
-  description: "Standard Least Squares: x̂ = (A'A)⁻¹A'b"
+  description: "Least-squares cost function J(x) = sum (y_i - h_i(x))^2"
+  files: []
+  notes: "Objective minimized by all LS solvers; not a standalone function."
+
+- eq: "Eq. (3.2)"
+  chapter: 3
+  description: "Normal equations H^T H x_hat = H^T y"
   files:
     - path: "core/estimators/least_squares.py"
       object: "linear_least_squares"
     - path: "ch3_estimators/example_least_squares.py"
       object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py::TestLinearLeastSquares"
-  notes: "Solves overdetermined linear systems. Computes covariance P = σ²(A'A)⁻¹."
-
-- eq: "Eq. (3.2)"
-  chapter: 3
-  description: "Weighted Least Squares: x̂ = (A'WA)⁻¹A'Wb"
-  files:
-    - path: "core/estimators/least_squares.py"
-      object: "weighted_least_squares"
-    - path: "ch3_estimators/example_least_squares.py"
-      object: "main"
-  tests:
-    - "tests/core/estimators/test_least_squares.py::TestWeightedLeastSquares"
-  notes: "Weight matrix W typically R⁻¹ (inverse measurement covariance)."
+    - "tests/core/estimators/test_least_squares.py"
+  verified_by: "tests/core/estimators/test_least_squares.py"
+  notes: "linear_least_squares solves the normal equations; covariance P = sigma^2 (H^T H)^-1."
 
 - eq: "Eq. (3.3)"
   chapter: 3
-  description: "Gauss-Newton Iterative Least Squares"
+  description: "OLS closed-form solution x_hat = (H^T H)^-1 H^T y"
+  files:
+    - path: "core/estimators/least_squares.py"
+      object: "linear_least_squares"
+    - path: "ch3_estimators/example_least_squares.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_least_squares.py"
+  verified_by: "tests/core/estimators/test_least_squares.py"
+  notes: "Same function as (3.2); the solution of the normal equations."
+
+- eq: "Eq. (3.4)"
+  chapter: 3
+  description: "Nonlinear-LS optimality sum (y_i - h_i(x)) grad h_i(x) = 0 (Gauss-Newton)"
   files:
     - path: "core/estimators/least_squares.py"
       object: "iterative_least_squares"
     - path: "ch3_estimators/example_least_squares.py"
       object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py::TestIterativeLeastSquares"
-  notes: "For nonlinear problems: xₖ₊₁ = xₖ + (J'J)⁻¹J'r. Requires Jacobian function."
+    - "tests/core/estimators/test_least_squares.py"
+  verified_by: "tests/core/estimators/test_least_squares.py"
+  notes: "Solved iteratively: x_{t+1} = x_t + (J^T J)^-1 J^T r."
 
-- eq: "Eq. (3.4)"
+- eq: "Section 3.1.1 (WLS)"
   chapter: 3
-  description: "Robust Least Squares with M-estimators"
+  description: "Weighted least squares J = sum w_i (y_i - h_i(x))^2, w_i = 1/sigma_i^2"
+  files:
+    - path: "core/estimators/least_squares.py"
+      object: "weighted_least_squares"
+  tests:
+    - "tests/core/estimators/test_least_squares.py"
+  notes: "Not a numbered equation in the book (Section 3.1.1 text)."
+
+- eq: "Table 3.1 (robust)"
+  chapter: 3
+  description: "Robust estimators (L2, Cauchy, Huber, G-M) error functions"
   files:
     - path: "core/estimators/least_squares.py"
       object: "robust_least_squares"
-    - path: "ch3_estimators/example_least_squares.py"
-      object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py::TestRobustLeastSquares"
-  notes: "IRLS with Huber, Cauchy, or Tukey loss functions. Downweights outliers."
+    - "tests/core/estimators/test_least_squares.py"
+  notes: "IRLS weights derived from Table 3.1 loss functions; Tukey is an extra (not in the book)."
 
 # ------------------------------------------------------------------------------
-# Kalman Filter
+# Linear Kalman Filter (Section 3.2.1). NOTE: Eqs. (3.19)/(3.20) have a book
+# typo in the covariance update (spurious F_k); see docs/book_errata.md E-01.
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (3.11)-(3.12)"
+- eq: "Eq. (3.8)"
   chapter: 3
-  description: "Kalman Filter Prediction Step"
+  description: "Linear measurement model z_k = H_k x_k + w_{z,k}"
+  files:
+    - path: "core/estimators/kalman_filter.py"
+      object: "KalmanFilter"
+  tests:
+    - "tests/core/estimators/test_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_kalman_filter.py"
+  notes: "Measurement model assumed by the linear KF."
+
+- eq: "Eq. (3.9)"
+  chapter: 3
+  description: "Likelihood mean/covariance E=H_k x_k, Cov=R_k"
+  files:
+    - path: "core/estimators/kalman_filter.py"
+      object: "KalmanFilter"
+  tests:
+    - "tests/core/estimators/test_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_kalman_filter.py"
+  notes: "Gaussian likelihood parameters."
+
+- eq: "Eq. (3.11)"
+  chapter: 3
+  description: "State propagation x_{k|k-1} = F_k x_{k-1} + u_k"
   files:
     - path: "core/estimators/kalman_filter.py"
       object: "KalmanFilter.predict"
     - path: "ch3_estimators/example_kalman_1d.py"
       object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py"
-  notes: "State prediction: x̄ₖ = Fxₖ₋₁ + Buₖ. Covariance: P̄ₖ = FPₖ₋₁F' + Q."
+    - "tests/core/estimators/test_kalman_filter.py::test_predict_matches_eqs_3_11_3_12"
+  verified_by: "tests/core/estimators/test_kalman_filter.py::test_predict_matches_eqs_3_11_3_12"
+  notes: "Mean propagation (zero-mean process/control noise not added)."
 
-- eq: "Eqs. (3.17)-(3.19)"
+- eq: "Eq. (3.12)"
   chapter: 3
-  description: "Kalman Filter Update Step"
+  description: "Covariance propagation P_{k|k-1} = F_k P_{k-1} F_k^T + Q_k"
+  files:
+    - path: "core/estimators/kalman_filter.py"
+      object: "KalmanFilter.predict"
+  tests:
+    - "tests/core/estimators/test_kalman_filter.py::test_predict_matches_eqs_3_11_3_12"
+  verified_by: "tests/core/estimators/test_kalman_filter.py::test_predict_matches_eqs_3_11_3_12"
+  notes: "Q_k is the process/control noise covariance."
+
+- eq: "Eq. (3.17)"
+  chapter: 3
+  description: "KF state update x_hat = x_{k|k-1} + K_k (z_k - H_k x_{k|k-1})"
   files:
     - path: "core/estimators/kalman_filter.py"
       object: "KalmanFilter.update"
     - path: "ch3_estimators/example_kalman_1d.py"
       object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py"
-  notes: "State update: xₖ = x̄ₖ + K(z - Hx̄ₖ). Kalman gain: K = P̄H'(HP̄H' + R)⁻¹."
+    - "tests/core/estimators/test_kalman_filter.py::test_update_matches_eqs_3_17_3_18"
+  verified_by: "tests/core/estimators/test_kalman_filter.py::test_update_matches_eqs_3_17_3_18"
+  notes: "Innovation-weighted correction."
+
+- eq: "Eq. (3.18)"
+  chapter: 3
+  description: "Kalman gain K_k = P_{k|k-1} H_k^T (H_k P_{k|k-1} H_k^T + R_k)^-1"
+  files:
+    - path: "core/estimators/kalman_filter.py"
+      object: "KalmanFilter.update"
+  tests:
+    - "tests/core/estimators/test_kalman_filter.py::test_update_matches_eqs_3_17_3_18"
+  verified_by: "tests/core/estimators/test_kalman_filter.py::test_update_matches_eqs_3_17_3_18"
+  notes: "Balances prior vs. likelihood."
+
+- eq: "Eq. (3.19)"
+  chapter: 3
+  description: "KF covariance update P_k = (I - K_k H_k) P_{k|k-1}"
+  files:
+    - path: "core/estimators/kalman_filter.py"
+      object: "KalmanFilter.update"
+  tests:
+    - "tests/core/estimators/test_kalman_filter.py::test_covariance_update_is_symmetric_and_correct"
+  verified_by: "tests/core/estimators/test_kalman_filter.py::test_covariance_update_is_symmetric_and_correct"
+  notes: "BOOK TYPO (E-01): printed as 'P - F_k K H P'; the F_k is spurious. Code uses the correct Joseph form."
+
+- eq: "Eq. (3.20)"
+  chapter: 3
+  description: "Summary of the five linear KF equations"
+  files:
+    - path: "core/estimators/kalman_filter.py"
+      object: "KalmanFilter"
+  tests:
+    - "tests/core/estimators/test_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_kalman_filter.py"
+  notes: "Same covariance-update typo as (3.19); see docs/book_errata.md E-01."
 
 # ------------------------------------------------------------------------------
 # Extended Kalman Filter
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (3.21)-(3.22)"
+- eq: "Eq. (3.21)"
   chapter: 3
-  description: "Extended Kalman Filter (EKF)"
+  description: "EKF nonlinear models x_k = f(x_{k-1}, u_k) + w_k, z_k = h(x_k) + v_k"
   files:
     - path: "core/estimators/extended_kalman_filter.py"
       object: "ExtendedKalmanFilter"
     - path: "ch3_estimators/example_ekf_range_bearing.py"
       object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py"
-  notes: "Nonlinear prediction/update with Jacobian linearization. For range-bearing positioning."
+    - "tests/core/estimators/test_extended_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_extended_kalman_filter.py"
+  notes: "Nonlinear process/measurement models linearized about the current estimate."
+
+- eq: "Eq. (3.22)"
+  chapter: 3
+  description: "EKF prediction x_hat^- = f(x_hat, u); P^- = F P F^T + Q"
+  files:
+    - path: "core/estimators/extended_kalman_filter.py"
+      object: "ExtendedKalmanFilter.predict"
+  tests:
+    - "tests/core/estimators/test_extended_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_extended_kalman_filter.py"
+  notes: "Jacobian F evaluated at the pre-prediction state x_hat_{k-1}."
+
+- eq: "Eq. (3.23)"
+  chapter: 3
+  description: "EKF update K=P^-H^T S^-1; x_hat=x_hat^-+K y; P=(I-KH)P^-"
+  files:
+    - path: "core/estimators/extended_kalman_filter.py"
+      object: "ExtendedKalmanFilter.update"
+  tests:
+    - "tests/core/estimators/test_extended_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_extended_kalman_filter.py"
+  notes: "S = H P^- H^T + R; Joseph-form covariance update (correct standard form)."
 
 # ------------------------------------------------------------------------------
 # Unscented Kalman Filter

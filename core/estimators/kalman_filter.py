@@ -13,6 +13,10 @@ Implements:
     - Eq. (3.18): Kalman gain K_k = P_{k|k-1} H_k^T (H_k P_{k|k-1} H_k^T + R_k)^{-1}
     - Eq. (3.19): Covariance update P_k = P_{k|k-1} - K_k H_k P_{k|k-1}
     - Eq. (3.20): Summary of five KF equations
+
+Note: the printed Eqs. (3.19)/(3.20) contain a typo (a spurious F_k in the
+covariance update); the correct form is (I - K_k H_k) P_{k|k-1}, used here.
+See docs/book_errata.md (E-01).
 """
 
 from typing import Callable, Optional, Tuple, Union
@@ -184,8 +188,11 @@ class KalmanFilter(StateEstimator):
         # Eq. (3.17): State update x̂_k = x̂_{k|k-1} + K ν
         self.state = self.state + K @ innovation
 
-        # Eq. (3.19): Covariance update P_k = P_{k|k-1} - K H P_{k|k-1}
-        # Using Joseph form for numerical stability: P = (I - KH)P(I - KH)^T + KRK^T
+        # Eq. (3.19): Covariance update P_k = (I - K H) P_{k|k-1}.
+        # NOTE: the printed (3.19)/(3.20) show "P_{k|k-1} - F_k K H P_{k|k-1}";
+        # the F_k is a typo (see docs/book_errata.md E-01) and would make P
+        # non-symmetric/invalid. We use the correct form via the Joseph
+        # stabilized version P = (I - KH) P (I - KH)^T + K R K^T.
         I_KH = np.eye(self.state_dim) - K @ H
         self.covariance = I_KH @ self.covariance @ I_KH.T + K @ R @ K.T
 
