@@ -88,3 +88,16 @@ or renumber (3.32)-(3.56).
 
 **Code status.** Implemented. `ParticleFilter.__init__` draws particles from the
 initial distribution and sets uniform weights `1/N`.
+
+---
+
+## E-04 — Ch. 3, Algorithm 3.2 (Levenberg-Marquardt): wrong cross-reference
+
+**Printed.** Algorithm 3.2, line 4: "Calculate gain ratio g by **(2.56)**".
+
+**Correct.** The gain-ratio equation is **(3.56)**, not (2.56). Simple
+cross-reference typo (Eq. (2.56) does not exist; Chapter 2 ends at (2.23)).
+
+**Code status.** Not applicable (documentation only). The solver in
+`core/estimators/nonlinear_least_squares.py` computes the gain ratio per the
+correct Eq. (3.56).

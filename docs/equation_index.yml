@@ -367,6 +367,24 @@
   verified_by: "tests/core/estimators/test_kalman_filter.py::test_predict_matches_eqs_3_11_3_12"
   notes: "Q_k is the process/control noise covariance."
 
+- eq: "Eq. (3.14)"
+  chapter: 3
+  description: "Posterior PDF (substituting the likelihood and prior into 3.7)"
+  files: []
+  notes: "Derivation step; the KF implements the resulting update (3.17)-(3.20)."
+
+- eq: "Eq. (3.15)"
+  chapter: 3
+  description: "MAP first-order optimality dP(x_k|z_k,u_k)/dx_k = 0"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.16)"
+  chapter: 3
+  description: "MAP solution in information form (reorganized into 3.17/3.18)"
+  files: []
+  notes: "Derivation step."
+
 - eq: "Eq. (3.17)"
   chapter: 3
   description: "KF state update x_hat = x_{k|k-1} + K_k (z_k - H_k x_{k|k-1})"
@@ -597,17 +615,187 @@
 # Factor Graph Optimization
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (3.35)-(3.43)"
+# Factor Graph Optimization (Section 3.4). Implemented equations carry
+# verified_by; the intermediate MAP->NLS derivation steps are documentation.
+
+- eq: "Eq. (3.35)"
   chapter: 3
-  description: "Factor Graph Optimization (MAP estimation)"
+  description: "MAP estimation X_MAP = argmax p(X|Z) = argmax p(Z|X)p(X)/p(Z)"
   files:
     - path: "core/estimators/factor_graph.py"
       object: "FactorGraph"
+  tests:
+    - "tests/core/estimators/test_factor_graph_optimization.py"
+  verified_by: "tests/core/estimators/test_factor_graph_optimization.py"
+  notes: "FGO solves this MAP problem over the whole trajectory (smoothing)."
+
+- eq: "Eq. (3.36)"
+  chapter: 3
+  description: "Simplified MAP X_MAP = argmax l(X;Z) p(X)"
+  files:
+    - path: "core/estimators/factor_graph.py"
+      object: "FactorGraph"
+  tests:
+    - "tests/core/estimators/test_factor_graph_optimization.py"
+  verified_by: "tests/core/estimators/test_factor_graph_optimization.py"
+  notes: "p(Z) dropped as constant w.r.t. X."
+
+- eq: "Eq. (3.37)"
+  chapter: 3
+  description: "Likelihood l(X;Z) proportional to p(Z|X)"
+  files: []
+  notes: "Definition."
+
+- eq: "Eq. (3.38)"
+  chapter: 3
+  description: "Gaussian factor densities; Mahalanobis cost ||F||^2_Sigma = F^T Sigma^-1 F"
+  files:
+    - path: "core/estimators/factor_graph.py"
+      object: "Factor.compute_error"
+  tests:
+    - "tests/core/estimators/test_factor_graph_optimization.py"
+  verified_by: "tests/core/estimators/test_factor_graph_optimization.py"
+  notes: "Factor error = r^T Lambda r with Lambda the information matrix (Sigma^-1)."
+
+- eq: "Eq. (3.39)"
+  chapter: 3
+  description: "Product of factor densities p(Z|X)p(X) = K exp{...}"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.40)"
+  chapter: 3
+  description: "Log of the joint density"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.41)"
+  chapter: 3
+  description: "MAP as nonlinear least squares argmin sum of squared Mahalanobis residuals"
+  files: []
+  notes: "The FGO cost minimized by FactorGraph.optimize (sum over factors)."
+
+- eq: "Eq. (3.42)"
+  chapter: 3
+  description: "Line search update x_{k+1} = x_k + alpha d"
+  files:
+    - path: "core/estimators/factor_graph.py"
+      object: "FactorGraph._line_search"
+  tests:
+    - "tests/core/estimators/test_factor_graph_optimization.py"
+  verified_by: "tests/core/estimators/test_factor_graph_optimization.py"
+  notes: "Generic line-search step."
+
+- eq: "Eq. (3.43)"
+  chapter: 3
+  description: "Sufficient-decrease condition f(x_{k+1}) < f(x_k)"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.44)"
+  chapter: 3
+  description: "First-order Taylor expansion of the cost"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.45)"
+  chapter: 3
+  description: "Directional derivative d^T f'(x) = ||f'(x)|| cos(theta)"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.46)"
+  chapter: 3
+  description: "Gradient-descent direction d_gd = -f'(x_k)"
+  files:
+    - path: "core/estimators/factor_graph.py"
+      object: "FactorGraph._gradient_descent"
+  tests:
+    - "tests/core/estimators/test_factor_graph_optimization.py"
+  verified_by: "tests/core/estimators/test_factor_graph_optimization.py"
+  notes: "Steepest-descent direction."
+
+- eq: "Eq. (3.47)"
+  chapter: 3
+  description: "Newton: Taylor expansion of f'(x_k + d_n)"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.48)"
+  chapter: 3
+  description: "Newton step f''(x_k) d_n = -f'(x_k)"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.49)"
+  chapter: 3
+  description: "Cost gradient f'(x_k) = r'(x_k)^T r(x_k)"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.50)"
+  chapter: 3
+  description: "Cost Hessian f''(x_k) = r'^T r' + sum r_m r''_m"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.51)"
+  chapter: 3
+  description: "Gauss-Newton Hessian approximation f''(x_k) approx r'^T r'"
+  files:
+    - path: "core/estimators/nonlinear_least_squares.py"
+      object: "gauss_newton"
+  tests:
+    - "tests/core/estimators/test_nonlinear_least_squares.py"
+  verified_by: "tests/core/estimators/test_nonlinear_least_squares.py"
+  notes: "Drops the second-order residual term."
+
+- eq: "Eq. (3.52)"
+  chapter: 3
+  description: "Gauss-Newton normal equations (r'^T r') d_gn = -r'^T r"
+  files:
+    - path: "core/estimators/nonlinear_least_squares.py"
+      object: "gauss_newton"
     - path: "ch3_estimators/example_comparison.py"
       object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py"
-  notes: "Batch optimization. Gauss-Newton and gradient descent solvers."
+    - "tests/core/estimators/test_nonlinear_least_squares.py"
+  verified_by: "tests/core/estimators/test_nonlinear_least_squares.py"
+  notes: "Code uses r = z - h(x) (negative of the book residual); signs are consistent."
+
+- eq: "Eq. (3.53)"
+  chapter: 3
+  description: "Levenberg-Marquardt (r'^T r' + mu I) d_lm = -r'^T r"
+  files:
+    - path: "core/estimators/nonlinear_least_squares.py"
+      object: "levenberg_marquardt"
+  tests:
+    - "tests/core/estimators/test_nonlinear_least_squares.py"
+  verified_by: "tests/core/estimators/test_nonlinear_least_squares.py"
+  notes: "Damped Gauss-Newton."
+
+- eq: "Eq. (3.54)"
+  chapter: 3
+  description: "LM limit: large mu approaches gradient descent"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.55)"
+  chapter: 3
+  description: "LM limit: small mu approaches Gauss-Newton"
+  files: []
+  notes: "Derivation step."
+
+- eq: "Eq. (3.56)"
+  chapter: 3
+  description: "LM gain ratio g = [f(x) - f(x+d)] / [0.5 d^T(mu d - f'(x))]"
+  files:
+    - path: "core/estimators/nonlinear_least_squares.py"
+      object: "levenberg_marquardt"
+  tests:
+    - "tests/core/estimators/test_nonlinear_least_squares.py"
+  verified_by: "tests/core/estimators/test_nonlinear_least_squares.py"
+  notes: "Nielsen mu-update (Algorithm 3.2). NOTE: Algorithm 3.2 mis-cites this as (2.56); see book_errata.md E-04."
 
 # ==============================================================================
 # Chapter 4: RF Point Positioning by Radio Signals
