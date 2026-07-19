@@ -801,200 +801,329 @@
 # Chapter 4: RF Point Positioning by Radio Signals
 # ==============================================================================
 
-# TOA (Time of Arrival) Ranging
+# NOTE: this block was corrected during the audit. The previous version had
+# mis-numbered RSS equations and referenced functions that do not exist
+# (tdoa_fang_solver, aoa_ove_solver, aoa_3dple_solver). The code is correct;
+# these entries now match the real functions, equation numbers, and tests. All
+# Ch4 solvers were verified to recover ground truth from clean measurements.
+
+# --- Section 4.2.1: direct ranging measurement models ---
 - eq: "Eq. (4.1)"
   chapter: 4
-  description: "Basic TOA range measurement"
+  description: "TOA range measurement d = c(t_R - t_T)"
   files:
     - path: "core/rf/measurement_models.py"
       object: "toa_range"
-    - path: "ch4_rf_point_positioning/example_toa_positioning.py"
-      object: "demo_toa_basic"
   tests:
-    - "tests/core/rf/test_measurement_models.py::TestTOA::test_toa_range_2d"
-    - "tests/core/rf/test_measurement_models.py::TestTOA::test_toa_range_3d"
-  notes: "Distance = c * time_of_flight, where c is speed of light"
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "Geometric range plus clock-bias term c*dt (Eqs. 4.1-4.3, 4.5)."
 
 - eq: "Eq. (4.6)"
   chapter: 4
-  description: "Two-way TOA (RTT) range measurement"
+  description: "Two-way TOA / RTT range d = c(dt_to + dt_back)/2"
   files:
     - path: "core/rf/measurement_models.py"
       object: "two_way_toa_range"
-    - path: "ch4_rf_point_positioning/example_toa_positioning.py"
-      object: "demo_two_way_toa"
+    - path: "core/rf/measurement_models.py"
+      object: "rtt_to_range"
   tests:
-    - "tests/core/rf/test_measurement_models.py::TestTOA::test_two_way_toa"
-  notes: "Round-trip time distance with optional processing delay correction"
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "RTT ranging; round-trip time halved."
 
-# RSS (Received Signal Strength) Ranging
-- eq: "Eq. (4.11)"
+- eq: "Eq. (4.7)"
   chapter: 4
-  description: "Path-loss model for RSS measurements"
+  description: "RTT range with processing/drift correction"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "rtt_to_range"
+  tests:
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "Subtracts processing time and clock drift before halving."
+
+- eq: "Eq. (4.9)"
+  chapter: 4
+  description: "RTT measurement with noise (simulation)"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "simulate_rtt_measurement"
+  tests:
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "Adds processing/drift noise to the RTT."
+
+- eq: "Eq. (4.10)"
+  chapter: 4
+  description: "RSS log-distance path-loss model p_R = p_ref - 10*eta*log10(d/d_ref)"
   files:
     - path: "core/rf/measurement_models.py"
       object: "rss_pathloss"
-    - path: "ch4_rf_point_positioning/example_comparison.py"
-      object: "rss_positioning_test"
   tests:
-    - "tests/core/rf/test_measurement_models.py::TestRSS::test_rss_pathloss"
-  notes: "RSS = Ptx - 10*n*log10(d/d0) - X_sigma, where n is path-loss exponent"
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "Log-distance path loss."
 
-- eq: "Eq. (4.13)"
+- eq: "Eq. (4.11)"
   chapter: 4
-  description: "RSS to distance conversion"
+  description: "RSS-to-distance inversion d = d_ref*10^((p_ref-p_R)/(10*eta))"
   files:
     - path: "core/rf/measurement_models.py"
       object: "rss_to_distance"
-    - path: "ch4_rf_point_positioning/example_comparison.py"
-      object: "rss_positioning_test"
   tests:
-    - "tests/core/rf/test_measurement_models.py::TestRSS::test_rss_to_distance"
-  notes: "Inverts path-loss model to estimate distance from RSS"
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "Inverse of Eq. (4.10)."
 
-# TOA Positioning Algorithms
-- eq: "Eqs. (4.14)-(4.23)"
+- eq: "Eq. (4.13)"
   chapter: 4
-  description: "Nonlinear TOA I-WLS (Iterative Weighted Least Squares)"
+  description: "RSS fading -> multiplicative distance error d~ = d*10^(-omega/(10*eta))"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "rss_fading_to_distance_error"
+  tests:
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "Code uses omega_long + omega_short; book (4.13) shows only omega_long (assumes short-term averaged out)."
+
+# --- Section 4.2.2: TOA least-squares positioning ---
+- eq: "Eq. (4.14)"
+  chapter: 4
+  description: "TOA iterative (weighted) least-squares positioning"
   files:
     - path: "core/rf/positioning.py"
       object: "TOAPositioner"
     - path: "ch4_rf_point_positioning/example_toa_positioning.py"
-      object: "demo_toa_basic"
+      object: "main"
   tests:
-    - "tests/core/rf/test_positioning.py::TestTOAPositioner"
-  notes: "Iterative Gauss-Newton with weighting. Requires initial guess."
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Gauss-Newton on TOA ranges (Eqs. 4.14-4.23)."
 
-- eq: "Eqs. (4.24)-(4.26)"
+- eq: "Eq. (4.20)"
   chapter: 4
-  description: "TOA positioning with joint clock bias estimation"
+  description: "LS update dx = (H^T H)^-1 H^T dz"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "TOAPositioner"
+  tests:
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Unweighted normal-equation update."
+
+- eq: "Eq. (4.23)"
+  chapter: 4
+  description: "Weighted LS update with measurement covariance"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "TOAPositioner"
+  tests:
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Weighting by inverse measurement covariance."
+
+- eq: "Eq. (4.24)"
+  chapter: 4
+  description: "TOA state with clock bias x = [x, y, z, c*dt]^T"
   files:
     - path: "core/rf/positioning.py"
       object: "toa_solve_with_clock_bias"
-    - path: "ch4_rf_point_positioning/example_toa_positioning.py"
-      object: "demo_toa_with_clock_bias"
+    - path: "core/rf/measurement_models.py"
+      object: "clock_bias_seconds_to_meters"
   tests:
-    - "tests/core/rf/test_positioning.py::TestTOAPositioner::test_with_clock_bias"
-  notes: "Extended state vector [x, y, clock_bias] for joint estimation"
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Joint position + clock-bias estimation (bias in meters)."
 
-# TDOA (Time Difference of Arrival)
-- eq: "Eqs. (4.27)-(4.33)"
+# --- Section 4.3: TDOA (differential range) ---
+- eq: "Eq. (4.27)"
   chapter: 4
-  description: "TDOA range difference measurements"
+  description: "TDOA range difference d_ij = ||p_i - p|| - ||p_j - p||"
   files:
     - path: "core/rf/measurement_models.py"
       object: "tdoa_range_difference"
     - path: "core/rf/measurement_models.py"
       object: "tdoa_measurement_vector"
-    - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
-      object: "demo_tdoa_basic"
   tests:
-    - "tests/core/rf/test_measurement_models.py::TestTDOA"
-  notes: "TDOA = range_i - range_ref eliminates receiver clock bias"
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "Differencing removes the receiver clock bias (Eqs. 4.27-4.33)."
 
-- eq: "Eqs. (4.34)-(4.42)"
+- eq: "Eq. (4.34)"
   chapter: 4
-  description: "TDOA I-WLS positioning algorithm"
+  description: "TDOA iterative (weighted) least-squares positioning"
   files:
     - path: "core/rf/positioning.py"
       object: "TDOAPositioner"
     - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
-      object: "demo_tdoa_basic"
+      object: "main"
   tests:
-    - "tests/core/rf/test_positioning.py::TestTDOAPositioner"
-  notes: "Linearized TDOA with iterative weighted least squares"
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Linearized TDOA IWLS (Eqs. 4.34-4.42)."
 
-- eq: "Eqs. (4.43)-(4.48)"
+- eq: "Eq. (4.42)"
   chapter: 4
-  description: "Fang's closed-form TDOA algorithm"
+  description: "TDOA measurement covariance (correlated via the reference anchor)"
   files:
     - path: "core/rf/positioning.py"
-      object: "tdoa_fang_solver"
-    - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
-      object: "demo_closed_form_algorithms"
+      object: "build_tdoa_covariance"
   tests:
-    - "tests/core/rf/test_positioning.py::TestTDOAPositioner::test_fang_solver"
-  notes: "Closed-form hyperbolic TDOA solution (4 anchors minimum)"
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Off-diagonal correlation from the shared reference measurement."
 
-- eq: "Eq. (4.58)"
+- eq: "Eq. (4.43)"
   chapter: 4
-  description: "Chan's two-step TDOA algorithm"
+  description: "Fang's closed-form algorithm (squared range differences of TOA)"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "toa_fang_solver"
+    - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
+      object: "main"
+  tests:
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Book Section 4.3.4 (Eqs. 4.43-4.49); starts from TOA ranges (4.43)."
+
+- eq: "Eq. (4.50)"
+  chapter: 4
+  description: "Chan's two-step WLS TDOA algorithm"
   files:
     - path: "core/rf/positioning.py"
       object: "tdoa_chan_solver"
     - path: "ch4_rf_point_positioning/example_tdoa_positioning.py"
-      object: "demo_closed_form_algorithms"
+      object: "main"
   tests:
-    - "tests/core/rf/test_positioning.py::TestTDOAPositioner::test_chan_solver"
-  notes: "Two-step WLS refinement with covariance weighting"
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Book Section 4.3.5 (Eqs. 4.50-4.62)."
 
-# AOA (Angle of Arrival)
-- eq: "Eqs. (4.63)-(4.67)"
+# --- Section 4.4.1: AOA angle measurements + I-WLS ---
+- eq: "Eq. (4.63)"
   chapter: 4
-  description: "AOA azimuth and elevation measurements"
+  description: "AOA elevation sin(theta) = dU / ||p - p_i||"
   files:
     - path: "core/rf/measurement_models.py"
-      object: "aoa_azimuth"
+      object: "aoa_sin_elevation"
     - path: "core/rf/measurement_models.py"
       object: "aoa_elevation"
+  tests:
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "ENU convention; elevation positive above."
+
+- eq: "Eq. (4.64)"
+  chapter: 4
+  description: "AOA azimuth tan(psi) = dE / dN (from North, CCW)"
+  files:
+    - path: "core/rf/measurement_models.py"
+      object: "aoa_tan_azimuth"
+    - path: "core/rf/measurement_models.py"
+      object: "aoa_azimuth"
+  tests:
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "psi = atan2(dE, dN); verified East->+90deg, North->0deg."
+
+- eq: "Eq. (4.65)"
+  chapter: 4
+  description: "AOA measurement vector z = [sin theta_i, tan psi_i, ...]^T"
+  files:
     - path: "core/rf/measurement_models.py"
       object: "aoa_measurement_vector"
-    - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
-      object: "demo_aoa_basic"
   tests:
-    - "tests/core/rf/test_measurement_models.py::TestAOA"
-  notes: "Azimuth = atan2(dy, dx), Elevation = atan2(dz, sqrt(dx^2+dy^2))"
+    - "tests/core/rf/test_measurement_models.py"
+  verified_by: "tests/core/rf/test_measurement_models.py"
+  notes: "Stacked per-anchor sin(elevation)/tan(azimuth)."
 
-- eq: "Eqs. (4.63)-(4.67)"
+- eq: "Eq. (4.68)"
   chapter: 4
-  description: "AOA I-WLS positioning algorithm"
+  description: "AOA I-WLS elevation Jacobian rows (f_i)"
   files:
     - path: "core/rf/positioning.py"
       object: "AOAPositioner"
     - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
-      object: "demo_aoa_basic"
+      object: "main"
   tests:
-    - "tests/core/rf/test_positioning.py::TestAOAPositioner"
-  notes: "Iterative weighted least squares for AOA positioning"
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Jacobian of sin(theta) (Eqs. 4.68-4.70)."
 
-- eq: "Eq. (4.68)"
+- eq: "Eq. (4.72)"
   chapter: 4
-  description: "OVE (Optimal Velocity Estimator) for AOA"
+  description: "AOA I-WLS azimuth Jacobian rows (g_i)"
   files:
     - path: "core/rf/positioning.py"
-      object: "aoa_ove_solver"
-    - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
-      object: "demo_closed_form_algorithms"
+      object: "AOAPositioner"
   tests:
-    - "tests/core/rf/test_positioning.py::TestAOAPositioner::test_ove_solver"
-  notes: "Closed-form AOA positioning algorithm (minimum 3 anchors)"
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Jacobian of tan(psi) (Eqs. 4.72-4.74)."
 
-- eq: "Eq. (4.69)"
+- eq: "Eq. (4.77)"
   chapter: 4
-  description: "3D PLE (Position Line Estimation) for AOA"
+  description: "AOA I-WLS solution"
   files:
     - path: "core/rf/positioning.py"
-      object: "aoa_3dple_solver"
-    - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
-      object: "demo_closed_form_algorithms"
+      object: "AOAPositioner"
   tests:
-    - "tests/core/rf/test_positioning.py::TestAOAPositioner::test_3dple_solver"
-  notes: "3D position line estimation for AOA (minimum 3 anchors)"
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Weighted least-squares update (Eqs. 4.77-4.78)."
 
-# DOP (Dilution of Precision)
-- eq: "Section 4.5"
+# --- Section 4.4.2 (OVE) and 4.4.3 (3-D PLE) ---
+- eq: "Eq. (4.79)"
   chapter: 4
-  description: "DOP computation (GDOP, PDOP, HDOP, VDOP)"
+  description: "AOA OVE (orthogonal-vector) closed-form solver"
   files:
-    - path: "core/rf/dop.py"
-      object: "compute_dop"
+    - path: "core/rf/positioning.py"
+      object: "aoa_ove_solve"
+    - path: "ch4_rf_point_positioning/example_aoa_positioning.py"
+      object: "main"
+  tests:
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Book Section 4.4.2 (Eqs. 4.79-4.85)."
+
+- eq: "Eq. (4.86)"
+  chapter: 4
+  description: "AOA 3-D PLE (pseudo-linear) solver"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "aoa_ple_solve_3d"
+    - path: "core/rf/positioning.py"
+      object: "aoa_ple_solve_2d"
+  tests:
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Book Section 4.4.3 (Eqs. 4.86-4.91)."
+
+- eq: "Eq. (4.92)"
+  chapter: 4
+  description: "3-D PLE elevation/height sub-solution"
+  files:
+    - path: "core/rf/positioning.py"
+      object: "aoa_ple_solve_3d"
+  tests:
+    - "tests/core/rf/test_positioning.py"
+  verified_by: "tests/core/rf/test_positioning.py"
+  notes: "Eqs. 4.92-4.95."
+
+# --- DOP (Dilution of Precision) ---
+- eq: "Eq. (4.18)"
+  chapter: 4
+  description: "Geometry matrix H and DOP metrics (GDOP/PDOP/HDOP/VDOP)"
+  files:
     - path: "core/rf/dop.py"
       object: "compute_geometry_matrix"
     - path: "core/rf/dop.py"
-      object: "compute_dop_map"
+      object: "compute_dop"
   tests:
     - "tests/core/rf/test_dop.py"
-  notes: "Geometry matrix and DOP metrics for evaluating positioning quality"
+  verified_by: "tests/core/rf/test_dop.py"
+  notes: "DOP from diag((H^T H)^-1); same geometry matrix as the LS solver."
 
 # ==============================================================================
 # Chapter 5: Fingerprinting-based Indoor Positioning
