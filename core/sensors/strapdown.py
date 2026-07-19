@@ -208,8 +208,14 @@ def quat_to_rotmat(q: np.ndarray) -> np.ndarray:
         - Assumes scalar-first quaternion convention.
         - For Chapter 6 integration, this converts body-frame specific force
           to map-frame acceleration (Eq. 6.7).
-        - If core/coords has a quat_to_rotmat, use that for consistency.
-        - This implementation follows standard aerospace formulas.
+        - CONVENTION WARNING: this is the *active* (body->map) matrix, which is
+          the TRANSPOSE of core.coords.quat_to_rotation_matrix (the *passive*
+          book Eq. (2.21), x_new = C x_old). The two are mutually consistent only
+          within their own module; do NOT feed a strapdown quaternion into the
+          core.coords quaternion/Euler helpers (or vice versa) without
+          transposing. Verified: quat_to_rotmat(q) == coords.quat_to_rotation_matrix(q).T.
+        - This implementation follows standard aerospace formulas and is
+          self-consistent with omega_matrix (Eq. 6.3) used in quat_integrate.
 
     Example:
         >>> import numpy as np
