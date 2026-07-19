@@ -1246,9 +1246,9 @@
 # IMU Strapdown Integration
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (6.2)-(6.4)"
+- eq: "Eq. (6.2)"
   chapter: 6
-  description: "Quaternion attitude integration"
+  description: "Quaternion kinematics dq/dt = 0.5 Omega(w) q"
   files:
     - path: "core/sensors/strapdown.py"
       object: "quat_integrate"
@@ -1256,7 +1256,19 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_strapdown.py"
-  notes: "Discrete quaternion integration: q_k = q_{k-1} + ½Ω(ω)q_{k-1}Δt"
+  verified_by: "tests/core/sensors/test_sensors_strapdown.py"
+  notes: "Continuous form; Omega from omega_matrix (Eq. 6.3)."
+
+- eq: "Eq. (6.4)"
+  chapter: 6
+  description: "Discrete quaternion update q_k = q_{k-1} + 0.5 Omega q_{k-1} dt"
+  files:
+    - path: "core/sensors/strapdown.py"
+      object: "quat_integrate"
+  tests:
+    - "tests/core/sensors/test_sensors_strapdown.py"
+  verified_by: "tests/core/sensors/test_sensors_strapdown.py"
+  notes: "First-order Euler integration, then normalize."
 
 - eq: "Eq. (6.3)"
   chapter: 6
@@ -1266,6 +1278,7 @@
       object: "omega_matrix"
   tests:
     - "tests/core/sensors/test_sensors_strapdown.py"
+  verified_by: "tests/core/sensors/test_sensors_strapdown.py"
   notes: "4×4 matrix for quaternion differential equation: q̇ = ½Ω(ω)q"
 
 - eq: "Eq. (6.6)"
@@ -1276,6 +1289,7 @@
       object: "correct_gyro"
   tests:
     - "tests/core/sensors/test_sensors_imu_models.py"
+  verified_by: "tests/core/sensors/test_sensors_imu_models.py"
   notes: "Corrected angular rate: ω = ω̃ - b_g - n_g"
 
 - eq: "Eq. (6.7)"
@@ -1288,6 +1302,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_strapdown.py"
+  verified_by: "tests/core/sensors/test_sensors_strapdown.py"
   notes: "Velocity update: v_k = v_{k-1} + (C_B^M f_b + g)Δt"
 
 - eq: "Eq. (6.8)"
@@ -1298,6 +1313,7 @@
       object: "gravity_vector"
   tests:
     - "tests/core/sensors/test_sensors_strapdown.py"
+  verified_by: "tests/core/sensors/test_sensors_strapdown.py"
   notes: "g = [0, 0, -9.81]^T in ENU frame"
 
 - eq: "Eq. (6.9)"
@@ -1308,6 +1324,7 @@
       object: "correct_accel"
   tests:
     - "tests/core/sensors/test_sensors_imu_models.py"
+  verified_by: "tests/core/sensors/test_sensors_imu_models.py"
   notes: "Corrected specific force: f = f̃ - b_a - n_a"
 
 - eq: "Eq. (6.10)"
@@ -1320,6 +1337,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_strapdown.py"
+  verified_by: "tests/core/sensors/test_sensors_strapdown.py"
   notes: "Position update: p_k = p_{k-1} + v_k Δt"
 
 # ------------------------------------------------------------------------------
@@ -1336,6 +1354,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_wheel_odometry.py"
+  verified_by: "tests/core/sensors/test_sensors_wheel_odometry.py"
   notes: "v^A = v^S + [ω^B×]r^B. Compensates for IMU offset from wheel."
 
 - eq: "Eq. (6.12)"
@@ -1346,6 +1365,7 @@
       object: "skew"
   tests:
     - "tests/core/sensors/test_sensors_wheel_odometry.py"
+  verified_by: "tests/core/sensors/test_sensors_wheel_odometry.py"
   notes: "[v×] matrix such that [v×]u = v × u"
 
 - eq: "Eq. (6.14)"
@@ -1356,6 +1376,7 @@
       object: "attitude_to_map_velocity"
   tests:
     - "tests/core/sensors/test_sensors_wheel_odometry.py"
+  verified_by: "tests/core/sensors/test_sensors_wheel_odometry.py"
   notes: "v^M = C_A^M(q) v^A. Transforms velocity to map frame."
 
 - eq: "Eq. (6.15)"
@@ -1368,6 +1389,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_wheel_odometry.py"
+  verified_by: "tests/core/sensors/test_sensors_wheel_odometry.py"
   notes: "p_k^M = p_{k-1}^M + v_k^M Δt"
 
 # ------------------------------------------------------------------------------
@@ -1384,6 +1406,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_constraints.py"
+  verified_by: "tests/core/sensors/test_sensors_constraints.py"
   notes: "Detects stationary periods: |Δω| < δ_ω AND |Δf - g| < δ_f"
 
 - eq: "Eq. (6.45)"
@@ -1396,6 +1419,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_constraints.py"
+  verified_by: "tests/core/sensors/test_sensors_constraints.py"
   notes: "h(x) = v. Constrains velocity to zero during stationary periods."
 
 - eq: "Eq. (6.60)"
@@ -1406,6 +1430,7 @@
       object: "ZaruMeasurementModel"
   tests:
     - "tests/core/sensors/test_sensors_constraints.py"
+  verified_by: "tests/core/sensors/test_sensors_constraints.py"
   notes: "h(x) = ω. Constrains angular rate to zero when stationary."
 
 - eq: "Eq. (6.61)"
@@ -1416,6 +1441,7 @@
       object: "NhcMeasurementModel"
   tests:
     - "tests/core/sensors/test_sensors_constraints.py"
+  verified_by: "tests/core/sensors/test_sensors_constraints.py"
   notes: "h(x) = C_B^M^T v. Constrains lateral/vertical velocity to zero for vehicles."
 
 # ------------------------------------------------------------------------------
@@ -1432,6 +1458,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_pdr.py"
+  verified_by: "tests/core/sensors/test_sensors_pdr.py"
   notes: "a_mag = ||a||. Used for step detection."
 
 - eq: "Eq. (6.47)"
@@ -1442,6 +1469,7 @@
       object: "remove_gravity_from_magnitude"
   tests:
     - "tests/core/sensors/test_sensors_pdr.py"
+  verified_by: "tests/core/sensors/test_sensors_pdr.py"
   notes: "a_dyn = a_mag - g. Isolates dynamic acceleration component."
 
 - eq: "Eq. (6.48)"
@@ -1452,6 +1480,7 @@
       object: "step_frequency"
   tests:
     - "tests/core/sensors/test_sensors_pdr.py"
+  verified_by: "tests/core/sensors/test_sensors_pdr.py"
   notes: "f_step = 1/Δt. Computed from step detection timing."
 
 - eq: "Eq. (6.49)"
@@ -1464,6 +1493,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_pdr.py"
+  verified_by: "tests/core/sensors/test_sensors_pdr.py"
   notes: "L = c·h^a·f_step^b. Empirical model based on height and cadence."
 
 - eq: "Eq. (6.50)"
@@ -1476,23 +1506,38 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_pdr.py"
+  verified_by: "tests/core/sensors/test_sensors_pdr.py"
   notes: "p_k = p_{k-1} + L[cos(ψ), sin(ψ)]^T. 2D step-and-heading update."
 
 # ------------------------------------------------------------------------------
 # Environmental Sensors
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (6.51)-(6.53)"
+- eq: "Eq. (6.51)"
   chapter: 6
-  description: "Magnetometer heading computation"
+  description: "Magnetometer measurement model mtilde^B = C^B_M B^M + bias + eps"
+  files:
+    - path: "core/sensors/environment.py"
+      object: "mag_heading"
+    - path: "core/sensors/environment.py"
+      object: "compensate_hard_iron"
+  tests:
+    - "tests/core/sensors/test_sensors_environment.py"
+  verified_by: "tests/core/sensors/test_sensors_environment.py"
+  notes: "Body-frame field with hard-iron bias."
+
+- eq: "Eq. (6.53)"
+  chapter: 6
+  description: "Magnetometer heading psi = atan2(My, Mx) (+ declination)"
   files:
     - path: "core/sensors/environment.py"
       object: "mag_heading"
     - path: "ch6_dead_reckoning/example_environment.py"
       object: "main"
   tests:
-    - "tests/core/sensors/test_sensors_environment.py"
-  notes: "ψ = atan2(mag_hy, mag_hx) + declination. With tilt compensation."
+    - "tests/core/sensors/test_sensors_environment.py::TestMagHeading::test_mag_heading_tilt_invariant"
+  verified_by: "tests/core/sensors/test_sensors_environment.py::TestMagHeading::test_mag_heading_tilt_invariant"
+  notes: "Uses the tilt-compensated horizontal field (Eq. 6.52); tilt-invariant."
 
 - eq: "Eq. (6.52)"
   chapter: 6
@@ -1502,6 +1547,7 @@
       object: "mag_tilt_compensate"
   tests:
     - "tests/core/sensors/test_sensors_environment.py"
+  verified_by: "tests/core/sensors/test_sensors_environment.py"
   notes: "mag_h = R_y(-pitch)·R_x(-roll)·mag_b. Projects to horizontal plane."
 
 - eq: "Eq. (6.54)"
@@ -1514,6 +1560,7 @@
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_environment.py"
+  verified_by: "tests/core/sensors/test_sensors_environment.py"
   notes: "h = (T/L)(1 - (p/p₀)^α). International barometric formula."
 
 - eq: "Eq. (6.55)"
@@ -1524,25 +1571,36 @@
       object: "smooth_measurement_simple"
   tests:
     - "tests/core/sensors/test_sensors_environment.py"
+  verified_by: "tests/core/sensors/test_sensors_environment.py"
   notes: "x_k = (1-α)x_{k-1} + αz_k. Simple low-pass filter."
 
 # ------------------------------------------------------------------------------
 # IMU Calibration
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (6.56)-(6.58)"
+- eq: "Eq. (6.56)"
   chapter: 6
-  description: "Allan variance for IMU noise characterization"
+  description: "Allan variance sigma^2(tau) = 0.5 E[(theta_bar_{k+1} - theta_bar_k)^2]"
   files:
     - path: "core/sensors/calibration.py"
       object: "allan_variance"
-    - path: "core/sensors/calibration.py"
-      object: "characterize_imu_noise"
     - path: "ch6_dead_reckoning/example_allan_variance.py"
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_calibration.py"
-  notes: "σ²(τ) = ½E[(θ̄_{k+1} - θ̄_k)²]. Identifies ARW, bias instability, RRW."
+  verified_by: "tests/core/sensors/test_sensors_calibration.py"
+  notes: "Overlapping Allan variance of the integrated rate."
+
+- eq: "Eq. (6.58)"
+  chapter: 6
+  description: "IMU noise characterization from the Allan-deviation slopes"
+  files:
+    - path: "core/sensors/calibration.py"
+      object: "characterize_imu_noise"
+  tests:
+    - "tests/core/sensors/test_sensors_calibration.py"
+  verified_by: "tests/core/sensors/test_sensors_calibration.py"
+  notes: "Identifies ARW (-1/2 slope), bias instability (flat), RRW (+1/2)."
 
 - eq: "Eq. (6.59)"
   chapter: 6
@@ -1552,7 +1610,75 @@
       object: "apply_imu_scale_misalignment"
   tests:
     - "tests/core/sensors/test_sensors_imu_models.py"
+  verified_by: "tests/core/sensors/test_sensors_imu_models.py"
   notes: "u_corrected = M·S·(u_meas - b). Full sensor error model."
+
+# --- equations added during the audit (were code-cited but unindexed) ---
+- eq: "Eq. (6.5)"
+  chapter: 6
+  description: "Gyro error model wtilde = w + b_g + n_g"
+  files:
+    - path: "core/sensors/imu_models.py"
+      object: "correct_gyro"
+  tests:
+    - "tests/core/sensors/test_sensors_imu_models.py"
+  verified_by: "tests/core/sensors/test_sensors_imu_models.py"
+  notes: "Model inverted by correct_gyro (Eq. 6.6)."
+
+- eq: "Eq. (6.13)"
+  chapter: 6
+  description: "Quaternion to rotation matrix (active body->map) for velocity update"
+  files:
+    - path: "core/sensors/strapdown.py"
+      object: "quat_to_rotmat"
+  tests:
+    - "tests/core/sensors/test_sensors_strapdown.py"
+  verified_by: "tests/core/sensors/test_sensors_strapdown.py"
+  notes: "Active form (transpose of Ch2 Eq. 2.21). Used in wheel odometry Eq. (6.14) too."
+
+- eq: "Eq. (6.16)"
+  chapter: 6
+  description: "INS/EKF state vector x = [p, v, q, b_g, b_a]^T"
+  files:
+    - path: "core/sensors/ins_ekf.py"
+      object: "INSState"
+  tests:
+    - "tests/core/test_ins_state_ordering.py"
+  verified_by: "tests/core/test_ins_state_ordering.py"
+  notes: "State ordering for the IMU/wheel integrated EKF."
+
+- eq: "Eq. (6.17)"
+  chapter: 6
+  description: "EKF process model and covariance propagation (6.17-6.32)"
+  files:
+    - path: "core/sensors/types.py"
+      object: "NavStateQPVPBias"
+  tests:
+    - "tests/core/sensors/test_sensors_types.py"
+  verified_by: "tests/core/sensors/test_sensors_types.py"
+  notes: "Nav state used as the EKF process model."
+
+- eq: "Eq. (6.33)"
+  chapter: 6
+  description: "Wheel speed measurement model for the EKF (6.33-6.38)"
+  files:
+    - path: "core/sensors/types.py"
+      object: "NavStateQPVPBias"
+  tests:
+    - "tests/core/sensors/test_sensors_types.py"
+  verified_by: "tests/core/sensors/test_sensors_types.py"
+  notes: "NHC + wheel-speed observation."
+
+- eq: "Eq. (6.57)"
+  chapter: 6
+  description: "Allan deviation log-linear form log(sigma(tau)) = log(ARW) - 0.5 log(tau)"
+  files:
+    - path: "core/sensors/calibration.py"
+      object: "allan_variance"
+  tests:
+    - "tests/core/sensors/test_sensors_calibration.py"
+  verified_by: "tests/core/sensors/test_sensors_calibration.py"
+  notes: "ARW slope on the Allan-deviation log-log plot."
 
 # ==============================================================================
 # Chapter 7: SLAM Technologies
