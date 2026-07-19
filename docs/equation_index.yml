@@ -558,17 +558,40 @@
 # Particle Filter
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (3.33)-(3.34)"
+- eq: "Eq. (3.32)"
   chapter: 3
-  description: "Particle Filter (Sequential Monte Carlo)"
+  description: "Recursive Bayes filter (predict integral + measurement update)"
   files:
     - path: "core/estimators/particle_filter.py"
       object: "ParticleFilter"
+  tests:
+    - "tests/core/estimators/test_particle_filter.py"
+  verified_by: "tests/core/estimators/test_particle_filter.py::test_pf_approximates_kf_one_step"
+  notes: "PF approximates the Bayes filter by weighted samples (SIR / Bootstrap)."
+
+- eq: "Eq. (3.33)"
+  chapter: 3
+  description: "Particle sampling/prediction x_k^(i) ~ p(x_k | x_{k-1}^(i))"
+  files:
+    - path: "core/estimators/particle_filter.py"
+      object: "ParticleFilter.predict"
     - path: "ch3_estimators/example_comparison.py"
       object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py"
-  notes: "Monte Carlo approach for non-Gaussian distributions. Systematic resampling."
+    - "tests/core/estimators/test_particle_filter.py"
+  verified_by: "tests/core/estimators/test_particle_filter.py::test_pf_approximates_kf_one_step"
+  notes: "Each particle propagated through the (noisy) process model."
+
+- eq: "Eq. (3.34)"
+  chapter: 3
+  description: "Importance weighting w_k^(i) = w_{k-1}^(i) p(z_k | x_k^(i))"
+  files:
+    - path: "core/estimators/particle_filter.py"
+      object: "ParticleFilter.update"
+  tests:
+    - "tests/core/estimators/test_particle_filter.py::test_weight_update_matches_eq_3_34"
+  verified_by: "tests/core/estimators/test_particle_filter.py::test_weight_update_matches_eq_3_34"
+  notes: "Then normalize; ESS-triggered systematic resampling (N_eff = 1/sum w^2). Book Eq. (3.31), the SIR initialization, is missing (see book_errata.md E-03)."
 
 # ------------------------------------------------------------------------------
 # Factor Graph Optimization

@@ -8,6 +8,12 @@ corrections back to the publisher.
 
 Format: **E-NN** | chapter/eq | printed | correct | code status.
 
+> **Note on the source PDF.** The audited PDF still contains `{AU: ...}` copyedit
+> query markers (e.g., Ch. 2 "last part of this sentence is unclear", Ch. 3
+> "missing eq 3.31?", UKF "cite ref [3] in order"), so it appears to be a proof /
+> galley rather than the final print. Some items below may already be tracked in
+> those proof queries.
+
 ---
 
 ## E-01 — Ch. 3, Eqs. (3.19) and (3.20): linear Kalman-filter covariance update
@@ -68,3 +74,17 @@ diff 0, covariance diff ~4e-16). See
 from `(x̂_k^-, P_k^-)`, so it deviates from the literal (3.27) and reduces to the
 KF on linear systems. (This is a variant choice, not an invalid formula like
 E-01; flag for author review.)
+
+---
+
+## E-03 — Ch. 3, Section 3.3: equation (3.31) is missing
+
+**Printed.** The particle-filter section jumps from Eq. (3.30) to Eq. (3.32); the
+book's own proof markup flags "au: missing eq 3.31?" at the initialization step.
+
+**Correct.** Equation (3.31) should be the SIR initialization: draw
+`x_0^(i) ~ p(x_0)` and set equal weights `w_0^(i) = 1/N`. Either add it as (3.31)
+or renumber (3.32)-(3.56).
+
+**Code status.** Implemented. `ParticleFilter.__init__` draws particles from the
+initial distribution and sets uniform weights `1/N`.
