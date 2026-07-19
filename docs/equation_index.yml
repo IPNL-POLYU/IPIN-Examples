@@ -453,20 +453,106 @@
   notes: "S = H P^- H^T + R; Joseph-form covariance update (correct standard form)."
 
 # ------------------------------------------------------------------------------
+# Iterated Extended Kalman Filter (Section 3.2.3 - no numbered equations)
+# ------------------------------------------------------------------------------
+
+- eq: "Section 3.2.3 (IEKF)"
+  chapter: 3
+  description: "Iterated EKF: Gauss-Newton refinement of the measurement update"
+  files:
+    - path: "core/estimators/iterated_extended_kalman_filter.py"
+      object: "IteratedExtendedKalmanFilter"
+    - path: "ch3_estimators/example_iekf_range_bearing.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_iterated_extended_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_iterated_extended_kalman_filter.py"
+  notes: "Modified residual y = z - h(x^j) + H^j (x^j - x_hat^-); update from x_hat^- with P^-. Verified: fixed point equals the Gauss-Newton MAP solution (2.7e-13)."
+
+# ------------------------------------------------------------------------------
 # Unscented Kalman Filter
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (3.24)-(3.30)"
+- eq: "Eq. (3.24)"
   chapter: 3
-  description: "Unscented Kalman Filter (UKF)"
+  description: "UKF sigma points and weights (chi_0, chi_i, chi_{i+n})"
   files:
     - path: "core/estimators/unscented_kalman_filter.py"
-      object: "UnscentedKalmanFilter"
+      object: "UnscentedKalmanFilter._generate_sigma_points"
+  tests:
+    - "tests/core/estimators/test_unscented_kalman_filter.py::test_sigma_point_weights_match_eq_3_24"
+  verified_by: "tests/core/estimators/test_unscented_kalman_filter.py::test_sigma_point_weights_match_eq_3_24"
+  notes: "delta_i = columns of Cholesky((n+lambda)P); lambda = alpha^2(n+kappa)-n."
+
+- eq: "Eq. (3.25)"
+  chapter: 3
+  description: "UKF sigma-point propagation chi_i^- = f(chi_i, u_k)"
+  files:
+    - path: "core/estimators/unscented_kalman_filter.py"
+      object: "UnscentedKalmanFilter.predict"
     - path: "ch3_estimators/example_comparison.py"
       object: "main"
   tests:
-    - "tests/core/estimators/test_least_squares.py"
-  notes: "Sigma point-based nonlinear filter. No Jacobians required."
+    - "tests/core/estimators/test_unscented_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_unscented_kalman_filter.py::test_ukf_matches_kf_on_linear_system"
+  notes: "Each sigma point propagated through the process model."
+
+- eq: "Eq. (3.26)"
+  chapter: 3
+  description: "UKF predicted mean/covariance from sigma points (+ Q)"
+  files:
+    - path: "core/estimators/unscented_kalman_filter.py"
+      object: "UnscentedKalmanFilter.predict"
+  tests:
+    - "tests/core/estimators/test_unscented_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_unscented_kalman_filter.py::test_ukf_matches_kf_on_linear_system"
+  notes: "P^- = sum Wc (chi^- - x^-)(chi^- - x^-)^T + Q."
+
+- eq: "Eq. (3.27)"
+  chapter: 3
+  description: "UKF measurement sigma points Z_i = h(chi_i)"
+  files:
+    - path: "core/estimators/unscented_kalman_filter.py"
+      object: "UnscentedKalmanFilter.update"
+  tests:
+    - "tests/core/estimators/test_unscented_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_unscented_kalman_filter.py::test_ukf_matches_kf_on_linear_system"
+  notes: "DEVIATION (E-02): code re-draws sigma points from (x^-, P^-) so the UKF reduces to the KF; the printed (3.27) reuses chi_i^- (omits Q)."
+
+- eq: "Eq. (3.28)"
+  chapter: 3
+  description: "UKF predicted measurement mean/covariance Pzz (+ R)"
+  files:
+    - path: "core/estimators/unscented_kalman_filter.py"
+      object: "UnscentedKalmanFilter.update"
+  tests:
+    - "tests/core/estimators/test_unscented_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_unscented_kalman_filter.py::test_ukf_matches_kf_on_linear_system"
+  notes: "Pzz = sum Wc (Z - z_hat)(Z - z_hat)^T + R."
+
+- eq: "Eq. (3.29)"
+  chapter: 3
+  description: "UKF state-measurement cross-covariance Pxz"
+  files:
+    - path: "core/estimators/unscented_kalman_filter.py"
+      object: "UnscentedKalmanFilter.update"
+  tests:
+    - "tests/core/estimators/test_unscented_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_unscented_kalman_filter.py::test_ukf_matches_kf_on_linear_system"
+  notes: "Pxz = sum Wc (chi^- - x^-)(Z - z_hat)^T."
+
+- eq: "Eq. (3.30)"
+  chapter: 3
+  description: "UKF gain/update K=Pxz Pzz^-1; x=x^-+K(z-z_hat); P=P^- - K Pzz K^T"
+  files:
+    - path: "core/estimators/unscented_kalman_filter.py"
+      object: "UnscentedKalmanFilter.update"
+    - path: "ch3_estimators/example_comparison.py"
+      object: "main"
+  tests:
+    - "tests/core/estimators/test_unscented_kalman_filter.py"
+  verified_by: "tests/core/estimators/test_unscented_kalman_filter.py::test_ukf_matches_kf_on_linear_system"
+  notes: "Reduces to the linear KF update on linear systems."
 
 # ------------------------------------------------------------------------------
 # Particle Filter

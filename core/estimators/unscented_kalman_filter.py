@@ -6,8 +6,15 @@ of Principles of Indoor Positioning and Indoor Navigation.
 
 Implements:
     - Eq. (3.24): Sigma point generation χ₀, χᵢ, χ_{i+n}
-    - Eq. (3.25): Sigma point propagation through process model
+    - Eq. (3.25)-(3.26): Sigma point propagation and predicted mean/covariance
+    - Eq. (3.27)-(3.29): Measurement prediction and cross-covariance
     - Eq. (3.30): UKF update with cross-covariances and Kalman gain
+
+Note: the update re-draws sigma points from the predicted (x̂_k^-, P_k^-) before
+applying h, rather than reusing χ_i^- as the printed Eq. (3.27) does. The book's
+literal form omits Q from the measurement sigma points and does not reduce to the
+Kalman filter on linear systems; the re-draw (standard van der Merwe UKF) does.
+See docs/book_errata.md (E-02).
 """
 
 from typing import Callable, Optional, Tuple
@@ -242,7 +249,10 @@ class UnscentedKalmanFilter(StateEstimator):
 
         z = np.asarray(z, dtype=float)
 
-        # Generate sigma points from predicted state
+        # Re-draw sigma points from the predicted (x̂_k^-, P_k^-), which includes
+        # Q. This deviates from the literal Eq. (3.27) (which reuses χ_i^-); see
+        # docs/book_errata.md E-02. The re-draw makes the UKF reduce to the KF on
+        # linear systems (locked by test_ukf_matches_kf_on_linear_system).
         sigma_points = self._generate_sigma_points(self.state, self.covariance)
 
         # Propagate sigma points through measurement model

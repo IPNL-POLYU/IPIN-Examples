@@ -42,3 +42,29 @@ affected.
 **Code status.** Correct. `KalmanFilter.update()` uses the numerically-stable
 Joseph form `(I − KH) P (I − KH)^T + K R K^T`, which equals `(I − KH)P` at the
 optimal gain. The code deliberately deviates from the printed (3.19)/(3.20).
+
+---
+
+## E-02 — Ch. 3, Eq. (3.27): UKF reuses predicted sigma points (omits Q)
+
+**Printed.** The UKF measurement step (3.27) sets `Z_i = h(χ_i^-)`, reusing the
+predicted sigma points `χ_i^-` from (3.25). Those points have spread `P_pred`
+(the transformed prior), which **excludes the process noise `Q`** added in (3.26).
+Yet (3.26) and (3.30) use `P_k^- = P_pred + Q`.
+
+**Problem.** Because the measurement sigma points carry spread `P_pred` while the
+covariance bookkeeping uses `P_k^- = P_pred + Q`, the algorithm is internally
+inconsistent: on a **linear** system the resulting UKF does **not** reduce to the
+Kalman filter (it under-counts `Q` in the innovation covariance).
+
+**Correct.** Re-draw sigma points from the predicted `(x̂_k^-, P_k^-)` (with `Q`)
+before applying `h`. This is the standard (van der Merwe) additive-noise UKF.
+
+**Verification.** With the redraw, the UKF matches the linear KF exactly (state
+diff 0, covariance diff ~4e-16). See
+`tests/core/estimators/test_unscented_kalman_filter.py::test_ukf_matches_kf_on_linear_system`.
+
+**Code status.** Correct. `UnscentedKalmanFilter.update()` re-draws sigma points
+from `(x̂_k^-, P_k^-)`, so it deviates from the literal (3.27) and reduces to the
+KF on linear systems. (This is a variant choice, not an invalid formula like
+E-01; flag for author review.)
