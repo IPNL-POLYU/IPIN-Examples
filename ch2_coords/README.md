@@ -12,13 +12,31 @@ python -m ch2_coords.example_coordinate_transforms
 
 # Run with pre-generated dataset
 python -m ch2_coords.example_coordinate_transforms --data ch2_coords_san_francisco
+
+# Draw the frames and the attitude convention (writes to figs/)
+python -m ch2_coords.example_attitude_visualization --no-show
 ```
+
+## Figures
+
+`example_attitude_visualization.py` writes four figures to `figs/`. They exist
+because this chapter's attitude convention is **not** the aerospace default —
+roll turns about **Y** (2.15) and pitch about **X** (2.16) — and that is far
+easier to see than to read.
+
+| Figure | Shows |
+|--------|-------|
+| `ch2_euler_convention` | The elemental rotations (2.14)–(2.16) and their composition (2.17), each with its axis of rotation marked, so the Y/X pairing is visible |
+| `ch2_passive_vs_active` | The transpose trap: Chapter 2's passive `C` (2.21) beside the active body-to-map rotation of Chapter 6 (6.13) |
+| `ch2_gimbal_lock` | The singularity, which in this convention sits at **roll** = ±90°, not pitch, with two different (yaw, pitch) pairs collapsing to one attitude |
+| `ch2_frame_chain` | ENU → NED → body, the local-frame chain of (2.5)–(2.7) |
 
 ## 📂 Dataset Connection
 
 | Example Script | Dataset | Description |
 |----------------|---------|-------------|
 | `example_coordinate_transforms.py` | `data/sim/ch2_coords_san_francisco/` | San Francisco coordinates with LLH, ECEF, ENU, and rotation data |
+| `example_attitude_visualization.py` | *(none — analytic)* | Draws frames and rotations directly from `core.coords` |
 
 **Load dataset manually:**
 ```python
