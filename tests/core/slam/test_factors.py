@@ -19,6 +19,8 @@ from core.slam import (
     create_prior_factor,
     se2_apply,
     se2_compose,
+    se2_inverse,
+    se2_relative,
 )
 
 
@@ -158,6 +160,78 @@ class TestLoopClosureFactor:
         # Trajectory should be straighter (less y drift)
         for i in range(n_poses):
             assert abs(optimized[i][1]) < 0.1  # Small y deviation
+
+
+class TestEq722Conformance:
+    """Conformance tests for book Eq. (7.22).
+
+    f(T_i, T_j, ΔT'_ij) = ln((ΔT'_ij)⁻¹ T_i⁻¹ T_j)^∨
+
+    The residual must be a *group* operation. A componentwise subtraction
+    ``ΔT' - (T_i⁻¹T_j)`` also vanishes at the optimum, so the round-trip test
+    alone cannot tell the two apart — the perturbation test below can.
+    """
+
+    POSE_I = np.array([1.0, 2.0, 0.3])
+    POSE_J = np.array([3.5, -1.0, -0.4])
+
+    def test_consistent_measurement_gives_zero_residual(self):
+        """A measurement equal to the true relative pose has no error."""
+        rel = se2_relative(self.POSE_I, self.POSE_J)
+        factor = create_loop_closure_factor(0, 1, rel)
+
+        residual = factor.residual_func([self.POSE_I, self.POSE_J])
+
+        np.testing.assert_allclose(residual, np.zeros(3), atol=1e-12)
+
+    def test_residual_equals_book_group_expression(self):
+        """Residual matches ln((ΔT')⁻¹ T_i⁻¹ T_j)^∨, not ΔT' - T_i⁻¹T_j."""
+        rel_true = se2_relative(self.POSE_I, self.POSE_J)
+        perturbation = np.array([0.05, -0.02, 0.01])
+        rel_measured = se2_compose(rel_true, perturbation)
+
+        residual = create_loop_closure_factor(0, 1, rel_measured).residual_func(
+            [self.POSE_I, self.POSE_J]
+        )
+
+        expected = se2_relative(rel_measured, rel_true)
+        np.testing.assert_allclose(residual, expected, atol=1e-12)
+
+        # (ΔT'∘d)⁻¹ ∘ ΔT' = d⁻¹: the residual recovers the injected error.
+        np.testing.assert_allclose(residual, se2_inverse(perturbation), atol=1e-12)
+
+        # Guard against a regression to componentwise subtraction.
+        naive = rel_measured - rel_true
+        assert not np.allclose(residual, naive, atol=1e-6)
+
+    def test_residual_translation_lives_in_measurement_frame(self):
+        """Translation error is rotated by R(Δθ')ᵀ, per the group inverse."""
+        rel_true = se2_relative(self.POSE_I, self.POSE_J)
+        offset = np.array([0.1, 0.0, 0.0])
+        rel_measured = rel_true + offset  # translation-only discrepancy
+
+        residual = create_loop_closure_factor(0, 1, rel_measured).residual_func(
+            [self.POSE_I, self.POSE_J]
+        )
+
+        theta_measured = rel_measured[2]
+        c, s = np.cos(theta_measured), np.sin(theta_measured)
+        rot_transpose = np.array([[c, s], [-s, c]])
+        np.testing.assert_allclose(
+            residual[:2], rot_transpose @ (-offset[:2]), atol=1e-12
+        )
+        # Not merely the unrotated difference (Δθ' is far from zero here).
+        assert not np.allclose(residual[:2], -offset[:2], atol=1e-6)
+
+    def test_yaw_residual_wraps_across_pi(self):
+        """Yaw error stays in [-π, π] across the ±π seam."""
+        pose_a = np.array([0.0, 0.0, 3.10])
+        pose_b = np.array([1.0, 0.0, -3.10])
+        rel = se2_relative(pose_a, pose_b)
+
+        residual = create_loop_closure_factor(0, 1, rel).residual_func([pose_a, pose_b])
+
+        np.testing.assert_allclose(residual, np.zeros(3), atol=1e-12)
 
 
 class TestPriorFactor:

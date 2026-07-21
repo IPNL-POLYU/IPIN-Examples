@@ -432,30 +432,36 @@ def triangulate_point(
     ray1 = unproject_pixel(intrinsics1, pixel1)
     ray2 = unproject_pixel(intrinsics2, pixel2)
 
-    # Transform ray2 to camera1 frame
-    # point_in_cam1 = R_1_to_2.T @ (point_in_cam2) + (-R_1_to_2.T @ t_1_to_2)
+    # Express camera 2's ray and optical centre in camera 1's frame.
+    # A point satisfies p_C2 = R p_C1 + t, so the inverse map is
+    # p_C1 = R^T p_C2 - R^T t, giving the second centre at -R^T t.
     ray2_in_cam1 = R_1_to_2.T @ ray2
-
-    # Solve for depths using least squares
-    # We want: depth1 * ray1 ≈ R_1_to_2.T @ (depth2 * ray2) - R_1_to_2.T @ t_1_to_2
-    # This is a simplified approach; proper triangulation uses DLT
-
-    # For simplicity, use midpoint of closest approach
-    # This is a heuristic but works for teaching purposes
     origin1 = np.zeros(3)
     origin2_in_cam1 = -R_1_to_2.T @ t_1_to_2
 
-    # Find closest point on ray1 to ray from origin2_in_cam1
-    # Use midpoint heuristic
-    direction_between = origin2_in_cam1 - origin1
-    t1 = np.dot(direction_between, ray1)
-    t2 = np.dot(direction_between - t1 * ray1, ray2_in_cam1)
+    # Midpoint of closest approach: minimise ||(o1 + s*d1) - (o2 + u*d2)||^2
+    # over the ray parameters (s, u). With unit directions d1, d2 the normal
+    # equations reduce to the closed form below.
+    w0 = origin1 - origin2_in_cam1
+    b = float(np.dot(ray1, ray2_in_cam1))
+    d = float(np.dot(ray1, w0))
+    e = float(np.dot(ray2_in_cam1, w0))
 
-    # Average of two closest points
-    point1 = origin1 + t1 * ray1
-    point2 = origin2_in_cam1 + t2 * ray2_in_cam1
-    point_3d = (point1 + point2) / 2.0
+    denominator = 1.0 - b * b
+    if abs(denominator) < 1e-12:
+        # Rays are (near-)parallel: the intersection is ill-conditioned, which
+        # is exactly the degenerate pure-rotation case of monocular SLAM.
+        raise ValueError(
+            "Triangulation is degenerate: the two viewing rays are parallel "
+            "(insufficient baseline or pure rotation between the views)."
+        )
 
-    return point_3d
+    s = (b * e - d) / denominator
+    u = (e - b * d) / denominator
+
+    point1 = origin1 + s * ray1
+    point2 = origin2_in_cam1 + u * ray2_in_cam1
+
+    return (point1 + point2) / 2.0
 
 

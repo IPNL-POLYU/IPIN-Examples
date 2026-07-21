@@ -13,7 +13,9 @@ import pytest
 from core.slam.camera import (
     compute_reprojection_error,
     distort_normalized,
+    essential_matrix_from_pose,
     project_point,
+    triangulate_point,
     undistort_normalized,
     unproject_pixel,
 )
@@ -398,6 +400,147 @@ class TestIntegration:
         # Error should be smallest for the true point
         assert errors[0] < 0.1  # Near zero
         assert all(errors[i] > errors[0] for i in range(1, len(errors)))
+
+
+class TestEssentialMatrix:
+    """Test suite for the essential matrix, book Eq. (7.47).
+
+    The epipolar constraint is (K⁻¹p_{t+Δt})ᵀ t^∧ R (K⁻¹p_t) = 0, i.e.
+    x₂ᵀ E x₁ = 0 with E = [t]× R for the pose convention of Eq. (7.44),
+    p^{C_{t+Δt}} = R p^{C_t} + t.
+    """
+
+    @staticmethod
+    def _pose(angle=0.25, translation=(0.4, -0.1, 0.05)):
+        c, s = np.cos(angle), np.sin(angle)
+        rotation = np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+        return rotation, np.asarray(translation, dtype=float)
+
+    def test_essential_matrix_is_skew_translation_times_rotation(self):
+        """E = [t]× R."""
+        rotation, translation = self._pose()
+        tx, ty, tz = translation
+        skew = np.array([[0.0, -tz, ty], [tz, 0.0, -tx], [-ty, tx, 0.0]])
+
+        essential = essential_matrix_from_pose(rotation, translation)
+
+        np.testing.assert_allclose(essential, skew @ rotation, atol=1e-12)
+
+    def test_epipolar_constraint_vanishes_for_correspondences(self):
+        """x₂ᵀ E x₁ = 0 for a genuine corresponding pair, Eq. (7.47)."""
+        rotation, translation = self._pose()
+        essential = essential_matrix_from_pose(rotation, translation)
+
+        for point_cam1 in (
+            np.array([0.3, 0.2, 4.0]),
+            np.array([-1.0, 0.5, 7.0]),
+            np.array([2.5, -1.3, 11.0]),
+        ):
+            point_cam2 = rotation @ point_cam1 + translation
+            x1 = point_cam1 / point_cam1[2]
+            x2 = point_cam2 / point_cam2[2]
+
+            assert abs(float(x2 @ essential @ x1)) < 1e-12
+
+    def test_epipolar_constraint_nonzero_for_wrong_match(self):
+        """A mismatched pair violates the constraint."""
+        rotation, translation = self._pose()
+        essential = essential_matrix_from_pose(rotation, translation)
+
+        point_cam1 = np.array([0.3, 0.2, 4.0])
+        wrong_cam2 = rotation @ np.array([-1.0, 0.5, 7.0]) + translation
+        x1 = point_cam1 / point_cam1[2]
+        x2 = wrong_cam2 / wrong_cam2[2]
+
+        assert abs(float(x2 @ essential @ x1)) > 1e-6
+
+
+class TestTriangulatePoint:
+    """Test suite for two-view triangulation (Section 7.4.2, Eq. (7.68))."""
+
+    INTRINSICS = CameraIntrinsics(fx=500.0, fy=500.0, cx=320.0, cy=240.0)
+
+    @staticmethod
+    def _pose(angle=0.25, translation=(0.4, -0.1, 0.05)):
+        c, s = np.cos(angle), np.sin(angle)
+        rotation = np.array([[c, 0.0, s], [0.0, 1.0, 0.0], [-s, 0.0, c]])
+        return rotation, np.asarray(translation, dtype=float)
+
+    @pytest.mark.parametrize(
+        "point_cam1",
+        [
+            [0.3, 0.2, 4.0],
+            [-1.0, 0.5, 7.0],
+            [0.0, 0.0, 2.0],
+            [2.5, -1.3, 11.0],
+            [-0.7, -0.4, 3.3],
+        ],
+    )
+    def test_recovers_ground_truth_point(self, point_cam1):
+        """Noise-free correspondences must return the original 3D point."""
+        rotation, translation = self._pose()
+        point_cam1 = np.asarray(point_cam1, dtype=float)
+        point_cam2 = rotation @ point_cam1 + translation
+
+        pixel1 = project_point(self.INTRINSICS, point_cam1)
+        pixel2 = project_point(self.INTRINSICS, point_cam2)
+        triangulated = triangulate_point(
+            pixel1, pixel2, self.INTRINSICS, self.INTRINSICS, rotation, translation
+        )
+
+        np.testing.assert_allclose(triangulated, point_cam1, atol=1e-9)
+
+    def test_triangulated_point_is_in_front_of_camera(self):
+        """Positive depth — guards the sign error that returned points behind."""
+        rotation, translation = self._pose()
+        point_cam1 = np.array([0.3, 0.2, 4.0])
+        point_cam2 = rotation @ point_cam1 + translation
+
+        triangulated = triangulate_point(
+            project_point(self.INTRINSICS, point_cam1),
+            project_point(self.INTRINSICS, point_cam2),
+            self.INTRINSICS,
+            self.INTRINSICS,
+            rotation,
+            translation,
+        )
+
+        assert triangulated[2] > 0.0
+
+    def test_depth_varies_with_the_observation(self):
+        """Guards the degenerate implementation that ignored the second ray."""
+        rotation, translation = self._pose()
+        near = np.array([0.0, 0.0, 2.0])
+        far = np.array([0.0, 0.0, 9.0])
+
+        depths = []
+        for point_cam1 in (near, far):
+            point_cam2 = rotation @ point_cam1 + translation
+            triangulated = triangulate_point(
+                project_point(self.INTRINSICS, point_cam1),
+                project_point(self.INTRINSICS, point_cam2),
+                self.INTRINSICS,
+                self.INTRINSICS,
+                rotation,
+                translation,
+            )
+            depths.append(triangulated[2])
+
+        assert depths[1] > depths[0] + 1.0
+
+    def test_pure_rotation_is_degenerate(self):
+        """Zero baseline gives parallel rays — monocular scale degeneracy."""
+        pixel = np.array([320.0, 240.0])
+
+        with pytest.raises(ValueError, match="degenerate"):
+            triangulate_point(
+                pixel,
+                pixel,
+                self.INTRINSICS,
+                self.INTRINSICS,
+                np.eye(3),
+                np.zeros(3),
+            )
 
 
 if __name__ == "__main__":

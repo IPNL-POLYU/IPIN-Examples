@@ -88,20 +88,24 @@ def create_odometry_factor(
         information = np.eye(3)
 
     def residual_func(x_vars):
-        """Compute SE(2) relative pose residual."""
+        """Compute SE(2) relative pose residual, book Eq. (7.22).
+
+        f(T_i, T_j, ΔT'_ij) = ln((ΔT'_ij)⁻¹ T_i⁻¹ T_j)^∨
+
+        The error is formed as a *group* operation, not a componentwise
+        subtraction: the translation part is expressed in the frame of the
+        measured relative pose. That matters as soon as the information
+        matrix is anisotropic in x/y (σ_x ≠ σ_y), because only then does
+        "forward more accurate than lateral" refer to the right axes.
+        """
         pose_from = x_vars[0]  # shape (3,)
         pose_to = x_vars[1]  # shape (3,)
 
-        # Compute actual relative pose: pose_from⁻¹ ⊕ pose_to
+        # Predicted relative pose: T_i⁻¹ T_j
         relative_actual = se2_relative(pose_from, pose_to)
 
-        # Residual: difference between measured and actual
-        residual = relative_pose - relative_actual
-
-        # Wrap yaw difference to [-π, π]
-        residual[2] = wrap_angle(residual[2])
-
-        return residual
+        # Residual: (ΔT'_ij)⁻¹ ⊕ (T_i⁻¹ T_j), yaw wrapped by se2_compose
+        return se2_relative(relative_pose, relative_actual)
 
     def jacobian_func(x_vars):
         """Compute Jacobians with respect to both poses."""
@@ -596,8 +600,9 @@ def create_reprojection_factor(
             # Projection failed → moderate penalty
             return np.array([100.0, 100.0])
 
-        # Residual: projected - observed
-        # Eq. (7.69): reprojection error
+        # Residual: projected - observed. This is the summand of the bundle
+        # adjustment objective, Eq. (7.70): ||p_pixel - pi(R_i p_k + t_i)||.
+        # (Eq. (7.69) is the map point set M^L, not this error.)
         residual = projected_pixel - observed_pixel
 
         return residual
