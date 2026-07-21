@@ -16,10 +16,11 @@ Reference:
 """
 
 import argparse
+import ast
 import re
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 
 # Try to import yaml, fall back to basic parsing if not available
 try:
@@ -158,6 +159,92 @@ def check_file_paths(entries: List[Dict], root: Path) -> List[str]:
                 if path and not (root / path).exists():
                     errors.append(f"Missing file: {path} (referenced by {entry.get('eq', 'unknown')})")
     return errors
+
+
+def check_objects(entries: List[Dict], root: Path) -> List[str]:
+    """Check that each ``object`` named in the index is defined in its file.
+
+    A path that exists is not enough: an index entry pointing at a function or
+    class that was since renamed or removed still looks green while documenting
+    something that is not there. Chapter 8 carried three such dangling names
+    (``compute_innovation``, ``create_process_model``,
+    ``create_position_measurement_model``) until this check was added.
+
+    Args:
+        entries: List of equation entries from YAML
+        root: Project root directory
+
+    Returns:
+        List of error messages for objects that cannot be resolved.
+    """
+    errors = []
+    cache: Dict[Path, Optional[ast.Module]] = {}
+
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        for file_info in entry.get("files", []):
+            if not isinstance(file_info, dict):
+                continue
+            path = file_info.get("path", "")
+            obj = file_info.get("object", "")
+            if not path or not obj:
+                continue
+            file_path = root / path
+            if not file_path.exists():
+                continue  # already reported by check_file_paths
+
+            if file_path not in cache:
+                try:
+                    cache[file_path] = ast.parse(
+                        file_path.read_text(encoding="utf-8")
+                    )
+                except (OSError, SyntaxError):
+                    cache[file_path] = None
+            tree = cache[file_path]
+            if tree is None:
+                continue  # unparsable: not this check's business
+
+            if not _resolve_object(tree, obj):
+                errors.append(
+                    f"Missing object: {obj} in {path} "
+                    f"(referenced by {entry.get('eq', 'unknown')})"
+                )
+    return errors
+
+
+def _resolve_object(tree: ast.Module, dotted_name: str) -> bool:
+    """Resolve a possibly dotted ``Class.method`` name against a parsed module.
+
+    Walks the AST one segment at a time, so ``Foo.bar`` requires ``bar`` to be
+    defined inside ``Foo`` -- a module-level ``bar`` does not satisfy it.
+    Module-level assignments (constants, aliases) count as definitions.
+    """
+    scope: List[ast.stmt] = list(tree.body)
+
+    for segment in dotted_name.split("."):
+        for node in scope:
+            if isinstance(
+                node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
+            ) and node.name == segment:
+                scope = list(getattr(node, "body", []))
+                break
+            if isinstance(node, ast.Assign) and any(
+                isinstance(t, ast.Name) and t.id == segment for t in node.targets
+            ):
+                scope = []
+                break
+            if (
+                isinstance(node, ast.AnnAssign)
+                and isinstance(node.target, ast.Name)
+                and node.target.id == segment
+            ):
+                scope = []
+                break
+        else:
+            return False
+
+    return True
 
 
 def resolve_test_node(node: str, root: Path) -> bool:
@@ -300,7 +387,18 @@ def main():
     else:
         print("[OK] All file paths in index are valid")
         print()
-    
+
+    # Check that named objects actually exist in those files
+    object_errors = check_objects(entries, root)
+    if object_errors:
+        print("[ERROR] Object reference errors in equation_index.yml:")
+        for error in object_errors:
+            print(f"   - {error}")
+        print()
+    else:
+        print("[OK] All indexed objects resolve in their files")
+        print()
+
     # Check verification: implemented equations must be backed by a real test.
     verified, unverified = check_verification(entries, root)
     implemented = len(verified) + len(unverified)
@@ -321,15 +419,16 @@ def main():
     print(f"  Code references:       {len(code_equations)}")
     print(f"  Missing from index:    {len(missing_from_index)}")
     print(f"  File path errors:      {len(path_errors)}")
+    print(f"  Object ref errors:     {len(object_errors)}")
     print(f"  Verified equations:    {len(verified)}/{implemented} implemented")
     print()
     
     # Determine exit code
-    if args.strict and (missing_from_index or path_errors or unverified):
+    if args.strict and (missing_from_index or path_errors or object_errors or unverified):
         print("[FAILED] (strict mode)")
         return 1
-    elif path_errors or unverified:
-        print("[WARNING] (unresolved file paths or unverified equations)")
+    elif path_errors or object_errors or unverified:
+        print("[WARNING] (unresolved file paths, object references, or unverified equations)")
         return 0
     else:
         print("[PASSED]")
