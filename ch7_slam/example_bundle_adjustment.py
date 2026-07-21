@@ -444,8 +444,12 @@ def plot_bundle_adjustment_results(
     ax3.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    plt.savefig("ch7_slam/bundle_adjustment_results.png", dpi=150, bbox_inches="tight")
-    print("\n[OK] Saved figure: ch7_slam/bundle_adjustment_results.png")
+    # Figures belong in the chapter's figs/ directory, not beside the source.
+    figs_dir = Path("ch7_slam/figs")
+    figs_dir.mkdir(parents=True, exist_ok=True)
+    output_file = figs_dir / "bundle_adjustment_results.png"
+    plt.savefig(output_file, dpi=150, bbox_inches="tight")
+    print(f"\n[OK] Saved figure: {output_file}")
     
     # Only show interactively if display available
     import os
