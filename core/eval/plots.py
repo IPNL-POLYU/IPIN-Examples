@@ -12,10 +12,11 @@ Date: December 2025
 
 import os
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Callable, Dict, List, Optional, Tuple, Union
 
 import matplotlib.pyplot as plt
 import numpy as np
+from matplotlib.animation import FuncAnimation, PillowWriter
 
 
 def plot_trajectory_2d(
@@ -491,6 +492,63 @@ def set_axes_equal_3d(ax, radius: float = 1.5) -> None:
         pass
 
 
+def save_animation(
+    fig: plt.Figure,
+    update: Callable[[int], object],
+    n_frames: int,
+    out_dir: Union[str, Path],
+    name: str,
+    fps: int = 5,
+    dpi: int = 80,
+    init: Optional[Callable[[], object]] = None,
+    warn_mb: float = 1.5,
+) -> Path:
+    """Render a matplotlib animation to a GIF in a chapter's figs/ directory.
+
+    An animation earns its place when the *process* is the lesson -- a scan
+    snapping into alignment, a map accumulating, a filter's covariance
+    shrinking. For a before/after comparison a static figure is better: it can
+    be read at a glance and printed.
+
+    Keep GIFs small. They are committed binaries and git keeps every version
+    forever, so a 4 MB animation regenerated a few times outweighs the entire
+    source tree. Prefer fewer frames and a lower ``dpi`` over a shorter
+    display; 5 fps reads fine for algorithmic content.
+
+    Args:
+        fig: Figure to animate.
+        update: Called with the frame index; draws that frame.
+        n_frames: Number of frames.
+        out_dir: Output directory, normally ``chX_*/figs``.
+        name: Base filename, without the ``.gif`` extension.
+        fps: Frames per second in the written file.
+        dpi: Resolution. 80 keeps a 10-inch-wide figure near 800 px.
+        init: Optional initialisation callback for the first frame.
+        warn_mb: Print a warning if the result exceeds this many megabytes.
+
+    Returns:
+        Path to the written GIF.
+    """
+    out_dir = Path(out_dir)
+    out_dir.mkdir(parents=True, exist_ok=True)
+    path = out_dir / f"{name}.gif"
+
+    animation = FuncAnimation(
+        fig, update, frames=n_frames, init_func=init,
+        interval=1000 // max(fps, 1), blit=False,
+    )
+    animation.save(path, writer=PillowWriter(fps=fps), dpi=dpi)
+
+    size_mb = path.stat().st_size / (1024 * 1024)
+    if size_mb > warn_mb:
+        print(
+            f"  [warning] {path.name} is {size_mb:.1f} MB (over {warn_mb} MB). "
+            f"Consider fewer frames or a lower dpi -- this is a committed "
+            f"binary and git keeps every version."
+        )
+    return path
+
+
 def save_figure(
     fig: plt.Figure,
     out_dir: Union[str, Path],
@@ -512,11 +570,33 @@ def save_figure(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    # Make the output byte-reproducible. By default matplotlib stamps SVG and
+    # PDF with the current time and randomises internal element ids, so
+    # regenerating an unchanged figure still produced a several-hundred-line
+    # diff per file -- noise that buries real changes and grows the repository
+    # (tracked figures are already over half of it). Fixing the hash salt and
+    # dropping the date means a committed diff implies the picture changed.
+    previous_salt = plt.rcParams.get("svg.hashsalt")
+    plt.rcParams["svg.hashsalt"] = name
+
+    metadata_by_format = {
+        "svg": {"Date": None},
+        "pdf": {"CreationDate": None},
+    }
+
     paths = []
-    for fmt in formats:
-        filepath = out_dir / f"{name}.{fmt}"
-        fig.savefig(filepath, dpi=150, bbox_inches="tight")
-        paths.append(filepath)
+    try:
+        for fmt in formats:
+            filepath = out_dir / f"{name}.{fmt}"
+            fig.savefig(
+                filepath,
+                dpi=150,
+                bbox_inches="tight",
+                metadata=metadata_by_format.get(fmt),
+            )
+            paths.append(filepath)
+    finally:
+        plt.rcParams["svg.hashsalt"] = previous_salt
 
     return paths
 

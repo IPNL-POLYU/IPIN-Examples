@@ -24,6 +24,7 @@ from .plots import (
     plot_position_error_time,
     plot_rf_geometry,
     plot_trajectory_2d,
+    save_animation,
     save_figure,
     set_axes_equal_3d,
 )
@@ -43,6 +44,7 @@ __all__ = [
     "plot_rf_geometry",
     "plot_dop_map",
     "plot_frame_3d",
+    "save_animation",
     "save_figure",
     "set_axes_equal_3d",
 ]

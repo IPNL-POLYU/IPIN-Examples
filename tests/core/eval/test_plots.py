@@ -17,7 +17,12 @@ import numpy as np
 import pytest
 
 from core.coords import euler_to_rotation_matrix
-from core.eval import plot_frame_3d, save_figure, set_axes_equal_3d
+from core.eval import (
+    plot_frame_3d,
+    save_animation,
+    save_figure,
+    set_axes_equal_3d,
+)
 
 
 @pytest.fixture
@@ -150,3 +155,54 @@ class TestSaveFigure:
             plt.close(fig)
 
         assert paths[0].exists()
+
+    def test_output_is_byte_reproducible(self, tmp_path):
+        """Regenerating an unchanged figure must not produce a diff.
+
+        matplotlib stamps SVG and PDF with the current time and randomises
+        internal element ids, which made every regeneration a several-hundred
+        line diff per file -- noise that buries real changes in a repository
+        where tracked figures are already over half the bytes.
+        """
+        fig = plt.figure()
+        axes = fig.add_subplot(111)
+        axes.plot([0, 1, 2], [0, 1, 4])
+        try:
+            first = save_figure(
+                fig, tmp_path / "a", "demo", formats=("svg", "pdf", "png")
+            )
+            second = save_figure(
+                fig, tmp_path / "b", "demo", formats=("svg", "pdf", "png")
+            )
+        finally:
+            plt.close(fig)
+
+        for lhs, rhs in zip(first, second):
+            assert lhs.read_bytes() == rhs.read_bytes(), (
+                f"{lhs.suffix} output is not reproducible"
+            )
+
+
+class TestSaveAnimation:
+    """Test the shared GIF output path."""
+
+    def test_writes_a_gif_with_the_requested_frames(self, tmp_path):
+        """Frames render and the file lands in the given directory."""
+        from PIL import Image
+
+        fig = plt.figure()
+        axes = fig.add_subplot(111)
+
+        def update(frame):
+            axes.clear()
+            axes.plot([0, 1], [0, frame])
+            return axes
+
+        try:
+            path = save_animation(fig, update, 4, tmp_path, "anim", fps=4)
+        finally:
+            plt.close(fig)
+
+        assert path.exists() and path.suffix == ".gif"
+        with Image.open(path) as image:
+            assert image.n_frames == 4
