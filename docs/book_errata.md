@@ -101,3 +101,41 @@ cross-reference typo (Eq. (2.56) does not exist; Chapter 2 ends at (2.23)).
 **Code status.** Not applicable (documentation only). The solver in
 `core/estimators/nonlinear_least_squares.py` computes the gain ratio per the
 correct Eq. (3.56).
+
+---
+
+## E-05 — Ch. 8, Eq. (8.7): robust covariance scaling is inverted
+
+**Printed.** `R_k = w(ỹ_k) · R_k`, described as "where `w(ỹ_k)` is the weight
+output by the robust function based on the current innovation."
+
+**Problem.** The weights "output by the robust function" are the IRLS weights of
+the book's own **Table 3.1**, and all of them are bounded by 1:
+
+| loss | weight (Table 3.1) | value at large \|r\| |
+|---|---|---|
+| Huber | `w = 1` if `|r| ≤ c`, else `c/|r|` | → 0 |
+| Cauchy | `w = 1/(1 + (r/c)²)` | → 0 |
+| Geman-McClure | `w = 1/(1 + (r/c)²)²` | → 0 |
+
+Multiplying `R_k` by `w ≤ 1` therefore **shrinks** the measurement covariance as
+the innovation grows, making the filter trust an outlier *more* — the opposite of
+the intent. The same page states the intent plainly two paragraphs later: "If a
+residual is large, they scale up its covariance (down-weight that measurement)."
+
+**Correct.** Either invert the factor or state that `w` is not the Table 3.1
+weight:
+
+- `R_k = R_k / w(ỹ_k)`, with `w` the Table 3.1 weight (≤ 1); or
+- `R_k = w_R(ỹ_k) · R_k`, with `w_R := 1/w ≥ 1` defined as a covariance
+  *inflation* factor.
+
+For Huber this gives `w_R = max(1, |r|/δ)`; for Cauchy `w_R = 1 + (r/c)²`.
+
+**Code status.** Correct; the code takes the second form. `core/fusion/tuning.py`
+provides `huber_R_scale` / `cauchy_R_scale` returning `w_R ≥ 1`, and
+`scale_measurement_covariance` rejects any factor below 1. The IRLS-weight
+spellings `huber_weight` / `cauchy_weight` are retained for Table 3.1 use but
+emit a `DeprecationWarning` steering callers to the `_R_scale` forms for Eq.
+(8.7) — this erratum is exactly the confusion that warning exists to prevent.
+Guard test: `tests/core/fusion/test_fusion_tuning.py::TestEq87CovarianceInflation`.

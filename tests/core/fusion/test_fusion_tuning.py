@@ -8,6 +8,7 @@ References: Chapter 8, Section 8.3 (Tuning and Robustness)
 """
 
 import unittest
+import warnings
 
 import numpy as np
 
@@ -478,6 +479,78 @@ class TestComputeNormalizedInnovation(unittest.TestCase):
         
         with self.assertRaises(ValueError):
             compute_normalized_innovation(y, S)
+
+
+class TestEq87CovarianceInflation(unittest.TestCase):
+    """Guard test for erratum E-05, book Eq. (8.7).
+
+    The printed equation reads R_k = w(y_k) * R_k with w "the weight output by
+    the robust function". Those weights (Table 3.1) are all <= 1, so taken
+    literally the update *shrinks* R for an outlier and makes the filter trust
+    it more. The code instead uses an inflation factor w_R = 1/w >= 1, matching
+    the intent stated on the same page ("If a residual is large, they scale up
+    its covariance"). See docs/book_errata.md E-05.
+    """
+
+    RESIDUALS = (0.0, 0.5, 1.345, 2.69, 10.0, 50.0)
+
+    def test_scale_is_reciprocal_of_the_table_3_1_weight(self):
+        """w_R = 1/w exactly, for both loss functions."""
+        for residual in self.RESIDUALS:
+            with self.subTest(residual=residual):
+                with warnings.catch_warnings():
+                    warnings.simplefilter("ignore", DeprecationWarning)
+                    huber_w = huber_weight(residual, 1.345)
+                    cauchy_w = cauchy_weight(residual, 2.385)
+
+                self.assertAlmostEqual(
+                    huber_R_scale(residual, 1.345), 1.0 / huber_w, places=12
+                )
+                self.assertAlmostEqual(
+                    cauchy_R_scale(residual, 2.385), 1.0 / cauchy_w, places=12
+                )
+
+    def test_outliers_inflate_rather_than_shrink_R(self):
+        """The E-05 defect: applying Eq. (8.7) must never reduce R."""
+        R = np.diag([0.25, 0.25])
+
+        for residual in self.RESIDUALS:
+            with self.subTest(residual=residual):
+                inflated = scale_measurement_covariance(
+                    R, huber_R_scale(residual, 1.345)
+                )
+
+                # Never shrinks, and strictly inflates once past the threshold.
+                self.assertTrue(np.all(np.diag(inflated) >= np.diag(R) - 1e-12))
+                if residual > 1.345:
+                    self.assertTrue(np.all(np.diag(inflated) > np.diag(R)))
+
+    def test_scale_grows_monotonically_with_the_residual(self):
+        """Bigger innovation => more inflation, for both losses."""
+        huber_scales = [huber_R_scale(r, 1.345) for r in self.RESIDUALS]
+        cauchy_scales = [cauchy_R_scale(r, 2.385) for r in self.RESIDUALS]
+
+        for scales in (huber_scales, cauchy_scales):
+            for earlier, later in zip(scales, scales[1:]):
+                self.assertLessEqual(earlier, later + 1e-12)
+
+    def test_literal_printed_form_would_trust_outliers_more(self):
+        """Documents why E-05 matters, pinning the defect it guards against."""
+        R = np.diag([0.25, 0.25])
+        strong_outlier = 50.0
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", DeprecationWarning)
+            literal_w = huber_weight(strong_outlier, 1.345)
+
+        # Eq. (8.7) read literally with a Table 3.1 weight.
+        literal_R = literal_w * R
+        corrected_R = scale_measurement_covariance(
+            R, huber_R_scale(strong_outlier, 1.345)
+        )
+
+        self.assertTrue(np.all(np.diag(literal_R) < np.diag(R)))  # the defect
+        self.assertTrue(np.all(np.diag(corrected_R) > np.diag(R)))  # the fix
 
 
 if __name__ == "__main__":
