@@ -15,7 +15,7 @@ Key Concepts:
 - Absolute measurements (position fixes) make translation observable
 
 Author: Li-Ta Hsu
-References: Chapter 8, Section 8.2 (Observability in Sensor Fusion), Equations (8.1)-(8.3)
+References: Chapter 8, Section 8.2 (Observability in Sensor Fusion), Equations (8.1)-(8.4)
 """
 
 import argparse
@@ -203,6 +203,91 @@ def compute_observability_matrix(
     rank = np.sum(s > tol)
     
     return O_EKF, rank, s
+
+
+def compute_fgo_observability_matrix(
+    graph,
+    max_factors: int = None
+) -> Tuple[np.ndarray, int, np.ndarray]:
+    """Compute the FGO observability matrix per Equation 8.4.
+
+    Implements the factor-graph counterpart of Eq. (8.3):
+
+        O_FGO = [J_t0;
+                 J_t1;
+                 ...
+                 J_tT]
+
+    where J_ti is the Jacobian of the factor at time i with respect to the
+    full state vector. Unlike the EKF form of Eq. (8.3), no state transition
+    matrix Φ appears: in FGO the motion model is itself a factor, so its
+    Jacobian is already one of the stacked blocks.
+
+    Each factor contributes its own row block, with the per-variable Jacobians
+    scattered into the columns owned by those variables; columns for variables
+    the factor does not touch stay zero.
+
+    Args:
+        graph: A FactorGraph whose variables and factors are already added.
+        max_factors: Maximum number of factors to include (default: all).
+
+    Returns:
+        Tuple of (O_FGO, rank, singular_values):
+            O_FGO: Stacked Jacobian (sum of residual dims x total state dim)
+            rank: Numerical rank of O_FGO
+            singular_values: Singular values for analysis
+
+    Raises:
+        ValueError: If the graph has no factors or no variables.
+
+    Notes:
+        The Gauss-Newton Hessian is H = O_FGO^T * Lambda * O_FGO, so for a
+        positive-definite information matrix rank(H) == rank(O_FGO) and the
+        two share a null space. A rank deficit therefore names exactly the
+        directions the optimizer cannot resolve -- the gauge freedom of a
+        pose graph built only from relative constraints, for instance.
+
+    References:
+        Chapter 8, Equation (8.4): FGO Observability Matrix
+    """
+    if not graph.factors:
+        raise ValueError("Need at least one factor")
+    if not graph.variables:
+        raise ValueError("Need at least one variable")
+
+    factors = graph.factors if max_factors is None else graph.factors[:max_factors]
+    if not factors:
+        raise ValueError("Need at least one factor")
+
+    # Column layout: variables in sorted id order, matching the linearized
+    # system that _build_linearized_system assembles.
+    var_ids_sorted = sorted(graph.variables.keys())
+    var_indices = {}
+    current_idx = 0
+    for vid in var_ids_sorted:
+        dim = graph.variable_dims[vid]
+        var_indices[vid] = (current_idx, current_idx + dim)
+        current_idx += dim
+    total_dim = current_idx
+
+    # One row block per factor, Eq. (8.4)
+    O_rows = []
+    for factor in factors:
+        residual, jacobians = factor.linearize(graph.variables)
+        block = np.zeros((len(residual), total_dim))
+        for i, vid in enumerate(factor.variable_ids):
+            start, end = var_indices[vid]
+            block[:, start:end] = jacobians[i]
+        O_rows.append(block)
+
+    O_FGO = np.vstack(O_rows)
+
+    # Numerical rank via SVD, same convention as compute_observability_matrix
+    _, s, _ = np.linalg.svd(O_FGO, full_matrices=False)
+    tol = max(O_FGO.shape) * np.spacing(s[0])
+    rank = int(np.sum(s > tol))
+
+    return O_FGO, rank, s
 
 
 def analyze_unobservable_states(

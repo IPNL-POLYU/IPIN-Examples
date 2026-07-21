@@ -1,6 +1,6 @@
-"""Unit tests for observability analysis (Equation 8.3).
+"""Unit tests for observability analysis (Equations 8.3 and 8.4).
 
-Tests the EKF observability matrix computation and rank analysis.
+Tests the EKF and FGO observability matrix computation and rank analysis.
 
 Author: Li-Ta Hsu
 Date: December 2025
@@ -11,9 +11,12 @@ import unittest
 import numpy as np
 
 from ch8_sensor_fusion.observability_demo import (
+    compute_fgo_observability_matrix,
     compute_observability_matrix,
     analyze_unobservable_states,
 )
+from core.estimators.factor_graph import FactorGraph
+from core.slam.factors import create_odometry_factor, create_prior_factor
 
 
 class TestObservabilityMatrix(unittest.TestCase):
@@ -269,6 +272,101 @@ class TestObservabilityIntegration(unittest.TestCase):
             analysis_odom['n_unobservable'],
             analysis_fix['n_unobservable']
         )
+
+
+class TestFGOObservabilityMatrix(unittest.TestCase):
+    """Test FGO observability matrix computation (Eq. 8.4).
+
+    O_FGO = [J_t0; J_t1; ...; J_tT] stacks the factor Jacobians against the
+    full state. No state transition matrix appears -- unlike Eq. (8.3), the
+    motion model is itself a factor.
+    """
+
+    @staticmethod
+    def _pose_chain(n_poses=4, with_prior=False):
+        """Chain of SE(2) poses linked by odometry, optionally anchored."""
+        graph = FactorGraph()
+        for i in range(n_poses):
+            graph.add_variable(i, np.array([float(i), 0.0, 0.0]))
+        if with_prior:
+            graph.add_factor(create_prior_factor(0, np.zeros(3)))
+        for i in range(n_poses - 1):
+            graph.add_factor(
+                create_odometry_factor(i, i + 1, np.array([1.0, 0.0, 0.0]))
+            )
+        return graph
+
+    def test_shape_matches_residual_and_state_dimensions(self):
+        """Rows = total residual dim, columns = total state dim."""
+        graph = self._pose_chain(n_poses=4)
+
+        O_FGO, _, _ = compute_fgo_observability_matrix(graph)
+
+        # 3 odometry factors x 3 residual rows, 4 poses x 3 states
+        self.assertEqual(O_FGO.shape, (9, 12))
+
+    def test_relative_constraints_leave_gauge_freedom(self):
+        """Odometry only: rank deficit is exactly the SE(2) gauge (x, y, yaw)."""
+        graph = self._pose_chain(n_poses=4, with_prior=False)
+
+        O_FGO, rank, _ = compute_fgo_observability_matrix(graph)
+
+        self.assertEqual(O_FGO.shape[1] - rank, 3)
+
+    def test_prior_restores_full_observability(self):
+        """Anchoring one pose removes the gauge freedom."""
+        graph = self._pose_chain(n_poses=4, with_prior=True)
+
+        O_FGO, rank, _ = compute_fgo_observability_matrix(graph)
+
+        self.assertEqual(rank, O_FGO.shape[1])
+
+    def test_rank_matches_gauss_newton_hessian(self):
+        """H = O^T Lambda O, so the two ranks must agree."""
+        for with_prior in (False, True):
+            with self.subTest(with_prior=with_prior):
+                graph = self._pose_chain(n_poses=4, with_prior=with_prior)
+
+                _, rank, _ = compute_fgo_observability_matrix(graph)
+                H, _ = graph._build_linearized_system()
+
+                self.assertEqual(np.linalg.matrix_rank(H), rank)
+
+    def test_unobservable_direction_is_a_global_motion(self):
+        """The null space moves every pose together, not one pose alone."""
+        graph = self._pose_chain(n_poses=4, with_prior=False)
+
+        O_FGO, _, _ = compute_fgo_observability_matrix(graph)
+
+        # Right singular vectors spanning the null space of a wide matrix.
+        _, _, Vt = np.linalg.svd(O_FGO, full_matrices=True)
+        null_vector = Vt[-1].reshape(-1, 3)
+
+        # A gauge direction shifts all poses; no pose may sit still while
+        # the others move.
+        per_pose_motion = np.linalg.norm(null_vector, axis=1)
+        self.assertTrue(np.all(per_pose_motion > 1e-6))
+
+        # And it must genuinely lie in the null space.
+        self.assertLess(np.linalg.norm(O_FGO @ Vt[-1]), 1e-9)
+
+    def test_max_factors_truncates_the_stack(self):
+        """max_factors limits how many row blocks are stacked."""
+        graph = self._pose_chain(n_poses=4)
+
+        O_full, _, _ = compute_fgo_observability_matrix(graph)
+        O_two, _, _ = compute_fgo_observability_matrix(graph, max_factors=2)
+
+        self.assertEqual(O_two.shape, (6, 12))
+        np.testing.assert_allclose(O_two, O_full[:6, :])
+
+    def test_empty_graph_raises(self):
+        """A graph with no factors cannot be analysed."""
+        graph = FactorGraph()
+        graph.add_variable(0, np.zeros(3))
+
+        with self.assertRaises(ValueError):
+            compute_fgo_observability_matrix(graph)
 
 
 if __name__ == '__main__':
