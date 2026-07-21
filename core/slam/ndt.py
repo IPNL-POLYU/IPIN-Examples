@@ -262,23 +262,32 @@ def ndt_gradient(
 
     Notes:
         - Computes gradient of the objective function in Eq. (7.16).
-        - Uses finite differences for simplicity (not analytic gradient).
+        - Uses *central* finite differences (not an analytic gradient).
+        - The NDT score is piecewise-discontinuous: a point contributes only while
+          it falls inside an occupied voxel, so the score jumps as points cross
+          voxel boundaries. A very small epsilon therefore produces enormous
+          spurious gradients (a 1e-6 step once yielded |grad| ~ 1e4-1e6 even at
+          the optimum). We use a larger epsilon so the difference averages over
+          that granularity, and ndt_align only uses the gradient *direction*
+          combined with a backtracking line search, so the magnitude cannot blow
+          up the step.
         - For production code, analytic gradients would be more efficient.
-        - The book mentions that Eq. (7.16) can be solved by nonlinear optimization.
     """
     gradient = np.zeros(3)
-    epsilon = 1e-6
-
-    # Compute gradient via finite differences
-    base_score = ndt_score(source_points, ndt_map, pose, voxel_size)
+    # Large enough to step across the discontinuity granularity, small relative
+    # to a voxel; yaw in radians uses the same scale.
+    epsilon = 1e-3
 
     for i in range(3):
         pose_plus = pose.copy()
+        pose_minus = pose.copy()
         pose_plus[i] += epsilon
+        pose_minus[i] -= epsilon
 
         score_plus = ndt_score(source_points, ndt_map, pose_plus, voxel_size)
+        score_minus = ndt_score(source_points, ndt_map, pose_minus, voxel_size)
 
-        gradient[i] = (score_plus - base_score) / epsilon
+        gradient[i] = (score_plus - score_minus) / (2.0 * epsilon)
 
     return gradient
 
@@ -363,34 +372,64 @@ def ndt_align(
     else:
         current_pose = initial_pose.astype(np.float64).copy()
 
-    # Optimization loop (gradient descent)
+    # Optimization loop: steepest descent along a UNIT direction with a
+    # backtracking line search.
+    #
+    # Using only the gradient *direction* makes the optimizer immune to the huge
+    # magnitudes the discontinuous NDT score produces (|grad| ~ 1e4-1e6 even at
+    # the optimum), and backtracking guarantees the score never increases, so the
+    # pose cannot run away. The previous `current_pose -= step_size * grad` took a
+    # raw step (0.1 * 3.6e4 ~ 3600), landed hundreds of metres away where nothing
+    # matched, and then reported converged=True because the flat 1e6 no-match
+    # plateau made the score stop changing.
+    NO_MATCH_SCORE = 1e6
+
+    def _wrap_yaw(p: np.ndarray) -> np.ndarray:
+        p[2] = np.arctan2(np.sin(p[2]), np.cos(p[2]))
+        return p
+
+    current_score = ndt_score(source_scan, ndt_map, current_pose, voxel_size)
     converged = False
-    prev_score = np.inf
 
     for iteration in range(max_iterations):
-        # Compute current score
-        current_score = ndt_score(source_scan, ndt_map, current_pose, voxel_size)
+        grad = ndt_gradient(source_scan, ndt_map, current_pose, voxel_size)
+        grad_norm = float(np.linalg.norm(grad))
 
-        # Check convergence
-        score_change = abs(prev_score - current_score)
-        if score_change < tolerance:
-            converged = True
+        if not np.isfinite(grad_norm) or grad_norm < 1e-12:
+            # Flat/undefined gradient: a genuine optimum only if points matched.
+            converged = current_score < NO_MATCH_SCORE
             return current_pose, iteration + 1, current_score, converged
 
-        # Compute gradient
-        grad = ndt_gradient(source_scan, ndt_map, current_pose, voxel_size)
+        direction = -grad / grad_norm  # unit descent direction
 
-        # Gradient descent update
-        current_pose -= step_size * grad
+        # Backtracking: shrink the step until the score actually improves.
+        alpha = step_size
+        improved = False
+        trial_pose = current_pose
+        trial_score = current_score
+        while alpha > 1e-6:
+            candidate = _wrap_yaw(current_pose + alpha * direction)
+            candidate_score = ndt_score(source_scan, ndt_map, candidate, voxel_size)
+            if candidate_score < current_score:
+                trial_pose, trial_score = candidate, candidate_score
+                improved = True
+                break
+            alpha *= 0.5
 
-        # Normalize yaw to [-π, π]
-        current_pose[2] = np.arctan2(np.sin(current_pose[2]), np.cos(current_pose[2]))
+        if not improved:
+            # No downhill step exists -> local optimum (if anything matched).
+            converged = current_score < NO_MATCH_SCORE
+            return current_pose, iteration + 1, current_score, converged
 
-        prev_score = current_score
+        current_pose = trial_pose
+        current_score = trial_score
 
-    # Max iterations reached
-    final_score = ndt_score(source_scan, ndt_map, current_pose, voxel_size)
-    return current_pose, max_iterations, final_score, False
+        # The direction is a unit vector, so the step length is exactly alpha.
+        if alpha < tolerance:
+            converged = current_score < NO_MATCH_SCORE
+            return current_pose, iteration + 1, current_score, converged
+
+    return current_pose, max_iterations, current_score, False
 
 
 def ndt_covariance(

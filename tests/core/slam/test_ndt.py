@@ -354,6 +354,37 @@ class TestNDTAlign:
         alignment_error = np.mean(np.linalg.norm(transformed - target, axis=1))
         assert alignment_error < 2.0  # Relaxed threshold for gradient descent
 
+    def test_align_does_not_diverge_from_zero_initial_guess(self):
+        """Regression: the optimizer must not run away from a plain zero guess.
+
+        A raw `pose -= step_size * grad` update used to multiply the huge
+        gradient produced by the discontinuous NDT score (|grad| ~ 1e4-1e6 even
+        at the optimum), landing hundreds of metres away where no points matched,
+        and then reporting converged=True because the flat 1e6 no-match plateau
+        made the score stop changing. Steepest descent along a unit direction
+        with a backtracking line search keeps the step bounded.
+        """
+        x = np.linspace(-8, 8, 120)
+        y = np.linspace(-8, 8, 120)
+        walls = np.vstack(
+            [
+                np.column_stack([x, np.full_like(x, -8.0)]),
+                np.column_stack([np.full_like(y, -8.0), y]),
+            ]
+        )
+        true_pose = np.array([0.2, -0.15, 0.05])
+        source = se2_apply(true_pose, walls)
+
+        pose, iters, score, converged = ndt_align(
+            source, walls, initial_pose=np.zeros(3), voxel_size=2.0
+        )
+
+        # Must stay in the neighbourhood of the (small) true transform.
+        assert np.linalg.norm(pose[:2]) < 2.0, f"pose diverged: {pose}"
+        assert abs(pose[2]) < 0.5, f"yaw diverged: {pose}"
+        # Must never report success while sitting on the no-match plateau.
+        assert score < 1e6
+
 
 class TestNDTCovariance:
     """Test suite for ndt_covariance function."""
