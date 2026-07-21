@@ -60,7 +60,32 @@ python -m ch7_slam.example_slam_frontend
 
 # Run Visual SLAM bundle adjustment example
 python -m ch7_slam.example_bundle_adjustment
+
+# Draw how ICP and NDT actually converge (writes to figs/)
+python -m ch7_slam.example_scan_matching_visualization --no-show
 ```
+
+## Figures
+
+All figures are written to `figs/` — never beside the source.
+
+`example_scan_matching_visualization.py` covers Section 7.3, where the other
+examples only ever reported a final pose and RMSE:
+
+| Figure | Shows |
+|--------|-------|
+| `ch7_icp_correspondences` | The correspondence set of (7.11) as lines between the scans, before and after alignment, with the (7.10) objective falling per iteration |
+| `ch7_ndt_voxels` | The per-voxel Gaussians of (7.12)–(7.13) as covariance ellipses. Thin ellipses hug walls, so NDT constrains motion *across* a wall far better than *along* it |
+| `ch7_ndt_score_surface` | The (7.16) objective over translation, sliced at the true yaw. The surface **steps** at voxel boundaries, and two `ndt_align` runs differing only in step size land in different places |
+| `ch7_convergence_basin` | Which initial guesses each method recovers from, plus NDT's capture range versus voxel size |
+
+> **Worth knowing:** on this data `ndt_align` reaches the optimum at
+> `step_size` 0.05 and 0.5 but stalls at the 0.1 default and at 0.3 — the
+> outcome is not monotonic in step length, and every run reports
+> `converged=True` regardless, because "converged" means the line search
+> stopped improving, not that the answer is right. ICP recovers the same
+> displacement to 0.004 m. The figures show both outcomes rather than hiding
+> the stall.
 
 ### Command-Line Flags
 
