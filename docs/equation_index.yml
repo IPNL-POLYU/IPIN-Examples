@@ -1690,7 +1690,7 @@
 
 - eq: "Eq. (7.10)"
   chapter: 7
-  description: "ICP point-to-point matching objective (sum of squared distances)"
+  description: "ICP objective: argmin over T of the weighted sum of squared point distances"
   files:
     - path: "core/slam/scan_matching.py"
       object: "compute_icp_residual"
@@ -1701,11 +1701,12 @@
   tests:
     - "tests/core/slam/test_scan_matching.py::TestComputeICPResidual"
     - "tests/core/slam/test_scan_matching.py::TestICPPointToPoint"
-  notes: "Minimizes sum of squared Euclidean distances between corresponding points. Iterative algorithm with SVD-based rigid transform update."
+  verified_by: "tests/core/slam/test_scan_matching.py::TestICPPointToPoint::test_rotation_and_translation"
+  notes: "Book form uses correspondence weights b_ij over the model/measurement scans. Verified: ICP recovers a known rigid transform from a perturbed scan."
 
 - eq: "Eq. (7.11)"
   chapter: 7
-  description: "ICP correspondence association with distance threshold"
+  description: "ICP correspondence indicator b_ij gated by the distance threshold d_threshold"
   files:
     - path: "core/slam/scan_matching.py"
       object: "find_correspondences"
@@ -1713,46 +1714,72 @@
       object: "icp_point_to_point"
   tests:
     - "tests/core/slam/test_scan_matching.py::TestFindCorrespondences"
-    - "tests/core/slam/test_scan_matching.py::TestICPPointToPoint::test_max_correspondence_distance"
-  notes: "Nearest-neighbor correspondence search with max_distance threshold (epsilon). Uses KD-tree for efficiency."
+  verified_by: "tests/core/slam/test_scan_matching.py::TestFindCorrespondences::test_max_distance_filter"
+  notes: "b_ij = 1 when the transformed points are within d_threshold, else 0. Implemented as a KD-tree nearest-neighbour search with max_distance."
 
-- eq: "SVD-based rigid alignment"
+- eq: "SVD rigid alignment (inner update of Eq. (7.10))"
   chapter: 7
-  description: "SVD (Singular Value Decomposition) for optimal rigid body transformation"
+  description: "Closed-form Procrustes update solving Eq. (7.10) for fixed correspondences"
   files:
     - path: "core/slam/scan_matching.py"
       object: "align_svd"
   tests:
     - "tests/core/slam/test_scan_matching.py::TestAlignSVD"
-  notes: "Computes optimal [x, y, yaw] transformation between matched point clouds using SVD (Procrustes problem). Core update step in ICP."
+  verified_by: "tests/core/slam/test_scan_matching.py::TestAlignSVD::test_rotation_and_translation"
+  notes: "The book states the ICP objective (7.10) but leaves the per-iteration minimiser unnumbered; this is the standard SVD/Procrustes solution used to realise it."
 
 # ------------------------------------------------------------------------------
 # Section 7.3.2: NDT (Normal Distributions Transform) Scan Matching
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (7.12)-(7.13)"
+- eq: "Eq. (7.12)"
   chapter: 7
-  description: "NDT voxel statistics (mean and covariance per voxel)"
+  description: "NDT voxel mean of the points inside voxel k"
   files:
     - path: "core/slam/ndt.py"
       object: "build_ndt_map"
   tests:
     - "tests/core/slam/test_ndt.py::TestBuildNDTMap"
-  notes: "Computes per-voxel Gaussian distribution (mean μ_k and covariance Σ_k) from point cloud. Requires minimum points per voxel."
+  verified_by: "tests/core/slam/test_ndt.py::TestBuildNDTMap::test_mean_computation"
+  notes: "Arithmetic mean (1/n_k) * sum of the points assigned to the voxel."
 
-- eq: "Eqs. (7.14)-(7.15)"
+- eq: "Eq. (7.13)"
   chapter: 7
-  description: "NDT negative log-likelihood (score function)"
+  description: "NDT voxel covariance with the (n_k - 1) unbiased normalisation"
+  files:
+    - path: "core/slam/ndt.py"
+      object: "build_ndt_map"
+  tests:
+    - "tests/core/slam/test_ndt.py::TestBuildNDTMap"
+    - "tests/core/slam/test_ndt_voxel_stats.py::TestNDTVoxelStats"
+  verified_by: "tests/core/slam/test_ndt_voxel_stats.py::TestNDTVoxelStats"
+  notes: "Divisor is (n_k - 1), matching the book; voxels below min_points are dropped so the covariance stays well-formed."
+
+- eq: "Eq. (7.14)"
+  chapter: 7
+  description: "Per-voxel likelihood of a transformed point under the voxel Gaussian"
   files:
     - path: "core/slam/ndt.py"
       object: "ndt_score"
   tests:
     - "tests/core/slam/test_ndt.py::TestNDTScore"
-  notes: "Computes negative log-likelihood of transformed scan under NDT map Gaussian distributions. Lower score = better alignment."
+  verified_by: "tests/core/slam/test_ndt.py::TestNDTScore::test_translation_increases_score"
+  notes: "Book writes the unnormalised exponential; the code additionally carries a 0.5*logdet term (documented in ndt.py) so voxels of different spread stay comparable."
+
+- eq: "Eq. (7.15)"
+  chapter: 7
+  description: "Joint likelihood over all matched points, taken as a negative log-likelihood score"
+  files:
+    - path: "core/slam/ndt.py"
+      object: "ndt_score"
+  tests:
+    - "tests/core/slam/test_ndt.py::TestNDTScore"
+  verified_by: "tests/core/slam/test_ndt.py::TestNDTScore::test_perfect_alignment"
+  notes: "Product of per-voxel likelihoods becomes a sum in negative-log form; lower score = better alignment."
 
 - eq: "Eq. (7.16)"
   chapter: 7
-  description: "NDT alignment via MLE optimization"
+  description: "NDT registration: MLE over the pose, minimising the Mahalanobis objective"
   files:
     - path: "core/slam/ndt.py"
       object: "ndt_align"
@@ -1761,70 +1788,52 @@
   tests:
     - "tests/core/slam/test_ndt.py::TestNDTAlign"
     - "tests/core/slam/test_ndt.py::TestNDTGradient"
-  notes: "Optimizes pose to maximize likelihood (minimize negative log-likelihood). Uses gradient descent with numerical derivatives."
+  verified_by: "tests/core/slam/test_ndt.py::TestNDTAlign::test_pure_translation"
+  notes: "Steepest descent along a unit direction with backtracking line search; central-difference gradient (the score is piecewise-discontinuous across voxel boundaries, so one-sided 1e-6 differences are unusable)."
 
 # ------------------------------------------------------------------------------
 # Section 7.3.5: Close-Loop Constraints & Pose Graph Optimization
 # ------------------------------------------------------------------------------
 
-- eq: "Eq. (7.22) - Close-loop constraint"
+- eq: "Eq. (7.22)"
   chapter: 7
-  description: "Loop closure constraint formulation for pose graph optimization"
+  description: "Close-loop constraint residual f(T_i, T_j, dT'_ij) = ln((dT'_ij)^-1 T_i^-1 T_j)^v"
   files:
-    - path: "core/slam/factors.py"
-      object: "create_pose_graph"
     - path: "core/slam/factors.py"
       object: "create_odometry_factor"
     - path: "core/slam/factors.py"
       object: "create_loop_closure_factor"
     - path: "core/slam/factors.py"
-      object: "create_prior_factor"
+      object: "create_pose_graph"
     - path: "ch7_slam/example_pose_graph_slam.py"
       object: "main"
   tests:
+    - "tests/core/slam/test_factors.py::TestEq722Conformance"
     - "tests/core/slam/test_factors.py::TestPoseGraphCreation"
-    - "tests/core/slam/test_factors.py::TestIntegration::test_full_slam_scenario"
-  notes: "Complete pose graph SLAM: odometry factors connect consecutive poses, loop closure factors reduce drift, prior anchors first pose."
+  verified_by: "tests/core/slam/test_factors.py::TestEq722Conformance::test_residual_equals_book_group_expression"
+  notes: "Group residual, not a componentwise subtraction: the translation error is expressed in the measured relative-pose frame. Both forms vanish at the optimum, so only the perturbation test distinguishes them; the distinction matters once the information matrix is anisotropic in x/y."
 
-- eq: "Odometry Factor (SE(2) relative pose)"
+- eq: "Prior factor (gauge fixing)"
   chapter: 7
-  description: "Binary factor for odometry constraint between consecutive poses"
-  files:
-    - path: "core/slam/factors.py"
-      object: "create_odometry_factor"
-  tests:
-    - "tests/core/slam/test_factors.py::TestOdometryFactor"
-  notes: "Residual: r = (x_i^-1 ⊕ x_j) - z_ij, where z_ij is measured relative pose. Uses SE(2) operations."
-
-- eq: "Loop Closure Factor"
-  chapter: 7
-  description: "Binary factor for loop closure constraint (from scan matching)"
-  files:
-    - path: "core/slam/factors.py"
-      object: "create_loop_closure_factor"
-  tests:
-    - "tests/core/slam/test_factors.py::TestLoopClosureFactor"
-  notes: "Structurally identical to odometry factor but connects non-consecutive poses. Information matrix from ICP/NDT covariance."
-
-- eq: "Prior Factor"
-  chapter: 7
-  description: "Unary factor to anchor pose to known value"
+  description: "Unary factor anchoring a pose, removing the gauge freedom of Eq. (7.22)"
   files:
     - path: "core/slam/factors.py"
       object: "create_prior_factor"
   tests:
     - "tests/core/slam/test_factors.py::TestPriorFactor"
-  notes: "Residual: r = x - x_prior. Used to fix first pose (preventing gauge freedom) or incorporate GPS measurements."
+  verified_by: "tests/core/slam/test_factors.py::TestPriorFactor::test_strong_prior_anchors_pose"
+  notes: "Unnumbered in the book. A pose graph of purely relative constraints is rank-deficient; the prior pins the first pose."
 
-- eq: "Landmark Factor (range-bearing)"
+- eq: "Landmark factor (range-bearing)"
   chapter: 7
-  description: "Binary factor connecting pose to landmark via range-bearing measurement"
+  description: "Binary pose-landmark factor for feature-based SLAM"
   files:
     - path: "core/slam/factors.py"
       object: "create_landmark_factor"
   tests:
     - "tests/core/slam/test_factors.py::TestLandmarkFactor"
-  notes: "For feature-based SLAM. Residual: r = h(x_i, l_k) - z_ik where h is range-bearing measurement model."
+  verified_by: "tests/core/slam/test_factors.py::TestLandmarkFactor::test_landmark_optimization"
+  notes: "Unnumbered in the book; the 2-D counterpart of the visual reprojection factor of Eq. (7.70)."
 
 # ------------------------------------------------------------------------------
 # Section 7.4.1: Visual SLAM - Monocular Camera
@@ -1832,17 +1841,20 @@
 
 - eq: "Eq. (7.40)"
   chapter: 7
-  description: "Pinhole camera projection (3D point to pixel coordinates)"
+  description: "Pinhole projection in matrix form, s*p_pixel = K*p_C"
   files:
     - path: "core/slam/camera.py"
       object: "project_point"
+    - path: "core/slam/types.py"
+      object: "CameraIntrinsics"
   tests:
     - "tests/core/slam/test_camera.py::TestProjectPoint"
-  notes: "Full projection: normalize to z=1, apply distortion, scale by intrinsics. u = fx*x_d + cx, v = fy*y_d + cy."
+  verified_by: "tests/core/slam/test_camera.py::TestProjectPoint::test_simple_projection"
+  notes: "K holds (fx, fy, cx, cy); the depth s is divided out when normalising to the z=1 plane."
 
-- eq: "Eqs. (7.43)-(7.46)"
+- eq: "Eq. (7.41)"
   chapter: 7
-  description: "Brown-Conrady lens distortion model (radial + tangential)"
+  description: "Lens distortion: radial (k1, k2, k3) plus tangential (p1, p2)"
   files:
     - path: "core/slam/camera.py"
       object: "distort_normalized"
@@ -1853,25 +1865,84 @@
   tests:
     - "tests/core/slam/test_camera.py::TestDistortNormalized"
     - "tests/core/slam/test_camera.py::TestUndistortNormalized"
-  notes: "Radial distortion (k1, k2) and tangential distortion (p1, p2). Eq. 7.43: radial component. Eqs. 7.44-7.45: tangential. Eq. 7.46: combined."
+  verified_by: "tests/core/slam/test_camera.py::TestDistortNormalized::test_radial_distortion_only"
+  notes: "Applied on normalised coordinates before the intrinsics of (7.42)-(7.43). Note the book's asymmetric tangential pairing: x uses 2*p1*x*y + p2*(r^2+2x^2), y uses 2*p2*x*y + p1*(r^2+2y^2). undistort_normalized inverts this iteratively."
 
-- eq: "Inverse Projection"
+- eq: "Eq. (7.42)"
   chapter: 7
-  description: "Pixel to 3D ray (inverse of projection)"
+  description: "Horizontal pixel coordinate u = f_xI * x_hat_I + c_xI"
+  files:
+    - path: "core/slam/camera.py"
+      object: "project_point"
+  tests:
+    - "tests/core/slam/test_camera.py::TestProjectPoint"
+  verified_by: "tests/core/slam/test_camera.py::TestProjectPoint::test_off_center_projection"
+  notes: "Maps the distorted normalised coordinate to pixels along the image x-axis."
+
+- eq: "Eq. (7.43)"
+  chapter: 7
+  description: "Vertical pixel coordinate v = f_yI * y_hat_I + c_yI"
+  files:
+    - path: "core/slam/camera.py"
+      object: "project_point"
+  tests:
+    - "tests/core/slam/test_camera.py::TestProjectPoint"
+  verified_by: "tests/core/slam/test_camera.py::TestProjectPoint::test_different_focal_lengths"
+  notes: "The vertical half of the intrinsics mapping. Earlier index revisions labelled (7.43)-(7.46) as the distortion model; the distortion is (7.41), and (7.44)-(7.45) are visual-odometry feature motion."
+
+- eq: "Inverse projection (pixel to bearing ray)"
+  chapter: 7
+  description: "Inverts Eqs. (7.40)-(7.43): pixel -> undistort -> unit ray in the camera frame"
   files:
     - path: "core/slam/camera.py"
       object: "unproject_pixel"
   tests:
     - "tests/core/slam/test_camera.py::TestUnprojectPixel"
-  notes: "Inverts camera model: pixel → undistort → normalize → 3D ray. Optional depth parameter gives 3D point."
+  verified_by: "tests/core/slam/test_camera.py::TestUnprojectPixel::test_unproject_inverts_project"
+  notes: "Unnumbered in the book. Returns a unit bearing; an optional depth recovers the 3-D point."
+
+- eq: "Eq. (7.47)"
+  chapter: 7
+  description: "Epipolar constraint (K^-1 p_t+dt)^T [t]x R (K^-1 p_t) = 0"
+  files:
+    - path: "core/slam/camera.py"
+      object: "essential_matrix_from_pose"
+  tests:
+    - "tests/core/slam/test_camera.py::TestEssentialMatrix"
+  verified_by: "tests/core/slam/test_camera.py::TestEssentialMatrix::test_epipolar_constraint_vanishes_for_correspondences"
+  notes: "E = [t]x R for the pose convention of (7.44), p_C(t+dt) = R p_C(t) + t. Derived in Appendix 7A."
 
 # ------------------------------------------------------------------------------
 # Section 7.4.2: Visual SLAM - Bundle Adjustment
 # ------------------------------------------------------------------------------
 
+- eq: "Eq. (7.68)"
+  chapter: 7
+  description: "Map point in the local frame, chained through the per-epoch camera transforms"
+  files:
+    - path: "core/slam/camera.py"
+      object: "triangulate_point"
+    - path: "ch7_slam/example_bundle_adjustment.py"
+      object: "main"
+  tests:
+    - "tests/core/slam/test_camera.py::TestTriangulatePoint"
+  verified_by: "tests/core/slam/test_camera.py::TestTriangulatePoint::test_recovers_ground_truth_point"
+  notes: "Two-view triangulation supplies the p_k that (7.68) chains into the local frame. Solved as the midpoint of closest approach; the pure-rotation (zero-baseline) case is rejected, matching the monocular scale degeneracy noted around (7.67)."
+
+- eq: "Eq. (7.69)"
+  chapter: 7
+  description: "Map as the set of triangulated feature points, M^L = {p_1^L ... p_Nfeature^L}"
+  files:
+    - path: "ch7_slam/example_bundle_adjustment.py"
+      object: "main"
+  tests:
+    - "tests/core/slam/test_bundle_adjustment_smoke.py::TestBundleAdjustmentSmoke"
+  verified_by: "tests/core/slam/test_bundle_adjustment_smoke.py::TestBundleAdjustmentSmoke::test_bundle_adjustment_improves_landmark_accuracy"
+  notes: "The landmark set optimised jointly with the poses in (7.70). This is a map definition, not the reprojection error - factors.py previously mis-cited the residual as (7.69)."
+
 - eq: "Eq. (7.70)"
   chapter: 7
-  description: "Bundle adjustment objective (joint pose and landmark optimization)"
+  description: "Bundle adjustment: argmin over poses and landmarks of the summed squared reprojection error"
   files:
     - path: "core/slam/factors.py"
       object: "create_reprojection_factor"
@@ -1881,27 +1952,17 @@
       object: "main"
   tests:
     - "tests/core/slam/test_camera.py::TestComputeReprojectionError"
-  notes: "Eq. (7.70): Bundle adjustment objective - minimizes sum of squared reprojection errors over all camera poses {R_i, t_i} and 3D landmarks {p_k}. Section 7.4.2 - Monocular SLAM."
-
-- eq: "Reprojection Error"
-  chapter: 7
-  description: "2D pixel error between observed and projected landmark"
-  files:
-    - path: "core/slam/camera.py"
-      object: "compute_reprojection_error"
-    - path: "core/slam/factors.py"
-      object: "create_reprojection_factor"
-  tests:
-    - "tests/core/slam/test_camera.py::TestComputeReprojectionError"
-  notes: "Error = projected_pixel - observed_pixel. Minimized in bundle adjustment to jointly refine camera poses and 3D landmark positions."
+    - "tests/core/slam/test_bundle_adjustment_smoke.py::TestBundleAdjustmentSmoke"
+  verified_by: "tests/core/slam/test_bundle_adjustment_smoke.py::TestBundleAdjustmentSmoke::test_bundle_adjustment_reduces_reprojection_error"
+  notes: "Book optimises SE(3) poses (R_i, t_i); the code uses SE(2) robot poses with a fixed camera mounting - a documented pedagogical simplification in create_reprojection_factor."
 
 # ------------------------------------------------------------------------------
 # SE(2) Operations (Supporting Functions)
 # ------------------------------------------------------------------------------
 
-- eq: "SE(2) Group Operations"
+- eq: "SE(2) group operations"
   chapter: 7
-  description: "Special Euclidean Group SE(2) for 2D rigid body transformations"
+  description: "2-D rigid-body algebra underlying the pose-graph residual of Eq. (7.22)"
   files:
     - path: "core/slam/se2.py"
       object: "se2_compose"
@@ -1915,7 +1976,8 @@
       object: "wrap_angle"
   tests:
     - "tests/core/slam/test_se2.py"
-  notes: "Core 2D transformation algebra for SLAM. Pose = [x, y, yaw]. Operations: compose (⊕), inverse (⁻¹), apply to points, relative pose."
+  verified_by: "tests/core/slam/test_se2.py::TestSE2Relative"
+  notes: "Pose = [x, y, yaw]. se2_relative(a, b) = a^-1 (+) b is the group operation that realises (7.22); yaw is wrapped to [-pi, pi] inside se2_compose."
 
 # ==============================================================================
 # Chapter 8: Sensor Fusion
