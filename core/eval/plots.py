@@ -396,6 +396,101 @@ def plot_dop_map(
     return fig
 
 
+def plot_frame_3d(
+    ax,
+    C: Optional[np.ndarray] = None,
+    origin: Optional[np.ndarray] = None,
+    label: Optional[str] = None,
+    scale: float = 1.0,
+    colors: Tuple[str, str, str] = ("#d62728", "#2ca02c", "#1f77b4"),
+    alpha: float = 1.0,
+    linewidth: float = 2.0,
+    axis_names: Tuple[str, str, str] = ("x", "y", "z"),
+    linestyle: str = "-",
+    show_labels: bool = True,
+) -> None:
+    """Draw a coordinate frame as a triad of axis arrows on a 3-D axes.
+
+    The rotation is interpreted the way Chapter 2 does: ``C`` is a **passive**
+    (coordinate-transform) matrix, ``x_new = C x_old``, so its *rows* are the
+    new frame's axes written in the old frame. Those rows are what get drawn.
+    Pass ``C.T`` if you are holding an active body-to-map rotation instead --
+    the two differ by a transpose and mixing them is the classic attitude bug
+    (see the convention warning in ``core/sensors/strapdown.py``).
+
+    Args:
+        ax: Matplotlib 3-D axes (created with ``projection="3d"``).
+        C: Passive rotation matrix (3, 3). Identity if None.
+        origin: Frame origin in the reference frame, shape (3,). Zero if None.
+        label: Text label drawn near the origin. Skipped if None.
+        scale: Axis arrow length.
+        colors: Colors for the three axes, in order.
+        alpha: Opacity, useful for showing a reference frame behind another.
+        linewidth: Arrow line width.
+        axis_names: Axis tick labels appended to ``label``.
+        linestyle: Line style for the arrows.
+        show_labels: Draw the per-axis text. Turn off for a faint reference
+            triad, whose labels otherwise collide with the rotated frame's.
+
+    Returns:
+        None. Draws onto ``ax`` in place.
+    """
+    C = np.eye(3) if C is None else np.asarray(C, dtype=float)
+    origin = np.zeros(3) if origin is None else np.asarray(origin, dtype=float)
+
+    if C.shape != (3, 3):
+        raise ValueError(f"C must be (3, 3), got {C.shape}")
+    if origin.shape != (3,):
+        raise ValueError(f"origin must be (3,), got {origin.shape}")
+
+    for i in range(3):
+        # Row i of a passive C is the i-th new axis expressed in the old frame.
+        axis = C[i, :] * scale
+        ax.plot(
+            [origin[0], origin[0] + axis[0]],
+            [origin[1], origin[1] + axis[1]],
+            [origin[2], origin[2] + axis[2]],
+            color=colors[i],
+            alpha=alpha,
+            linewidth=linewidth,
+            linestyle=linestyle,
+        )
+        if show_labels:
+            tip = origin + axis * 1.12
+            name = axis_names[i] if label is None else f"{axis_names[i]}{label}"
+            ax.text(
+                tip[0],
+                tip[1],
+                tip[2],
+                name,
+                color=colors[i],
+                alpha=alpha,
+                fontsize=9,
+                ha="center",
+                va="center",
+            )
+
+
+def set_axes_equal_3d(ax, radius: float = 1.5) -> None:
+    """Give a 3-D axes equal aspect so rotations are not visually sheared.
+
+    Matplotlib's 3-D axes do not honour ``set_aspect("equal")`` on all
+    versions; an unequal aspect makes an orthonormal triad look skewed, which
+    defeats the purpose of drawing frames at all.
+
+    Args:
+        ax: Matplotlib 3-D axes.
+        radius: Half-width of the cube centred on the origin.
+    """
+    ax.set_xlim(-radius, radius)
+    ax.set_ylim(-radius, radius)
+    ax.set_zlim(-radius, radius)
+    try:
+        ax.set_box_aspect((1.0, 1.0, 1.0))
+    except AttributeError:  # matplotlib < 3.3
+        pass
+
+
 def save_figure(
     fig: plt.Figure,
     out_dir: Union[str, Path],
