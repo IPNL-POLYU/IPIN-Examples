@@ -852,7 +852,11 @@ def detect_loop_closures(
             max_range=10.0,
             min_time_separation=min_time_separation,
             min_descriptor_similarity=0.90,  # Relaxed for better recall (was 0.80)
-            max_candidates=20,  # More candidates to find closures (was 10)
+            # Each candidate costs a full ICP verification, which dominated the
+            # example's runtime (profiling: 1154 verifications = 91 s of a 170 s
+            # run). 8 keeps ample recall for the loop-closure demo at a fraction
+            # of the cost; the library default is 5.
+            max_candidates=8,
             max_distance=distance_threshold,  # Optional secondary filter
             max_icp_residual=0.3,  # More lenient for noisy scans (was 0.1)
             icp_max_iterations=50,

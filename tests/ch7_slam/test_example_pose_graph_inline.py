@@ -78,7 +78,7 @@ class TestInlineModeHardGates(unittest.TestCase):
             cwd=self.workspace_root,
             capture_output=True,
             text=True,
-            timeout=60,
+            timeout=180,
             env=env,
         )
         

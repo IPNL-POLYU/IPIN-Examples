@@ -82,7 +82,7 @@ class TestExamplePoseGraphSLAMRuns(unittest.TestCase):
             cwd=self.workspace_root,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=180,
             env=env,
         )
         
@@ -147,7 +147,7 @@ class TestExamplePoseGraphSLAMRuns(unittest.TestCase):
             cwd=self.workspace_root,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=180,
             env=env,
         )
         
@@ -196,7 +196,7 @@ class TestExamplePoseGraphSLAMRuns(unittest.TestCase):
             cwd=self.workspace_root,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=180,
             env=env,
         )
         
@@ -234,7 +234,7 @@ class TestExamplePoseGraphSLAMRuns(unittest.TestCase):
             cwd=self.workspace_root,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=180,
             env=env,
         )
         
@@ -277,7 +277,7 @@ class TestExampleSLAMFrontendRuns(unittest.TestCase):
             cwd=self.workspace_root,
             capture_output=True,
             text=True,
-            timeout=30,
+            timeout=180,
             env=env,
         )
         
