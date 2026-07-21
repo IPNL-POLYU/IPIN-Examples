@@ -303,7 +303,8 @@
     - path: "core/estimators/least_squares.py"
       object: "weighted_least_squares"
   tests:
-    - "tests/core/estimators/test_least_squares.py"
+    - "tests/core/estimators/test_least_squares.py::TestWeightedLeastSquares"
+  verified_by: "tests/core/estimators/test_least_squares.py::TestWeightedLeastSquares::test_sigma_weighting_favors_accurate_measurements"
   notes: "Not a numbered equation in the book (Section 3.1.1 text)."
 
 - eq: "Table 3.1 (robust)"
@@ -313,8 +314,9 @@
     - path: "core/estimators/least_squares.py"
       object: "robust_least_squares"
   tests:
-    - "tests/core/estimators/test_least_squares.py"
-  notes: "IRLS weights derived from Table 3.1 loss functions; Tukey is an extra (not in the book)."
+    - "tests/core/estimators/test_least_squares.py::TestRobustLeastSquares"
+  verified_by: "tests/core/estimators/test_least_squares.py::TestRobustLeastSquares::test_robust_vs_standard_ls"
+  notes: "IRLS weights derived from Table 3.1 loss functions; Tukey is an extra (not in the book). Note these weights are <= 1; Eq. (8.7) needs their reciprocal (docs/book_errata.md E-05)."
 
 # ------------------------------------------------------------------------------
 # Linear Kalman Filter (Section 3.2.1). NOTE: Eqs. (3.19)/(3.20) have a book
@@ -1424,14 +1426,14 @@
 
 - eq: "Eq. (6.60)"
   chapter: 6
-  description: "ZARU (Zero Angular Rate Update) pseudo-measurement"
+  description: "ZARU (Zero Angular Rate Update) pseudo-measurement -- KNOWN GAP, not conformant"
   files:
     - path: "core/sensors/constraints.py"
-      object: "ZaruMeasurementModel"
+      object: "ZaruMeasurementModelPlaceholder"
   tests:
-    - "tests/core/sensors/test_sensors_constraints.py"
-  verified_by: "tests/core/sensors/test_sensors_constraints.py"
-  notes: "h(x) = ω. Constrains angular rate to zero when stationary."
+    - "tests/core/sensors/test_sensors_constraints.py::TestZaruMeasurementModelPlaceholder"
+  verified_by: "tests/core/sensors/test_sensors_constraints.py::TestZaruMeasurementModelPlaceholder"
+  notes: "KNOWN GAP: the class is explicitly a placeholder and does NOT implement (6.60). The book sets z = 0 with h(x) = omega_b, but the angular rate is an EKF *input* (omega_meas - b_g), not a state, so h(x) cannot compute it through the state-only interface; the placeholder returns zeros instead. The linked tests pin the placeholder's current behaviour, they do not demonstrate conformance. Implementing (6.60) needs an h(x, u) interface that can see the gyro measurement."
 
 - eq: "Eq. (6.61)"
   chapter: 6
@@ -1697,7 +1699,7 @@
     - path: "core/slam/scan_matching.py"
       object: "icp_point_to_point"
     - path: "ch7_slam/example_pose_graph_slam.py"
-      object: "detect_loop_closures_icp"
+      object: "detect_loop_closures"
   tests:
     - "tests/core/slam/test_scan_matching.py::TestComputeICPResidual"
     - "tests/core/slam/test_scan_matching.py::TestICPPointToPoint"
@@ -1984,123 +1986,224 @@
 # ==============================================================================
 
 # ------------------------------------------------------------------------------
-# Innovation Monitoring and Gating
+# Section 8.2: Observability in Sensor Fusion
 # ------------------------------------------------------------------------------
 
-- eq: "Eqs. (8.5)-(8.6)"
+- eq: "Eq. (8.1)"
   chapter: 8
-  description: "Innovation (measurement residual) computation"
+  description: "Definition of local observability: h(theta_1, u; x_0) = h(theta_2, u; x_0) => theta_1 = theta_2"
   files:
-    - path: "core/fusion/gating.py"
-      object: "compute_innovation"
-    - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
+    - path: "ch8_sensor_fusion/observability_demo.py"
+      object: "generate_odometry_measurements"
+    - path: "ch8_sensor_fusion/observability_demo.py"
+      object: "generate_absolute_fixes"
+  tests:
+    - "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityIntegration"
+  verified_by: "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityIntegration::test_odometry_vs_position_fix_scenario"
+  notes: "Definition, not a computable formula. Demonstrated constructively: two trajectories differing by a constant translation produce identical odometry, so theta_1 != theta_2 with equal predictions; adding absolute fixes breaks the tie."
+
+- eq: "Eq. (8.2)"
+  chapter: 8
+  description: "Least-squares cost V(theta) = 0.5 * eps(theta)^T P_v eps(theta)"
+  files:
+    - path: "ch8_sensor_fusion/observability_demo.py"
+      object: "compute_observability_matrix"
+  tests:
+    - "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityMatrix"
+  verified_by: "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityMatrix::test_simple_fully_observable_system"
+  notes: "The observability condition is rank(dV/dtheta) = q, which is what the rank of the observability matrix measures."
+
+- eq: "Eq. (8.3)"
+  chapter: 8
+  description: "EKF observability matrix O_EKF = [H_0; H_1*Phi(t1,t0); ...; H_T*Phi(tT,t0)]"
+  files:
+    - path: "ch8_sensor_fusion/observability_demo.py"
+      object: "compute_observability_matrix"
+    - path: "ch8_sensor_fusion/observability_demo.py"
+      object: "analyze_unobservable_states"
+  tests:
+    - "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityMatrix"
+    - "tests/ch8_sensor_fusion/test_observability.py::TestUnobservableStateAnalysis"
+  verified_by: "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityMatrix::test_state_transition_accumulation"
+  notes: "Phi(k,0) accumulated as F_k...F_1. Verified against known-rank systems: a CV model with position-only measurement reaches rank 2 after two steps, and a state pair observed only as p+b stays at rank 1 with null direction [1,-1]."
+
+- eq: "Eq. (8.4)"
+  chapter: 8
+  description: "FGO observability matrix O_FGO = [J_t0; J_t1; ...; J_tT]"
+  files:
+    - path: "ch8_sensor_fusion/observability_demo.py"
+      object: "compute_fgo_observability_matrix"
+  tests:
+    - "tests/ch8_sensor_fusion/test_observability.py::TestFGOObservabilityMatrix"
+  verified_by: "tests/ch8_sensor_fusion/test_observability.py::TestFGOObservabilityMatrix::test_rank_matches_gauss_newton_hessian"
+  notes: "No state transition matrix appears: in FGO the motion model is itself a factor. Since H = O^T Lambda O, rank(O_FGO) equals the rank of the Gauss-Newton Hessian; a pose graph of purely relative constraints shows a deficit of exactly 3, the SE(2) gauge freedom, which a prior removes."
+
+# ------------------------------------------------------------------------------
+# Section 8.3: Tuning of Sensor Fusion (innovation monitoring, robust scaling)
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (8.5)"
+  chapter: 8
+  description: "Innovation y_k = z_k - h(x_hat_{k|k-1})"
+  files:
+    - path: "core/fusion/tuning.py"
+      object: "innovation"
+    - path: "ch8_sensor_fusion/tuning_robust_demo.py"
       object: "main"
   tests:
-    - "tests/core/fusion/test_fusion_gating.py"
-  notes: "Innovation: ν = z - h(x̄). Innovation covariance: S = HPH' + R."
+    - "tests/core/fusion/test_fusion_tuning.py::TestInnovation"
+  verified_by: "tests/core/fusion/test_fusion_tuning.py::TestInnovation"
+  notes: "Difference between the actual measurement and the measurement predicted from the propagated state."
+
+- eq: "Eq. (8.6)"
+  chapter: 8
+  description: "Innovation covariance S_k = H_k P_{k|k-1} H_k^T + R_k"
+  files:
+    - path: "core/fusion/tuning.py"
+      object: "innovation_covariance"
+    - path: "ch8_sensor_fusion/tuning_robust_demo.py"
+      object: "main"
+  tests:
+    - "tests/core/fusion/test_fusion_tuning.py::TestInnovationCovariance"
+  verified_by: "tests/core/fusion/test_fusion_tuning.py::TestInnovationCovariance"
+  notes: "Symmetric by construction. Also used to whiten the innovation, whose empirical covariance is then the identity."
+
+- eq: "Eq. (8.7)"
+  chapter: 8
+  description: "Robust measurement covariance scaling R_k <- w(y_k) * R_k"
+  files:
+    - path: "core/fusion/tuning.py"
+      object: "scale_measurement_covariance"
+    - path: "core/fusion/tuning.py"
+      object: "huber_R_scale"
+    - path: "core/fusion/tuning.py"
+      object: "cauchy_R_scale"
+    - path: "ch8_sensor_fusion/tuning_robust_demo.py"
+      object: "main"
+  tests:
+    - "tests/core/fusion/test_fusion_tuning.py::TestEq87CovarianceInflation"
+    - "tests/core/fusion/test_fusion_tuning.py::TestScaleMeasurementCovariance"
+  verified_by: "tests/core/fusion/test_fusion_tuning.py::TestEq87CovarianceInflation::test_outliers_inflate_rather_than_shrink_R"
+  notes: "BOOK ERRATUM E-05: as printed, w is 'the weight output by the robust function', and every Table 3.1 weight is <= 1, so the update would shrink R for an outlier and trust it more. The code uses the reciprocal, w_R = 1/w >= 1, matching the intent stated on the same page. The IRLS spellings huber_weight/cauchy_weight remain for Table 3.1 use but warn if used here."
+
+# ------------------------------------------------------------------------------
+# Section 8.3.2: Thresholds (chi-square innovation gating)
+# ------------------------------------------------------------------------------
+
+- eq: "Eq. (8.8)"
+  chapter: 8
+  description: "Squared Mahalanobis distance d_k^2 = y_k^T S_k^-1 y_k"
+  files:
+    - path: "core/fusion/gating.py"
+      object: "mahalanobis_distance_squared"
+    - path: "core/fusion/tuning.py"
+      object: "compute_normalized_innovation"
+  tests:
+    - "tests/core/fusion/test_fusion_gating.py::TestMahalanobisDistanceSquared"
+  verified_by: "tests/core/fusion/test_fusion_gating.py::TestMahalanobisDistanceSquared"
+  notes: "Solved rather than inverted. Non-negative for any innovation, and equal to the squared norm of the whitened innovation."
 
 - eq: "Eq. (8.9)"
   chapter: 8
-  description: "Chi-square innovation gating"
+  description: "Chi-square acceptance test d_k^2 < chi^2_{m,alpha}"
   files:
     - path: "core/fusion/gating.py"
       object: "chi_square_gate"
+    - path: "core/fusion/gating.py"
+      object: "chi_square_threshold"
+    - path: "core/fusion/gating.py"
+      object: "chi_square_bounds"
+    - path: "core/fusion/adaptive.py"
+      object: "AdaptiveGatingManager"
     - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
       object: "main"
   tests:
-    - "tests/core/fusion/test_fusion_gating.py"
-  notes: "Test statistic: γ = ν'S⁻¹ν ~ χ²(m). Rejects measurements exceeding threshold."
+    - "tests/core/fusion/test_fusion_gating.py::TestChiSquareGate"
+    - "tests/core/fusion/test_adaptive_gating.py"
+  verified_by: "tests/core/fusion/test_fusion_gating.py::TestChiSquareGate"
+  notes: "Thresholds match scipy's chi2 quantiles to 1e-6 across dof and confidence; on Gaussian draws the empirical rejection rate tracks the nominal alpha. The dof is the measurement dimension m."
 
 # ------------------------------------------------------------------------------
-# Tightly Coupled Fusion
+# Section 8.1: Tightly and Loosely Coupled Fusion (worked examples)
 # ------------------------------------------------------------------------------
 
-- eq: "TC IMU+UWB Fusion"
+- eq: "Tightly coupled IMU + UWB fusion"
   chapter: 8
-  description: "Tightly coupled IMU + UWB range fusion"
+  description: "TC EKF fusing raw UWB ranges, 5-D state [px, py, vx, vy, yaw]"
   files:
-    - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
-      object: "main"
     - path: "ch8_sensor_fusion/tc_models.py"
       object: "create_process_model"
     - path: "ch8_sensor_fusion/tc_models.py"
       object: "create_uwb_range_measurement_model"
+    - path: "ch8_sensor_fusion/tc_models.py"
+      object: "tc_uwb_measurement_model"
+    - path: "ch8_sensor_fusion/tc_models.py"
+      object: "tc_uwb_measurement_jacobian"
+    - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
+      object: "main"
   tests:
-    - "tests/core/fusion/test_fusion_types.py"
-  notes: "Fuses raw UWB range measurements directly. 5D state: [px, py, vx, vy, yaw]."
+    - "tests/ch8_sensor_fusion/test_batch_update.py"
+  verified_by: "tests/ch8_sensor_fusion/test_batch_update.py"
+  notes: "Unnumbered in the book (Section 8.1 narrative). Range model verified equal to the Euclidean anchor distance, and both the measurement and process Jacobians agree with central differences to ~1e-10."
 
-# ------------------------------------------------------------------------------
-# Loosely Coupled Fusion
-# ------------------------------------------------------------------------------
-
-- eq: "LC IMU+UWB Fusion"
+- eq: "Loosely coupled IMU + UWB fusion"
   chapter: 8
-  description: "Loosely coupled IMU + UWB position fusion"
+  description: "LC EKF fusing pre-solved UWB position fixes"
   files:
+    - path: "ch8_sensor_fusion/lc_models.py"
+      object: "solve_uwb_position_wls"
+    - path: "ch8_sensor_fusion/lc_models.py"
+      object: "create_lc_process_model"
+    - path: "ch8_sensor_fusion/lc_models.py"
+      object: "create_lc_position_measurement_model"
     - path: "ch8_sensor_fusion/lc_uwb_imu_ekf.py"
       object: "main"
-    - path: "ch8_sensor_fusion/lc_models.py"
-      object: "create_process_model"
-    - path: "ch8_sensor_fusion/lc_models.py"
-      object: "create_position_measurement_model"
   tests:
-    - "tests/core/fusion/test_fusion_types.py"
-  notes: "Fuses pre-computed UWB position fixes. Simpler than TC but loses information."
+    - "tests/ch8_sensor_fusion/test_lc_models.py"
+  verified_by: "tests/ch8_sensor_fusion/test_lc_models.py"
+  notes: "Unnumbered in the book. The WLS front end recovers a known position from clean ranges to ~1e-6, and its error grows linearly with the injected range noise. Earlier index revisions named create_process_model / create_position_measurement_model here; neither exists in lc_models.py."
 
-# ------------------------------------------------------------------------------
-# LC vs TC Comparison
-# ------------------------------------------------------------------------------
-
-- eq: "LC vs TC Comparison"
+- eq: "LC versus TC comparison"
   chapter: 8
-  description: "Comparison tool for loosely vs tightly coupled fusion"
+  description: "Head-to-head evaluation of the two coupling strategies"
   files:
     - path: "ch8_sensor_fusion/compare_lc_tc.py"
       object: "main"
   tests:
-    - "tests/core/fusion/test_fusion_types.py"
-  notes: "Demonstrates advantages of TC: better accuracy with partial observations, natural multi-rate handling."
+    - "tests/ch8_sensor_fusion/test_batch_update.py"
+    - "tests/ch8_sensor_fusion/test_lc_models.py"
+  verified_by: "tests/ch8_sensor_fusion/test_batch_update.py"
+  notes: "Unnumbered. Shows TC retaining accuracy when fewer than three anchors are visible, where the LC front end cannot produce a fix at all."
 
 # ------------------------------------------------------------------------------
-# Observability Analysis
+# Sections 8.4 and 8.5: Calibration and Temporal Calibration
 # ------------------------------------------------------------------------------
 
-- eq: "Observability Analysis"
+- eq: "Intrinsic and extrinsic calibration"
   chapter: 8
-  description: "Observability Gramian and rank analysis"
+  description: "Target-based and motion-based calibration demonstrations"
   files:
-    - path: "ch8_sensor_fusion/observability_demo.py"
+    - path: "ch8_sensor_fusion/calibration_demo.py"
       object: "main"
   tests:
-    - "tests/core/fusion/test_fusion_types.py"
-  notes: "Demonstrates observable vs unobservable states for different anchor configurations."
+    - "tests/ch8_sensor_fusion/test_calibration.py"
+  verified_by: "tests/ch8_sensor_fusion/test_calibration.py"
+  notes: "Unnumbered in the book (Section 8.4 is narrative). Covers the camera/LiDAR intrinsic cases and the extrinsic target-based and motion-based variants."
 
-# ------------------------------------------------------------------------------
-# Robust Measurement Handling
-# ------------------------------------------------------------------------------
-
-- eq: "Robust Fusion"
+- eq: "Temporal calibration and measurement timing"
   chapter: 8
-  description: "Robust measurement down-weighting for NLOS"
+  description: "Clock offset/drift model and direct interpolation of asynchronous samples"
   files:
-    - path: "ch8_sensor_fusion/tuning_robust_demo.py"
-      object: "main"
-    - path: "core/fusion/tuning.py"
-      object: "huber_weight"
-  tests:
-    - "tests/core/fusion/test_fusion_tuning.py"
-  notes: "Huber-based down-weighting for outlier measurements. Handles NLOS bias."
-
-# ------------------------------------------------------------------------------
-# Temporal Calibration
-# ------------------------------------------------------------------------------
-
-- eq: "Temporal Calibration"
-  chapter: 8
-  description: "Time offset estimation between sensors"
-  files:
+    - path: "core/fusion/types.py"
+      object: "TimeSyncModel"
+    - path: "core/fusion/types.py"
+      object: "StampedMeasurement"
+    - path: "ch8_sensor_fusion/tc_models.py"
+      object: "interpolate_imu_measurements"
     - path: "ch8_sensor_fusion/temporal_calibration_demo.py"
       object: "main"
   tests:
+    - "tests/ch8_sensor_fusion/test_temporal_interpolation.py"
     - "tests/core/fusion/test_fusion_types.py"
-  notes: "Demonstrates effect of time synchronization errors and calibration methods."
+  verified_by: "tests/ch8_sensor_fusion/test_temporal_interpolation.py"
+  notes: "Unnumbered (Sections 8.5.1-8.5.2). Direct interpolation per Section 8.5.2.1 is exact on linear signals (~4e-16) and rejects out-of-range queries; the TimeSyncModel offset/drift map round-trips exactly."
