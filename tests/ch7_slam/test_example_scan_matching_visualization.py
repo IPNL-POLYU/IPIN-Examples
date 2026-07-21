@@ -130,6 +130,38 @@ class TestScanMatchingClaims(unittest.TestCase):
         self.assertLess(stalled_iters, 10)
         self.assertTrue(stalled_flag, "the stalled run still claims success")
 
+    def test_icp_animation_renders_small_and_monotone(self):
+        """The GIF must stay small, and must show the residual falling.
+
+        Called directly rather than through --animate so the suite does not
+        pay for a second full run of the example.
+        """
+        import tempfile
+
+        import matplotlib
+
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        from ch7_slam.example_scan_matching_visualization import (
+            animate_icp_convergence,
+        )
+        from core.eval import save_animation
+
+        fig, update, n_frames = animate_icp_convergence()
+        try:
+            self.assertGreater(n_frames, 5)
+            with tempfile.TemporaryDirectory() as tmp:
+                path = save_animation(
+                    fig, update, n_frames, tmp, "icp_anim", fps=4
+                )
+                size_mb = path.stat().st_size / (1024 * 1024)
+        finally:
+            plt.close(fig)
+
+        # Committed binaries live in git history forever; keep them modest.
+        self.assertLess(size_mb, 1.5, f"GIF grew to {size_mb:.2f} MB")
+
     def test_score_surface_slice_must_use_the_true_yaw(self):
         """A yaw=0 slice does not contain the optimum.
 

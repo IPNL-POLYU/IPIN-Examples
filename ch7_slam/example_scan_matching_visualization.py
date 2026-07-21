@@ -36,8 +36,21 @@ Four figures:
    NDT's basin is roughly one voxel wide, and widens monotonically as the
    voxels grow (measured: 4, 17, 40, 45 of 81 starts for 0.5, 1, 2, 3 m).
 
+Plus one animation, behind ``--animate`` because it is slower to render:
+
+5. ``ch7_icp_convergence.gif`` -- ICP iterating. The static figure shows the
+   first and last iteration; only the animation shows the mechanism, which is
+   correspondences being re-associated every step, the scan swinging in, and
+   the last several iterations barely moving at all. That is what makes ICP's
+   dependence on a decent initial guess intuitive.
+
+   Rendered at 880x352, 18 frames, ~0.17 MB. GIFs are committed binaries and
+   git keeps every version forever, so they are kept deliberately small -- the
+   older slam_pipeline_square.gif is 3.9 MB by comparison.
+
 Run:
     python -m ch7_slam.example_scan_matching_visualization --no-show
+    python -m ch7_slam.example_scan_matching_visualization --no-show --animate
 
 Author: Li-Ta Hsu
 References: Chapter 7, Sections 7.3.1-7.3.2, Eqs. (7.10)-(7.16)
@@ -50,7 +63,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Ellipse
 
-from core.eval import save_figure
+from core.eval import save_animation, save_figure
 from core.slam.ndt import build_ndt_map, ndt_align, ndt_score
 from core.slam.scan_generation import generate_scan_with_occlusion
 from core.slam.scan_matching import (
@@ -418,6 +431,97 @@ def plot_convergence_basin(grid: int = 9, span: float = 1.6,
     return fig
 
 
+def animate_icp_convergence(max_iterations: int = 18,
+                            max_pairs: int = 45) -> tuple:
+    """Build the ICP convergence animation, Section 7.3.1.
+
+    The static figure shows the first and last iteration; what it cannot show
+    is the mechanism -- correspondences being re-associated every step, the
+    scan swinging in, and the last few iterations barely moving. That process
+    is the reason ICP needs a decent initial guess, so it earns an animation.
+
+    Args:
+        max_iterations: Iterations to animate.
+        max_pairs: How many correspondence lines to draw, for legibility.
+
+    Returns:
+        Tuple of (figure, update callback, frame count) for save_animation.
+    """
+    target, source = _make_scan_pair()
+
+    # Replay ICP one iteration at a time, recording each pose and residual.
+    poses = [np.zeros(3)]
+    residuals = []
+    pose = np.zeros(3)
+    for _ in range(max_iterations):
+        moved = se2_apply(pose, source)
+        matched_source, matched_target, _ = find_correspondences(
+            moved, target, max_distance=1.0
+        )
+        if len(matched_source) < 3:
+            break
+        residuals.append(compute_icp_residual(matched_source, matched_target))
+        pose = se2_compose(align_svd(matched_source, matched_target), pose)
+        poses.append(pose)
+
+    fig, axes = plt.subplots(1, 2, figsize=(11, 4.4))
+    n_frames = len(residuals)
+
+    def update(frame: int):
+        """Draw iteration ``frame``."""
+        for ax in axes:
+            ax.clear()
+
+        applied = poses[frame]
+        moved = se2_apply(applied, source)
+        matched_source, matched_target, _ = find_correspondences(
+            moved, target, max_distance=1.0
+        )
+
+        axes[0].plot(target[:, 0], target[:, 1], ".", color="#1f77b4",
+                     markersize=3, label="target scan")
+        axes[0].plot(moved[:, 0], moved[:, 1], ".", color="#d62728",
+                     markersize=3, label="source scan")
+        stride = max(1, len(matched_source) // max_pairs)
+        for src_pt, tgt_pt in zip(matched_source[::stride],
+                                  matched_target[::stride]):
+            axes[0].plot([src_pt[0], tgt_pt[0]], [src_pt[1], tgt_pt[1]],
+                         "-", color="0.4", linewidth=0.7, alpha=0.8)
+        axes[0].set_xlim(-6.5, 6.5)
+        axes[0].set_ylim(-5.5, 5.5)
+        axes[0].set_aspect("equal")
+        axes[0].grid(alpha=0.25)
+        axes[0].set_xlabel("x [m]")
+        axes[0].set_ylabel("y [m]")
+        axes[0].legend(fontsize=8, loc="upper right")
+        axes[0].set_title(
+            f"iteration {frame + 1} of {n_frames}   "
+            f"({len(matched_source)} correspondences)",
+            fontsize=10,
+        )
+
+        axes[1].semilogy(np.arange(1, frame + 2), residuals[: frame + 1],
+                         "o-", color="#2ca02c", markersize=4)
+        axes[1].set_xlim(0.5, n_frames + 0.5)
+        axes[1].set_ylim(min(residuals) * 0.6, max(residuals) * 1.6)
+        axes[1].grid(alpha=0.3, which="both")
+        axes[1].set_xlabel("iteration")
+        axes[1].set_ylabel("sum of squared distances")
+        axes[1].set_title(
+            f"Eq. (7.10) objective: {residuals[frame]:.2f}", fontsize=10
+        )
+
+        fig.suptitle(
+            "ICP convergence, Eqs. (7.10)-(7.11): correspondences are "
+            "re-associated every iteration",
+            fontsize=11,
+        )
+        fig.tight_layout()
+        return axes
+
+    return fig, update, n_frames
+
+
 def main() -> None:
     """Generate and save the Chapter 7 scan-matching figures."""
     parser = argparse.ArgumentParser(
@@ -428,6 +532,10 @@ def main() -> None:
     )
     parser.add_argument(
         "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
+    )
+    parser.add_argument(
+        "--animate", action="store_true", default=False,
+        help="Also render the ICP convergence GIF (slower)"
     )
     args = parser.parse_args()
 
@@ -448,6 +556,14 @@ def main() -> None:
     for name, fig in figures:
         paths = save_figure(fig, args.out_dir, name)
         print(f"  saved {name}: {', '.join(p.suffix.lstrip('.') for p in paths)}")
+
+    if args.animate:
+        fig, update, n_frames = animate_icp_convergence()
+        path = save_animation(fig, update, n_frames, args.out_dir,
+                              "ch7_icp_convergence", fps=4)
+        plt.close(fig)
+        size_mb = path.stat().st_size / (1024 * 1024)
+        print(f"  saved {path.name}: {n_frames} frames, {size_mb:.2f} MB")
 
     print()
     print(f"Figures written to {args.out_dir}")

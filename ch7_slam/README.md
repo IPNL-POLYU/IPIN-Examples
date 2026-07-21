@@ -79,6 +79,24 @@ examples only ever reported a final pose and RMSE:
 | `ch7_ndt_score_surface` | The (7.16) objective over translation, sliced at the true yaw. The surface **steps** at voxel boundaries, and two `ndt_align` runs differing only in step size land in different places |
 | `ch7_convergence_basin` | Which initial guesses each method recovers from, plus NDT's capture range versus voxel size |
 
+### Animations
+
+| GIF | Built by | Size | Shows |
+|-----|----------|------|-------|
+| `ch7_icp_convergence.gif` | `example_scan_matching_visualization.py --animate` | 0.17 MB | ICP iterating: correspondences re-associating, the scan swinging in, the last iterations barely moving |
+| `slam_pipeline_square.gif` | `example_pose_graph_slam.py --animate` | 3.9 MB | The full LiDAR SLAM pipeline: map accumulating, loop closures firing, error curve |
+| `bundle_adjustment.gif` | `example_bundle_adjustment.py --animate` | 1.1 MB | Poses and landmarks converging under bundle adjustment |
+
+Animations are always behind `--animate`, never part of a default run — they
+are much slower to render.
+
+**Reach for a GIF only when the *process* is the lesson.** A scan snapping into
+alignment or a map accumulating is worth animating; a before/after comparison
+is better as a static figure, which can be read at a glance and printed. GIFs
+are committed binaries and git keeps every version forever, so keep them small:
+`core.eval.save_animation` defaults to `dpi=80` and warns above 1.5 MB. For
+scale, tracked figures are already ~19 MB of a 36 MB repository.
+
 > **Worth knowing:** on this data `ndt_align` reaches the optimum at
 > `step_size` 0.05 and 0.5 but stalls at the 0.1 default and at 0.3 — the
 > outcome is not monotonic in step length, and every run reports
