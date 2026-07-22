@@ -28,7 +28,49 @@ python ch3_estimators/example_ekf_range_bearing.py --data ch3_estimator_nonlinea
 
 # Run comprehensive comparison of all estimators (EKF, UKF, PF, FGO)
 python ch3_estimators/example_comparison.py
+
+# A posterior no Gaussian can hold (add --animate for the GIF)
+python -m ch3_estimators.example_particle_bimodal
 ```
+
+---
+
+## Why the particle filter, really (Section 3.3)
+
+| Figure | Built by | Size |
+|--------|----------|------|
+| `ch3_particle_bimodal.{svg,pdf,png}` | `example_particle_bimodal.py` | — |
+| `ch3_particle_bimodal.gif` | `example_particle_bimodal.py --animate` | 0.35 MB |
+
+Section 3.3 sells the particle filter on its ability to carry *any* posterior,
+not just a Gaussian one — but none of this chapter's other examples can show
+that, because their scenarios are strongly over-determined. Four anchors with
+tight measurements pin the state in a **single update**: measured on the
+comparison scenario, the particle cloud's spread collapses **37×** between
+step 0 and step 1 and then barely moves again, and the EKF range-bearing
+example collapses **19×** in one step likewise. There is nothing to watch and
+nothing non-Gaussian to see.
+
+The under-determined case is where the argument lives. With only **two**
+range-only anchors the two range circles intersect twice, so the posterior is
+genuinely **bimodal** — the target is either side of the anchor baseline and
+the ranges cannot say which. This example runs that, then adds a third anchor
+at step 15.
+
+| | while bimodal (steps 1–14) | after the third anchor |
+|---|---|---|
+| Both modes populated | 13 of 14 steps | — (one mode) |
+| Share above baseline | sloshes 8% → 99% | 100% |
+| Cloud spread | 0.4 – 2.8 | 0.05 – 0.11 |
+| Error of **posterior mean** | **4.60 m** | 0.26 m |
+| Error of **nearest mode** | **0.38 m** | 0.26 m |
+
+That last pair is the lesson. While the posterior is bimodal the weighted mean
+sits in the empty space *between* the two clouds — 4.60 m from truth where the
+correct mode is 0.38 m away. It describes a position the target cannot occupy.
+Reporting a mean and a covariance, which is all a Kalman filter can do, is not
+merely imprecise here; it is wrong. Once geometry resolves the ambiguity the
+distribution is unimodal and mean and mode agree exactly.
 
 ---
 
