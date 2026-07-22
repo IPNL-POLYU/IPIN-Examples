@@ -30,12 +30,52 @@ python -m ch8_sensor_fusion.lc_uwb_imu_ekf
 # Compare LC vs TC architectures
 python -m ch8_sensor_fusion.compare_lc_tc
 
+# Why tight coupling exists: an 8 s anchor outage (add --animate for the GIF)
+python -m ch8_sensor_fusion.example_anchor_outage
+
 # Advanced demos
 python -m ch8_sensor_fusion.observability_demo  # Includes Eq. 8.3 observability matrix analysis
 python -m ch8_sensor_fusion.tuning_robust_demo  # Demonstrates Eq. 8.7 robust R-inflation
 python -m ch8_sensor_fusion.temporal_calibration_demo
 python -m ch8_sensor_fusion.calibration_demo  # Section 8.4: Intrinsic & extrinsic calibration
 ```
+
+## Anchor Outage: LC vs TC, where the difference actually shows
+
+| Figure | Built by | Shows |
+|--------|----------|-------|
+| `ch8_anchor_outage.{svg,pdf,png}` | `example_anchor_outage.py` | Anchor visibility and both error curves over the whole run |
+| `ch8_anchor_outage.gif` (0.69 MB) | `example_anchor_outage.py --animate` | The same, unfolding: anchors going hollow, LC's error ramping, TC holding |
+
+On the shipped dataset LC and TC look close — RMSE 0.95 m against 0.74 m — and
+that is misleading. The dataset's natural dropouts are **single isolated
+epochs**, so LC coasts for a fraction of a second and nothing visible happens:
+its error during those epochs is 0.573 m against 0.555 m elsewhere, a ratio of
+**1.03×**. Measured, not assumed — the first version of this example assumed
+otherwise and was wrong.
+
+The difference needs an outage that *persists*, so this example constructs one:
+8 seconds with at most two of four anchors visible.
+
+| | LC | TC |
+|---|---|---|
+| Peak error during the outage | **4.52 m** | **0.30 m** (15×) |
+| UWB position fixes that failed | 93 | — (TC has no fix step) |
+| RMSE over the run | 1.292 m | 0.762 m |
+
+LC's error ramps *linearly* through the outage — the signature of pure dead
+reckoning — then snaps back the instant a third anchor returns. Two ranges do
+not determine a 2-D position, so LC's front end returns nothing at all; TC just
+treats them as two measurement updates.
+
+**But tight coupling is a trade, not a free win.** At the two outlier events in
+this dataset TC peaks *higher* than LC — 4.42 m against 3.42 m near t = 37 s,
+and 5.24 m against 3.37 m near t = 57 s. A corrupted range goes straight into
+the filter, whereas LC's front end solves a position from all ranges at once and
+can absorb the bad one. That is precisely what the chi-square gating of
+Section 8.3.2 is for. And with only a *single* anchor visible, TC's geometry is
+degenerate and its RMSE degrades to 1.8 m, worse than LC — one range constrains
+a circle, not a point.
 
 ## Equation Reference
 
