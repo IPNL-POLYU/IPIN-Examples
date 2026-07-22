@@ -73,7 +73,35 @@ python -m ch6_dead_reckoning.example_pdr --data ch6_pdr_corridor_walk
 
 # Run comprehensive comparison
 python -m ch6_dead_reckoning.example_comparison
+
+# Animate the drift and its correction (writes figs/ch6_zupt_drift.gif)
+python -m ch6_dead_reckoning.example_zupt --animate
 ```
+
+## Animations
+
+| GIF | Built by | Size | Shows |
+|-----|----------|------|-------|
+| `ch6_zupt_drift.gif` | `example_zupt.py --animate` | 0.46 MB | IMU-only drift growing without bound while ZUPT pins it back during every stance phase |
+
+Dead reckoning fails *over time*, which is the whole argument of this chapter
+and the one thing a static trajectory plot cannot carry. Side by side, two
+final positions merely look different; watching them, the IMU-only track
+visibly peels away while the ZUPT track keeps getting corrected.
+
+The animation has three panels because one pair of axes cannot show both
+stories: after 60 s the IMU-only track has drifted ~215 m while the walk itself
+covers ~60 m, so on a shared scale the truth and ZUPT tracks collapse into a
+single blob. The first panel gives the full extent (how bad the drift gets),
+the second zooms to the walk (that ZUPT really does track it), and the third
+plots error against time with the stance phases shaded.
+
+For this run: IMU-only ends **237 m** from truth, IMU + ZUPT ends **12.5 m** —
+a 91.7% reduction in RMSE.
+
+Animations are behind `--animate`, never part of a default run. Keep them
+small: they are committed binaries and git retains every version forever.
+`core.eval.save_animation` defaults to `dpi=80` and warns above 1.5 MB.
 
 ## 📂 Dataset Connection
 

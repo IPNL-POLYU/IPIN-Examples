@@ -16,11 +16,13 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+import argparse
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import save_animation
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -414,8 +416,136 @@ def plot_results(t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
     return error_imu, error_zupt
 
 
-def main():
-    """Main execution function."""
+def animate_zupt_drift(t, pos_true, pos_imu, pos_zupt, stance_mask,
+                       zupt_detections, n_frames: int = 40):
+    """Build the ZUPT drift animation, Section 6.5.
+
+    Dead reckoning fails *over time* -- that is the whole point of the chapter,
+    and it is the one thing a static trajectory plot cannot convey. Side by
+    side, the final positions merely look different; watching them, the
+    IMU-only track visibly peels away while the ZUPT track keeps getting
+    pinned back during every stance phase.
+
+    Args:
+        t: Time vector, shape (N,).
+        pos_true: Ground-truth positions, shape (N, 3).
+        pos_imu: IMU-only estimated positions, shape (N, 3).
+        pos_zupt: ZUPT-corrected estimated positions, shape (N, 3).
+        stance_mask: Boolean stance-phase mask, shape (N,).
+        zupt_detections: Boolean detector output, shape (N,).
+        n_frames: Number of animation frames.
+
+    Returns:
+        Tuple of (figure, update callback, frame count) for save_animation.
+    """
+    error_imu = np.linalg.norm(pos_imu[:, :2] - pos_true[:, :2], axis=1)
+    error_zupt = np.linalg.norm(pos_zupt[:, :2] - pos_true[:, :2], axis=1)
+
+    # Sample evenly through the run; the last frame must be the final sample.
+    indices = np.linspace(0, len(t) - 1, n_frames, dtype=int)
+
+    fig, axes = plt.subplots(1, 3, figsize=(15, 4.4))
+
+    # Fixed limits so the viewer sees motion, not a rescaling axis.
+    all_xy = np.vstack([pos_true[:, :2], pos_imu[:, :2], pos_zupt[:, :2]])
+    pad = 1.0
+    xlim = (all_xy[:, 0].min() - pad, all_xy[:, 0].max() + pad)
+    ylim = (all_xy[:, 1].min() - pad, all_xy[:, 1].max() + pad)
+
+    # The IMU-only drift is two orders of magnitude larger than the walk, so a
+    # single pair of limits renders the truth and ZUPT tracks as one blob. The
+    # second panel zooms to the walk itself, where ZUPT is worth looking at.
+    near_xy = np.vstack([pos_true[:, :2], pos_zupt[:, :2]])
+    zoom_pad = 2.0
+    zoom_xlim = (near_xy[:, 0].min() - zoom_pad, near_xy[:, 0].max() + zoom_pad)
+    zoom_ylim = (near_xy[:, 1].min() - zoom_pad, near_xy[:, 1].max() + zoom_pad)
+
+    max_error = max(error_imu.max(), error_zupt.max()) * 1.1
+
+    def update(frame: int):
+        """Draw the trajectory and error up to sample ``indices[frame]``."""
+        end = indices[frame] + 1
+        for ax in axes:
+            ax.clear()
+
+        axes[0].plot(pos_true[:end, 0], pos_true[:end, 1], "k-",
+                     linewidth=2.0, label="ground truth")
+        axes[0].plot(pos_imu[:end, 0], pos_imu[:end, 1], "-",
+                     color="#d62728", linewidth=1.6, label="IMU only")
+        axes[0].plot(pos_zupt[:end, 0], pos_zupt[:end, 1], "-",
+                     color="#1f77b4", linewidth=1.6, label="IMU + ZUPT")
+        axes[0].plot(pos_imu[end - 1, 0], pos_imu[end - 1, 1], "o",
+                     color="#d62728", markersize=7, markeredgecolor="k")
+        axes[0].plot(pos_zupt[end - 1, 0], pos_zupt[end - 1, 1], "o",
+                     color="#1f77b4", markersize=7, markeredgecolor="k")
+        axes[0].set_xlim(*xlim)
+        axes[0].set_ylim(*ylim)
+        axes[0].set_aspect("equal")
+        axes[0].grid(alpha=0.25)
+        axes[0].set_xlabel("East [m]")
+        axes[0].set_ylabel("North [m]")
+        axes[0].legend(fontsize=8, loc="upper left")
+        standing = "STANCE (ZUPT active)" if stance_mask[end - 1] else "swing"
+        axes[0].set_title(
+            f"full extent   -   t = {t[end - 1]:5.1f} s   -   {standing}",
+            fontsize=10,
+        )
+
+        # Zoomed to the walk, where the ZUPT track is actually legible.
+        axes[1].plot(pos_true[:end, 0], pos_true[:end, 1], "k-",
+                     linewidth=2.0, label="ground truth")
+        axes[1].plot(pos_zupt[:end, 0], pos_zupt[:end, 1], "-",
+                     color="#1f77b4", linewidth=1.6, label="IMU + ZUPT")
+        axes[1].plot(pos_zupt[end - 1, 0], pos_zupt[end - 1, 1], "o",
+                     color="#1f77b4", markersize=7, markeredgecolor="k")
+        axes[1].set_xlim(*zoom_xlim)
+        axes[1].set_ylim(*zoom_ylim)
+        axes[1].set_aspect("equal")
+        axes[1].grid(alpha=0.25)
+        axes[1].set_xlabel("East [m]")
+        axes[1].set_ylabel("North [m]")
+        axes[1].legend(fontsize=8, loc="upper left")
+        axes[1].set_title(
+            "zoom: ZUPT vs truth (IMU-only is off this scale)", fontsize=10
+        )
+
+        axes[2].plot(t[:end], error_imu[:end], "-", color="#d62728",
+                     linewidth=1.6, label="IMU only")
+        axes[2].plot(t[:end], error_zupt[:end], "-", color="#1f77b4",
+                     linewidth=1.6, label="IMU + ZUPT")
+        # Shade the stance phases: this is where the correction happens.
+        axes[2].fill_between(t[:end], 0, max_error,
+                             where=stance_mask[:end], color="0.85",
+                             step="mid", zorder=0)
+        axes[2].set_xlim(t[0], t[-1])
+        axes[2].set_ylim(0, max_error)
+        axes[2].grid(alpha=0.3)
+        axes[2].set_xlabel("time [s]")
+        axes[2].set_ylabel("horizontal position error [m]")
+        axes[2].legend(fontsize=8, loc="upper left")
+        axes[2].set_title(
+            f"error: IMU {error_imu[end - 1]:.1f} m   |   "
+            f"ZUPT {error_zupt[end - 1]:.2f} m",
+            fontsize=10,
+        )
+
+        fig.suptitle(
+            "ZUPT, Eqs. (6.44)-(6.45): grey bands are stance phases, where the "
+            "zero-velocity update pins the drift back",
+            fontsize=11,
+        )
+        fig.tight_layout()
+        return axes
+
+    return fig, update, len(indices)
+
+
+def main(animate: bool = False):
+    """Main execution function.
+
+    Args:
+        animate: Also render the drift animation to figs/ (slower).
+    """
     # Set random seed for reproducibility
     np.random.seed(42)
     
@@ -519,6 +649,17 @@ def main():
     print()
     print(f"Improvement:    {improvement:.1f}% reduction in RMSE")
     print()
+    if animate:
+        print("\nRendering ZUPT drift animation...")
+        fig, update, n_frames = animate_zupt_drift(
+            t, pos_true, pos_imu, pos_zupt, stance_mask, zupt_detections
+        )
+        path = save_animation(fig, update, n_frames, figs_dir,
+                              "ch6_zupt_drift", fps=5)
+        plt.close(fig)
+        size_mb = path.stat().st_size / (1024 * 1024)
+        print(f"  [OK] Saved: {path} ({n_frames} frames, {size_mb:.2f} MB)")
+
     print(f"Figures saved to: {figs_dir}/")
     print()
     print("="*70)
@@ -531,6 +672,13 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(
+        description="ZUPT for foot-mounted IMU (Chapter 6)"
+    )
+    parser.add_argument(
+        "--animate", action="store_true", default=False,
+        help="Also render the drift animation GIF (slower)"
+    )
+    main(animate=parser.parse_args().animate)
 
 
