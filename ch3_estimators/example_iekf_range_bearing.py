@@ -35,6 +35,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from core.estimators import ExtendedKalmanFilter, IteratedExtendedKalmanFilter
+from core.eval import save_figure
 from core.utils import angle_diff
 
 
@@ -360,12 +361,10 @@ def example_iekf_vs_ekf_comparison():
 
     plt.tight_layout()
 
-    # Save figure
-    figs_dir = Path("ch3_estimators/figs")
-    figs_dir.mkdir(parents=True, exist_ok=True)
-    output_file = figs_dir / "ch3_iekf_vs_ekf_comparison.png"
-    plt.savefig(output_file, dpi=150, bbox_inches="tight")
-    print(f"Plot saved: {output_file}")
+    # Save figure (svg + pdf + png via the shared layer)
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "ch3_iekf_vs_ekf_comparison")
+    print(f"Plot saved: {paths[0]}")
 
     plt.show()
 

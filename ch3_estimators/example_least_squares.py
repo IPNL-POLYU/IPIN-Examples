@@ -38,6 +38,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import save_figure
 from core.estimators import (
     linear_least_squares,
     weighted_least_squares,
@@ -553,12 +554,10 @@ def visualize_results():
 
     plt.tight_layout()
 
-    # Save to figs directory
-    output_dir = Path(__file__).parent / "figs"
-    output_dir.mkdir(exist_ok=True)
-    output_path = output_dir / "ch3_least_squares_examples.png"
-    plt.savefig(output_path, dpi=150, bbox_inches="tight")
-    print(f"\nPlot saved as: {output_path}")
+    # Save to figs directory (svg + pdf + png via the shared layer)
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "ch3_least_squares_examples")
+    print(f"\nPlot saved as: {paths[0]}")
     plt.show()
 
 

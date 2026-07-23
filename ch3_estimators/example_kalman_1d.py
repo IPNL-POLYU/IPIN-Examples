@@ -19,9 +19,14 @@ Book Reference (Chapter 3, Section 3.2.1):
     - Eq. (3.17)-(3.20): KF update equations (gain K, state x, covariance P)
 """
 
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
 from core.estimators import KalmanFilter
+from core.eval import save_figure
+
+FIGS_DIR = Path(__file__).parent / "figs"
 
 
 def example_1d_constant_velocity():
@@ -197,8 +202,8 @@ def example_1d_constant_velocity():
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("ch3_kalman_1d_tracking.png", dpi=150, bbox_inches="tight")
-    print(f"Plot saved as: ch3_kalman_1d_tracking.png")
+    paths = save_figure(fig, FIGS_DIR, "ch3_kalman_1d_tracking")
+    print(f"Plot saved as: {paths[0]}")
     plt.show()
 
 

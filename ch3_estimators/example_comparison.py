@@ -26,9 +26,12 @@ Book Reference: Section 3.5 and Table 3.4 provide comparison criteria.
 """
 
 import time
+from pathlib import Path
+
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
+from core.eval import save_figure
 from core.estimators import (
     ExtendedKalmanFilter,
     UnscentedKalmanFilter,
@@ -541,8 +544,9 @@ def main():
                 f'{t:.3f}s', ha='center', va='bottom', fontsize=10)
 
     plt.tight_layout()
-    plt.savefig("ch3_estimator_comparison.png", dpi=150, bbox_inches="tight")
-    print("[OK] Plot saved as: ch3_estimator_comparison.png")
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "ch3_estimator_comparison")
+    print(f"[OK] Plot saved as: {paths[0]}")
     plt.show()
 
     overall_time = time.time() - overall_start

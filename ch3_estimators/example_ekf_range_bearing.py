@@ -28,6 +28,7 @@ from typing import Dict
 import numpy as np
 import matplotlib.pyplot as plt
 from core.estimators import ExtendedKalmanFilter
+from core.eval import save_figure
 from core.utils import angle_diff
 from core.utils.geometry import check_anchor_geometry
 from core.utils.observability import check_range_only_observability_2d
@@ -294,13 +295,11 @@ def run_with_dataset(data_dir: str) -> None:
     ax.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    
-    figs_dir = Path("ch3_estimators/figs")
-    figs_dir.mkdir(parents=True, exist_ok=True)
-    output_file = figs_dir / "ch3_ekf_range_bearing.png"
-    plt.savefig(output_file, dpi=150, bbox_inches="tight")
-    print(f"Plot saved: {output_file}")
-    
+
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "ch3_ekf_range_bearing")
+    print(f"Plot saved: {paths[0]}")
+
     plt.show()
     
     print("\n" + "=" * 70)
@@ -552,8 +551,9 @@ def example_2d_range_bearing_positioning():
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    plt.savefig("ch3_ekf_range_bearing.png", dpi=150, bbox_inches="tight")
-    print(f"Plot saved as: ch3_ekf_range_bearing.png")
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "ch3_ekf_range_bearing")
+    print(f"Plot saved as: {paths[0]}")
     plt.show()
     
     print("\nTip: Run with --data ch3_estimator_nonlinear to use pre-generated dataset")
