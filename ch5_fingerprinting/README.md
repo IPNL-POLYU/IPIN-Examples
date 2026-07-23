@@ -27,7 +27,44 @@ python -m ch5_fingerprinting.example_classification
 
 # Run comprehensive comparison of all methods
 python -m ch5_fingerprinting.example_comparison
+
+# Walk a user across the floor; watch the posterior aliasing (add --animate)
+python -m ch5_fingerprinting.example_walk_posterior
 ```
+
+## The posterior along a walk, and how it fails (Section 5.2)
+
+| Figure | Built by | Size |
+|--------|----------|------|
+| `ch5_walk_posterior.{svg,pdf,png}` | `example_walk_posterior.py` | — |
+| `ch5_walk_posterior.gif` | `example_walk_posterior.py --animate` | 0.30 MB |
+
+The intuitive animation to reach for is "watch the posterior sharpen as the
+user walks." There is nothing to sharpen. With eight access points over this
+grid the Gaussian Naive-Bayes posterior of Eq. (5.3) is a near-delta
+everywhere — entropy ~0.1 against a maximum of 4.8, peak probability 0.92–1.00.
+It is already as sharp as it gets.
+
+What *is* dynamic, and specific to fingerprinting, is how that sharp posterior
+**fails**. It does not spread out and hedge under noise; it stays a confident
+spike and occasionally puts the spike in the wrong place — a distant reference
+point whose stored radio signature happens to resemble the current one. This is
+**RSS aliasing**, and it is the characteristic failure of fingerprinting.
+
+Measured over a 21-step L-walk, aliasing jumps beyond 10 m occur:
+
+| Measurement noise | aliasing jumps | median error | mean error |
+|---|---|---|---|
+| 1 dB | 0 / 21 | 0.0 m | 0.0 m |
+| 3 dB | 0 / 21 | 0.0 m | 0.2 m |
+| 6 dB | **6 / 21** | **0.0 m** | **6.6 m** |
+
+The last row is the lesson. The MAP estimate is usually exactly right — the
+median stays 0 m — but at six steps it teleports to a radio-similar location up
+to 25 m away, and those few jumps drag the mean to 6.6 m. **A reported mean
+error hides the failure completely**; only the walk, or the median-vs-mean gap,
+makes it visible. The animation shows the hot spot tracking the user, then
+leaping across the floor and snapping back.
 
 ## 📂 Dataset Connection
 
