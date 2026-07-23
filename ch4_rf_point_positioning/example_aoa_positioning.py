@@ -22,9 +22,12 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
+from core.eval import save_figure
 from core.rf import (
     AOAPositioner,
     aoa_angle_vector,
@@ -353,12 +356,8 @@ def visualize_aoa_geometry():
     ax.set_ylim([-2, 14])
 
     plt.tight_layout()
-    plt.savefig(
-        "ch4_rf_point_positioning/figs/ch4_aoa_geometry.png",
-        dpi=150,
-        bbox_inches="tight",
-    )
-    print("\nFigure saved: ch4_rf_point_positioning/figs/ch4_aoa_geometry.png")
+    paths = save_figure(fig, Path(__file__).parent / "figs", "ch4_aoa_geometry")
+    print(f"\nFigure saved: {paths[0]}")
 
     plt.show()
 

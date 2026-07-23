@@ -15,9 +15,12 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
+from core.eval import save_figure
 from core.rf import (
     SPEED_OF_LIGHT,
     TOAPositioner,
@@ -539,10 +542,9 @@ def main():
     print("=" * 70)
 
     fig = plot_toa_positioning(anchors1, true_pos1, est_pos1, info1["history"])
-    plt.savefig(
-        "ch4_rf_point_positioning/toa_positioning_example.png", dpi=150, bbox_inches="tight"
-    )
-    print("\nFigure saved: toa_positioning_example.png")
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "toa_positioning_example")
+    print(f"\nFigure saved: {paths[0]}")
 
     plt.show()
 

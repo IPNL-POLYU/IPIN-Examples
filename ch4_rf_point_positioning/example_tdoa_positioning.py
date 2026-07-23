@@ -14,9 +14,12 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+from pathlib import Path
+
 import matplotlib.pyplot as plt
 import numpy as np
 
+from core.eval import save_figure
 from core.rf import (
     TDOAPositioner,
     TOAPositioner,
@@ -458,9 +461,9 @@ def demo_visualize_covariance():
                               ha='center', va='center', color='black', fontsize=9)
 
         plt.tight_layout()
-        plt.savefig('ch4_rf_point_positioning/figs/tdoa_covariance_matrix.png',
-                    dpi=150, bbox_inches='tight')
-        print("\nFigure saved to: ch4_rf_point_positioning/figs/tdoa_covariance_matrix.png")
+        paths = save_figure(fig, Path(__file__).parent / "figs",
+                            "tdoa_covariance_matrix")
+        print(f"\nFigure saved to: {paths[0]}")
         plt.close()
     except Exception as e:
         print(f"\nCould not save figure: {e}")
@@ -922,9 +925,9 @@ def demo_closed_form_comparison():
 
         plt.suptitle(f'Closed-Form vs Iterative Solvers (noise={noise_std}m)', fontsize=12)
         plt.tight_layout()
-        plt.savefig('ch4_rf_point_positioning/figs/closed_form_comparison.png',
-                    dpi=150, bbox_inches='tight')
-        print("\nFigure saved: ch4_rf_point_positioning/figs/closed_form_comparison.png")
+        paths = save_figure(fig, Path(__file__).parent / "figs",
+                            "closed_form_comparison")
+        print(f"\nFigure saved: {paths[0]}")
         plt.close()
     except Exception as e:
         print(f"\nCould not save figure: {e}")

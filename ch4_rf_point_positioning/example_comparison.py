@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
+from core.eval import save_figure
 from core.rf import (
     AOAPositioner,
     TDOAPositioner,
@@ -598,9 +599,9 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     plt.tight_layout()
     
     if output_file:
-        plt.savefig(output_file, dpi=150, bbox_inches='tight')
-        print(f"\n✓ Figure saved: {output_file}")
-    
+        paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
+        print(f"\n[OK] Figure saved: {paths[0]}")
+
     return fig
 
 
@@ -732,9 +733,8 @@ Examples:
             ax.grid(True, alpha=0.3, axis='y')
             
             output_file = args.output or "ch4_rf_point_positioning/figs/ch4_geometry_comparison.png"
-            Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-            plt.savefig(output_file, dpi=150, bbox_inches='tight')
-            print(f"\n✓ Figure saved: {output_file}")
+            paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
+            print(f"\n[OK] Figure saved: {paths[0]}")
             plt.show()
     
     elif args.data:
@@ -776,9 +776,8 @@ Examples:
         fig = plot_inline_comparison(noise_levels, results)
 
         output_file = args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
-        Path(output_file).parent.mkdir(parents=True, exist_ok=True)
-        plt.savefig(output_file, dpi=150, bbox_inches="tight")
-        print(f"✓ Figure saved: {output_file}")
+        paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
+        print(f"[OK] Figure saved: {paths[0]}")
         plt.show()
 
     overall_time = time.time() - overall_start
