@@ -12,6 +12,9 @@ python -m ch4_rf_point_positioning.example_toa_positioning
 python -m ch4_rf_point_positioning.example_tdoa_positioning
 python -m ch4_rf_point_positioning.example_aoa_positioning
 
+# Dilution of precision: walk away from the anchors (add --animate)
+python -m ch4_rf_point_positioning.example_dop_geometry
+
 # Run with pre-generated datasets
 python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_square
 python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_nlos
@@ -22,6 +25,38 @@ python -m ch4_rf_point_positioning.example_comparison --compare-geometry
 # Run comprehensive comparison of all RF methods (inline data)
 python -m ch4_rf_point_positioning.example_comparison
 ```
+
+## Dilution of precision: geometry sets the error floor (Section 4.5)
+
+| Figure | Built by | Size |
+|--------|----------|------|
+| `ch4_dop_geometry.{svg,pdf,png}` | `example_dop_geometry.py` | — |
+| `ch4_dop_geometry.gif` | `example_dop_geometry.py --animate` | 1.06 MB |
+
+DOP is the factor by which anchor geometry amplifies range noise into position
+error: **position error ≈ DOP × range noise**. It is a property of where the
+anchors are relative to you, and it is what a single number cannot convey.
+
+The example clusters four anchors in one corner — all the beacons in one room —
+and walks a receiver away down a corridor. As it recedes, every anchor lies in
+nearly the same direction, angular diversity collapses, and GDOP at the
+receiver climbs from **2.7 beside the cluster to 17.7 far away**. The left panel
+shows the GDOP field (fixed by the anchor positions) with the receiver's
+3σ error ellipse; the ellipse is elongated *perpendicular* to the line back to
+the cluster. Each range pins the distance to an anchor, and with every anchor
+in nearly the same direction the geometry resolves distance-to-the-cluster well
+but bearing poorly — so the fix smears sideways along an arc, not along the line
+of sight.
+
+Two things are measured, not asserted:
+
+- **DOP predicts real error.** At each step a Monte-Carlo cloud of actual
+  iterative-least-squares TOA fixes is compared with GDOP × range_std. The two
+  agree to a mean of **3.5%** across the walk (e.g. GDOP 5.03 predicts 5.03 m,
+  the solver gives 5.13 m; GDOP 14.87 predicts 14.87 m, gives 14.59 m).
+- **No estimator can rescue bad geometry.** The solver is optimal and the noise
+  is fixed, yet the position error grows **6×** across the walk — purely
+  because the anchors are in the wrong place.
 
 ## 📂 Dataset Connection
 
