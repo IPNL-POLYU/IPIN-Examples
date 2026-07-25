@@ -19,32 +19,26 @@ import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
 
-def plot_trajectory_2d(
+def _draw_trajectories(
+    ax: plt.Axes,
     truth_xy: np.ndarray,
     est_xy_dict: Dict[str, np.ndarray],
-    anchors_xy: Optional[np.ndarray] = None,
-    title: str = "2D Trajectory",
-    axis_labels: Tuple[str, str] = ("X (m)", "Y (m)"),
-) -> plt.Figure:
-    """
-    Plot 2D trajectory with true and estimated paths.
+    anchors_xy: Optional[np.ndarray],
+    axis_labels: Tuple[str, str],
+) -> None:
+    """Draw one trajectory overlay onto ``ax``.
+
+    Factored out so the full-extent and zoomed panels are guaranteed to show
+    the same series in the same colours -- a zoom panel that quietly dropped a
+    method, or recoloured one, would misrepresent the comparison.
 
     Args:
-        truth_xy: True trajectory, shape (N, 2)
-        est_xy_dict: Dictionary of estimated trajectories {name: array}
-        anchors_xy: Anchor positions, shape (M, 2) (optional)
-        title: Plot title
-        axis_labels: Axis labels as (x, y). Pass ("East [m]", "North [m]") for
-            a local-level frame; the default is frame-agnostic. Chapters that
-            plot in ENU were previously hand-rolling this whole function purely
-            to relabel the axes.
-
-    Returns:
-        fig: Matplotlib figure
+        ax: Target axes.
+        truth_xy: True trajectory, shape (N, 2).
+        est_xy_dict: Dictionary of estimated trajectories {name: array}.
+        anchors_xy: Anchor positions, shape (M, 2), or None.
+        axis_labels: Axis labels as (x, y).
     """
-    fig, ax = plt.subplots(figsize=(10, 8))
-
-    # Plot true trajectory
     ax.plot(
         truth_xy[:, 0],
         truth_xy[:, 1],
@@ -77,6 +71,10 @@ def plot_trajectory_2d(
     for i, (name, est_xy) in enumerate(est_xy_dict.items()):
         color = colors[i % len(colors)]
         linestyle = linestyles[i % len(linestyles)]
+        # Above the truth line and the start/end markers: an estimate that
+        # tracks well lies *on* the truth, and with the truth drawn on top the
+        # best method was the one you could not see. The truth stays legible
+        # underneath because it is drawn thicker.
         ax.plot(
             est_xy[:, 0],
             est_xy[:, 1],
@@ -85,6 +83,7 @@ def plot_trajectory_2d(
             linewidth=1.5,
             label=name,
             alpha=0.7,
+            zorder=12,
         )
 
     # Plot anchors if provided
@@ -101,11 +100,94 @@ def plot_trajectory_2d(
 
     ax.set_xlabel(axis_labels[0], fontsize=12)
     ax.set_ylabel(axis_labels[1], fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight="bold")
-    ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
-    ax.axis("equal")
 
+
+def _truth_extent_limits(
+    truth_xy: np.ndarray, pad_fraction: float = 0.1
+) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+    """Return padded (xlim, ylim) bounding the ground-truth path.
+
+    Args:
+        truth_xy: True trajectory, shape (N, 2).
+        pad_fraction: Margin added on each side, as a fraction of the larger
+            of the two truth extents.
+
+    Returns:
+        Tuple of ((xmin, xmax), (ymin, ymax)).
+    """
+    x_min, y_min = truth_xy[:, 0].min(), truth_xy[:, 1].min()
+    x_max, y_max = truth_xy[:, 0].max(), truth_xy[:, 1].max()
+
+    # A stationary or purely axis-aligned truth has zero extent in at least one
+    # direction; fall back to an absolute margin so the limits stay orderable.
+    span = max(x_max - x_min, y_max - y_min)
+    pad = pad_fraction * span if span > 0 else 1.0
+
+    return (x_min - pad, x_max + pad), (y_min - pad, y_max + pad)
+
+
+def plot_trajectory_2d(
+    truth_xy: np.ndarray,
+    est_xy_dict: Dict[str, np.ndarray],
+    anchors_xy: Optional[np.ndarray] = None,
+    title: str = "2D Trajectory",
+    axis_labels: Tuple[str, str] = ("X (m)", "Y (m)"),
+    zoom_to_truth: bool = False,
+) -> plt.Figure:
+    """
+    Plot 2D trajectory with true and estimated paths.
+
+    Args:
+        truth_xy: True trajectory, shape (N, 2)
+        est_xy_dict: Dictionary of estimated trajectories {name: array}
+        anchors_xy: Anchor positions, shape (M, 2) (optional)
+        title: Plot title
+        axis_labels: Axis labels as (x, y). Pass ("East [m]", "North [m]") for
+            a local-level frame; the default is frame-agnostic. Chapters that
+            plot in ENU were previously hand-rolling this whole function purely
+            to relabel the axes.
+        zoom_to_truth: Add a second panel clipped to the ground-truth extent.
+            Set this when one estimator diverges by orders of magnitude more
+            than the others -- comparing an unbounded method against bounded
+            ones, which is the standard dead-reckoning figure. A trajectory
+            plot needs equal axes, so a single pair of limits has to span the
+            divergence, and everything that stayed near the truth collapses
+            into one blob. The left panel keeps the full extent (the
+            divergence is usually the point being made) and the right panel
+            resolves the rest. Both panels draw every series; the diverging
+            one simply leaves the zoomed frame.
+
+    Returns:
+        fig: Matplotlib figure
+    """
+    if not zoom_to_truth:
+        fig, ax = plt.subplots(figsize=(10, 8))
+        _draw_trajectories(ax, truth_xy, est_xy_dict, anchors_xy, axis_labels)
+        ax.set_title(title, fontsize=14, fontweight="bold")
+        ax.legend(fontsize=10)
+        ax.axis("equal")
+        plt.tight_layout()
+        return fig
+
+    fig, (ax_full, ax_zoom) = plt.subplots(1, 2, figsize=(15, 7))
+
+    _draw_trajectories(ax_full, truth_xy, est_xy_dict, anchors_xy, axis_labels)
+    ax_full.set_title("full extent", fontsize=12)
+    ax_full.legend(fontsize=9, loc="best")
+    ax_full.axis("equal")
+
+    _draw_trajectories(ax_zoom, truth_xy, est_xy_dict, anchors_xy, axis_labels)
+    ax_zoom.set_title("zoom: ground-truth extent", fontsize=12)
+    # Limits first, then equal aspect: with the default adjustable="box" this
+    # reshapes the axes box to honour the limits, rather than autoscaling them
+    # back out to the full data range the way ax.axis("equal") would.
+    xlim, ylim = _truth_extent_limits(truth_xy)
+    ax_zoom.set_xlim(*xlim)
+    ax_zoom.set_ylim(*ylim)
+    ax_zoom.set_aspect("equal")
+
+    fig.suptitle(title, fontsize=14, fontweight="bold")
     plt.tight_layout()
     return fig
 

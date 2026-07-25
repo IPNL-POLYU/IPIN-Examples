@@ -218,6 +218,68 @@ class TestPlotTrajectory2D:
         finally:
             plt.close(fig)
 
+    def test_single_panel_by_default(self):
+        """zoom_to_truth is opt-in; existing callers keep one pair of axes."""
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+
+        fig = plot_trajectory_2d(truth, {"m": truth})
+        try:
+            assert len(fig.axes) == 1
+        finally:
+            plt.close(fig)
+
+    def test_estimates_are_drawn_above_the_truth(self):
+        """An estimate that tracks well lies on the truth and must stay visible.
+
+        With the truth on top, the best method was the one you could not see.
+        """
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+
+        fig = plot_trajectory_2d(truth, {"m": truth})
+        try:
+            by_label = {line.get_label(): line for line in fig.axes[0].lines}
+            assert by_label["m"].get_zorder() > by_label["Ground Truth"].get_zorder()
+        finally:
+            plt.close(fig)
+
+    def test_zoom_panel_frames_the_truth_not_the_outlier(self):
+        """The zoomed axes bound the truth and exclude the diverging estimate.
+
+        This is the wide-dynamic-range case: comparing an unbounded estimator
+        against bounded ones, equal axes force one pair of limits to span the
+        divergence, and everything near the truth collapses to a blob.
+        """
+        truth = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 5.0]])
+        diverging = np.array([[0.0, 0.0], [500.0, 0.0], [900.0, 0.0]])
+
+        fig = plot_trajectory_2d(truth, {"drift": diverging}, zoom_to_truth=True)
+        try:
+            assert len(fig.axes) == 2
+            zoom_x = fig.axes[1].get_xlim()
+            zoom_y = fig.axes[1].get_ylim()
+            # Contains the truth ...
+            assert zoom_x[0] <= 0.0 and zoom_x[1] >= 10.0
+            assert zoom_y[0] <= 0.0 and zoom_y[1] >= 5.0
+            # ... but is nowhere near the far end of the drift.
+            assert zoom_x[1] < 100.0
+            # The full-extent panel keeps the drift, which is usually the point.
+            assert fig.axes[0].get_xlim()[1] >= 900.0
+        finally:
+            plt.close(fig)
+
+    def test_zoom_handles_a_stationary_truth(self):
+        """A degenerate truth still yields orderable limits, not a zero span."""
+        truth = np.zeros((5, 2))
+
+        fig = plot_trajectory_2d(truth, {"drift": np.ones((5, 2))}, zoom_to_truth=True)
+        try:
+            x_lo, x_hi = fig.axes[1].get_xlim()
+            y_lo, y_hi = fig.axes[1].get_ylim()
+            assert x_hi > x_lo
+            assert y_hi > y_lo
+        finally:
+            plt.close(fig)
+
 
 class TestPlotErrorMagnitudeTime:
     """Test the error-magnitude primitive.
