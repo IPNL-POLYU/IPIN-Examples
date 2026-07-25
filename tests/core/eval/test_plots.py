@@ -267,6 +267,55 @@ class TestPlotTrajectory2D:
         finally:
             plt.close(fig)
 
+    def test_draws_into_a_supplied_axes(self):
+        """As one panel of a composite, without creating a second figure."""
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+        host, (left, right) = plt.subplots(1, 2)
+
+        try:
+            before = len(plt.get_fignums())
+            fig = plot_trajectory_2d(truth, {"m": truth}, ax=left)
+
+            assert fig is host
+            assert len(plt.get_fignums()) == before  # no stray figure
+            assert len(left.lines) > 0
+            assert len(right.lines) == 0  # drew into the axes it was given
+        finally:
+            plt.close(host)
+
+    def test_supplied_axes_and_zoom_are_mutually_exclusive(self):
+        """Two panels cannot share one supplied axes, so say so.
+
+        Silently honouring either one would betray the other: the caller's
+        composite would lose its zoom, or gain a figure it does not contain.
+        """
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+        host, host_ax = plt.subplots()
+
+        try:
+            with pytest.raises(ValueError, match="zoom_to_truth"):
+                plot_trajectory_2d(
+                    truth, {"m": truth}, ax=host_ax, zoom_to_truth=True
+                )
+        finally:
+            plt.close(host)
+
+    def test_zoom_title_weight_is_configurable(self):
+        """title_fontweight reaches the figure title in the two-panel layout.
+
+        The panel captions stay plain either way -- they label parts, they do
+        not announce a figure.
+        """
+        truth = np.array([[0.0, 0.0], [10.0, 5.0]])
+
+        fig = plot_trajectory_2d(
+            truth, {"m": truth}, zoom_to_truth=True, title_fontweight="normal"
+        )
+        try:
+            assert fig._suptitle.get_fontweight() == "normal"
+        finally:
+            plt.close(fig)
+
     def test_zoom_handles_a_stationary_truth(self):
         """A degenerate truth still yields orderable limits, not a zero span."""
         truth = np.zeros((5, 2))

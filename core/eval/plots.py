@@ -133,6 +133,8 @@ def plot_trajectory_2d(
     anchors_xy: Optional[np.ndarray] = None,
     title: str = "2D Trajectory",
     axis_labels: Tuple[str, str] = ("X (m)", "Y (m)"),
+    ax: Optional[plt.Axes] = None,
+    title_fontweight: str = "bold",
     zoom_to_truth: bool = False,
 ) -> plt.Figure:
     """
@@ -147,6 +149,19 @@ def plot_trajectory_2d(
             a local-level frame; the default is frame-agnostic. Chapters that
             plot in ENU were previously hand-rolling this whole function purely
             to relabel the axes.
+        ax: Draw into this existing axes instead of creating a figure. Most of
+            the book's figures are multi-panel composites where the trajectory
+            is one panel of a 2x2, so without this the function could only ever
+            be used for a standalone figure -- which is why every chapter but
+            one had reimplemented it. Follows the usual matplotlib library
+            convention: ``ax=None`` creates its own figure. Mutually exclusive
+            with ``zoom_to_truth``, which needs two panels of its own.
+        title_fontweight: Weight for the title. Defaults to bold, which suits a
+            standalone figure. Pass "normal" when drawing into a composite whose
+            sibling panels are unbold, or the shared panel stands out as though
+            it were more important. Under ``zoom_to_truth`` this applies to the
+            figure-level title; the two panel captions are deliberately plain,
+            since they label parts rather than announce a figure.
         zoom_to_truth: Add a second panel clipped to the ground-truth extent.
             Set this when one estimator diverges by orders of magnitude more
             than the others -- comparing an unbounded method against bounded
@@ -159,15 +174,35 @@ def plot_trajectory_2d(
             one simply leaves the zoomed frame.
 
     Returns:
-        fig: Matplotlib figure
+        fig: The figure drawn into, whether created here or supplied via ``ax``.
+
+    Raises:
+        ValueError: If both ``ax`` and ``zoom_to_truth`` are given. The zoom is
+            a second set of axes, so there is nothing sensible to do with one
+            supplied axes: honouring ``ax`` would silently drop the zoom the
+            caller asked for, and honouring the zoom would ignore the axes and
+            return a figure the caller's composite does not contain.
     """
+    if zoom_to_truth and ax is not None:
+        raise ValueError(
+            "zoom_to_truth=True draws two panels and cannot share a single "
+            "supplied ax. Either drop ax to get the two-panel figure, or keep "
+            "ax and call plot_trajectory_2d twice -- once plain, once on a "
+            "second axes you set to the truth extent."
+        )
+
     if not zoom_to_truth:
-        fig, ax = plt.subplots(figsize=(10, 8))
+        owns_figure = ax is None
+        if owns_figure:
+            fig, ax = plt.subplots(figsize=(10, 8))
+        else:
+            fig = ax.figure
         _draw_trajectories(ax, truth_xy, est_xy_dict, anchors_xy, axis_labels)
-        ax.set_title(title, fontsize=14, fontweight="bold")
+        ax.set_title(title, fontsize=14, fontweight=title_fontweight)
         ax.legend(fontsize=10)
         ax.axis("equal")
-        plt.tight_layout()
+        if owns_figure:
+            plt.tight_layout()
         return fig
 
     fig, (ax_full, ax_zoom) = plt.subplots(1, 2, figsize=(15, 7))
@@ -187,7 +222,7 @@ def plot_trajectory_2d(
     ax_zoom.set_ylim(*ylim)
     ax_zoom.set_aspect("equal")
 
-    fig.suptitle(title, fontsize=14, fontweight="bold")
+    fig.suptitle(title, fontsize=14, fontweight=title_fontweight)
     plt.tight_layout()
     return fig
 
