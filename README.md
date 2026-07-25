@@ -150,6 +150,16 @@ Run tests with coverage:
 pytest --cov=core --cov=ch*_* --cov-report=html
 ```
 
+A test run leaves the working tree clean. Some tests run a chapter example end
+to end to check its figures are still produced, so figure output is diverted to
+a temporary directory for the duration of the run rather than overwriting the
+committed figures in `ch*_*/figs/`. Set `IPIN_FIGS_DIR` yourself to send an
+example's figures somewhere other than its chapter:
+
+```bash
+IPIN_FIGS_DIR=/tmp/figs python -m ch5_fingerprinting.example_probabilistic
+```
+
 ## Development Workflow
 
 For each chapter/topic, follow this 5-step process:
