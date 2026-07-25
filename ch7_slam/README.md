@@ -76,7 +76,7 @@ examples only ever reported a final pose and RMSE:
 |--------|-------|
 | `ch7_icp_correspondences` | The correspondence set of (7.11) as lines between the scans, before and after alignment, with the (7.10) objective falling per iteration |
 | `ch7_ndt_voxels` | The per-voxel Gaussians of (7.12)–(7.13) as covariance ellipses. Thin ellipses hug walls, so NDT constrains motion *across* a wall far better than *along* it |
-| `ch7_ndt_score_surface` | The (7.16) objective over translation, sliced at the true yaw. The surface **steps** at voxel boundaries, and two `ndt_align` runs differing only in step size land in different places |
+| `ch7_ndt_score_surface` | The (7.16) objective over translation, sliced at the true yaw, with the Gauss-Newton path drawn on it. The surface **steps** at voxel boundaries — which is why the gradient is taken analytically rather than by finite differences |
 | `ch7_convergence_basin` | Which initial guesses each method recovers from, plus NDT's capture range versus voxel size |
 
 ### Animations
@@ -97,13 +97,20 @@ are committed binaries and git keeps every version forever, so keep them small:
 `core.eval.save_animation` defaults to `dpi=80` and warns above 1.5 MB. For
 scale, tracked figures are already ~19 MB of a 36 MB repository.
 
-> **Worth knowing:** on this data `ndt_align` reaches the optimum at
-> `step_size` 0.05 and 0.5 but stalls at the 0.1 default and at 0.3 — the
-> outcome is not monotonic in step length, and every run reports
-> `converged=True` regardless, because "converged" means the line search
-> stopped improving, not that the answer is right. ICP recovers the same
-> displacement to 0.004 m. The figures show both outcomes rather than hiding
-> the stall.
+> **Worth knowing:** `ndt_align` used to give a `step_size`-dependent answer
+> that was not even monotonic in step length — 0.05 and 0.5 reached the
+> optimum while the 0.1 default and 0.3 stalled about 0.7 m out, and every run
+> reported `converged=True` regardless. The cause was finite-differencing a
+> discontinuous objective: the score steps as points cross voxel boundaries, so
+> a ±ε probe measures those crossings rather than the trend, and its direction
+> could point almost exactly *away* from the optimum. It now uses the analytic
+> gradient with a Gauss-Newton step, so step sizes 0.05–1.0 agree to within a
+> few centimetres and match ICP's 0.004 m; larger steps just converge in fewer
+> iterations.
+> `converged=True` now means the optimizer reached a stationary point — a
+> stalled line search returns `False`. It still does **not** mean the pose is
+> right: past roughly one voxel of displacement Eq. (7.16) has local minima,
+> which is what `ch7_convergence_basin` measures.
 
 ### Command-Line Flags
 

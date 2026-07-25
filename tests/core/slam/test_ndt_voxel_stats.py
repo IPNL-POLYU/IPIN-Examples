@@ -99,7 +99,7 @@ class TestNDTVoxelStats:
 
 
 class TestNDTBasicFunctionality:
-    """Basic functionality tests for NDT (alignment tests limited due to numerical gradient issues)."""
+    """Basic functionality tests for NDT."""
 
     def test_ndt_score_computation(self):
         """Test that NDT score can be computed without crashing."""
@@ -117,13 +117,29 @@ class TestNDTBasicFunctionality:
         assert not np.isinf(score), "NDT score should not be infinite"
         # Note: Score sign depends on implementation details and point distribution
 
-    @pytest.mark.skip(reason="NDT alignment with numerical gradients has convergence issues - needs analytical Jacobians")
-    def test_ndt_alignment_placeholder(self):
-        """Placeholder: NDT alignment needs analytical Jacobians for robust convergence."""
-        # Our simple numerical gradient implementation struggles with convergence
-        # A production NDT would use analytical gradients or better optimization
-        # This is documented in the design doc as a known limitation
-        pass
+    def test_ndt_alignment_from_good_initial_guess(self):
+        """NDT converges to a small transform from a nearby start.
+
+        This was a skipped placeholder while ndt_align differentiated the score
+        with finite differences: on this objective they measure points crossing
+        voxel boundaries rather than the trend, so the optimizer would not
+        converge. ndt_align now uses the analytic gradient and a Gauss-Newton
+        step, so from a good initial guess it settles on the true transform.
+        """
+        np.random.seed(600)
+
+        scan = np.random.rand(150, 2) * 8
+        true_pose = np.array([0.5, 0.5, 0.05])
+        target = se2_apply(true_pose, scan)
+
+        initial_guess = np.array([0.45, 0.45, 0.04])
+        pose, iters, _, converged = ndt_align(
+            scan, target, initial_pose=initial_guess,
+            voxel_size=1.0, max_iterations=50, tolerance=1e-4
+        )
+
+        assert converged, "NDT should converge from a good initial guess"
+        np.testing.assert_allclose(pose, true_pose, atol=0.1)
 
 
 class TestNDTRegressionThresholds:

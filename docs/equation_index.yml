@@ -1791,7 +1791,7 @@
     - "tests/core/slam/test_ndt.py::TestNDTAlign"
     - "tests/core/slam/test_ndt.py::TestNDTGradient"
   verified_by: "tests/core/slam/test_ndt.py::TestNDTAlign::test_pure_translation"
-  notes: "Steepest descent along a unit direction with backtracking line search; central-difference gradient (the score is piecewise-discontinuous across voxel boundaries, so one-sided 1e-6 differences are unusable)."
+  notes: "Damped Gauss-Newton with a backtracking line search on the true score; analytic gradient and Gauss-Newton Hessian, taken at fixed voxel association. The score is piecewise-discontinuous across voxel boundaries, so finite differences measure boundary crossings rather than the trend and their direction can point away from the optimum; within one association the objective is a smooth quadratic, which is the part the step is built from."
 
 # ------------------------------------------------------------------------------
 # Section 7.3.5: Close-Loop Constraints & Pose Graph Optimization

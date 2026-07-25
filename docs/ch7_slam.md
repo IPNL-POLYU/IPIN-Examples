@@ -89,16 +89,24 @@ pose, iterations, score, converged = ndt_align(
 2. Compute Gaussian (μₖ, Σₖ) for each voxel (Eqs. 7.12-7.13)
 3. Transform source points by current pose
 4. Compute negative log-likelihood score (Eqs. 7.14-7.15)
-5. Optimize pose via gradient descent (Eq. 7.16)
+5. Optimize pose via damped Gauss-Newton (Eq. 7.16)
 6. Repeat until convergence
 
 **Key Functions:**
 - `build_ndt_map()` - Implements Eqs. (7.12)-(7.13)
 - `ndt_score()` - Implements Eqs. (7.14)-(7.15)
-- `ndt_gradient()` - Numerical gradient for optimization
+- `ndt_gradient()` - Analytic gradient of Eq. (7.16), at fixed voxel association
 - `ndt_align()` - Implements Eq. (7.16)
 
-**Tests:** `tests/core/slam/test_ndt.py` (31 tests)
+The score is piecewise-discontinuous — a point contributes only while it lies
+inside an occupied voxel, so the value jumps at voxel boundaries. Finite
+differences across such a boundary measure the jump instead of the trend, so
+the gradient is taken analytically; the line search still checks the true
+score, so the discontinuities are never trusted. `converged=True` means the
+optimizer reached a stationary point, not that the pose is correct: NDT's
+capture range is roughly one voxel, and beyond it Eq. (7.16) has local minima.
+
+**Tests:** `tests/core/slam/test_ndt.py` (35 tests)
 
 **Advantages over ICP:**
 - More robust to noise and outliers

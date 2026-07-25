@@ -14,17 +14,23 @@ Four figures:
    as covariance ellipses over the target scan. This is the map ICP does not
    build: NDT replaces point correspondences with a piecewise-Gaussian surface.
 3. ``ch7_ndt_score_surface``   -- the Eq. (7.16) objective over a grid of
-   translations, sliced at the true yaw, with two ndt_align runs marked. The
-   surface *steps* at voxel boundaries, which is why one-sided 1e-6 finite
-   differences reported gradients of ~3.6e4 at the optimum and sent the old
-   ndt_align hundreds of metres away.
+   translations, sliced at the true yaw, with ndt_align runs marked. The
+   surface *steps* at voxel boundaries, and those steps are what made every
+   finite-difference gradient on this objective untrustworthy: a +/-eps probe
+   is dominated by the few points that happen to straddle a boundary and jump
+   in or out of the sum, not by the trend. One-sided 1e-6 differences reported
+   gradients of ~3.6e4 at the optimum and sent an early ndt_align hundreds of
+   metres away; central 1e-3 differences kept it nearby but could still point
+   within 11 degrees of straight *away* from the optimum, which stalled the
+   0.1 and 0.3 runs after three iterations while 0.05 and 0.5 succeeded.
 
-   Those steps still bite. Steepest descent with a backtracking line search
-   reaches the optimum at step_size 0.05 and 0.5, but stalls after three
-   iterations at the 0.1 default and at 0.3 -- the outcome is not monotonic
-   in step length, and every run reports converged=True regardless, because
-   "converged" means the line search stopped improving, not that the answer
-   is right. ICP recovers this same displacement to 0.004 m.
+   The fix is to stop finite-differencing a discontinuous function. Within one
+   voxel association the objective is a smooth quadratic, so ndt_align now uses
+   the analytic gradient and a Gauss-Newton step, and the line search checks
+   the true score before accepting. The step size no longer decides the answer:
+   0.05 through 1.0 all land within a few centimetres of each other and of
+   ICP's result on this pair, and larger steps simply get there in fewer
+   iterations.
 
    The slice is taken at the true yaw deliberately. A yaw = 0 slice looks
    perfectly plausible but scores ~255 where the true pose scores ~32, so it
@@ -34,7 +40,12 @@ Four figures:
    NDT's capture range as a function of voxel size. ICP with a generous
    correspondence gate recovers from nearly anywhere in the sampled range;
    NDT's basin is roughly one voxel wide, and widens monotonically as the
-   voxels grow (measured: 4, 17, 40, 45 of 81 starts for 0.5, 1, 2, 3 m).
+   voxels grow (measured: 21, 52, 60, 72 of 81 starts for 0.5, 1, 2, 3 m).
+
+   That basin is the honest limit of the method, not a bug left to fix. Even a
+   perfect local optimizer cannot escape a local minimum of Eq. (7.16), and
+   past about one voxel of displacement the objective has them; reaching
+   further needs a coarse-to-fine voxel schedule, not a better line search.
 
 Plus one animation, behind ``--animate`` because it is slower to render:
 
@@ -271,14 +282,30 @@ def plot_ndt_score_surface(voxel_size: float = 1.0,
                 source, ndt_map, np.array([dx, dy, true_yaw]), voxel_size
             )
 
-    # Two runs that differ only in step size. On a stepped objective the
-    # outcome is not monotonic in step length: 0.05 and 0.5 both reach the
-    # optimum, while the 0.1 default stalls after three iterations.
-    stalled_pose, stalled_iters, stalled_score, _ = ndt_align(
-        source, target, voxel_size=voxel_size, step_size=0.1
-    )
+    # The Gauss-Newton path, recovered by replaying the alignment one iteration
+    # at a time. ndt_align returns only the final pose, and capping
+    # max_iterations is the honest way to ask it where it was at step k.
     aligned_pose, iterations, final_score, converged = ndt_align(
-        source, target, voxel_size=voxel_size, step_size=0.5
+        source, target, voxel_size=voxel_size
+    )
+    path = np.array(
+        [np.zeros(3)]
+        + [
+            ndt_align(source, target, voxel_size=voxel_size, max_iterations=k)[0]
+            for k in range(1, iterations + 1)
+        ]
+    )
+
+    # Runs that differ only in step size now agree, so report the spread rather
+    # than plotting each one on top of the others.
+    by_step = {
+        step: ndt_align(source, target, voxel_size=voxel_size, step_size=step,
+                        max_iterations=200)[0]
+        for step in (0.05, 0.1, 0.3, 0.5, 1.0)
+    }
+    spread = max(
+        float(np.linalg.norm(a[:2] - b[:2]))
+        for a in by_step.values() for b in by_step.values()
     )
 
     fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.6))
@@ -287,15 +314,14 @@ def plot_ndt_score_surface(voxel_size: float = 1.0,
         offsets, offsets, scores, shading="auto", cmap="viridis"
     )
     fig.colorbar(mesh, ax=axes[0], label="NDT score (lower is better)")
+    axes[0].plot(path[:, 0], path[:, 1], "-o", color="#ff7f0e", markersize=4,
+                 linewidth=1.4, markeredgecolor="k", markeredgewidth=0.4,
+                 label=f"Gauss-Newton path ({iterations} iters)")
     axes[0].plot(TRUE_MOTION[0], TRUE_MOTION[1], "*", color="white",
                  markersize=16, markeredgecolor="k",
                  label="true alignment")
     axes[0].plot(aligned_pose[0], aligned_pose[1], "o", color="#d62728",
-                 markersize=8, markeredgecolor="k",
-                 label="ndt_align, step 0.5 (converges)")
-    axes[0].plot(stalled_pose[0], stalled_pose[1], "X", color="#ff00ff",
-                 markersize=10, markeredgecolor="k",
-                 label="ndt_align, step 0.1 (stalls)")
+                 markersize=8, markeredgecolor="k", label="ndt_align result")
     axes[0].plot(0.0, 0.0, "s", color="#ff7f0e", markersize=8,
                  markeredgecolor="k", label="initial guess")
     axes[0].set_xlabel("translation x [m]")
@@ -303,9 +329,8 @@ def plot_ndt_score_surface(voxel_size: float = 1.0,
     axes[0].set_title(
         f"Eq. (7.16) objective over translation, sliced at the true yaw "
         f"({np.rad2deg(true_yaw):.0f} deg)\n"
-        f"step 0.5: {iterations} iters, score {final_score:.1f}   |   "
-        f"step 0.1: {stalled_iters} iters, score {stalled_score:.0f} "
-        f"(both report converged)",
+        f"{iterations} iterations to score {final_score:.1f}; step sizes 0.05 "
+        f"to 1.0 agree to {spread:.3f} m",
         fontsize=10,
     )
     axes[0].legend(fontsize=8, loc="upper right")
@@ -331,9 +356,9 @@ def plot_ndt_score_surface(voxel_size: float = 1.0,
     )
 
     fig.suptitle(
-        "NDT, Section 7.3.2: on a stepped objective the step size decides the "
-        "answer, and not monotonically -- 0.05 and 0.5 reach the optimum, 0.1 "
-        "and 0.3 stall",
+        "NDT, Section 7.3.2: the objective steps at voxel boundaries, so the "
+        "gradient is taken analytically rather than by finite differences -- "
+        "the step size then sets only the pace, not the answer",
         fontsize=11,
     )
     fig.tight_layout()
