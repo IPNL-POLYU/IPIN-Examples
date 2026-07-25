@@ -22,6 +22,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Import Chapter 6 sensor algorithms
+from core.eval import save_figure
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -143,16 +144,17 @@ def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state, frame,
                       lat_rad=np.deg2rad(45.0)):
     """
     Run pure IMU strapdown integration (no corrections).
-    
+
     Args:
         t: Time array [s], shape (N,).
         accel_meas: Measured acceleration [m/s²], shape (N, 3).
         gyro_meas: Measured angular velocity [rad/s], shape (N, 3).
         initial_state: Initial NavStateQPVP.
         frame: Frame convention.
-        lat_rad: Latitude [rad] for the Eq. (6.8) gravity model. Must match
-            the latitude the trajectory was generated at.
-    
+        lat_rad: Latitude [rad] for the Eq. (6.8) gravity model. Must match the
+            latitude the trajectory was generated at, or the integrated gravity
+            will not cancel the simulated specific force.
+
     Returns:
         Tuple of (pos_est, vel_est, quat_est).
     """
@@ -271,9 +273,8 @@ def plot_results(t, pos_true, pos_est, vel_true, vel_est, quat_true, quat_est, f
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
     plt.tight_layout()
-    fig1.savefig(figs_dir / 'imu_strapdown_trajectory.svg', dpi=300, bbox_inches='tight')
-    fig1.savefig(figs_dir / 'imu_strapdown_trajectory.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'imu_strapdown_trajectory.svg'}")
+    paths = save_figure(fig1, figs_dir, 'imu_strapdown_trajectory')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 2: Position Error vs Time
     fig2, ax2 = plt.subplots(figsize=(12, 6))
@@ -284,9 +285,8 @@ def plot_results(t, pos_true, pos_est, vel_true, vel_est, quat_true, quat_est, f
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim([0, t[-1]])
     plt.tight_layout()
-    fig2.savefig(figs_dir / 'imu_strapdown_error_time.svg', dpi=300, bbox_inches='tight')
-    fig2.savefig(figs_dir / 'imu_strapdown_error_time.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'imu_strapdown_error_time.svg'}")
+    paths = save_figure(fig2, figs_dir, 'imu_strapdown_error_time')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 3: Attitude Evolution
     fig3, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
@@ -312,9 +312,8 @@ def plot_results(t, pos_true, pos_est, vel_true, vel_est, quat_true, quat_est, f
     axes[2].grid(True, alpha=0.3)
     
     plt.tight_layout()
-    fig3.savefig(figs_dir / 'imu_strapdown_attitude.svg', dpi=300, bbox_inches='tight')
-    fig3.savefig(figs_dir / 'imu_strapdown_attitude.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'imu_strapdown_attitude.svg'}")
+    paths = save_figure(fig3, figs_dir, 'imu_strapdown_attitude')
+    print(f"  [OK] Saved: {paths[0]}")
     
     plt.close('all')
     

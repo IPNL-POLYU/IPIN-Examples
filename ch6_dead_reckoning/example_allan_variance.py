@@ -23,6 +23,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import save_figure
 from core.sensors import (
     allan_variance,
     characterize_imu_noise,
@@ -231,9 +232,8 @@ def plot_allan_deviation_components(
     
     plt.tight_layout()
     filename = f'allan_{sensor_type.lower()}_{grade}_debug_components'
-    fig.savefig(figs_dir / f'{filename}.svg', dpi=300, bbox_inches='tight')
-    fig.savefig(figs_dir / f'{filename}.pdf', bbox_inches='tight')
-    print(f"  [DEBUG] Saved: {figs_dir / filename}.svg")
+    paths = save_figure(fig, figs_dir, filename)
+    print(f"  [DEBUG] Saved: {paths[0]}")
     
     plt.close(fig)
 
@@ -281,9 +281,8 @@ def plot_allan_deviation(taus, adev, noise_params, sensor_type, grade, figs_dir)
     
     plt.tight_layout()
     filename = f'allan_{sensor_type.lower()}_{grade}'
-    fig.savefig(figs_dir / f'{filename}.svg', dpi=300, bbox_inches='tight')
-    fig.savefig(figs_dir / f'{filename}.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / filename}.svg")
+    paths = save_figure(fig, figs_dir, filename)
+    print(f"  [OK] Saved: {paths[0]}")
     
     plt.close(fig)
 

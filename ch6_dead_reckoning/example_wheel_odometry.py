@@ -23,6 +23,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import save_figure
 from core.sensors import wheel_odom_update, NavStateQPVP
 
 
@@ -180,9 +181,8 @@ def plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir):
     ax.grid(True, alpha=0.3)
     ax.axis('equal')
     plt.tight_layout()
-    fig1.savefig(figs_dir / 'wheel_odom_trajectory.svg', dpi=300, bbox_inches='tight')
-    fig1.savefig(figs_dir / 'wheel_odom_trajectory.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'wheel_odom_trajectory.svg'}")
+    paths = save_figure(fig1, figs_dir, 'wheel_odom_trajectory')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 2: Error
     fig2, ax = plt.subplots(figsize=(12, 6))
@@ -195,9 +195,8 @@ def plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir):
     ax.grid(True, alpha=0.3)
     ax.set_xlim([0, t[-1]])
     plt.tight_layout()
-    fig2.savefig(figs_dir / 'wheel_odom_error.svg', dpi=300, bbox_inches='tight')
-    fig2.savefig(figs_dir / 'wheel_odom_error.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'wheel_odom_error.svg'}")
+    paths = save_figure(fig2, figs_dir, 'wheel_odom_error')
+    print(f"  [OK] Saved: {paths[0]}")
     
     plt.close('all')
     return error_odom, error_slip

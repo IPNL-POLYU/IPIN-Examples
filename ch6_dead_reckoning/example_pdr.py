@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import Dict, Optional
 
+from core.eval import save_figure
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -350,9 +351,8 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     
     plt.tight_layout()
     
-    output_file = figs_dir / 'pdr_dataset_results.svg'
-    fig.savefig(output_file, dpi=300, bbox_inches='tight')
-    print(f"  [OK] Saved: {output_file}")
+    paths = save_figure(fig, figs_dir, 'pdr_dataset_results')
+    print(f"  [OK] Saved: {paths[0]}")
     
     plt.show()
     
@@ -667,9 +667,8 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     ax.grid(True, alpha=0.3)
     ax.axis('equal')
     plt.tight_layout()
-    fig1.savefig(figs_dir / 'pdr_trajectory.svg', dpi=300, bbox_inches='tight')
-    fig1.savefig(figs_dir / 'pdr_trajectory.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'pdr_trajectory.svg'}")
+    paths = save_figure(fig1, figs_dir, 'pdr_trajectory')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 2: Heading comparison
     fig2, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
@@ -693,9 +692,8 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     ax2.set_xlim([0, t[-1]])
     
     plt.tight_layout()
-    fig2.savefig(figs_dir / 'pdr_heading.svg', dpi=300, bbox_inches='tight')
-    fig2.savefig(figs_dir / 'pdr_heading.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'pdr_heading.svg'}")
+    paths = save_figure(fig2, figs_dir, 'pdr_heading')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 3: Position error
     fig3, ax = plt.subplots(figsize=(12, 6))
@@ -708,9 +706,8 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     ax.grid(True, alpha=0.3)
     ax.set_xlim([0, t[-1]])
     plt.tight_layout()
-    fig3.savefig(figs_dir / 'pdr_error.svg', dpi=300, bbox_inches='tight')
-    fig3.savefig(figs_dir / 'pdr_error.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'pdr_error.svg'}")
+    paths = save_figure(fig3, figs_dir, 'pdr_error')
+    print(f"  [OK] Saved: {paths[0]}")
     
     plt.close('all')
     

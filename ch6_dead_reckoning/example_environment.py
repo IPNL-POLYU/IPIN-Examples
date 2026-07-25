@@ -22,6 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import save_figure
 from core.sensors import (
     mag_heading,
     mag_tilt_compensate,
@@ -194,9 +195,8 @@ def plot_results(t, att_true, mag_meas, heading_est, pressure_meas, alt_est,
     ax2.set_xlim([0, t[-1]])
     
     plt.tight_layout()
-    fig1.savefig(figs_dir / 'environment_mag_heading.svg', dpi=300, bbox_inches='tight')
-    fig1.savefig(figs_dir / 'environment_mag_heading.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'environment_mag_heading.svg'}")
+    paths = save_figure(fig1, figs_dir, 'environment_mag_heading')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 2: Barometric altitude and floor detection
     fig2, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
@@ -219,9 +219,8 @@ def plot_results(t, att_true, mag_meas, heading_est, pressure_meas, alt_est,
     ax2.set_xlim([0, t[-1]])
     
     plt.tight_layout()
-    fig2.savefig(figs_dir / 'environment_baro_altitude.svg', dpi=300, bbox_inches='tight')
-    fig2.savefig(figs_dir / 'environment_baro_altitude.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'environment_baro_altitude.svg'}")
+    paths = save_figure(fig2, figs_dir, 'environment_baro_altitude')
+    print(f"  [OK] Saved: {paths[0]}")
     
     plt.close('all')
     

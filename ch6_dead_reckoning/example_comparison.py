@@ -19,6 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import save_figure
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -314,9 +315,8 @@ def plot_comparison(t, pos_true, results, figs_dir):
     ax.grid(True, alpha=0.3)
     ax.axis('equal')
     plt.tight_layout()
-    fig1.savefig(figs_dir / 'comparison_trajectories.svg', dpi=300, bbox_inches='tight')
-    fig1.savefig(figs_dir / 'comparison_trajectories.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'comparison_trajectories.svg'}")
+    paths = save_figure(fig1, figs_dir, 'comparison_trajectories')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 2: Error vs time
     fig2, ax = plt.subplots(figsize=(14, 7))
@@ -334,9 +334,8 @@ def plot_comparison(t, pos_true, results, figs_dir):
     ax.set_xlim([0, t[-1]])
     ax.set_yscale('log')
     plt.tight_layout()
-    fig2.savefig(figs_dir / 'comparison_error_time.svg', dpi=300, bbox_inches='tight')
-    fig2.savefig(figs_dir / 'comparison_error_time.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'comparison_error_time.svg'}")
+    paths = save_figure(fig2, figs_dir, 'comparison_error_time')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 3: Error CDF
     fig3, ax = plt.subplots(figsize=(12, 7))
@@ -356,9 +355,8 @@ def plot_comparison(t, pos_true, results, figs_dir):
     ax.set_xlim(left=0)
     ax.set_ylim([0, 100])
     plt.tight_layout()
-    fig3.savefig(figs_dir / 'comparison_error_cdf.svg', dpi=300, bbox_inches='tight')
-    fig3.savefig(figs_dir / 'comparison_error_cdf.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'comparison_error_cdf.svg'}")
+    paths = save_figure(fig3, figs_dir, 'comparison_error_cdf')
+    print(f"  [OK] Saved: {paths[0]}")
     
     plt.close('all')
     

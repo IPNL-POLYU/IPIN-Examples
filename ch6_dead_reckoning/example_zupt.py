@@ -22,7 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_animation
+from core.eval import save_animation, save_figure
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -358,9 +358,8 @@ def plot_results(t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
     plt.tight_layout()
-    fig1.savefig(figs_dir / 'zupt_trajectory.svg', dpi=300, bbox_inches='tight')
-    fig1.savefig(figs_dir / 'zupt_trajectory.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'zupt_trajectory.svg'}")
+    paths = save_figure(fig1, figs_dir, 'zupt_trajectory')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 2: Position error comparison
     fig2, ax2 = plt.subplots(figsize=(12, 6))
@@ -375,9 +374,8 @@ def plot_results(t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim([0, t[-1]])
     plt.tight_layout()
-    fig2.savefig(figs_dir / 'zupt_error_time.svg', dpi=300, bbox_inches='tight')
-    fig2.savefig(figs_dir / 'zupt_error_time.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'zupt_error_time.svg'}")
+    paths = save_figure(fig2, figs_dir, 'zupt_error_time')
+    print(f"  [OK] Saved: {paths[0]}")
     
     # Figure 3: ZUPT detector performance
     fig3, (ax3a, ax3b) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
@@ -407,9 +405,8 @@ def plot_results(t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
     ax3b.set_xlim([0, t[-1]])
     
     plt.tight_layout()
-    fig3.savefig(figs_dir / 'zupt_detector_timeline.svg', dpi=300, bbox_inches='tight')
-    fig3.savefig(figs_dir / 'zupt_detector_timeline.pdf', bbox_inches='tight')
-    print(f"  [OK] Saved: {figs_dir / 'zupt_detector_timeline.svg'}")
+    paths = save_figure(fig3, figs_dir, 'zupt_detector_timeline')
+    print(f"  [OK] Saved: {paths[0]}")
     
     plt.close('all')
     
