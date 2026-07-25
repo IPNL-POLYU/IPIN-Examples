@@ -139,7 +139,8 @@ def add_imu_noise(accel_true, gyro_true, dt, imu_params: IMUNoiseParams):
     return accel_meas, gyro_meas, accel_bias, gyro_bias
 
 
-def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state, frame):
+def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state, frame,
+                      lat_rad=np.deg2rad(45.0)):
     """
     Run pure IMU strapdown integration (no corrections).
     
@@ -149,6 +150,8 @@ def run_imu_strapdown(t, accel_meas, gyro_meas, initial_state, frame):
         gyro_meas: Measured angular velocity [rad/s], shape (N, 3).
         initial_state: Initial NavStateQPVP.
         frame: Frame convention.
+        lat_rad: Latitude [rad] for the Eq. (6.8) gravity model. Must match
+            the latitude the trajectory was generated at.
     
     Returns:
         Tuple of (pos_est, vel_est, quat_est).
@@ -378,7 +381,7 @@ def main():
     print("\nRunning IMU strapdown integration (no corrections)...")
     start_time = time.time()
     pos_est, vel_est, quat_est = run_imu_strapdown(
-        t, accel_meas, gyro_meas, initial_state, frame
+        t, accel_meas, gyro_meas, initial_state, frame, lat_rad=lat_rad
     )
     elapsed = time.time() - start_time
     print(f"  Computation time: {elapsed:.3f} s ({len(t)/elapsed:.0f}x real-time)")
