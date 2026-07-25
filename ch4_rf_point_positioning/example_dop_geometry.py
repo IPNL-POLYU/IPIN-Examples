@@ -36,7 +36,10 @@ Run:
     python -m ch4_rf_point_positioning.example_dop_geometry --animate
 
 Author: Li-Ta Hsu
-References: Chapter 4, Section 4.5 (dilution of precision), Eqs. (4.30)-(4.33)
+References: Chapter 4, Section 4.5.3 (distribution of beacons),
+            Eqs. (4.104)-(4.108). The claim this example measures -- that
+            GDOP times the range noise predicts the position error -- is
+            (4.105)/(4.107); the HDOP/VDOP split is (4.108).
 """
 
 import argparse

@@ -1113,19 +1113,81 @@
   verified_by: "tests/core/rf/test_positioning.py"
   notes: "Eqs. 4.92-4.95."
 
-# --- DOP (Dilution of Precision) ---
+# --- DOP (Dilution of Precision), Section 4.5.3 ---
 - eq: "Eq. (4.18)"
   chapter: 4
-  description: "Geometry matrix H and DOP metrics (GDOP/PDOP/HDOP/VDOP)"
+  description: "Jacobian / geometry matrix row h_i for beacon i"
   files:
     - path: "core/rf/dop.py"
       object: "compute_geometry_matrix"
+  tests:
+    - "tests/core/rf/test_dop.py::TestGeometryMatrix"
+  verified_by: "tests/core/rf/test_dop.py::TestGeometryMatrix"
+  notes: "Unit line-of-sight vectors stacked into H; the same geometry matrix the LS solver uses. This is the geometry matrix ONLY -- the DOP metrics built from it are (4.104)-(4.108), indexed separately below."
+
+- eq: "Eq. (4.104)"
+  chapter: 4
+  description: "Total position variance as the trace of the state covariance"
+  files:
     - path: "core/rf/dop.py"
       object: "compute_dop"
   tests:
-    - "tests/core/rf/test_dop.py"
-  verified_by: "tests/core/rf/test_dop.py"
-  notes: "DOP from diag((H^T H)^-1); same geometry matrix as the LS solver."
+    - "tests/core/rf/test_dop.py::TestDOP"
+  verified_by: "tests/core/rf/test_dop.py::TestBookDOPFormulas"
+  notes: "sigma_enu^2 = sigma_e^2 + sigma_n^2 + sigma_u^2 = tr(C(x)). The sum-of-variances that GDOP summarises."
+
+- eq: "Eq. (4.105)"
+  chapter: 4
+  description: "Position sigma as sqrt(tr((H^T H)^-1)) times the measurement sigma"
+  files:
+    - path: "core/rf/dop.py"
+      object: "compute_dop"
+    - path: "core/rf/dop.py"
+      object: "position_error_from_dop"
+    - path: "ch4_rf_point_positioning/example_dop_geometry.py"
+      object: "main"
+  tests:
+    - "tests/core/rf/test_dop.py::TestBookDOPFormulas"
+  verified_by: "tests/core/rf/test_dop.py::TestBookDOPFormulas"
+  notes: "The predictive form: geometry alone sets the multiplier on measurement noise. example_dop_geometry measures it against a Monte-Carlo TOA solve and the two agree to a mean 3.5%."
+
+- eq: "Eq. (4.106)"
+  chapter: 4
+  description: "Components k_xexe ... k_xuxu of (H^T H)^-1"
+  files:
+    - path: "core/rf/dop.py"
+      object: "compute_dop"
+  tests:
+    - "tests/core/rf/test_dop.py::TestDOP"
+  verified_by: "tests/core/rf/test_dop.py::TestBookDOPFormulas"
+  notes: "Names the diagonal entries the DOP variants select from. The printed book carries an unresolved author query here -- '{AU: Is this the correct equation? Do you mean (4.77)?}' -- a proof artifact, not a maths error."
+
+- eq: "Eq. (4.107)"
+  chapter: 4
+  description: "GDOP: sigma_enu = sqrt(k_xexe + k_xnxn + k_xuxu) * sigma_z"
+  files:
+    - path: "core/rf/dop.py"
+      object: "compute_dop"
+    - path: "core/rf/dop.py"
+      object: "position_error_from_dop"
+    - path: "ch4_rf_point_positioning/example_dop_geometry.py"
+      object: "main"
+  tests:
+    - "tests/core/rf/test_dop.py::TestBookDOPFormulas"
+  verified_by: "tests/core/rf/test_dop.py::TestBookDOPFormulas"
+  notes: "The DOP factor proper: it dilutes measurement uncertainty into position uncertainty. Verified across a walk where GDOP runs 2.7 to 17.7 and the error grows sixfold with an optimal solver and fixed noise."
+
+- eq: "Eq. (4.108)"
+  chapter: 4
+  description: "HDOP and VDOP, the horizontal and vertical splits of GDOP"
+  files:
+    - path: "core/rf/dop.py"
+      object: "compute_dop"
+  tests:
+    - "tests/core/rf/test_dop.py::TestDOP"
+    - "tests/core/rf/test_dop.py::TestDOPComparisons"
+  verified_by: "tests/core/rf/test_dop.py::TestBookDOPFormulas::test_hdop_vdop_book_eq_4108"
+  notes: "Same k components, partitioned by direction: HDOP takes east+north, VDOP takes up."
 
 # ==============================================================================
 # Chapter 5: Fingerprinting-based Indoor Positioning

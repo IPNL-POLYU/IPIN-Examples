@@ -351,7 +351,8 @@ def plot_ndt_score_surface(voxel_size: float = 1.0,
         "Slice through the optimum. The basin is deep and clean, but the\n"
         "surface steps: points cross voxel boundaries and ndt_score divides\n"
         "by the number matched, so the value jumps (note x = -0.45).\n"
-        "Finite differences have to straddle those steps to mean anything.",
+        "No finite difference can tell a step from a slope -- hence the\n"
+        "analytic gradient, taken at fixed voxel association.",
         fontsize=9.5,
     )
 
