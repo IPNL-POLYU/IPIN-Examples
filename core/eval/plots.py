@@ -24,6 +24,7 @@ def plot_trajectory_2d(
     est_xy_dict: Dict[str, np.ndarray],
     anchors_xy: Optional[np.ndarray] = None,
     title: str = "2D Trajectory",
+    axis_labels: Tuple[str, str] = ("X (m)", "Y (m)"),
 ) -> plt.Figure:
     """
     Plot 2D trajectory with true and estimated paths.
@@ -33,6 +34,10 @@ def plot_trajectory_2d(
         est_xy_dict: Dictionary of estimated trajectories {name: array}
         anchors_xy: Anchor positions, shape (M, 2) (optional)
         title: Plot title
+        axis_labels: Axis labels as (x, y). Pass ("East [m]", "North [m]") for
+            a local-level frame; the default is frame-agnostic. Chapters that
+            plot in ENU were previously hand-rolling this whole function purely
+            to relabel the axes.
 
     Returns:
         fig: Matplotlib figure
@@ -94,8 +99,8 @@ def plot_trajectory_2d(
             zorder=5,
         )
 
-    ax.set_xlabel("X (m)", fontsize=12)
-    ax.set_ylabel("Y (m)", fontsize=12)
+    ax.set_xlabel(axis_labels[0], fontsize=12)
+    ax.set_ylabel(axis_labels[1], fontsize=12)
     ax.set_title(title, fontsize=14, fontweight="bold")
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
@@ -157,6 +162,81 @@ def plot_position_error_time(
         ax.axhline(y=0, color="k", linestyle="--", linewidth=0.8, alpha=0.5)
 
     fig.suptitle(title, fontsize=14, fontweight="bold", y=1.0)
+    plt.tight_layout()
+    return fig
+
+
+def plot_error_magnitude_time(
+    errors_dict: Dict[str, np.ndarray],
+    t: Optional[np.ndarray] = None,
+    dt: float = 1.0,
+    title: str = "Position Error vs Time",
+    log_scale: bool = False,
+    max_decades: float = 4.0,
+) -> plt.Figure:
+    """
+    Plot the *magnitude* of position error over time, one line per method.
+
+    Distinct from ``plot_position_error_time``, which breaks the error into one
+    subplot per axis. When methods are being compared against each other, the
+    scalar ‖error‖ on a single pair of axes is what shows the ranking, and that
+    is what the chapters kept writing by hand -- the per-axis view answers a
+    different question (which direction is drifting).
+
+    Args:
+        errors_dict: {name: error array}, shape (N, 2) or (N, 3) for a vector
+            error, or (N,) if the magnitude is already computed.
+        t: Time vector, shape (N,). If None, built from ``dt``.
+        dt: Time step, used only when ``t`` is None.
+        title: Plot title.
+        log_scale: Use a logarithmic y-axis. Worth it when the methods differ by
+            orders of magnitude -- unaided dead reckoning against a corrected
+            solution, for instance, where a linear axis flattens the good one
+            onto the baseline.
+        max_decades: On a log axis, how many decades below the peak error to
+            show. A run initialised at ground truth starts at essentially zero
+            error, and matplotlib will happily open the axis to 1e-5 to fit that
+            first sample, squeezing every curve into the top third of the figure
+            -- which is what the hand-rolled versions of this plot all did. The
+            startup ramp carries no information, so the axis is clamped.
+
+    Returns:
+        fig: Matplotlib figure
+    """
+    fig, ax = plt.subplots(figsize=(12, 6))
+
+    colors = ["blue", "red", "green", "orange", "purple"]
+    linestyles = ["-", "--", "-.", ":", "-"]
+    peak = 0.0
+
+    for i, (name, errors) in enumerate(errors_dict.items()):
+        errors = np.asarray(errors)
+        magnitudes = (
+            np.linalg.norm(errors, axis=1) if errors.ndim > 1 else np.abs(errors)
+        )
+        time = np.arange(len(magnitudes)) * dt if t is None else np.asarray(t)
+        peak = max(peak, float(np.max(magnitudes)) if magnitudes.size else 0.0)
+
+        ax.plot(
+            time,
+            magnitudes,
+            label=name,
+            color=colors[i % len(colors)],
+            linestyle=linestyles[i % len(linestyles)],
+            linewidth=2,
+        )
+
+    ax.set_xlabel("Time (s)", fontsize=12)
+    ax.set_ylabel("Position Error (m)", fontsize=12)
+    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.legend(fontsize=10)
+    ax.grid(True, alpha=0.3)
+    ax.set_xlim(left=float(np.min(time)), right=float(np.max(time)))
+    if log_scale:
+        ax.set_yscale("log")
+        if peak > 0.0:
+            ax.set_ylim(bottom=peak / (10.0**max_decades), top=peak * 2.0)
+
     plt.tight_layout()
     return fig
 

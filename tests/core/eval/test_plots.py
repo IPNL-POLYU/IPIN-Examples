@@ -18,7 +18,9 @@ import pytest
 
 from core.coords import euler_to_rotation_matrix
 from core.eval import (
+    plot_error_magnitude_time,
     plot_frame_3d,
+    plot_trajectory_2d,
     save_animation,
     save_figure,
     set_axes_equal_3d,
@@ -181,6 +183,99 @@ class TestSaveFigure:
             assert lhs.read_bytes() == rhs.read_bytes(), (
                 f"{lhs.suffix} output is not reproducible"
             )
+
+
+class TestPlotTrajectory2D:
+    """Test the trajectory primitive's frame flexibility."""
+
+    def test_axis_labels_are_configurable(self):
+        """Chapters plotting in ENU need East/North, not X/Y.
+
+        Hardcoded "X (m)"/"Y (m)" was the only thing standing between the
+        Chapter 6 comparison example and reusing this function, so it had
+        reimplemented the whole plot locally.
+        """
+        truth = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]])
+        est = {"method": truth + 0.1}
+
+        fig = plot_trajectory_2d(
+            truth, est, axis_labels=("East [m]", "North [m]")
+        )
+        try:
+            axes = fig.axes[0]
+            assert axes.get_xlabel() == "East [m]"
+            assert axes.get_ylabel() == "North [m]"
+        finally:
+            plt.close(fig)
+
+    def test_default_axis_labels_are_frame_agnostic(self):
+        """Existing callers keep the previous labels."""
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+
+        fig = plot_trajectory_2d(truth, {"m": truth})
+        try:
+            assert fig.axes[0].get_xlabel() == "X (m)"
+        finally:
+            plt.close(fig)
+
+
+class TestPlotErrorMagnitudeTime:
+    """Test the error-magnitude primitive.
+
+    Distinct from plot_position_error_time, which splits the error per axis.
+    Every chapter that compares methods wanted the scalar magnitude and so
+    wrote it by hand -- 43 sites computed norm(est - truth, axis=1).
+    """
+
+    def test_accepts_vector_and_scalar_errors(self):
+        """(N, 2) vectors are normed; (N,) magnitudes are taken as given."""
+        vector = np.array([[3.0, 4.0], [6.0, 8.0]])
+
+        fig = plot_error_magnitude_time({"vec": vector, "scalar": np.array([5.0, 10.0])})
+        try:
+            lines = fig.axes[0].lines
+            assert len(lines) == 2
+            # norm([3,4]) = 5, norm([6,8]) = 10 -- both series coincide.
+            np.testing.assert_allclose(lines[0].get_ydata(), [5.0, 10.0])
+            np.testing.assert_allclose(lines[1].get_ydata(), [5.0, 10.0])
+        finally:
+            plt.close(fig)
+
+    def test_uses_supplied_time_vector(self):
+        """A non-uniform or offset time base must be honoured, not re-derived."""
+        t = np.array([10.0, 12.5, 20.0])
+
+        fig = plot_error_magnitude_time({"m": np.array([1.0, 2.0, 3.0])}, t=t)
+        try:
+            np.testing.assert_allclose(fig.axes[0].lines[0].get_xdata(), t)
+        finally:
+            plt.close(fig)
+
+    def test_log_scale_clamps_the_axis_to_max_decades(self):
+        """A run starting at ground truth must not open the axis to 1e-5.
+
+        The hand-rolled versions all did: error starts near zero, matplotlib
+        fits it, and every curve is squeezed into the top third of the figure.
+        """
+        errors = {"m": np.array([1e-9, 1.0, 500.0])}
+
+        fig = plot_error_magnitude_time(errors, log_scale=True, max_decades=4.0)
+        try:
+            bottom, top = fig.axes[0].get_ylim()
+            assert bottom == pytest.approx(500.0 / 1e4)
+            assert top == pytest.approx(1000.0)
+            # ...and the near-zero sample is excluded rather than driving the axis.
+            assert bottom > 1e-9
+        finally:
+            plt.close(fig)
+
+    def test_linear_scale_leaves_the_axis_alone(self):
+        """The clamp is a log-axis concern only."""
+        fig = plot_error_magnitude_time({"m": np.array([0.0, 1.0])}, log_scale=False)
+        try:
+            assert fig.axes[0].get_yscale() == "linear"
+        finally:
+            plt.close(fig)
 
 
 class TestSaveAnimation:

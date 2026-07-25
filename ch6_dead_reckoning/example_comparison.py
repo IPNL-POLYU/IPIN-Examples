@@ -19,7 +19,12 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import (
+    plot_error_cdf,
+    plot_error_magnitude_time,
+    plot_trajectory_2d,
+    save_figure,
+)
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -293,71 +298,45 @@ def run_pdr(t, accel, gyro, mag, height=1.75):
 
 
 def plot_comparison(t, pos_true, results, figs_dir):
-    """Generate comprehensive comparison plots."""
-    
-    # Figure 1: All trajectories
-    fig1, ax = plt.subplots(figsize=(14, 10))
-    ax.plot(pos_true[:, 0], pos_true[:, 1], 'k-', linewidth=3, label='True Trajectory', zorder=1)
-    
-    colors = ['red', 'green', 'blue', 'orange']
-    styles = ['--', '-', '-.', ':']
-    
-    for i, (name, pos) in enumerate(results.items()):
-        ax.plot(pos[:, 0], pos[:, 1], color=colors[i], linestyle=styles[i], 
-                linewidth=2, alpha=0.8, label=name, zorder=2+i)
-    
-    ax.scatter(0, 0, c='lime', s=200, marker='o', edgecolors='black', linewidth=2, 
-               label='Start', zorder=10)
-    ax.set_xlabel('East [m]', fontsize=13)
-    ax.set_ylabel('North [m]', fontsize=13)
-    ax.set_title('Chapter 6 Comparison: All Dead Reckoning Methods', fontsize=15, fontweight='bold')
-    ax.legend(fontsize=11, loc='best')
-    ax.grid(True, alpha=0.3)
-    ax.axis('equal')
-    plt.tight_layout()
+    """Generate comprehensive comparison plots.
+
+    All three figures come from core.eval primitives rather than hand-rolled
+    axes: the trajectory overlay, the error-magnitude history and the error CDF
+    are the same plots every chapter needs, and keeping them shared means a
+    styling or correctness fix lands everywhere at once.
+    """
+    # Errors are shared by figures 2 and 3, so compute them once.
+    errors = {name: pos[:, :2] - pos_true[:, :2] for name, pos in results.items()}
+
+    # Figure 1: all trajectories, in the local-level frame.
+    fig1 = plot_trajectory_2d(
+        pos_true[:, :2],
+        {name: pos[:, :2] for name, pos in results.items()},
+        title='Chapter 6 Comparison: All Dead Reckoning Methods',
+        axis_labels=('East [m]', 'North [m]'),
+    )
     paths = save_figure(fig1, figs_dir, 'comparison_trajectories')
     print(f"  [OK] Saved: {paths[0]}")
-    
-    # Figure 2: Error vs time
-    fig2, ax = plt.subplots(figsize=(14, 7))
-    
-    for i, (name, pos) in enumerate(results.items()):
-        error = np.linalg.norm(pos - pos_true, axis=1)
-        ax.plot(t, error, color=colors[i], linestyle=styles[i], 
-                linewidth=2, label=name)
-    
-    ax.set_xlabel('Time [s]', fontsize=13)
-    ax.set_ylabel('Position Error [m]', fontsize=13)
-    ax.set_title('Chapter 6 Comparison: Position Error vs Time', fontsize=15, fontweight='bold')
-    ax.legend(fontsize=11)
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim([0, t[-1]])
-    ax.set_yscale('log')
-    plt.tight_layout()
+
+    # Figure 2: error magnitude over time. Log scale because unaided IMU drift
+    # and a ZUPT-corrected solution differ by orders of magnitude, and a linear
+    # axis flattens the corrected one onto the baseline.
+    fig2 = plot_error_magnitude_time(
+        errors,
+        t=t,
+        title='Chapter 6 Comparison: Position Error vs Time',
+        log_scale=True,
+    )
     paths = save_figure(fig2, figs_dir, 'comparison_error_time')
     print(f"  [OK] Saved: {paths[0]}")
-    
-    # Figure 3: Error CDF
-    fig3, ax = plt.subplots(figsize=(12, 7))
-    
-    for i, (name, pos) in enumerate(results.items()):
-        error = np.linalg.norm(pos - pos_true, axis=1)
-        sorted_err = np.sort(error)
-        cdf = np.arange(1, len(sorted_err)+1) / len(sorted_err)
-        ax.plot(sorted_err, cdf*100, color=colors[i], linestyle=styles[i],
-                linewidth=2, label=name)
-    
-    ax.set_xlabel('Position Error [m]', fontsize=13)
-    ax.set_ylabel('CDF [%]', fontsize=13)
-    ax.set_title('Chapter 6 Comparison: Error CDF', fontsize=15, fontweight='bold')
-    ax.legend(fontsize=11)
-    ax.grid(True, alpha=0.3)
-    ax.set_xlim(left=0)
-    ax.set_ylim([0, 100])
-    plt.tight_layout()
+
+    # Figure 3: error CDF.
+    fig3 = plot_error_cdf(
+        errors, title='Chapter 6 Comparison: Error CDF'
+    )
     paths = save_figure(fig3, figs_dir, 'comparison_error_cdf')
     print(f"  [OK] Saved: {paths[0]}")
-    
+
     plt.close('all')
     
     # Compute metrics
