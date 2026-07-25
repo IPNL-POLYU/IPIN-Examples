@@ -41,6 +41,10 @@ from core.sensors import (
 )
 from core.sim import generate_imu_from_trajectory
 
+# Seed for the sensor-noise draws. Fixed so the committed figures can be
+# regenerated exactly; see add_sensor_noise.
+DEFAULT_SEED = 42
+
 
 def generate_mixed_trajectory(duration=120.0, dt=0.01, frame=None):
     """
@@ -172,30 +176,55 @@ def generate_mixed_trajectory(duration=120.0, dt=0.01, frame=None):
     return t, pos_true, vel_true, accel_body, gyro_body, heading_true, mag_body, stance_mask, wheel_speed_true
 
 
-def add_sensor_noise(accel_body, gyro_body, mag_body, wheel_true, dt, imu_params: IMUNoiseParams):
-    """Add noise to all sensors with explicit units."""
+def add_sensor_noise(accel_body, gyro_body, mag_body, wheel_true, dt,
+                     imu_params: IMUNoiseParams, seed: int = DEFAULT_SEED):
+    """Add noise to all sensors with explicit units.
+
+    Args:
+        accel_body: Noise-free specific force [m/s^2], shape (N, 3).
+        gyro_body: Noise-free angular rate [rad/s], shape (N, 3).
+        mag_body: Noise-free magnetometer vector (unit), shape (N, 3).
+        wheel_true: Noise-free wheel speed [m/s], shape (N, 3).
+        dt: Sample interval [s].
+        imu_params: IMU noise specification.
+        seed: Seed for this example's random draws. This is the only source of
+            randomness in the script, so fixing it makes the committed figures
+            reproducible -- and since core.eval.save_figure already writes
+            byte-reproducible output, a figure diff then means the picture
+            genuinely changed rather than that the biases were redrawn.
+            Unseeded, each run picked a new bias vector and the IMU-only track
+            drifted off in a different direction every time.
+
+    Returns:
+        Tuple of (accel_meas, gyro_meas, mag_meas, wheel_meas).
+    """
     N = len(accel_body)
-    
+
+    # Own the generator rather than seeding the global RNG: nothing else in
+    # this script draws random numbers, so there is no hidden consumer that
+    # needs the global state set.
+    rng = np.random.default_rng(seed)
+
     # IMU noise and biases
-    gyro_bias = np.random.randn(3) * imu_params.gyro_bias_rad_s
+    gyro_bias = rng.standard_normal(3) * imu_params.gyro_bias_rad_s
     gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
-    gyro_noise = np.random.randn(N, 3) * gyro_noise_std
-    
-    accel_bias = np.random.randn(3) * imu_params.accel_bias_mps2
+    gyro_noise = rng.standard_normal((N, 3)) * gyro_noise_std
+
+    accel_bias = rng.standard_normal(3) * imu_params.accel_bias_mps2
     accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
-    accel_noise = np.random.randn(N, 3) * accel_noise_std
-    
+    accel_noise = rng.standard_normal((N, 3)) * accel_noise_std
+
     gyro_meas = gyro_body + gyro_bias + gyro_noise
     accel_meas = accel_body + accel_bias + accel_noise
-    
+
     # Magnetometer noise
-    mag_noise = np.random.randn(N, 3) * 0.05
+    mag_noise = rng.standard_normal((N, 3)) * 0.05
     mag_meas = mag_body + mag_noise
-    
+
     # Wheel encoder noise
-    wheel_noise = np.random.randn(N, 3) * 0.05
+    wheel_noise = rng.standard_normal((N, 3)) * 0.05
     wheel_meas = wheel_true + wheel_noise
-    
+
     return accel_meas, gyro_meas, mag_meas, wheel_meas
 
 
@@ -309,11 +338,30 @@ def plot_comparison(t, pos_true, results, figs_dir):
     errors = {name: pos[:, :2] - pos_true[:, :2] for name, pos in results.items()}
 
     # Figure 1: all trajectories, in the local-level frame.
+    #
+    # Two panels, for the same reason the Section 6.5 ZUPT animation uses them:
+    # unaided IMU strapdown drifts several hundred metres against a 30 x 20 m
+    # ground truth, and a trajectory plot needs equal axes, so on one pair of
+    # limits everything that stayed near the truth collapses into a single blob
+    # at the origin. The left panel keeps the full extent, because the size of
+    # the unbounded drift IS the lesson of Section 6.1; the right panel
+    # resolves what happens at the scale of the walk itself.
+    #
+    # KNOWN ISSUE (visible only once the zoom panel exists): at this scale the
+    # ZUPT and PDR tracks are revealed to be pinned at the origin -- they trace
+    # 0.5 m and 2.3 m respectively against a 100 m walk. Their small final
+    # errors in the table below are therefore an artefact of the truth path
+    # returning to its start, not evidence of tracking. The detectors need
+    # retuning (gamma = 1e6 makes the ZUPT test fire on every sample, and the
+    # constant-velocity trajectory never crosses the PDR step threshold of
+    # 11 m/s^2). Left as-is here: this figure change only makes the defect
+    # visible, and fixing the detectors is a separate change to the methods.
     fig1 = plot_trajectory_2d(
         pos_true[:, :2],
         {name: pos[:, :2] for name, pos in results.items()},
         title='Chapter 6 Comparison: All Dead Reckoning Methods',
         axis_labels=('East [m]', 'North [m]'),
+        zoom_to_truth=True,
     )
     paths = save_figure(fig1, figs_dir, 'comparison_trajectories')
     print(f"  [OK] Saved: {paths[0]}")
@@ -371,7 +419,8 @@ def main():
     print(f"  Duration:        {duration} s")
     print(f"  Trajectory:      30m x 20m rectangular path with stops")
     print(f"  IMU Rate:        {1/dt:.0f} Hz")
-    print(f"  Frame:           {frame.map_frame}\n")
+    print(f"  Frame:           {frame.map_frame}")
+    print(f"  Noise seed:      {DEFAULT_SEED} (figures are reproducible)\n")
     
     # Print IMU specifications
     print(imu_params.format_specs())
@@ -386,7 +435,8 @@ def main():
     
     print("\nAdding sensor noise...")
     accel_meas, gyro_meas, mag_meas, wheel_meas = add_sensor_noise(
-        accel_body, gyro_body, mag_body, wheel_true, dt, imu_params)
+        accel_body, gyro_body, mag_body, wheel_true, dt, imu_params,
+        seed=DEFAULT_SEED)
     
     initial = NavStateQPVP(q=np.array([1, 0, 0, 0]), v=vel_true[0], p=pos_true[0])
     lever_arm = np.array([1.0, 0, -0.2])
