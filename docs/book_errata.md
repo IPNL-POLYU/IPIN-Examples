@@ -22,11 +22,34 @@ Format: **E-NN** | chapter/eq | printed | correct | code status.
 All five errata were re-verified independently on 2026-07-26; the numbers quoted
 above are from that run, not from the original audit.
 
-> **Note on the source PDF.** The audited PDF still contains `{AU: ...}` copyedit
-> query markers (e.g., Ch. 2 "last part of this sentence is unclear", Ch. 3
-> "missing eq 3.31?", UKF "cite ref [3] in order"), so it appears to be a proof /
-> galley rather than the final print. Some items below may already be tracked in
-> those proof queries.
+## What was audited, and what that means now that the book is in print
+
+**These findings come from a late proof, not from the printed book.** The audited
+PDF (354 pp, dated 2025-12-11) still carries **110 copyedit query markers** in two
+styles, `{AU: ...}` and bare `au: ...`, so it is a galley rather than the press
+file. Anything below could in principle have been corrected between that proof
+and printing.
+
+That matters for how much confidence each item deserves, and the proof queries
+themselves settle it. Of the 110 queries, **not one touches E-01, E-02, E-04 or
+E-05**. The copyedit pass caught missing figure call-outs, out-of-order
+references, unspelled acronyms and unclear sentences — formatting and
+housekeeping. It did not catch mathematics. Two items *were* flagged:
+
+| Item | Flagged in the proof? | Confidence it is in the printed book |
+|---|---|---|
+| E-01 covariance update | no | **High.** A spurious matrix factor in a displayed equation; only a technical reviewer would catch it, and none did |
+| E-02 UKF sigma points | no | **High.** Requires re-deriving the algorithm to notice |
+| E-04 "(2.56)" cross-reference | no | **High.** Exactly the class of error the copyeditor was catching elsewhere, yet this one was missed |
+| E-05 inverted `R` scaling | no | **High.** Reads plausibly; the error is in the direction of the inequality, not the notation |
+| E-03 missing (3.31) | **yes** — `au: missing eq 3.31?` at the PF initialisation step | **Low.** Someone noticed; likely renumbered or added before press |
+| Q-01 (4.106) | **yes** — `{AU: Is this the correct equation? Do you mean (4.77)?}` | Unknown. The query may have been resolved either way |
+
+**Two items to confirm against a physical copy** before this list is published
+anywhere reader-facing: E-03 (does the numbering run (3.30) → (3.31) → (3.32), or
+still skip?) and Q-01 (what does the equation before (4.107) actually cite?).
+Both are a page-turn to check, and both are the only items where the proof shows
+someone was already looking.
 
 ---
 
@@ -104,8 +127,14 @@ E-01; flag for author review.)
 
 ## E-03 — Ch. 3, Section 3.3: equation (3.31) is missing
 
-**Printed.** The particle-filter section jumps from Eq. (3.30) to Eq. (3.32); the
-book's own proof markup flags "au: missing eq 3.31?" at the initialization step.
+**Printed.** The particle-filter section jumps from Eq. (3.30) to Eq. (3.32). The
+proof carries the marker `au: missing eq 3.31?` immediately after the
+initialisation step ("Draw N samples x_0^(i) from the initial distribution p(x_0)
+and assign equal weights w_0^(i) = 1/N").
+
+**Note.** This is one of only two items on this list that the proof flags, so it
+may well have been fixed before press. Confirm against a printed copy before
+citing it.
 
 **Correct.** Equation (3.31) should be the SIR initialization: draw
 `x_0^(i) ~ p(x_0)` and set equal weights `w_0^(i) = 1/N`. Either add it as (3.31)
