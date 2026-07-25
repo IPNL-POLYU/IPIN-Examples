@@ -352,8 +352,8 @@ def main():
     print("\nReferences:")
     print("  - Equation 5.3: Bayes posterior P(x_i|z) = P(z|x_i)P(x_i)/P(z)")
     print("  - Equation 5.4: MAP estimate i* = argmax_i P(x_i|z)")
-    print("  - Equation 5.5: Posterior mean x̂ = Σ P(x_i|z) x_i")
-    print("  - Equation 5.6: Gaussian likelihood P(z|x_i) = N(z; μ_i, Σ_i)")
+    print("  - Equation 5.5: Posterior mean x_hat = sum_i P(x_i|z) x_i")
+    print("  - Equation 5.6: Gaussian likelihood P(z|x_i) = N(z; mu_i, Sigma_i)")
 
 
 if __name__ == "__main__":

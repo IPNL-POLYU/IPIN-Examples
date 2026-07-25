@@ -136,14 +136,14 @@ def main():
     
     # Train models with different regularization
     print("\n3. Training Linear Regression models...")
-    print("   Model: x̂ = Wz + b (ridge regression)")
+    print("   Model: x_hat = Wz + b (ridge regression)")
     
     reg_values = [0.0, 0.1, 1.0, 10.0]
     models = {}
     train_results = {}
     
     for reg_val in reg_values:
-        print(f"\n   Training with regularization λ={reg_val}...")
+        print(f"\n   Training with regularization lambda={reg_val}...")
         t_start = time.time()
         model = LinearRegressionLocalizer.fit(
             train_db, floor_id=floor_id, regularization=reg_val
@@ -157,7 +157,10 @@ def main():
         # Evaluate on train set
         train_result = evaluate_model(model, train_db, floor_id=floor_id)
         train_results[reg_val] = train_result
-        print(f"   Train RMSE: {train_result['rmse']:.2f}m, R²={train_result['r2']:.3f}")
+        print(
+            f"   Train RMSE: {train_result['rmse']:.2f}m, "
+            f"R^2={train_result['r2']:.3f}"
+        )
     
     # Evaluate on test set
     print("\n4. Evaluating on test set...")
@@ -167,14 +170,16 @@ def main():
         model = models[reg_val]
         test_result = evaluate_model(model, test_db, floor_id=floor_id)
         test_results[reg_val] = test_result
-        print(f"\n   λ={reg_val}: Test RMSE={test_result['rmse']:.2f}m, "
-              f"R²={test_result['r2']:.3f}, Time={test_result['time_per_query_ms']:.3f}ms")
+        print(f"\n   lambda={reg_val}: Test RMSE={test_result['rmse']:.2f}m, "
+              f"R^2={test_result['r2']:.3f}, "
+              f"Time={test_result['time_per_query_ms']:.3f}ms")
     
     # Print summary
     print("\n" + "="*70)
     print("RESULTS SUMMARY")
     print("="*70)
-    print(f"{'λ':<10} {'Train RMSE':<15} {'Test RMSE':<15} {'Test R²':<12} {'Time (ms)':<12}")
+    print(f"{'lambda':<10} {'Train RMSE':<15} {'Test RMSE':<15} "
+          f"{'Test R^2':<12} {'Time (ms)':<12}")
     print("-"*70)
     
     for reg_val in reg_values:
@@ -308,15 +313,15 @@ def main():
     print("Example complete!")
     print("="*70)
     print("\nKey Findings:")
-    print("  - Linear regression learns direct RSS→location mapping")
+    print("  - Linear regression learns direct RSS->location mapping")
     print("  - Very fast prediction (single matrix multiplication)")
-    print("  - Regularization (λ) prevents overfitting")
-    print("  - λ=0: May overfit to training data")
-    print("  - λ>0: Better generalization, smoother predictions")
-    print("  - Optimal λ depends on data size and noise level")
+    print("  - Regularization (lambda) prevents overfitting")
+    print("  - lambda=0: May overfit to training data")
+    print("  - lambda>0: Better generalization, smoother predictions")
+    print("  - Optimal lambda depends on data size and noise level")
     print("\nModel Details:")
-    print("  - Linear model: x̂ = Wz + b")
-    print("  - W: weight matrix (2×8 for 2D position, 8 APs)")
+    print("  - Linear model: x_hat = Wz + b")
+    print("  - W: weight matrix (2x8 for 2D position, 8 APs)")
     print("  - b: bias vector (2,)")
     print("  - Training: Ridge regression (closed-form solution)")
 
