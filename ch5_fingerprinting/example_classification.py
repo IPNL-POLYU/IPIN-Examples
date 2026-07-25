@@ -23,7 +23,7 @@ import numpy as np
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.eval import save_figure
+from core.eval import plot_error_cdf, save_figure
 from core.fingerprinting import (
     FingerprintDatabase,
     fit_classifier,
@@ -308,20 +308,18 @@ def test_hierarchical_localization(db: FingerprintDatabase):
     
     # Error CDFs
     ax = axes[0, 0]
-    for errors, label in [
-        (direct_errors, "Direct k-NN"),
-        (hier_errors, "Hierarchical (Floor -> k-NN)"),
-        (hier_rf_errors, "Hierarchical (RF -> MAP)"),
-        (hier_pm_errors, "Hierarchical (Floor -> PM)"),
-    ]:
-        sorted_errors = np.sort(errors)
-        cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-        ax.plot(sorted_errors, cdf, label=label, linewidth=2)
-    ax.set_xlabel('Positioning Error (m)', fontsize=11)
-    ax.set_ylabel('CDF', fontsize=11)
-    ax.set_title('Error Distribution (CDF)', fontsize=12)
+    plot_error_cdf(
+        {
+            "Direct k-NN": direct_errors,
+            "Hierarchical (Floor -> k-NN)": hier_errors,
+            "Hierarchical (RF -> MAP)": hier_rf_errors,
+            "Hierarchical (Floor -> PM)": hier_pm_errors,
+        },
+        title='Error Distribution (CDF)',
+        ax=ax,
+        title_fontweight="normal",
+    )
     ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3)
     
     # Box plots
     ax = axes[0, 1]

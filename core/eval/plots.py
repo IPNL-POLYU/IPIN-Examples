@@ -290,6 +290,8 @@ def plot_error_magnitude_time(
     title: str = "Position Error vs Time",
     log_scale: bool = False,
     max_decades: float = 4.0,
+    ax: Optional[plt.Axes] = None,
+    title_fontweight: str = "bold",
 ) -> plt.Figure:
     """
     Plot the *magnitude* of position error over time, one line per method.
@@ -316,11 +318,21 @@ def plot_error_magnitude_time(
             first sample, squeezing every curve into the top third of the figure
             -- which is what the hand-rolled versions of this plot all did. The
             startup ramp carries no information, so the axis is clamped.
+        ax: Draw into this existing axes instead of creating a figure, for use
+            as one panel of a composite. ``ax=None`` creates its own figure.
+        title_fontweight: Weight for the panel title. Defaults to bold, which
+            suits a standalone figure. Pass "normal" when drawing into a
+            composite whose sibling panels are unbold, or the shared panel
+            stands out as though it were more important.
 
     Returns:
-        fig: Matplotlib figure
+        fig: The figure drawn into, whether created here or supplied via ``ax``.
     """
-    fig, ax = plt.subplots(figsize=(12, 6))
+    owns_figure = ax is None
+    if owns_figure:
+        fig, ax = plt.subplots(figsize=(12, 6))
+    else:
+        fig = ax.figure
 
     colors = ["blue", "red", "green", "orange", "purple"]
     linestyles = ["-", "--", "-.", ":", "-"]
@@ -345,7 +357,7 @@ def plot_error_magnitude_time(
 
     ax.set_xlabel("Time (s)", fontsize=12)
     ax.set_ylabel("Position Error (m)", fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.set_title(title, fontsize=14, fontweight=title_fontweight)
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(left=float(np.min(time)), right=float(np.max(time)))
@@ -354,7 +366,8 @@ def plot_error_magnitude_time(
         if peak > 0.0:
             ax.set_ylim(bottom=peak / (10.0**max_decades), top=peak * 2.0)
 
-    plt.tight_layout()
+    if owns_figure:
+        plt.tight_layout()
     return fig
 
 
@@ -406,7 +419,10 @@ def plot_error_hist(
 
 
 def plot_error_cdf(
-    errors_dict: Dict[str, np.ndarray], title: str = "Error CDF"
+    errors_dict: Dict[str, np.ndarray],
+    title: str = "Error CDF",
+    ax: Optional[plt.Axes] = None,
+    title_fontweight: str = "bold",
 ) -> plt.Figure:
     """
     Plot Cumulative Distribution Function (CDF) of position errors.
@@ -414,17 +430,28 @@ def plot_error_cdf(
     Args:
         errors_dict: Dictionary of error arrays {name: errors}
         title: Plot title
+        ax: Draw into this existing axes instead of creating a figure, for use
+            as one panel of a composite. ``ax=None`` creates its own figure.
+        title_fontweight: Weight for the panel title. Defaults to bold, which
+            suits a standalone figure. Pass "normal" when drawing into a
+            composite whose sibling panels are unbold, or the shared panel
+            stands out as though it were more important.
 
     Returns:
-        fig: Matplotlib figure
+        fig: The figure drawn into, whether created here or supplied via ``ax``.
     """
-    fig, ax = plt.subplots(figsize=(10, 6))
+    owns_figure = ax is None
+    if owns_figure:
+        fig, ax = plt.subplots(figsize=(10, 6))
+    else:
+        fig = ax.figure
 
     colors = ["blue", "red", "green", "orange", "purple"]
     linestyles = ["-", "--", "-.", ":", "-"]
 
     for i, (name, errors) in enumerate(errors_dict.items()):
         # Compute error magnitudes
+        errors = np.asarray(errors)
         if errors.ndim > 1:
             error_magnitudes = np.linalg.norm(errors, axis=1)
         else:
@@ -447,13 +474,14 @@ def plot_error_cdf(
 
     ax.set_xlabel("Position Error (m)", fontsize=12)
     ax.set_ylabel("CDF", fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight="bold")
+    ax.set_title(title, fontsize=14, fontweight=title_fontweight)
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(left=0)
     ax.set_ylim([0, 1.05])
 
-    plt.tight_layout()
+    if owns_figure:
+        plt.tight_layout()
     return fig
 
 

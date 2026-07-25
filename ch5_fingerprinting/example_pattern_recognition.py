@@ -17,7 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import plot_error_cdf, save_figure
 from core.fingerprinting import (
     load_fingerprint_database,
     LinearRegressionLocalizer,
@@ -232,16 +232,12 @@ def main():
     
     # Plot 4: Error CDF for different λ
     ax4 = plt.subplot(2, 4, 4)
-    for reg_val in reg_values:
-        errors = test_results[reg_val]['errors']
-        sorted_errors = np.sort(errors)
-        cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-        ax4.plot(sorted_errors, cdf, label=f'λ={reg_val}', linewidth=2)
-    ax4.set_xlabel('Positioning Error (m)')
-    ax4.set_ylabel('CDF')
-    ax4.set_title('Error CDF for Different λ')
-    ax4.legend()
-    ax4.grid(True, alpha=0.3)
+    plot_error_cdf(
+        {f'λ={reg_val}': test_results[reg_val]['errors'] for reg_val in reg_values},
+        title='Error CDF for Different λ',
+        ax=ax4,
+        title_fontweight="normal",
+    )
     ax4.set_xlim(0, 15)
     
     # Plot 5: Train vs Test RMSE
