@@ -103,32 +103,60 @@ class TestScanMatchingClaims(unittest.TestCase):
             icp_pose[:2], self.true_motion[:2], atol=0.05
         )
 
-    def test_ndt_outcome_depends_on_step_size(self):
+    def test_ndt_outcome_does_not_depend_on_step_size(self):
         """Pins the claim the score-surface figure makes.
 
-        On this stepped objective ndt_align reaches the optimum at step_size
-        0.5 but stalls at the 0.1 default, and *both* report converged=True --
-        "converged" means the line search stopped improving, not that the
-        answer is right. If this test ever fails because the 0.1 run starts
-        succeeding, the figure's caption needs updating with it.
+        This used to assert the opposite: steepest descent on a central finite
+        difference reached the optimum at step_size 0.5 but stalled after three
+        iterations at 0.1 and 0.3, non-monotonically, and reported
+        converged=True either way. The finite difference was the culprit -- it
+        straddled voxel boundaries rather than the smooth trend, and at the
+        0.3 stall it pointed within 11 degrees of straight *away* from the
+        optimum. With an analytic gradient and a Gauss-Newton step the answer
+        no longer depends on the step size, so the figure's caption says that
+        instead. If this test fails, the caption needs updating with it.
         """
         from core.slam.ndt import ndt_align
 
-        converging_pose, _, _, _ = ndt_align(
-            self.source, self.target, voxel_size=1.0, step_size=0.5
-        )
-        stalled_pose, stalled_iters, _, stalled_flag = ndt_align(
-            self.source, self.target, voxel_size=1.0, step_size=0.1
-        )
+        poses = {}
+        for step_size in (0.05, 0.1, 0.3, 0.5, 1.0):
+            pose, iters, _, converged = ndt_align(
+                self.source, self.target, voxel_size=1.0,
+                step_size=step_size, max_iterations=200,
+            )
+            poses[step_size] = pose
+            with self.subTest(step_size=step_size):
+                np.testing.assert_allclose(
+                    pose[:2], self.true_motion[:2], atol=0.05
+                )
+                self.assertTrue(converged)
 
-        np.testing.assert_allclose(
-            converging_pose[:2], self.true_motion[:2], atol=0.05
+        # Not merely all-correct: they agree with each other to within the
+        # 0.05 m tolerance each is checked against. (The smallest step settles a
+        # little short because the stopping test on the step length scales with
+        # step_size, so it is the widest contributor to this spread -- but even
+        # it lands inside the tolerance.)
+        spread = max(
+            np.linalg.norm(a[:2] - b[:2])
+            for a in poses.values() for b in poses.values()
         )
-        self.assertGreater(
-            np.linalg.norm(stalled_pose[:2] - self.true_motion[:2]), 0.25
+        self.assertLess(spread, 0.05, f"step size still steers the answer: {poses}")
+
+    def test_ndt_matches_icp_on_this_scan_pair(self):
+        """The two Section 7.3 matchers must agree on the same displacement.
+
+        ICP was the control that showed the old NDT failure was the optimizer's
+        fault and not the data's; keep it wired up as one.
+        """
+        from core.slam.ndt import ndt_align
+        from core.slam.scan_matching import icp_point_to_point
+
+        icp_pose, _, _, _ = icp_point_to_point(
+            self.source, self.target, max_correspondence_distance=1.0
         )
-        self.assertLess(stalled_iters, 10)
-        self.assertTrue(stalled_flag, "the stalled run still claims success")
+        ndt_pose, _, _, _ = ndt_align(self.source, self.target, voxel_size=1.0)
+
+        np.testing.assert_allclose(ndt_pose[:2], icp_pose[:2], atol=0.05)
 
     def test_icp_animation_renders_small_and_monotone(self):
         """The GIF must stay small, and must show the residual falling.
