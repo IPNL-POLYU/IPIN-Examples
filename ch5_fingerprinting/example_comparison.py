@@ -21,6 +21,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
 
+from core.eval import save_figure
 from core.fingerprinting import (
     load_fingerprint_database,
     nn_localize,
@@ -545,12 +546,10 @@ def main():
     
     plt.tight_layout()
     
-    # Save
-    figs_dir = Path(__file__).parent / "figs"
-    figs_dir.mkdir(exist_ok=True)
-    output_file = figs_dir / "comparison_all_methods.png"
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"Saved: {output_file}")
+    # Save (svg + pdf + png via the shared layer)
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "comparison_all_methods")
+    print(f"Saved: {paths[0]}")
     
     print("\n" + "="*70)
     print("COMPARISON COMPLETE!")

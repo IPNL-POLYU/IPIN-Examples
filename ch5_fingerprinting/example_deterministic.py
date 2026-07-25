@@ -17,6 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import save_figure
 from core.fingerprinting import (
     load_fingerprint_database,
     nn_localize,
@@ -304,13 +305,11 @@ def main():
     ax6.grid(True, alpha=0.3)
     
     plt.tight_layout()
-    
-    # Save figure
-    figs_dir = Path(__file__).parent / "figs"
-    figs_dir.mkdir(exist_ok=True)
-    output_file = figs_dir / "deterministic_positioning.png"
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"   Saved: {output_file}")
+
+    # Save figure (svg + pdf + png via the shared layer)
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "deterministic_positioning")
+    print(f"   Saved: {paths[0]}")
     
     plt.show()
     

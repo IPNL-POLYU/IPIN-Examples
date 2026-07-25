@@ -23,6 +23,7 @@ import numpy as np
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from core.eval import save_figure
 from core.fingerprinting import (
     FingerprintDatabase,
     fit_classifier,
@@ -204,14 +205,12 @@ def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier):
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
     
-    # Save figure
-    figs_dir = Path(__file__).parent / "figs"
-    figs_dir.mkdir(exist_ok=True)
-    fig_path = figs_dir / "classification_noise_robustness.png"
+    # Save figure (svg + pdf + png via the shared layer)
     plt.tight_layout()
-    plt.savefig(fig_path, dpi=150, bbox_inches='tight')
-    print(f"\n  [OK] Saved figure: {fig_path}")
-    
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "classification_noise_robustness")
+    print(f"\n  [OK] Saved figure: {paths[0]}")
+
     plt.close()
 
 
@@ -378,12 +377,11 @@ def test_hierarchical_localization(db: FingerprintDatabase):
     plt.suptitle('Hierarchical Localization Performance', fontsize=14, y=0.995)
     plt.tight_layout()
     
-    # Save figure
-    figs_dir = Path(__file__).parent / "figs"
-    fig_path = figs_dir / "hierarchical_localization.png"
-    plt.savefig(fig_path, dpi=150, bbox_inches='tight')
-    print(f"\n  [OK] Saved figure: {fig_path}")
-    
+    # Save figure (svg + pdf + png via the shared layer)
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "hierarchical_localization")
+    print(f"\n  [OK] Saved figure: {paths[0]}")
+
     plt.close()
 
 

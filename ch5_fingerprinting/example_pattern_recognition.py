@@ -17,6 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import save_figure
 from core.fingerprinting import (
     load_fingerprint_database,
     LinearRegressionLocalizer,
@@ -297,13 +298,11 @@ def main():
     ax8.grid(True, alpha=0.3, axis='y')
     
     plt.tight_layout()
-    
-    # Save
-    figs_dir = Path(__file__).parent / "figs"
-    figs_dir.mkdir(exist_ok=True)
-    output_file = figs_dir / "pattern_recognition_positioning.png"
-    plt.savefig(output_file, dpi=150, bbox_inches='tight')
-    print(f"   Saved: {output_file}")
+
+    # Save (svg + pdf + png via the shared layer)
+    paths = save_figure(fig, Path(__file__).parent / "figs",
+                        "pattern_recognition_positioning")
+    print(f"   Saved: {paths[0]}")
     
     print("\n" + "="*70)
     print("Example complete!")
