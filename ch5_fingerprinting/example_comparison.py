@@ -21,7 +21,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from tqdm import tqdm
 
-from core.eval import save_figure
+from core.eval import plot_error_cdf, save_figure
 from core.fingerprinting import (
     load_fingerprint_database,
     nn_localize,
@@ -419,15 +419,13 @@ def main():
     
     # Plot 2: Error CDF (Baseline scenario)
     ax2 = plt.subplot(3, 3, 2)
-    for r in all_results["Baseline"]:
-        sorted_errors = np.sort(r['errors'])
-        cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-        ax2.plot(sorted_errors, cdf, label=r['method'], linewidth=2)
-    ax2.set_xlabel('Positioning Error (m)')
-    ax2.set_ylabel('CDF')
-    ax2.set_title('Error CDF (Baseline)')
+    plot_error_cdf(
+        {r['method']: r['errors'] for r in all_results["Baseline"]},
+        title='Error CDF (Baseline)',
+        ax=ax2,
+        title_fontweight="normal",
+    )
     ax2.legend(fontsize=8)
-    ax2.grid(True, alpha=0.3)
     ax2.set_xlim(0, 15)
     
     # Plot 3: Computation time comparison

@@ -17,7 +17,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import plot_error_cdf, save_figure
 from core.fingerprinting import (
     load_fingerprint_database,
     nn_localize,
@@ -247,16 +247,15 @@ def main():
     
     # Plot 2: Error CDF
     ax2 = plt.subplot(2, 3, 2)
-    for r in results:
-        sorted_errors = np.sort(r['errors'])
-        cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-        ax2.plot(sorted_errors, cdf, label=r['method'], linewidth=2)
-    ax2.set_xlabel('Positioning Error (m)')
-    ax2.set_ylabel('CDF')
-    ax2.set_title('Cumulative Distribution of Errors')
+    plot_error_cdf(
+        {r['method']: r['errors'] for r in results},
+        title='Cumulative Distribution of Errors',
+        ax=ax2,
+        title_fontweight="normal",
+    )
     ax2.legend(fontsize=8)
-    ax2.grid(True, alpha=0.3)
-    ax2.set_xlim(0, min(20, sorted_errors.max()))
+    worst = max(np.max(r['errors']) for r in results)
+    ax2.set_xlim(0, min(20, worst))
     
     # Plot 3: Error histogram
     ax3 = plt.subplot(2, 3, 3)

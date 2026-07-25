@@ -18,6 +18,7 @@ import pytest
 
 from core.coords import euler_to_rotation_matrix
 from core.eval import (
+    plot_error_cdf,
     plot_error_magnitude_time,
     plot_frame_3d,
     plot_trajectory_2d,
@@ -276,6 +277,68 @@ class TestPlotErrorMagnitudeTime:
             assert fig.axes[0].get_yscale() == "linear"
         finally:
             plt.close(fig)
+
+
+class TestCompositePanelSupport:
+    """Test that the primitives can draw into an existing axes.
+
+    This is what unlocked reuse at all: nearly every figure in the book is a
+    multi-panel composite, so a function that insists on making its own figure
+    can only serve a standalone plot. Every chapter but one had therefore
+    reimplemented these plots locally.
+    """
+
+    TRUTH = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]])
+    ERRORS = {"m": np.array([0.5, 1.0, 0.25])}
+
+    def _calls(self):
+        return [
+            (plot_trajectory_2d, (self.TRUTH, {"est": self.TRUTH + 0.1}), {}),
+            (plot_error_magnitude_time, (self.ERRORS,), {}),
+            (plot_error_cdf, (self.ERRORS,), {}),
+        ]
+
+    def test_draws_into_the_supplied_axes(self):
+        """Content lands on the given panel, and no extra figure is made."""
+        for fn, args, kwargs in self._calls():
+            fig, axes = plt.subplots(1, 2)
+            try:
+                before = plt.get_fignums()
+                returned = fn(*args, ax=axes[1], **kwargs)
+
+                assert plt.get_fignums() == before, f"{fn.__name__} made a figure"
+                assert returned is fig, f"{fn.__name__} returned the wrong figure"
+                assert len(axes[1].lines) > 0, f"{fn.__name__} drew nothing"
+                assert len(axes[0].lines) == 0, f"{fn.__name__} drew on the wrong axes"
+            finally:
+                plt.close(fig)
+
+    def test_creates_its_own_figure_when_ax_is_omitted(self):
+        """Backward compatible: existing standalone callers are unaffected."""
+        for fn, args, kwargs in self._calls():
+            fig = fn(*args, **kwargs)
+            try:
+                assert isinstance(fig, plt.Figure)
+                assert len(fig.axes) == 1
+            finally:
+                plt.close(fig)
+
+    def test_title_weight_is_selectable(self):
+        """A shared panel must not look louder than its unbold siblings."""
+        for fn, args, kwargs in self._calls():
+            fig, ax = plt.subplots()
+            try:
+                fn(*args, ax=ax, title_fontweight="normal", **kwargs)
+                assert ax.title.get_fontweight() == "normal"
+            finally:
+                plt.close(fig)
+
+            fig, ax = plt.subplots()
+            try:
+                fn(*args, ax=ax, **kwargs)
+                assert ax.title.get_fontweight() == "bold"
+            finally:
+                plt.close(fig)
 
 
 class TestSaveAnimation:

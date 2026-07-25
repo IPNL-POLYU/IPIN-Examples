@@ -19,7 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import plot_error_cdf, save_figure
 from core.fingerprinting import (
     load_fingerprint_database,
     fit_gaussian_naive_bayes,
@@ -246,15 +246,13 @@ def main():
     
     # Plot 4: Error CDF comparison
     ax4 = plt.subplot(3, 3, 4)
-    for r in results:
-        sorted_errors = np.sort(r['errors'])
-        cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-        ax4.plot(sorted_errors, cdf, label=r['method'], linewidth=2)
-    ax4.set_xlabel('Positioning Error (m)')
-    ax4.set_ylabel('CDF')
-    ax4.set_title('Cumulative Distribution of Errors')
+    plot_error_cdf(
+        {r['method']: r['errors'] for r in results},
+        title='Cumulative Distribution of Errors',
+        ax=ax4,
+        title_fontweight="normal",
+    )
     ax4.legend(fontsize=7)
-    ax4.grid(True, alpha=0.3)
     ax4.set_xlim(0, 20)
     
     # Plot 5: Box plot comparison

@@ -31,7 +31,12 @@ from pathlib import Path
 import numpy as np
 import matplotlib.pyplot as plt
 from tqdm import tqdm
-from core.eval import save_figure
+from core.eval import (
+    plot_error_cdf,
+    plot_error_magnitude_time,
+    plot_trajectory_2d,
+    save_figure,
+)
 from core.estimators import (
     ExtendedKalmanFilter,
     UnscentedKalmanFilter,
@@ -480,51 +485,32 @@ def main():
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 12))
 
-    # Plot 1: Trajectories
-    ax = axes[0, 0]
-    ax.scatter(anchors[:, 0], anchors[:, 1], s=200, c="red", marker="^",
-               label="Anchors", zorder=3, edgecolors="black", linewidths=2)
-    ax.plot(true_states[:, 0], true_states[:, 1], "k-", linewidth=3, label="True", zorder=2)
-    ax.plot(results['EKF'][:, 0], results['EKF'][:, 1], "b--", linewidth=2, label="EKF", alpha=0.7)
-    ax.plot(results['UKF'][:, 0], results['UKF'][:, 1], "g--", linewidth=2, label="UKF", alpha=0.7)
-    ax.plot(results['PF'][:, 0], results['PF'][:, 1], "m--", linewidth=2, label="PF", alpha=0.7)
-    ax.plot(results['FGO'][:, 0], results['FGO'][:, 1], "r:", linewidth=2, label="FGO", alpha=0.7)
+    # Panels 1-3 are the shared primitives drawn into this grid; only panel 4
+    # (timing bars) is specific to this comparison.
+    methods = ['EKF', 'UKF', 'PF', 'FGO']
+    trajectories = {m: results[m][:, :2] for m in methods}
+    errors = {m: results[m][:, :2] - true_states[:, :2] for m in methods}
+    time_steps = np.arange(n_steps + 1) * dt
 
-    ax.set_xlabel("X Position [m]", fontsize=12)
-    ax.set_ylabel("Y Position [m]", fontsize=12)
-    ax.set_title("Trajectory Comparison", fontsize=14, fontweight="bold")
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
-    ax.axis("equal")
+    # Plot 1: Trajectories
+    plot_trajectory_2d(
+        true_states[:, :2],
+        trajectories,
+        anchors_xy=anchors[:, :2],
+        title="Trajectory Comparison",
+        axis_labels=("X Position [m]", "Y Position [m]"),
+        ax=axes[0, 0],
+    )
 
     # Plot 2: Position Errors vs Time
-    ax = axes[0, 1]
-    time_steps = np.arange(n_steps + 1) * dt
-    for method, color, style in [('EKF', 'b', '-'), ('UKF', 'g', '--'), ('PF', 'm', '-.'), ('FGO', 'r', ':')]:
-        estimates = results[method]
-        position_errors = np.linalg.norm(estimates[:, :2] - true_states[:, :2], axis=1)
-        ax.plot(time_steps, position_errors, color + style, linewidth=2, label=method)
-
-    ax.set_xlabel("Time [s]", fontsize=12)
-    ax.set_ylabel("Position Error [m]", fontsize=12)
-    ax.set_title("Position Error vs Time", fontsize=14, fontweight="bold")
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
+    plot_error_magnitude_time(
+        errors, t=time_steps, title="Position Error vs Time", ax=axes[0, 1]
+    )
 
     # Plot 3: CDF of Errors
-    ax = axes[1, 0]
-    for method, color in [('EKF', 'b'), ('UKF', 'g'), ('PF', 'm'), ('FGO', 'r')]:
-        estimates = results[method]
-        position_errors = np.linalg.norm(estimates[:, :2] - true_states[:, :2], axis=1)
-        sorted_errors = np.sort(position_errors)
-        cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-        ax.plot(sorted_errors, cdf, color, linewidth=2, label=method)
-
-    ax.set_xlabel("Position Error [m]", fontsize=12)
-    ax.set_ylabel("CDF", fontsize=12)
-    ax.set_title("Cumulative Distribution of Errors", fontsize=14, fontweight="bold")
-    ax.legend(fontsize=10)
-    ax.grid(True, alpha=0.3)
+    plot_error_cdf(
+        errors, title="Cumulative Distribution of Errors", ax=axes[1, 0]
+    )
 
     # Plot 4: Computation Time Comparison
     ax = axes[1, 1]

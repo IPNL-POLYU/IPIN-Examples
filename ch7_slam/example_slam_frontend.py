@@ -19,6 +19,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
+from core.eval import plot_error_magnitude_time, plot_trajectory_2d
 from core.slam import SlamFrontend2D, se2_relative
 
 
@@ -178,32 +179,25 @@ def main():
     odom_xy = np.array([[p[0], p[1]] for p in odom_poses])
     frontend_xy = np.array([[p[0], p[1]] for p in frontend_poses])
     
-    ax1.plot(true_xy[:, 0], true_xy[:, 1], 'g-', linewidth=2, label='Ground Truth', alpha=0.8)
-    ax1.plot(odom_xy[:, 0], odom_xy[:, 1], 'r--', linewidth=2, label='Odometry (Drift)', alpha=0.7)
-    ax1.plot(frontend_xy[:, 0], frontend_xy[:, 1], 'b-', linewidth=2, label='Frontend (Scan-to-Map)', alpha=0.8)
-    
-    ax1.scatter(true_xy[0, 0], true_xy[0, 1], c='green', marker='o', s=100, zorder=5)
-    ax1.scatter(frontend_xy[0, 0], frontend_xy[0, 1], c='blue', marker='o', s=100, zorder=5)
-    
-    ax1.set_xlabel('X [m]', fontsize=12)
-    ax1.set_ylabel('Y [m]', fontsize=12)
-    ax1.set_title('SLAM Front-End: Trajectories', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=10)
-    ax1.grid(True, alpha=0.3)
-    ax1.axis('equal')
-    
+    plot_trajectory_2d(
+        true_xy,
+        {'Odometry (Drift)': odom_xy, 'Frontend (Scan-to-Map)': frontend_xy},
+        title='SLAM Front-End: Trajectories',
+        axis_labels=('X [m]', 'Y [m]'),
+        ax=ax1,
+    )
+
     # Plot 2: Errors
     ax2 = axes[1]
-    
-    timesteps = np.arange(n_poses)
-    ax2.plot(timesteps, odom_errors, 'r--', linewidth=2, label='Odometry Error', alpha=0.7)
-    ax2.plot(timesteps, frontend_errors, 'b-', linewidth=2, label='Frontend Error', alpha=0.8)
-    
+
+    plot_error_magnitude_time(
+        {'Odometry Error': odom_errors, 'Frontend Error': frontend_errors},
+        t=np.arange(n_poses),
+        title='Position Error Over Time',
+        ax=ax2,
+    )
+    # This series is indexed by pose, not seconds, so correct the shared label.
     ax2.set_xlabel('Step Index', fontsize=12)
-    ax2.set_ylabel('Position Error [m]', fontsize=12)
-    ax2.set_title('Position Error Over Time', fontsize=14, fontweight='bold')
-    ax2.legend(fontsize=10)
-    ax2.grid(True, alpha=0.3)
     
     plt.tight_layout()
     

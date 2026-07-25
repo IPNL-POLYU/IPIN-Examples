@@ -35,7 +35,11 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 from core.estimators import ExtendedKalmanFilter, IteratedExtendedKalmanFilter
-from core.eval import save_figure
+from core.eval import (
+    plot_error_magnitude_time,
+    plot_trajectory_2d,
+    save_figure,
+)
 from core.utils import angle_diff
 
 
@@ -300,40 +304,34 @@ def example_iekf_vs_ekf_comparison():
     fig.suptitle('IEKF vs EKF: High Nonlinearity Comparison (Section 3.2.3)',
                  fontsize=14, fontweight='bold')
 
-    # Trajectory comparison
-    ax = axes[0, 0]
-    ax.scatter(landmarks[:, 0], landmarks[:, 1], s=200, c="red", marker="^",
-               label="Landmarks", zorder=5, edgecolors="black", linewidths=2)
-    ax.plot(true_states[:, 0], true_states[:, 1], "g-", linewidth=2,
-            label="True Trajectory")
-    ax.plot(ekf_estimates[:, 0], ekf_estimates[:, 1], "b--", linewidth=2,
-            label="EKF Estimate", alpha=0.7)
-    ax.plot(iekf_estimates[:, 0], iekf_estimates[:, 1], "m-.", linewidth=2,
-            label="IEKF Estimate")
-    ax.scatter(true_states[0, 0], true_states[0, 1], s=150, c="green", marker="o",
-               label="Start", zorder=5, edgecolors="black")
-    ax.scatter(true_states[-1, 0], true_states[-1, 1], s=150, c="orange", marker="s",
-               label="End", zorder=5, edgecolors="black")
-    ax.set_xlabel("X Position [m]", fontsize=12)
-    ax.set_ylabel("Y Position [m]", fontsize=12)
-    ax.set_title("2D Trajectory Comparison", fontsize=12)
-    ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3)
-    ax.axis("equal")
+    # Trajectory comparison (shared primitive; it supplies Start/End markers)
+    plot_trajectory_2d(
+        true_states[:, :2],
+        {"EKF Estimate": ekf_estimates[:, :2],
+         "IEKF Estimate": iekf_estimates[:, :2]},
+        anchors_xy=landmarks[:, :2],
+        title="2D Trajectory Comparison",
+        axis_labels=("X Position [m]", "Y Position [m]"),
+        ax=axes[0, 0],
+        title_fontweight="normal",
+    )
 
-    # Position error comparison
+    # Position error comparison. The errors are already magnitudes, which the
+    # primitive accepts as (N,); the settled-mean reference lines are specific
+    # to this comparison, so they go on top of it.
     ax = axes[0, 1]
-    ax.plot(time, ekf_pos_errors, "b-", linewidth=2, label="EKF", alpha=0.7)
-    ax.plot(time, iekf_pos_errors, "m-", linewidth=2, label="IEKF")
+    plot_error_magnitude_time(
+        {"EKF": ekf_pos_errors, "IEKF": iekf_pos_errors},
+        t=time,
+        title="Position Error Comparison",
+        ax=ax,
+        title_fontweight="normal",
+    )
     ax.axhline(y=np.mean(ekf_pos_errors[5:]), color="b", linestyle="--", alpha=0.5,
                label=f"EKF mean: {np.mean(ekf_pos_errors[5:]):.2f} m")
     ax.axhline(y=np.mean(iekf_pos_errors[5:]), color="m", linestyle="--", alpha=0.5,
                label=f"IEKF mean: {np.mean(iekf_pos_errors[5:]):.2f} m")
-    ax.set_xlabel("Time [s]", fontsize=12)
-    ax.set_ylabel("Position Error [m]", fontsize=12)
-    ax.set_title("Position Error Comparison", fontsize=12)
     ax.legend(fontsize=9)
-    ax.grid(True, alpha=0.3)
 
     # IEKF iterations
     ax = axes[1, 0]
