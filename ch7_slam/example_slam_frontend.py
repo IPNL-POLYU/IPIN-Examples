@@ -17,8 +17,8 @@ Date: December 2025
 
 import numpy as np
 import matplotlib.pyplot as plt
-from pathlib import Path
 
+from core.eval import resolve_figs_dir
 from core.slam import SlamFrontend2D, se2_relative
 
 
@@ -207,8 +207,7 @@ def main():
     
     plt.tight_layout()
     
-    figs_dir = Path("ch7_slam/figs")
-    figs_dir.mkdir(parents=True, exist_ok=True)
+    figs_dir = resolve_figs_dir("ch7_slam/figs")
     output_file = figs_dir / "slam_frontend_demo.png"
     plt.savefig(output_file, dpi=150, bbox_inches="tight")
     print(f"\n[OK] Saved figure: {output_file}")
