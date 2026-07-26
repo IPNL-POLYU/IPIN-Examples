@@ -15,6 +15,8 @@ from .metrics import (
     compute_nis,
     compute_position_errors,
     compute_rmse,
+    motion_ratio,
+    path_length,
 )
 from .plots import (
     plot_dop_map,
@@ -37,6 +39,8 @@ __all__ = [
     "compute_error_stats",
     "compute_nees",
     "compute_nis",
+    "path_length",
+    "motion_ratio",
     # Plots
     "plot_trajectory_2d",
     "plot_position_error_time",
