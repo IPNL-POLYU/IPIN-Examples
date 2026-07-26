@@ -1,0 +1,67 @@
+---
+description: Figures are this repo's deliverable — how to write them, and how to test what they claim.
+globs: ["ch*_*/**/*.py", "core/eval/**/*.py", "tests/**/*.py"]
+alwaysApply: true
+---
+
+# Figures and the claims they make
+
+The book's figures are the product, and they are the part nothing checks by
+default. Every defect listed below shipped, was committed, and survived a green
+test suite. The rules exist because of specific incidents, noted inline.
+
+## Writing figures
+
+- Write every chapter figure through `core.eval.save_figure`. Never call
+  `savefig` directly. It emits svg/pdf/png together and pins the SVG hash salt
+  and creation date, so a committed figure diff means the picture changed
+  rather than that matplotlib re-randomised its element ids.
+- Chapter figures live in the owning `chX_*/figs/`. Never at the repo root.
+- Prefer the shared primitives in `core.eval.plots` over hand-rolled axes. They
+  take `ax=` for composite panels. A styling or correctness fix in a shared
+  primitive lands everywhere at once; a hand-rolled copy has to be found first.
+- **Seed the randomness.** Thread an explicit `rng = np.random.default_rng(seed)`
+  where you can, and seed the global RNG only when calling a generator that
+  offers no other way. An unseeded example cannot regenerate its own committed
+  figures, which also makes every figure diff meaningless noise.
+
+## Testing what a figure claims
+
+A test that only checks a file was created tells you nothing about the picture.
+
+- **Test the claim, not the rendering.** If the figure asserts that ZUPT keeps
+  drift bounded, assert that; if a zoom panel claims to frame the ground truth,
+  assert the axis limits contain it. See
+  `tests/ch6_dead_reckoning/test_zupt_animation.py` for the pattern.
+- **Check that no method wins by doing nothing.** Use
+  `core.eval.motion_ratio(est, truth)` in any comparison. On a closed-loop
+  ground truth, final position error rewards standing perfectly still, and RMSE
+  for a stationary estimate merely measures how far the truth wanders from the
+  start. Chapter 6 reported final errors of 0.32 m and 1.13 m for two methods
+  that had traced 0.5 m and 2.3 m against a 100 m walk, and printed "90-95%
+  error reduction" on that basis.
+- **Open the rendered PNG before committing.** Two figure defects in one
+  survey — a comparison collapsing into a blob at the origin, and a trajectory
+  panel flattened to a single line — were invisible to every test and obvious
+  on sight. This step is not optional and cannot be delegated to CI.
+
+## Scale, when methods differ by orders of magnitude
+
+A trajectory plot needs equal axes, which makes one pair of limits span the
+widest series. Two failure modes, with opposite fixes:
+
+- One estimator diverging far beyond the truth crushes everything near the
+  truth into a blob. Use `plot_trajectory_2d(..., zoom_to_truth=True)`: a
+  full-extent panel plus one zoomed to the ground truth. Do not simply drop the
+  diverging trace — the unbounded drift is usually the lesson.
+- A near-1-D path (long in one axis, thin in the other) is flattened to a line
+  by equal aspect. `zoom_to_truth` does not help; the truth's own extent is the
+  degenerate thing.
+
+## Cost
+
+Examples are run by tests, sometimes repeatedly. Before adding a test that
+shells out to an example, check what the suite already spends: five separate
+tests each re-running one 135 s script at `timeout=180` turned `tests/ch7_slam`
+into a load-dependent coin flip that costs every contributor an investigation.
+Run the example once per session and share the result.
