@@ -27,6 +27,7 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 
 from core.estimators import ExtendedKalmanFilter
+from core.eval import save_figure
 
 
 def generate_trajectory(
@@ -686,7 +687,9 @@ def plot_observability_demo(
         odom_only_2: Odometry-only fusion (offset 2)
         odom_with_fixes: Odometry + absolute fixes fusion
         translation_offset: Translation offset used
-        save_path: Path to save figure
+        save_path: Where to save the figure. Only the directory and the stem
+            are used -- ``core.eval.save_figure`` writes svg, pdf and png, so
+            any extension given here is ignored.
     """
     fig = plt.figure(figsize=(16, 10))
     gs = GridSpec(2, 3, figure=fig, hspace=0.3, wspace=0.3)
@@ -813,9 +816,14 @@ def plot_observability_demo(
                 fontsize=16, fontweight='bold')
     
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"\nSaved figure: {save_path}")
-    
+        # Via save_figure, not plt.savefig: it writes the book's svg/pdf
+        # alongside the png and strips the timestamps and random element ids
+        # matplotlib would otherwise stamp in, so a committed figure diff
+        # means the picture actually changed. The extension on save_path is
+        # dropped -- every format gets written.
+        paths = save_figure(fig, Path(save_path).parent, Path(save_path).stem)
+        print(f"\nSaved figure: {paths[0]}")
+
     plt.show()
 
 

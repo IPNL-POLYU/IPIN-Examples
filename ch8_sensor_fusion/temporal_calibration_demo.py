@@ -27,7 +27,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from core.eval import compute_position_errors, compute_rmse
+from core.eval import compute_position_errors, compute_rmse, save_figure
 from core.fusion import StampedMeasurement, TimeSyncModel
 from ch8_sensor_fusion.tc_uwb_imu_ekf import load_fusion_dataset
 from ch8_sensor_fusion.tc_models import (
@@ -282,7 +282,9 @@ def plot_temporal_calibration(
         dataset: Dataset dictionary
         no_correction: Results without time sync correction
         with_correction: Results with time sync correction
-        save_path: Path to save figure
+        save_path: Where to save the figure. Only the directory and the stem
+            are used -- ``core.eval.save_figure`` writes svg, pdf and png, so
+            any extension given here is ignored.
     """
     truth = dataset['truth']
     anchors = dataset['uwb_anchors']
@@ -447,9 +449,14 @@ def plot_temporal_calibration(
                 fontsize=16, fontweight='bold')
     
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"\nSaved figure: {save_path}")
-    
+        # Via save_figure, not plt.savefig: it writes the book's svg/pdf
+        # alongside the png and strips the timestamps and random element ids
+        # matplotlib would otherwise stamp in, so a committed figure diff
+        # means the picture actually changed. The extension on save_path is
+        # dropped -- every format gets written.
+        paths = save_figure(fig, Path(save_path).parent, Path(save_path).stem)
+        print(f"\nSaved figure: {paths[0]}")
+
     plt.show()
 
 

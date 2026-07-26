@@ -15,12 +15,17 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
+from typing import Dict, List
 
-from core.eval import plot_error_magnitude_time, plot_trajectory_2d
+import matplotlib.pyplot as plt
+import numpy as np
+
+from core.eval import plot_error_magnitude_time, plot_trajectory_2d, save_figure
 from core.slam import SlamFrontend2D, se2_relative
+
+FIGURE_NAME = "slam_frontend_demo"
+DEFAULT_SEED = 42
 
 
 def generate_simple_trajectory(n_poses: int = 10) -> list:
@@ -72,141 +77,181 @@ def generate_wall_scan(pose: np.ndarray, wall_x: float = 5.0) -> np.ndarray:
     return scan
 
 
+def run_frontend_demo(
+    n_poses: int = 10, seed: int = DEFAULT_SEED
+) -> Dict[str, object]:
+    """Run the front-end loop over a synthetic straight-line walk.
+
+    Kept separate from ``main`` so the figure -- and the tests that pin what
+    the figure claims -- can be built without also producing the console
+    report.
+
+    Args:
+        n_poses: Number of poses in the walk.
+        seed: Seed for the odometry noise, so the committed figure regenerates.
+
+    Returns:
+        Dictionary holding the three trajectories as (N, 2) arrays under
+        ``true_xy``, ``odom_xy`` and ``frontend_xy``; their error magnitudes
+        under ``odom_errors`` and ``frontend_errors``; the input ``scans``; and
+        the per-step front-end records under ``steps``.
+    """
+    np.random.seed(seed)
+
+    true_poses = generate_simple_trajectory(n_poses=n_poses)
+
+    # Simulate noisy odometry: integrate each true delta with drift added.
+    odom_poses = [true_poses[0].copy()]
+    for i in range(1, n_poses):
+        true_delta = se2_relative(true_poses[i - 1], true_poses[i])
+        noisy_delta = true_delta + np.array([
+            np.random.normal(0, 0.05),
+            np.random.normal(0, 0.02),
+            np.random.normal(0, 0.01),
+        ])
+        # Simplified composition, valid only because this walk holds yaw at 0.
+        odom_poses.append(odom_poses[-1] + noisy_delta)
+
+    scans = [generate_wall_scan(pose, wall_x=5.0) for pose in true_poses]
+
+    frontend = SlamFrontend2D(submap_voxel_size=0.1, max_icp_residual=0.5)
+    frontend_poses: List[np.ndarray] = []
+    steps: List[dict] = []
+
+    for i in range(n_poses):
+        if i == 0:
+            odom_delta = np.array([0.0, 0.0, 0.0])
+        else:
+            odom_delta = se2_relative(odom_poses[i - 1], odom_poses[i])
+
+        result = frontend.step(i, odom_delta, scans[i])
+        frontend_poses.append(result['pose_est'])
+        steps.append(result)
+
+    true_xy = np.array([pose[:2] for pose in true_poses])
+    odom_xy = np.array([pose[:2] for pose in odom_poses])
+    frontend_xy = np.array([pose[:2] for pose in frontend_poses])
+
+    return {
+        'true_xy': true_xy,
+        'odom_xy': odom_xy,
+        'frontend_xy': frontend_xy,
+        'odom_errors': np.linalg.norm(odom_xy - true_xy, axis=1),
+        'frontend_errors': np.linalg.norm(frontend_xy - true_xy, axis=1),
+        'scans': scans,
+        'steps': steps,
+    }
+
+
+def build_figure(demo: Dict[str, object]) -> plt.Figure:
+    """Build the demo figure: trajectories beside error over time.
+
+    Args:
+        demo: Result of :func:`run_frontend_demo`.
+
+    Returns:
+        The figure, ready for ``core.eval.save_figure``.
+    """
+    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
+
+    # equal_aspect=False: this walk covers 4.5 m in x but only 0.13 m in y, and
+    # with equal axes matplotlib stretches y out to roughly [-2, 2] to match.
+    # All three tracks then share a hairline band under 3% of the panel's
+    # height, with the scan-to-map track -- the one this figure is arguing for
+    # -- sitting within its own stroke width of the ground truth. The primitive
+    # labels the axes as not-to-scale in exchange, which is the right trade
+    # here: the reader is being shown a cross-track deviation, not a shape.
+    plot_trajectory_2d(
+        demo['true_xy'],
+        {
+            'Odometry (Drift)': demo['odom_xy'],
+            'Frontend (Scan-to-Map)': demo['frontend_xy'],
+        },
+        title='SLAM Front-End: Trajectories',
+        axis_labels=('X [m]', 'Y [m]'),
+        ax=axes[0],
+        equal_aspect=False,
+    )
+
+    plot_error_magnitude_time(
+        {
+            'Odometry Error': demo['odom_errors'],
+            'Frontend Error': demo['frontend_errors'],
+        },
+        t=np.arange(len(demo['odom_errors'])),
+        title='Position Error Over Time',
+        ax=axes[1],
+    )
+    # This series is indexed by pose, not seconds, so correct the shared label.
+    axes[1].set_xlabel('Step Index', fontsize=12)
+
+    fig.tight_layout()
+    return fig
+
+
 def main():
     """Run SLAM front-end demo."""
     print("=" * 80)
     print("SLAM FRONT-END DEMO: Prediction -> Scan-to-Map Alignment -> Map Update")
     print("=" * 80)
     print()
-    
-    # Set seed for reproducibility
-    np.random.seed(42)
-    
-    # Generate ground truth trajectory
+
+    n_poses = 10
+    demo = run_frontend_demo(n_poses=n_poses)
+    true_xy = demo['true_xy']
+    odom_xy = demo['odom_xy']
+    scans = demo['scans']
+
     print("1. Generating trajectory...")
-    true_poses = generate_simple_trajectory(n_poses=10)
-    n_poses = len(true_poses)
     print(f"   Generated {n_poses} poses (straight line)")
-    
-    # Simulate noisy odometry
+
     print("\n2. Simulating noisy odometry...")
-    odom_poses = []
-    odom_poses.append(true_poses[0].copy())
-    for i in range(1, n_poses):
-        true_delta = se2_relative(true_poses[i - 1], true_poses[i])
-        # Add drift
-        noisy_delta = true_delta + np.array([
-            np.random.normal(0, 0.05),
-            np.random.normal(0, 0.02),
-            np.random.normal(0, 0.01),
-        ])
-        odom_pose = odom_poses[-1] + noisy_delta  # Simplified composition for straight line
-        odom_poses.append(odom_pose)
-    
-    odom_drift = np.linalg.norm(odom_poses[-1][:2] - true_poses[-1][:2])
+    odom_drift = np.linalg.norm(odom_xy[-1] - true_xy[-1])
     print(f"   Odometry drift: {odom_drift:.3f} m")
-    
-    # Generate scans
+
     print("\n3. Generating LiDAR scans...")
-    scans = []
-    for pose in true_poses:
-        scan = generate_wall_scan(pose, wall_x=5.0)
-        scans.append(scan)
-    print(f"   Generated {n_poses} scans (avg {np.mean([len(s) for s in scans]):.1f} points/scan)")
-    
-    # Run SLAM front-end
+    print(f"   Generated {n_poses} scans "
+          f"(avg {np.mean([len(s) for s in scans]):.1f} points/scan)")
+
     print("\n4. Running SLAM front-end...")
     print("=" * 80)
     print(f"{'Step':<6} {'Pred X':<10} {'Est X':<10} {'Correction':<12} {'Residual':<10} {'Converged'}")
     print("=" * 80)
-    
-    frontend = SlamFrontend2D(submap_voxel_size=0.1, max_icp_residual=0.5)
-    frontend_poses = []
-    
-    for i in range(n_poses):
-        # Compute odometry delta
-        if i == 0:
-            odom_delta = np.array([0.0, 0.0, 0.0])
-        else:
-            odom_delta = se2_relative(odom_poses[i - 1], odom_poses[i])
-        
-        # Run front-end step
-        result = frontend.step(i, odom_delta, scans[i])
-        frontend_poses.append(result['pose_est'])
-        
-        # Log per-step results
+
+    for i, result in enumerate(demo['steps']):
         pred = result['pose_pred']
         est = result['pose_est']
-        correction = result['correction_magnitude']
         mq = result['match_quality']
-        
-        print(f"{i:<6} {pred[0]:<10.3f} {est[0]:<10.3f} {correction:<12.4f} "
+
+        print(f"{i:<6} {pred[0]:<10.3f} {est[0]:<10.3f} "
+              f"{result['correction_magnitude']:<12.4f} "
               f"{mq.residual:<10.4f} {str(mq.converged)}")
-    
+
     print("=" * 80)
     print()
-    
+
     # Evaluate results
     print("5. Evaluating results...")
-    
-    odom_errors = np.array([
-        np.linalg.norm(odom_poses[i][:2] - true_poses[i][:2])
-        for i in range(n_poses)
-    ])
-    frontend_errors = np.array([
-        np.linalg.norm(frontend_poses[i][:2] - true_poses[i][:2])
-        for i in range(n_poses)
-    ])
-    
-    odom_rmse = np.sqrt(np.mean(odom_errors**2))
-    frontend_rmse = np.sqrt(np.mean(frontend_errors**2))
-    
+
+    odom_rmse = np.sqrt(np.mean(demo['odom_errors'] ** 2))
+    frontend_rmse = np.sqrt(np.mean(demo['frontend_errors'] ** 2))
+
     print(f"   Odometry RMSE: {odom_rmse:.4f} m")
     print(f"   Frontend RMSE: {frontend_rmse:.4f} m")
     improvement = (1 - frontend_rmse / odom_rmse) * 100
     print(f"   Improvement: {improvement:.2f}%")
     print()
-    
+
     # Visualize
     print("6. Visualizing results...")
-    
-    fig, axes = plt.subplots(1, 2, figsize=(14, 6))
-    
-    # Plot 1: Trajectories
-    ax1 = axes[0]
-    
-    true_xy = np.array([[p[0], p[1]] for p in true_poses])
-    odom_xy = np.array([[p[0], p[1]] for p in odom_poses])
-    frontend_xy = np.array([[p[0], p[1]] for p in frontend_poses])
-    
-    plot_trajectory_2d(
-        true_xy,
-        {'Odometry (Drift)': odom_xy, 'Frontend (Scan-to-Map)': frontend_xy},
-        title='SLAM Front-End: Trajectories',
-        axis_labels=('X [m]', 'Y [m]'),
-        ax=ax1,
-    )
 
-    # Plot 2: Errors
-    ax2 = axes[1]
+    fig = build_figure(demo)
+    try:
+        paths = save_figure(fig, Path(__file__).parent / "figs", FIGURE_NAME)
+    finally:
+        plt.close(fig)
+    print(f"\n[OK] Saved figure: {paths[0]}")
 
-    plot_error_magnitude_time(
-        {'Odometry Error': odom_errors, 'Frontend Error': frontend_errors},
-        t=np.arange(n_poses),
-        title='Position Error Over Time',
-        ax=ax2,
-    )
-    # This series is indexed by pose, not seconds, so correct the shared label.
-    ax2.set_xlabel('Step Index', fontsize=12)
-    
-    plt.tight_layout()
-    
-    figs_dir = Path("ch7_slam/figs")
-    figs_dir.mkdir(parents=True, exist_ok=True)
-    output_file = figs_dir / "slam_frontend_demo.png"
-    plt.savefig(output_file, dpi=150, bbox_inches="tight")
-    print(f"\n[OK] Saved figure: {output_file}")
-    
     print()
     print("=" * 80)
     print("SLAM FRONT-END DEMO COMPLETE!")
