@@ -47,18 +47,27 @@ python -m pytest tests/core tests/ch6_dead_reckoning -q
 The full suite is slow (10-16 minutes) because several tests shell out to
 chapter examples.
 
-**`tests/ch7_slam` fails intermittently under load. Do not bisect it.** Five
-tests each `subprocess.run` the same `ch7_slam.example_pose_graph_slam` with
-`timeout=180`; the script takes ~135 s standalone, a margin of 1.33x, so any
-concurrent work pushes it over. Verified as flakiness rather than inferred:
-identical content gave 2 failed / 1351 passed in 954 s under load, then
-1353 passed / 0 failed in 647 s when quieter. **Re-run a ch7 failure in
-isolation before believing it.**
+`tests/ch7_slam` used to fail intermittently under load, and the history is
+worth knowing because the shape recurs. Five tests each `subprocess.run` the
+same `ch7_slam.example_pose_graph_slam` at `timeout=180`, three of them with
+identical arguments. The script takes ~135 s standalone but 170-207 s inside
+the suite, so the limit was being grazed and the result depended on what else
+was running: identical content gave 2 failed / 1351 passed in 954 s under
+load, then 1353 passed / 0 failed in 647 s when quieter.
 
-Those tests also run the example with `cwd` at the repo root, so running them
-rewrites tracked files under `ch7_slam/figs/`. That is why
-`slam_with_maps.png` keeps reappearing in `git status` — it is test churn, not
-someone's edit.
+Fixed by `tests/ch7_slam/slam_example_runner.py`, which memoises each distinct
+invocation so it runs once per session (5 runs down to 3) and sets a timeout
+generous enough to be a deadlock guard rather than a performance budget. **If
+you add a test that shells out to an example, go through that runner.**
+
+Those tests still run the example with `cwd` at the repo root — the example
+resolves both `data/sim` and `ch7_slam/figs` relative to the working
+directory, so it cannot be redirected to a tmpdir without breaking dataset
+loading. Consequence: running them rewrites tracked files under
+`ch7_slam/figs/`. That is why `slam_with_maps.png` keeps reappearing in
+`git status` — it is test churn, not someone's edit.
+
+If a ch7 test does fail, re-run it in isolation before believing it.
 
 ## Figures
 

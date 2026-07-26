@@ -60,8 +60,14 @@ widest series. Two failure modes, with opposite fixes:
 
 ## Cost
 
-Examples are run by tests, sometimes repeatedly. Before adding a test that
-shells out to an example, check what the suite already spends: five separate
-tests each re-running one 135 s script at `timeout=180` turned `tests/ch7_slam`
-into a load-dependent coin flip that costs every contributor an investigation.
-Run the example once per session and share the result.
+Examples are run by tests, sometimes repeatedly. **Run an example once per
+session and share the result** — see `tests/ch7_slam/slam_example_runner.py`
+for the pattern (memoise on the argument tuple; distinct invocations still run,
+identical ones do not).
+
+Five separate tests each re-running one script at `timeout=180` turned
+`tests/ch7_slam` into a load-dependent coin flip that cost every contributor
+the same investigation. Set timeouts as deadlock guards, not performance
+budgets: that script takes ~135 s standalone but 170-207 s inside a loaded
+suite, so a limit chosen from the standalone number was being grazed on every
+run.
