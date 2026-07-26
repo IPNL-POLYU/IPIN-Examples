@@ -24,6 +24,8 @@ from core.eval import save_figure
 from core.rf import (
     SPEED_OF_LIGHT,
     TOAPositioner,
+    compute_dop,
+    position_error_from_dop,
     range_to_rtt,
     rss_pathloss,
     rss_to_distance,
@@ -32,6 +34,9 @@ from core.rf import (
     toa_range,
     toa_solve_with_clock_bias,
 )
+
+# Shared by the global seeding and by the Monte Carlo in Example 2.
+SEED = 42
 
 
 def example_toa_perfect():
@@ -74,7 +79,7 @@ def example_toa_with_noise():
     print("Example 2: TOA Positioning with Measurement Noise")
     print("=" * 70)
 
-    np.random.seed(42)
+    np.random.seed(SEED)
 
     anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
     true_pos = np.array([3.0, 7.0])
@@ -99,9 +104,42 @@ def example_toa_with_noise():
     # Results
     error = np.linalg.norm(estimated_pos - true_pos)
     print(f"\nEstimated position: {estimated_pos}")
-    print(f"Position error: {error:.3f} m")
-    print(f"Error/Noise ratio: {error/noise_std:.2f}")
+    print(f"Position error: {error:.3f} m   <- ONE noise draw, not an accuracy")
     print(f"Iterations: {info['iterations']}")
+
+    # A single draw says almost nothing: repeating this solve puts the error
+    # anywhere between about 0.03 and 0.15 m. Dividing one draw by the noise
+    # and calling it an "error/noise ratio", which this example used to do,
+    # reads as though positioning were twice as good as its ranging.
+    #
+    # The quantity that does characterise the geometry is Eq. (4.107),
+    # sigma_position = HDOP * sigma_range, and it is worth showing that the
+    # solver attains it rather than asserting it.
+    geometry = (true_pos - anchors) / np.linalg.norm(
+        true_pos - anchors, axis=1, keepdims=True
+    )
+    hdop = compute_dop(geometry)["HDOP"]
+    predicted = position_error_from_dop(hdop, noise_std)
+
+    trials = 2000
+    rng = np.random.default_rng(SEED)
+    errors = np.empty(trials)
+    for k in range(trials):
+        noisy = true_ranges + rng.standard_normal(len(anchors)) * noise_std
+        estimate, _ = TOAPositioner(anchors, method="iterative_ls").solve(
+            noisy, initial_guess=np.array([5.0, 5.0])
+        )
+        errors[k] = np.linalg.norm(estimate - true_pos)
+    measured = float(np.sqrt(np.mean(errors**2)))
+
+    print(f"\nOver {trials} noise draws, against Eq. (4.107):")
+    print(f"  HDOP for this geometry : {hdop:.3f}")
+    print(f"  predicted HDOP x sigma : {predicted:.4f} m")
+    print(f"  measured RMS error     : {measured:.4f} m  "
+          f"({measured / predicted:.2f}x predicted)")
+    print(f"  a single draw lands anywhere in "
+          f"[{np.percentile(errors, 10):.3f}, "
+          f"{np.percentile(errors, 90):.3f}] m (10th-90th percentile)")
 
     return anchors, true_pos, estimated_pos
 
@@ -371,7 +409,7 @@ def example_rtt_measurement():
 
     print("\n--- Simulated RTT Measurement with Noise (Eq. 4.9) ---")
 
-    np.random.seed(42)
+    np.random.seed(SEED)
 
     anchor = np.array([0.0, 0.0, 0.0])
     agent = np.array([15.0, 0.0, 0.0])
@@ -458,7 +496,7 @@ def example_wls_vs_ls():
     print("Example 6: WLS vs LS with Asymmetric Geometry")
     print("=" * 70)
 
-    np.random.seed(42)
+    np.random.seed(SEED)
 
     # Deliberately asymmetric layout: three close anchors on the left,
     # one distant anchor on the right.
