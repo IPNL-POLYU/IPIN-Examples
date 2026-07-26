@@ -18,10 +18,15 @@ This example constructs that outage deliberately -- 8 seconds with at most two
 of four anchors visible -- because the shipped dataset does not contain one.
 (At most two, not exactly two: the dataset's own dropouts stack on top of the
 mask, leaving a single anchor for 6 of the 81 epochs.) With the outage in place
-the gap is no longer subtle. LC's error ramps linearly to 4.5 m -- the shape of
-pure dead reckoning -- and snaps back the instant anchors return, while TC
-holds 0.3 m throughout. That is a factor of 15, and 93 LC position fixes fail
-outright.
+the gap is no longer subtle. LC's error ramps to 5.7 m by the end of the outage
+-- the shape of pure dead reckoning -- and snaps back the instant anchors
+return. TC keeps being corrected the whole way through: its median error inside
+the outage is 0.71 m against LC's 2.98 m, and at the moment anchors return LC
+sits at 5.65 m while TC is at 0.04 m. 93 LC position fixes fail outright.
+
+The comparison is between an estimator that stops updating and one that does
+not, so read the *end* of the outage rather than the average: LC's error grows
+without bound for as long as the outage lasts, while TC's does not.
 
 Two caveats keep this honest, because tight coupling is a trade, not a free
 win:
@@ -288,20 +293,28 @@ def plot_outage_summary(scenario) -> plt.Figure:
         fontsize=11,
     )
 
-    axes[1].plot(scenario["t_lc"], scenario["error_lc"], color=COLOR_LC,
-                 linewidth=1.6, label="loosely coupled")
-    axes[1].plot(scenario["t_tc"], scenario["error_tc"], color=COLOR_TC,
-                 linewidth=1.6, label="tightly coupled")
+    # Log axis. The mirror-branch flip reaches 43.9 m while the claim this
+    # panel exists to make -- LC's dead-reckoning ramp -- tops out at 5.9 m, so
+    # a linear axis renders the ramp as a low squiggle beneath one narrow
+    # spike. The error is positive and spans two decades, which is what a log
+    # axis is for.
+    floor = 1e-3  # a log axis cannot show an exact zero
+    axes[1].semilogy(scenario["t_lc"],
+                     np.maximum(scenario["error_lc"], floor),
+                     color=COLOR_LC, linewidth=1.6, label="loosely coupled")
+    axes[1].semilogy(scenario["t_tc"],
+                     np.maximum(scenario["error_tc"], floor),
+                     color=COLOR_TC, linewidth=1.6, label="tightly coupled")
     axes[1].axvspan(*window, color="0.85", zorder=0)
     axes[1].set_xlabel("time [s]")
-    axes[1].set_ylabel("horizontal position error [m]")
+    axes[1].set_ylabel("horizontal position error [m], log")
     axes[1].legend(fontsize=9, loc="upper left")
     axes[1].grid(alpha=0.3)
     axes[1].set_title(
         "In the outage LC dead-reckons (linear ramp) while TC keeps fusing "
         "the surviving ranges.\n"
-        "Outside it, at the two outlier events, TC peaks HIGHER: "
-        "a bad range hits the filter directly.",
+        "TC's one spike is a mirror-branch flip: the two surviving anchors "
+        "are collinear with the leg being walked.",
         fontsize=11,
     )
 
