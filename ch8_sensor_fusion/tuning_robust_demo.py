@@ -388,24 +388,39 @@ def plot_tuning_comparison(
         nis_baseline = np.array(baseline['nis'])
         nis_gating = np.array(gating['nis'])
         
-        # Downsample for visibility
+        # Log axis and dots rather than a linear axis and lines. NIS here
+        # spans four decades -- baseline median 28, gating reaching 1e4 --
+        # against a 3.84 gate, so a linear axis clipped at 20 sent almost
+        # every sample off the top and rendered as a solid hash with the
+        # threshold squashed onto the floor. This panel carries the
+        # explanation for the gating result; it has to be readable.
         step = max(1, len(nis_baseline) // 500)
-        ax5.plot(nis_baseline[::step], color=color_baseline,
-                linewidth=0.5, alpha=0.5, label='Baseline')
-        ax5.plot(nis_gating[::step], color=color_gating,
-                linewidth=0.5, alpha=0.5, label='Gating')
-        
+        floor = 1e-2  # log scale cannot show an exact zero
+        ax5.semilogy(np.maximum(nis_baseline[::step], floor), '.',
+                     color=color_baseline, markersize=1.5, alpha=0.5,
+                     label='Baseline')
+        ax5.semilogy(np.maximum(nis_gating[::step], floor), '.',
+                     color=color_gating, markersize=1.5, alpha=0.5,
+                     label='Gating')
+
         # Chi-square bound
         from core.fusion import chi_square_threshold
         threshold = chi_square_threshold(dof=1, confidence=0.95)
         ax5.axhline(threshold, color='r', linestyle='--',
                    linewidth=1.5, label=f'95% bound (chi^2={threshold:.2f})')
-        
+        # ...and where a *consistent* filter would sit. The gap between this
+        # line and the baseline cloud is the over-confidence that makes the
+        # gate reject good measurements.
+        ax5.axhline(0.4549, color='0.35', linestyle=':', linewidth=1.2,
+                    label='median if consistent (0.45)')
+
         ax5.set_xlabel('UWB Update Index')
-        ax5.set_ylabel('NIS (1 DOF)')
-        ax5.set_title('NIS: Baseline vs Gating')
-        ax5.set_ylim([0, min(20, np.percentile(nis_baseline, 99))])
-        ax5.legend()
+        ax5.set_ylabel('NIS (1 DOF, log)')
+        ax5.set_title(
+            f'NIS: baseline median {np.median(nis_baseline):.0f} vs 0.45 '
+            f'if consistent'
+        )
+        ax5.legend(fontsize=7, loc='upper left')
         ax5.grid(True, alpha=0.3)
     
     # 6. Robust covariance scales
