@@ -18,6 +18,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
+# Drawn on any trajectory panel that gives up equal axes. Exported so callers
+# and tests can assert on the disclosure rather than duplicating the wording.
+UNEQUAL_AXES_NOTE = "axes not equally scaled"
+
 
 def _draw_trajectories(
     ax: plt.Axes,
@@ -103,6 +107,36 @@ def _draw_trajectories(
     ax.grid(True, alpha=0.3)
 
 
+def _apply_aspect(ax: plt.Axes, equal_aspect: bool) -> None:
+    """Set a trajectory panel's aspect ratio, annotating the anisotropic case.
+
+    Args:
+        ax: Target axes.
+        equal_aspect: Whether one metre along x must measure the same on the
+            page as one metre along y.
+    """
+    if equal_aspect:
+        ax.axis("equal")
+        return
+
+    ax.set_aspect("auto")
+    # An unequal-aspect trajectory panel draws a shape the platform never
+    # traced: a 10 cm cross-track wobble stretched to the width of a 4.5 m
+    # walk reads as a wild excursion. The tick labels say so, but a reader
+    # scanning the figure reads the *shape* first, so say it in words too.
+    ax.text(
+        1.0,
+        -0.13,
+        UNEQUAL_AXES_NOTE,
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=8,
+        style="italic",
+        color="0.35",
+    )
+
+
 def _truth_extent_limits(
     truth_xy: np.ndarray, pad_fraction: float = 0.1
 ) -> Tuple[Tuple[float, float], Tuple[float, float]]:
@@ -136,6 +170,7 @@ def plot_trajectory_2d(
     ax: Optional[plt.Axes] = None,
     title_fontweight: str = "bold",
     zoom_to_truth: bool = False,
+    equal_aspect: bool = True,
 ) -> plt.Figure:
     """
     Plot 2D trajectory with true and estimated paths.
@@ -172,6 +207,28 @@ def plot_trajectory_2d(
             divergence is usually the point being made) and the right panel
             resolves the rest. Both panels draw every series; the diverging
             one simply leaves the zoomed frame.
+        equal_aspect: Keep one metre along x the same size on the page as one
+            metre along y. On by default, and normally right: a trajectory is a
+            shape, and an anisotropic axes distorts it.
+
+            Clear it for a *near-1-D* path -- a corridor walk, a rail, a
+            straight-line SLAM demo -- where equal axes are what destroys the
+            figure. Matplotlib stretches the short axis to fill the panel, so
+            Chapter 7's 4.5 m x 0.13 m front-end walk gets a y range of roughly
+            [-2, 2]. Every series then shares one hairline band under 3% of the
+            panel's height, and the method that tracks best -- the one the
+            figure is arguing for -- ends up within its own stroke width of the
+            ground truth.
+
+            Note this is the *opposite* failure to ``zoom_to_truth``. There the
+            truth is well-shaped and one estimate leaves the frame, so a second
+            set of limits fixes it. Here the truth extent is itself degenerate,
+            and no choice of limits helps while the aspect is locked. The two
+            flags are independent and may be combined.
+
+            When cleared, the panel is labelled ``"axes not equally scaled"``,
+            because a reader takes in the shape of a trajectory before the tick
+            labels.
 
     Returns:
         fig: The figure drawn into, whether created here or supplied via ``ax``.
@@ -200,7 +257,7 @@ def plot_trajectory_2d(
         _draw_trajectories(ax, truth_xy, est_xy_dict, anchors_xy, axis_labels)
         ax.set_title(title, fontsize=14, fontweight=title_fontweight)
         ax.legend(fontsize=10)
-        ax.axis("equal")
+        _apply_aspect(ax, equal_aspect)
         if owns_figure:
             plt.tight_layout()
         return fig
@@ -210,17 +267,22 @@ def plot_trajectory_2d(
     _draw_trajectories(ax_full, truth_xy, est_xy_dict, anchors_xy, axis_labels)
     ax_full.set_title("full extent", fontsize=12)
     ax_full.legend(fontsize=9, loc="best")
-    ax_full.axis("equal")
+    _apply_aspect(ax_full, equal_aspect)
 
     _draw_trajectories(ax_zoom, truth_xy, est_xy_dict, anchors_xy, axis_labels)
     ax_zoom.set_title("zoom: ground-truth extent", fontsize=12)
-    # Limits first, then equal aspect: with the default adjustable="box" this
-    # reshapes the axes box to honour the limits, rather than autoscaling them
-    # back out to the full data range the way ax.axis("equal") would.
     xlim, ylim = _truth_extent_limits(truth_xy)
     ax_zoom.set_xlim(*xlim)
     ax_zoom.set_ylim(*ylim)
-    ax_zoom.set_aspect("equal")
+    if equal_aspect:
+        # set_aspect rather than _apply_aspect: the latter goes through
+        # ax.axis("equal"), which would autoscale the limits just set back out
+        # to the full data range. Setting the aspect directly leaves them
+        # alone -- with the default adjustable="box" it reshapes the axes box
+        # instead.
+        ax_zoom.set_aspect("equal")
+    else:
+        _apply_aspect(ax_zoom, equal_aspect=False)
 
     fig.suptitle(title, fontsize=14, fontweight=title_fontweight)
     plt.tight_layout()

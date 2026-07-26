@@ -56,7 +56,21 @@ widest series. Two failure modes, with opposite fixes:
   diverging trace — the unbounded drift is usually the lesson.
 - A near-1-D path (long in one axis, thin in the other) is flattened to a line
   by equal aspect. `zoom_to_truth` does not help; the truth's own extent is the
-  degenerate thing.
+  degenerate thing. Use `plot_trajectory_2d(..., equal_aspect=False)`, which
+  frees the short axis and labels the panel "axes not equally scaled" —
+  the shape is then no longer trustworthy, and a reader reads shape before
+  tick labels. Reach for it only when the cross-track deviation *is* the
+  subject; a path with genuine width keeps equal axes.
+
+  Chapter 7's front-end walk is the worked example: 4.5 m along track against
+  0.13 m across it, so equal axes opened y to roughly [-2, 2] and put all
+  three tracks in a 15-pixel band on a 500-pixel panel, with the
+  best-tracking method — the one the figure argued for — within its own
+  stroke width of the truth.
+
+Both flags default to the existing behaviour, address opposite failures, and
+compose. Neither is a substitute for looking at the PNG: the numbers above
+were measured only after the flattened panel was spotted by eye.
 
 ## Cost
 
