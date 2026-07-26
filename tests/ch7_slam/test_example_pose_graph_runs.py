@@ -16,6 +16,7 @@ import json
 import re
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -222,32 +223,39 @@ class TestExamplePoseGraphSLAMRuns(unittest.TestCase):
     def test_visualization_file_created(self):
         """Test that visualization file is created."""
         import os
-        env = os.environ.copy()
-        env.update({
-            "MPLBACKEND": "Agg",
-            "PYTHONPATH": str(self.workspace_root),
-        })
-        
-        # Run script
-        result = subprocess.run(
-            [self.python_exe, "-m", "ch7_slam.example_pose_graph_slam"],
-            cwd=self.workspace_root,
-            capture_output=True,
-            text=True,
-            timeout=180,
-            env=env,
-        )
-        
-        self.assertEqual(result.returncode, 0)
-        
-        # Check output file exists
-        output_file = self.workspace_root / "ch7_slam" / "figs" / "slam_with_maps.png"
-        self.assertTrue(output_file.exists(),
-                       f"Visualization file not created: {output_file}")
-        
-        # Verify file message in output
-        self.assertIn("Saved figure", result.stdout,
-                     "Missing file save confirmation")
+
+        # Divert the figure: writing into ch7_slam/figs/ would rewrite the
+        # committed slam_with_maps.png and leave the working tree dirty.
+        with tempfile.TemporaryDirectory() as figs_root:
+            env = os.environ.copy()
+            env.update({
+                "MPLBACKEND": "Agg",
+                "PYTHONPATH": str(self.workspace_root),
+                "IPIN_FIGS_DIR": figs_root,
+            })
+
+            # Run script
+            result = subprocess.run(
+                [self.python_exe, "-m", "ch7_slam.example_pose_graph_slam"],
+                cwd=self.workspace_root,
+                capture_output=True,
+                text=True,
+                timeout=180,
+                env=env,
+            )
+
+            self.assertEqual(result.returncode, 0)
+
+            # Check output file exists
+            output_file = (
+                Path(figs_root) / "ch7_slam" / "figs" / "slam_with_maps.png"
+            )
+            self.assertTrue(output_file.exists(),
+                           f"Visualization file not created: {output_file}")
+
+            # Verify file message in output
+            self.assertIn("Saved figure", result.stdout,
+                         "Missing file save confirmation")
 
 
 class TestExampleSLAMFrontendRuns(unittest.TestCase):

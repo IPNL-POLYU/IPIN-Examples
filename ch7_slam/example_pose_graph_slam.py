@@ -1477,9 +1477,8 @@ def plot_slam_results(
     )
     
     # Save to figs directory with deterministic filename
-    from pathlib import Path
-    figs_dir = Path("ch7_slam/figs")
-    figs_dir.mkdir(parents=True, exist_ok=True)
+    from core.eval import resolve_figs_dir
+    figs_dir = resolve_figs_dir("ch7_slam/figs")
     output_file = figs_dir / "slam_with_maps.png"
     plt.savefig(output_file, dpi=150, bbox_inches="tight")
     print(f"\n[OK] Saved figure: {output_file}")
