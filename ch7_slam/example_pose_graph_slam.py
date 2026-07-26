@@ -50,6 +50,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 
+from core.eval import save_figure
 from core.slam import (
     se2_apply,
     se2_compose,
@@ -1476,13 +1477,13 @@ def plot_slam_results(
         fontsize=14, fontweight="bold", y=0.98
     )
     
-    # Save to figs directory with deterministic filename
+    # Save to figs directory with deterministic filename. Resolved from this
+    # file rather than the working directory: the tests run the example from
+    # the repo root, but nothing here should depend on that.
     from pathlib import Path
-    figs_dir = Path("ch7_slam/figs")
-    figs_dir.mkdir(parents=True, exist_ok=True)
-    output_file = figs_dir / "slam_with_maps.png"
-    plt.savefig(output_file, dpi=150, bbox_inches="tight")
-    print(f"\n[OK] Saved figure: {output_file}")
+    figs_dir = Path(__file__).resolve().parent / "figs"
+    paths = save_figure(fig, figs_dir, "slam_with_maps")
+    print(f"\n[OK] Saved figure: {paths[0]}")
     
     # Only show interactively if not in automated mode
     import os

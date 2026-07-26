@@ -35,35 +35,24 @@ CHAPTER_GLOB = "ch*_*/*.py"
 # found three violations; running the check over every chapter found ten, all
 # of Chapters 7 and 8. That gap is the argument for a runnable rule.
 #
-# Deliberately not asserting that listed files still violate: one of them is
-# being fixed in a parallel session, and a stale-entry check would turn their
-# fix into someone else's red build.
+# Deliberately not asserting that listed files still violate: a stale-entry
+# check would turn one branch's fix into another's red build.
 #
-# Down from ten to seven: the SLAM front-end fix converted the three below as
-# it went, and they now assert cleanly rather than skipping.
-#   ch7_slam/example_slam_frontend.py
-#   ch8_sensor_fusion/observability_demo.py
-#   ch8_sensor_fusion/temporal_calibration_demo.py
-KNOWN_RAW_SAVEFIG = {
-    "ch7_slam/example_bundle_adjustment.py",
-    "ch7_slam/example_pose_graph_slam.py",
-    "ch8_sensor_fusion/calibration_demo.py",
-    "ch8_sensor_fusion/compare_lc_tc.py",
-    "ch8_sensor_fusion/lc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/tc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/tuning_robust_demo.py",
-}
+# Empty, and it took two passes to get here: ten at first count, seven after
+# the SLAM front-end fix converted three in passing, then zero. Every chapter
+# example now writes through save_figure. Keep it empty -- if a new entry is
+# genuinely warranted, record why next to it.
+KNOWN_RAW_SAVEFIG: set = set()
 
 # Files known to draw from the unseeded global RNG, predating this test.
-# Same ratchet: only shrink it. Each entry is an example whose committed
-# figures cannot be regenerated, so a figure diff there means nothing.
-KNOWN_UNSEEDED_RNG = {
-    "ch5_fingerprinting/example_classification.py",
-    "ch6_dead_reckoning/example_environment.py",
-    "ch6_dead_reckoning/example_imu_strapdown.py",
-    "ch6_dead_reckoning/example_pdr.py",
-    "ch6_dead_reckoning/example_wheel_odometry.py",
-}
+# Same ratchet: only shrink it. Each entry was an example whose committed
+# figures could not be regenerated, so a figure diff there meant nothing.
+#
+# Empty. All five now own a np.random.default_rng(DEFAULT_SEED); the two that
+# draw in more than one place thread a single generator through the run rather
+# than seeding twice, so the streams stay independent instead of being two
+# copies of the same sequence.
+KNOWN_UNSEEDED_RNG: set = set()
 
 
 def _chapter_scripts():

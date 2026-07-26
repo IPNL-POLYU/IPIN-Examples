@@ -33,12 +33,26 @@ from core.sensors import (
 )
 
 
-def generate_building_walk(duration=180.0, dt=0.1):
+
+# Seed for this example's random walk and sensor noise. Fixed so the
+# committed figures can be regenerated exactly.
+DEFAULT_SEED = 42
+
+def generate_building_walk(duration=180.0, dt=0.1, rng=None):
     """
     Generate multi-floor building walk with floor changes.
-    
+
+    Args:
+        duration: Total duration [s].
+        dt: Sample interval [s].
+        rng: Generator for the random-walk jitter. Pass the same one used for
+            the sensor noise so the two draw from a single seeded stream rather
+            than two identical ones; defaults to a fresh seeded generator.
+
     Returns: t, pos_true, att_true, mag_true, pressure_true, floor_true
     """
+    if rng is None:
+        rng = np.random.default_rng(DEFAULT_SEED)
     t = np.arange(0, duration, dt)
     N = len(t)
     
@@ -83,8 +97,8 @@ def generate_building_walk(duration=180.0, dt=0.1):
         
         # Position (x,y random walk, z from floor)
         if k > 0:
-            pos_true[k, 0] = pos_true[k-1, 0] + 0.1*np.random.randn()
-            pos_true[k, 1] = pos_true[k-1, 1] + 0.1*np.random.randn()
+            pos_true[k, 0] = pos_true[k-1, 0] + 0.1*rng.standard_normal()
+            pos_true[k, 1] = pos_true[k-1, 1] + 0.1*rng.standard_normal()
         pos_true[k, 2] = current_floor * floor_height
         
         # Attitude (device orientation changes)
@@ -113,13 +127,29 @@ def generate_building_walk(duration=180.0, dt=0.1):
     return t, pos_true, att_true, mag_true, pressure_true, floor_true
 
 
-def add_env_sensor_noise(mag_true, pressure_true, t, dt):
-    """Add realistic environmental sensor noise + disturbances."""
+def add_env_sensor_noise(mag_true, pressure_true, t, dt, rng=None):
+    """Add realistic environmental sensor noise + disturbances.
+
+    Args:
+        mag_true: Noise-free magnetic field, shape (N, 3).
+        pressure_true: Noise-free pressure [Pa], shape (N,).
+        t: Time vector [s], shape (N,).
+        dt: Sample interval [s].
+        rng: Generator for the noise draws; defaults to a fresh seeded one.
+            The magnetic disturbances below are what the heading estimate has
+            to survive, so redrawing them each run changed the figure without
+            any change to the code.
+
+    Returns:
+        Tuple of (mag_meas, pressure_meas).
+    """
+    if rng is None:
+        rng = np.random.default_rng(DEFAULT_SEED)
     N = len(mag_true)
     duration = t[-1]
     
     # Magnetometer noise
-    mag_noise = np.random.randn(N, 3) * 0.05  # Gaussian noise
+    mag_noise = rng.standard_normal((N, 3)) * 0.05  # Gaussian noise
     
     # Magnetic disturbances (steel structures)
     mag_disturbance = np.zeros((N, 3))
@@ -127,7 +157,7 @@ def add_env_sensor_noise(mag_true, pressure_true, t, dt):
     for start, end in disturbance_times:
         mask = (t >= start) & (t < end)
         # Strong disturbance: shifts mag field direction
-        mag_disturbance[mask] = np.random.randn(np.sum(mask), 3) * 0.5
+        mag_disturbance[mask] = rng.standard_normal((np.sum(mask), 3)) * 0.5
     
     # Hard-iron offset (constant bias from device)
     hard_iron = np.array([0.1, -0.15, 0.05])
@@ -135,7 +165,7 @@ def add_env_sensor_noise(mag_true, pressure_true, t, dt):
     mag_meas = mag_true + mag_noise + mag_disturbance + hard_iron
     
     # Barometer noise
-    pressure_noise = np.random.randn(N) * 10.0  # Pa (typical noise)
+    pressure_noise = rng.standard_normal(N) * 10.0  # Pa (typical noise)
     
     # Slow weather drift (pressure changes over time)
     weather_drift = 50.0 * np.sin(2*np.pi*t/(duration))  # ±50 Pa drift
@@ -244,11 +274,15 @@ def main():
     print(f"  Floor Height:    3.5 m\n")
     
     print("Generating trajectory...")
-    t, pos_true, att_true, mag_true, pressure_true, floor_true = generate_building_walk(duration, dt)
+    # One generator for the whole run, so the walk jitter and the sensor noise
+    # are consecutive draws from a single seeded stream rather than two copies
+    # of the same one.
+    rng = np.random.default_rng(DEFAULT_SEED)
+    t, pos_true, att_true, mag_true, pressure_true, floor_true = generate_building_walk(duration, dt, rng=rng)
     print(f"  Floors visited:  {np.unique(floor_true)}")
     
     print("\nAdding sensor noise + disturbances...")
-    mag_meas, pressure_meas = add_env_sensor_noise(mag_true, pressure_true, t, dt)
+    mag_meas, pressure_meas = add_env_sensor_noise(mag_true, pressure_true, t, dt, rng=rng)
     
     print("\nComputing magnetometer heading...")
     start = time.time()

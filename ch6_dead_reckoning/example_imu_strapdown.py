@@ -37,6 +37,11 @@ from core.sensors import (
 from core.sim import generate_imu_from_trajectory
 
 
+
+# Seed for this example's sensor-noise draws. Fixed so the committed
+# figures can be regenerated exactly; see the noise function below.
+DEFAULT_SEED = 42
+
 def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None, lat_deg=45.0):
     """
     Generate a figure-8 trajectory with correct IMU forward model.
@@ -105,33 +110,39 @@ def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None, lat_deg=45.
     return t, pos_true, vel_true, quat_true, accel_body, gyro_body
 
 
-def add_imu_noise(accel_true, gyro_true, dt, imu_params: IMUNoiseParams):
+def add_imu_noise(accel_true, gyro_true, dt, imu_params: IMUNoiseParams,
+                  seed: int = DEFAULT_SEED):
     """
     Add realistic IMU noise and biases using explicit unit conversions.
-    
+
     Args:
         accel_true: True acceleration [m/s²], shape (N, 3).
         gyro_true: True angular velocity [rad/s], shape (N, 3).
         dt: Time step [s].
         imu_params: IMU noise parameters with explicit units.
-    
+        seed: Seed for this run's noise. The bias below is a single draw that
+            sets the direction the unaided solution walks off in, so without a
+            seed the committed figure could not be regenerated and every diff
+            was noise.
+
     Returns:
         Tuple of (accel_meas, gyro_meas, accel_bias, gyro_bias).
     """
     N = len(accel_true)
-    
+    rng = np.random.default_rng(seed)
+
     # Constant biases (slowly varying in reality, but constant for this example)
     # Sample from zero-mean Gaussian with std = bias_instability
-    gyro_bias = np.random.randn(3) * imu_params.gyro_bias_rad_s
-    accel_bias = np.random.randn(3) * imu_params.accel_bias_mps2
-    
+    gyro_bias = rng.standard_normal(3) * imu_params.gyro_bias_rad_s
+    accel_bias = rng.standard_normal(3) * imu_params.accel_bias_mps2
+
     # White noise (scale with sqrt(1/dt) for discrete-time PSD)
     # For continuous-time noise with PSD σ², discrete noise std is σ/√dt
     gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
     accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
-    
-    gyro_noise = np.random.randn(N, 3) * gyro_noise_std
-    accel_noise = np.random.randn(N, 3) * accel_noise_std
+
+    gyro_noise = rng.standard_normal((N, 3)) * gyro_noise_std
+    accel_noise = rng.standard_normal((N, 3)) * accel_noise_std
     
     # Measured = true + bias + noise (Eq. 6.5, Eq. 6.9)
     gyro_meas = gyro_true + gyro_bias + gyro_noise

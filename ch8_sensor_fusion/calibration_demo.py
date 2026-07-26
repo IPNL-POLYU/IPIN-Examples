@@ -18,6 +18,8 @@ References: Chapter 8, Section 8.4 (Calibration Techniques)
 
 import argparse
 from pathlib import Path
+
+from core.eval import save_figure
 from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
@@ -326,7 +328,10 @@ def plot_imu_calibration(
     plt.suptitle('IMU Intrinsic Calibration (Section 8.4.1.3)', fontsize=14, y=0.995)
     
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        # save_figure takes a directory and a stem, and writes svg/pdf/png
+        # together; callers still pass a single path, so split it here.
+        save_path = Path(save_path)
+        save_figure(fig, save_path.parent, save_path.stem)
         print(f"Saved figure: {save_path}")
     
     plt.show()
@@ -422,7 +427,10 @@ Rotation Matrix (Estimated):
     plt.suptitle('2D Extrinsic Calibration (Section 8.4.2)', fontsize=14)
     
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        # save_figure takes a directory and a stem, and writes svg/pdf/png
+        # together; callers still pass a single path, so split it here.
+        save_path = Path(save_path)
+        save_figure(fig, save_path.parent, save_path.stem)
         print(f"Saved figure: {save_path}")
     
     plt.show()

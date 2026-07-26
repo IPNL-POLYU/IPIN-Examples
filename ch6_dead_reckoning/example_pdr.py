@@ -48,6 +48,11 @@ from core.sensors import (
 from core.sim import generate_imu_from_trajectory
 
 
+
+# Seed for this example's sensor-noise draws. Fixed so the committed
+# figures can be regenerated exactly; see the noise function below.
+DEFAULT_SEED = 42
+
 def compute_step_length(
     height: float,
     f_step: float,
@@ -487,26 +492,43 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     return t, pos_2d, heading_true, accel_body, gyro_body, mag_body, expected_steps
 
 
-def add_sensor_noise(accel_body, gyro_body, mag_body, dt, imu_params: IMUNoiseParams):
-    """Add realistic sensor noise with explicit units."""
+def add_sensor_noise(accel_body, gyro_body, mag_body, dt,
+                     imu_params: IMUNoiseParams, seed: int = DEFAULT_SEED):
+    """Add realistic sensor noise with explicit units.
+
+    Args:
+        accel_body: Noise-free specific force [m/s^2], shape (N, 3).
+        gyro_body: Noise-free angular rate [rad/s], shape (N, 3).
+        mag_body: Noise-free magnetic field, shape (N, 3).
+        dt: Sample interval [s].
+        imu_params: IMU noise specification.
+        seed: Seed for this run's noise, so the committed figures can be
+            regenerated. The magnetic disturbances below are what the heading
+            estimate has to survive, and redrawing them each run changed the
+            figure without changing the code.
+
+    Returns:
+        Tuple of (accel_meas, gyro_meas, mag_meas).
+    """
     N = len(accel_body)
-    
+    rng = np.random.default_rng(seed)
+
     # IMU noise and biases
-    gyro_bias = np.random.randn(3) * imu_params.gyro_bias_rad_s
+    gyro_bias = rng.standard_normal(3) * imu_params.gyro_bias_rad_s
     gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
-    gyro_noise = np.random.randn(N, 3) * gyro_noise_std
-    
+    gyro_noise = rng.standard_normal((N, 3)) * gyro_noise_std
+
     accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
-    accel_noise = np.random.randn(N, 3) * accel_noise_std
-    
+    accel_noise = rng.standard_normal((N, 3)) * accel_noise_std
+
     # Magnetometer noise + disturbances
-    mag_noise = np.random.randn(N, 3) * 0.05
+    mag_noise = rng.standard_normal((N, 3)) * 0.05
     mag_disturbance = np.zeros((N, 3))
     # Add disturbances at specific times (simulating steel structures)
     disturb_intervals = [(20, 30), (70, 80)]  # seconds
     for start, end in disturb_intervals:
         mask = (np.arange(N)*dt >= start) & (np.arange(N)*dt < end)
-        mag_disturbance[mask] = np.random.randn(np.sum(mask), 3) * 0.3
+        mag_disturbance[mask] = rng.standard_normal((np.sum(mask), 3)) * 0.3
     
     gyro_meas = gyro_body + gyro_bias + gyro_noise
     accel_meas = accel_body + accel_noise

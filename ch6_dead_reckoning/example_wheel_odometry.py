@@ -27,6 +27,11 @@ from core.eval import save_figure
 from core.sensors import wheel_odom_update, NavStateQPVP
 
 
+
+# Seed for this example's sensor-noise draws. Fixed so the committed
+# figures can be regenerated exactly; see the noise function below.
+DEFAULT_SEED = 42
+
 def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
     """
     Generate vehicle trajectory (square or circle).
@@ -99,17 +104,33 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
     return t, pos_true, vel_true, quat_true, wheel_speed_true, gyro_true
 
 
-def add_wheel_noise(wheel_speed_true, gyro_true, add_slip=False, slip_intervals=None):
-    """Add wheel encoder noise and optional slip."""
+def add_wheel_noise(wheel_speed_true, gyro_true, add_slip=False,
+                    slip_intervals=None, seed=DEFAULT_SEED):
+    """Add wheel encoder noise and optional slip.
+
+    Args:
+        wheel_speed_true: Noise-free wheel speed [m/s], shape (N, 3).
+        gyro_true: Noise-free angular rate [rad/s], shape (N, 3).
+        add_slip: Whether to inject wheel slip over ``slip_intervals``.
+        slip_intervals: Sample ranges to slip over, as (start, end) pairs.
+        seed: Seed for this run's noise. Both the no-slip and slip runs use the
+            same default, so the two differ only by the slip itself rather than
+            by an unrelated redraw -- the comparison the figure makes is then
+            controlled. Unseeded, every run produced a different figure.
+
+    Returns:
+        Tuple of (wheel_meas, gyro_meas).
+    """
     N = len(wheel_speed_true)
-    
+    rng = np.random.default_rng(seed)
+
     # Scale error (wrong wheel radius) - systematic bias
     scale_error = 0.02  # 2% scale error (typical)
-    
+
     # Random noise
     noise_std = 0.05  # m/s
-    wheel_noise = np.random.randn(N, 3) * noise_std
-    gyro_noise = np.random.randn(N, 3) * np.deg2rad(0.5)
+    wheel_noise = rng.standard_normal((N, 3)) * noise_std
+    gyro_noise = rng.standard_normal((N, 3)) * np.deg2rad(0.5)
     
     wheel_meas = wheel_speed_true * (1 + scale_error) + wheel_noise
     gyro_meas = gyro_true + gyro_noise
