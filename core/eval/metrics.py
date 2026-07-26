@@ -226,8 +226,7 @@ def compute_position_rmse(errors: np.ndarray) -> float:
         magnitudes = np.linalg.norm(errors, axis=1)
     else:
         raise ValueError(
-            f"errors must be (N,) magnitudes or (N, D) vectors, got "
-            f"{errors.shape}"
+            f"errors must be (N,) magnitudes or (N, D) vectors, got " f"{errors.shape}"
         )
 
     return float(np.sqrt(np.mean(magnitudes**2)))
