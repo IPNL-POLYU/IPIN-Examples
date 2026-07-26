@@ -45,6 +45,28 @@ A test that only checks a file was created tells you nothing about the picture.
   panel flattened to a single line — were invisible to every test and obvious
   on sight. This step is not optional and cannot be delegated to CI.
 
+## One draw is not a measurement
+
+An error computed from a single noise realisation is a sample, not an accuracy.
+Reporting one -- especially to four decimal places, or divided by the noise to
+make a "ratio" -- invites the reader to treat it as a property of the method.
+
+Found three times in Chapter 4 alone. The TOA example printed "position error
+0.055 m, error/noise ratio 0.55", suggesting positioning twice as good as its
+ranging; the true relation is sigma_position = HDOP * sigma_range, and repeated
+draws span 0.03 to 0.15 m. The AOA and TDOA noise tables each tabulated one
+draw per row, and the AOA one then contradicted the physics it was
+demonstrating, showing error saturating between 5 and 10 degrees.
+
+- Report a statistic over repeated draws. Say which one and over how many.
+- Prefer the median where the tail can diverge, and then report the tail
+  separately rather than letting it vanish. Averaging the AOA table revealed
+  that at 10 degrees a few solves reach 1e14 m *while reporting convergence* --
+  a fact worth its own column, and one no single draw would ever show.
+- Check the statistic against theory. Most of these relationships are linear
+  in the noise, so error divided by noise should be constant down the column;
+  print that ratio and the table checks itself.
+
 ## Scale, when methods differ by orders of magnitude
 
 A trajectory plot needs equal axes, which makes one pair of limits span the
