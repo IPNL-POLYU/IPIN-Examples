@@ -14,6 +14,7 @@ from .metrics import (
     compute_nees,
     compute_nis,
     compute_position_errors,
+    compute_position_rmse,
     compute_rmse,
     motion_ratio,
     path_length,
@@ -35,6 +36,7 @@ from .plots import (
 __all__ = [
     # Metrics
     "compute_position_errors",
+    "compute_position_rmse",
     "compute_rmse",
     "compute_error_stats",
     "compute_nees",

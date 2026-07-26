@@ -27,7 +27,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from core.eval import compute_position_errors, compute_rmse, save_figure
+from core.eval import (
+    compute_position_errors,
+    compute_position_rmse,
+    compute_rmse,
+    save_figure,
+)
 from core.fusion import StampedMeasurement, TimeSyncModel
 from ch8_sensor_fusion.tc_uwb_imu_ekf import load_fusion_dataset
 from ch8_sensor_fusion.tc_models import (
@@ -532,7 +537,7 @@ def main():
             np.interp(history['t'], truth['t'], truth['p_xy'][:, 1])
         ])
         errors = history['x_est'][:, :2] - p_true_interp
-        return compute_rmse(errors)
+        return compute_position_rmse(errors)
     
     rmse_no_corr = compute_final_rmse(no_correction)
     rmse_with_corr = compute_final_rmse(with_correction)

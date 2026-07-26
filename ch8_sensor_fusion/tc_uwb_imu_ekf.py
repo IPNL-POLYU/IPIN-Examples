@@ -22,7 +22,11 @@ from typing import Dict, List
 import matplotlib.pyplot as plt
 import numpy as np
 
-from core.eval import compute_position_errors, compute_rmse, save_figure
+from core.eval import (
+    compute_position_errors,
+    compute_position_rmse,
+    save_figure,
+)
 from core.fusion import (
     AdaptiveGatingManager,
     StampedMeasurement,
@@ -435,7 +439,7 @@ def evaluate_results(dataset: Dict, history: Dict) -> Dict:
     
     # Compute errors
     errors = compute_position_errors(p_true_interp, p_est)
-    rmse = compute_rmse(errors)
+    rmse = compute_position_rmse(errors)
     
     metrics = {
         'rmse_2d': rmse,

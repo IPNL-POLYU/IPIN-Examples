@@ -14,7 +14,7 @@ Author: Li-Ta Hsu
 import numpy as np
 import pytest
 
-from core.eval import motion_ratio, path_length
+from core.eval import compute_position_rmse, compute_rmse, motion_ratio, path_length
 
 
 class TestPathLength:
@@ -103,3 +103,47 @@ class TestMotionRatio:
 
         assert motion_ratio(moving, stationary) == float("inf")
         assert motion_ratio(stationary, stationary) == 0.0
+
+
+class TestComputePositionRmse:
+    """RMS of the error magnitude, versus the per-axis RMS trap."""
+
+    def test_norms_before_averaging(self):
+        """Magnitudes 5 and 10 give sqrt((25+100)/2)."""
+        errors = np.array([[3.0, 4.0], [6.0, 8.0]])
+
+        assert compute_position_rmse(errors) == pytest.approx(np.sqrt(62.5))
+
+    def test_differs_from_compute_rmse_by_exactly_sqrt_two(self):
+        """The silent failure this function exists to prevent.
+
+        compute_rmse on (N, 2) vectors averages over 2N components instead of
+        N positions. In 2-D that is smaller by exactly sqrt(2) -- a number
+        that still looks plausible, just 29% too small, which is how four
+        Chapter 8 examples shipped under-reported position RMSE.
+        """
+        rng = np.random.default_rng(7)
+        errors = rng.standard_normal((500, 2))
+
+        ratio = compute_position_rmse(errors) / compute_rmse(errors)
+        assert ratio == pytest.approx(np.sqrt(2.0))
+
+    def test_accepts_magnitudes_already_normed(self):
+        """Callers that normed first must get the same answer."""
+        errors = np.array([[3.0, 4.0], [6.0, 8.0]])
+        magnitudes = np.linalg.norm(errors, axis=1)
+
+        assert compute_position_rmse(magnitudes) == pytest.approx(
+            compute_position_rmse(errors)
+        )
+
+    def test_works_in_three_dimensions(self):
+        """Position error is not always planar."""
+        errors = np.array([[1.0, 2.0, 2.0]])
+
+        assert compute_position_rmse(errors) == pytest.approx(3.0)
+
+    def test_rejects_wrong_rank(self):
+        """A (2, 2, N) slip should fail loudly, not average silently."""
+        with pytest.raises(ValueError):
+            compute_position_rmse(np.zeros((2, 2, 2)))

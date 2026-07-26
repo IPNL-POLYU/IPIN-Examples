@@ -199,6 +199,40 @@ def compute_nis(innovation: np.ndarray, S: np.ndarray) -> np.ndarray:
     return nis
 
 
+def compute_position_rmse(errors: np.ndarray) -> float:
+    """
+    RMS of the position error *magnitude*.
+
+    Use this, not ``compute_rmse``, whenever the quantity being reported is a
+    position error. Handing ``compute_rmse`` the (N, 2) error vectors averages
+    over 2N components instead of N positions, which is the per-axis RMS and
+    is smaller by exactly sqrt(2). It fails silently: the number looks
+    plausible, just 29% too small. Four Chapter 8 examples reported position
+    RMSE that way, and one of them disagreed with its own figure -- the bar
+    chart said 18.02 m where the printed table said 12.74 m.
+
+    Args:
+        errors: Error vectors of shape (N, D), or magnitudes of shape (N,)
+            if already normed.
+
+    Returns:
+        sqrt(mean(|error|^2)) [m].
+    """
+    errors = np.asarray(errors, dtype=float)
+
+    if errors.ndim == 1:
+        magnitudes = np.abs(errors)
+    elif errors.ndim == 2:
+        magnitudes = np.linalg.norm(errors, axis=1)
+    else:
+        raise ValueError(
+            f"errors must be (N,) magnitudes or (N, D) vectors, got "
+            f"{errors.shape}"
+        )
+
+    return float(np.sqrt(np.mean(magnitudes**2)))
+
+
 def path_length(positions: np.ndarray) -> float:
     """
     Total distance travelled along a path.

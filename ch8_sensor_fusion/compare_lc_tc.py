@@ -19,7 +19,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from core.eval import compute_position_errors, compute_rmse, save_figure
+from core.eval import (
+    compute_position_errors,
+    compute_position_rmse,
+    save_figure,
+)
 from ch8_sensor_fusion.lc_uwb_imu_ekf import load_fusion_dataset, run_lc_fusion
 from ch8_sensor_fusion.tc_uwb_imu_ekf import run_tc_fusion
 
@@ -97,13 +101,13 @@ def compute_comparative_metrics(
     p_true_lc = interpolate_truth(lc_results['t'])
     p_est_lc = lc_results['x_est'][:, :2]
     errors_lc = compute_position_errors(p_true_lc, p_est_lc)
-    rmse_lc = compute_rmse(errors_lc)
+    rmse_lc = compute_position_rmse(errors_lc)
     
     # TC metrics
     p_true_tc = interpolate_truth(tc_results['t'])
     p_est_tc = tc_results['x_est'][:, :2]
     errors_tc = compute_position_errors(p_true_tc, p_est_tc)
-    rmse_tc = compute_rmse(errors_tc)
+    rmse_tc = compute_position_rmse(errors_tc)
     
     metrics = {
         'lc': {
