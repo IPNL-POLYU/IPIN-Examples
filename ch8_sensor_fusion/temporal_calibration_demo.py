@@ -9,6 +9,21 @@ Demonstrates the importance of temporal calibration in sensor fusion:
 This demo uses the time-offset dataset where IMU and UWB have a 50ms
 time offset and 100ppm clock drift.
 
+On the size of the effect: a 50 ms offset on a platform moving at 1 m/s
+displaces it 5 cm, and that is all it can cost. Expect centimetres here --
+uncorrected 0.30 m RMSE against 0.28 m corrected, about 8% -- not metres. The
+demo previously printed "a -50 ms offset causes 17.78 m RMSE", which was an
+unrelated filter divergence being attributed to the clock; the zero-offset
+dataset produced the same 17.76 m. Temporal alignment matters because the cost
+scales with speed, so the same clock error on a vehicle is metres, not because
+it is large on a walking pedestrian.
+
+Chi-square gating is off here for that reason. R is set from the
+line-of-sight range noise, so the filter is over-confident, a 95% gate rejects
+about half its measurements and the starved state drifts. That failure mode is
+real and worth studying, but it belongs to tuning_robust_demo; here it only
+buries the subject.
+
 Key Concepts:
 - Temporal misalignment: Sensors have different time bases
 - Time offset: Constant shift between sensor clocks
@@ -49,7 +64,7 @@ from core.estimators import ExtendedKalmanFilter
 def run_fusion_with_time_sync(
     dataset: Dict,
     apply_correction: bool = False,
-    use_gating: bool = True,
+    use_gating: bool = False,
     gate_confidence: float = 0.95,
     verbose: bool = False
 ) -> Dict:
@@ -58,7 +73,14 @@ def run_fusion_with_time_sync(
     Args:
         dataset: Dataset dictionary
         apply_correction: Whether to apply TimeSyncModel correction
-        use_gating: Enable chi-square gating
+        use_gating: Enable chi-square gating. Off by default, and that default
+            is load-bearing for this demo. R is set from the line-of-sight
+            range noise, so the filter is over-confident and a 95% gate
+            rejects around half of its measurements; the starved state then
+            drifts to ~17.8 m RMSE. That has nothing to do with temporal
+            calibration and is 600x the effect this file exists to show, so
+            with the gate on the demo cannot demonstrate its own topic. See
+            tuning_robust_demo, which is where that failure mode belongs.
         gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
         verbose: Print progress
     
@@ -519,14 +541,16 @@ def main():
     
     # Run without correction
     print("[1/2] Running fusion WITHOUT time sync correction...")
+    # Gating off: it is not this demo's subject, and with it on the filter
+    # starves and drifts to ~17.8 m, swamping the timing effect 600-fold.
     no_correction = run_fusion_with_time_sync(
-        dataset, apply_correction=False, use_gating=True, verbose=True
+        dataset, apply_correction=False, use_gating=False, verbose=True
     )
     
     # Run with correction
     print("[2/2] Running fusion WITH time sync correction...")
     with_correction = run_fusion_with_time_sync(
-        dataset, apply_correction=True, use_gating=True, verbose=True
+        dataset, apply_correction=True, use_gating=False, verbose=True
     )
     
     # Compute RMSE
@@ -554,10 +578,27 @@ def main():
     
     improvement = 100 * (rmse_no_corr - rmse_with_corr) / rmse_no_corr
     
+    # "The offset causes X m RMSE" was the old wording, and it was wrong: it
+    # reported the *total* error, most of which had nothing to do with timing.
+    # What the offset costs is the difference between the two runs, and the
+    # sanity check on it is kinematic -- a platform moving at v with its
+    # ranges stamped Dt late is being fused against a position v*Dt away.
+    speed = float(np.mean(np.linalg.norm(dataset['truth']['v_xy'], axis=1)))
+    expected = speed * abs(time_offset_ms) / 1000.0
+
     print(f"\nKey Findings:")
-    print(f"  * Time offset: {time_offset_ms:.1f} ms causes {rmse_no_corr:.2f}m RMSE")
-    print(f"  * TimeSyncModel correction improves RMSE by {improvement:.1f}%")
-    print(f"  * Proper temporal alignment is critical for fusion accuracy")
+    print(f"  * Uncorrected: {rmse_no_corr:.3f} m RMSE; corrected: "
+          f"{rmse_with_corr:.3f} m")
+    print(f"  * So a {time_offset_ms:.1f} ms offset costs "
+          f"{rmse_no_corr - rmse_with_corr:.3f} m, and TimeSyncModel recovers "
+          f"it: {improvement:.1f}% better")
+    print(f"  * That is the order the kinematics predict: {speed:.2f} m/s for "
+          f"{abs(time_offset_ms):.0f} ms displaces the platform "
+          f"{expected:.3f} m")
+    print(f"  * Small here because the platform is slow. The cost scales with "
+          f"speed, so the same clock error on a vehicle at 15 m/s is metres,")
+    print(f"    not centimetres -- that is why temporal alignment matters, "
+          f"rather than any large number printed by this demo.")
     print("")
     
     # Plot
