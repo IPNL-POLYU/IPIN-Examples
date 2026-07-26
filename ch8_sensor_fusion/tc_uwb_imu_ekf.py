@@ -633,24 +633,17 @@ def main():
     print(f"  Final Error  : {metrics['final_error']:.3f} m")
     print(f"  Median Error : {metrics['median_error']:.3f} m  <- typical tracking")
 
-    # Read the RMSE with this in mind. The error distribution is bimodal: the
-    # filter tracks to a few centimetres, matching the ~3.5 cm ranging, except
-    # for about two seconds after each 90-degree corner, where it lags and
-    # peaks near 4 m. Those few percent of samples carry the whole RMS.
+    # Median as well as RMS, because the distribution is not symmetric: the
+    # filter tracks to a few centimetres, matching the ~3.5 cm ranging, and
+    # lags briefly after each corner. Reporting only the RMS used to hide both.
     #
-    # The corners are the artifact, not the filter: the trajectory turns
-    # instantaneously (9000 deg/s, 5 g), which no estimator can follow. The
-    # real fix is a finite turn rate in the trajectory generator, which would
-    # change every committed Chapter 8 dataset. See tests/ch8_sensor_fusion/
-    # test_fusion_accuracy_is_transient_dominated.py.
+    # It used to hide much more. Until the trajectory generator was given a
+    # finite turn rate, the corners were instantaneous -- 9000 deg/s, 5.1 g --
+    # and the resulting transients alone took this RMSE from 0.167 m to
+    # 0.739 m. What remains is ordinary manoeuvre lag at 57 deg/s.
     print(
-        f"    {100*metrics['transient_fraction']:.1f}% of samples exceed 0.5 m, "
-        f"all in post-corner transients; they carry the RMS well above the "
-        f"median."
-    )
-    print(
-        f"    The corners are non-physical (instantaneous 90-degree turns), "
-        f"so that gap measures the trajectory, not the fusion."
+        f"    {100 * metrics['transient_fraction']:.1f}% of samples exceed 0.5 m, "
+        f"in the moments after a corner; the rest track at the median above."
     )
     print("")
 

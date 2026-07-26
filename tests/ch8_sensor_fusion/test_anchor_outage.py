@@ -75,34 +75,71 @@ class TestOutageClaims(unittest.TestCase):
         self.assertGreater(self.scenario["lc"]["n_uwb_failed"], 50)
 
     def test_tc_far_better_during_the_outage(self):
-        """The headline claim: LC dead-reckons, TC keeps correcting."""
-        end = OUTAGE_WINDOW[1] + 3.0
-        peak_lc = self._peak("t_lc", "error_lc", OUTAGE_WINDOW[0], end)
-        peak_tc = self._peak("t_tc", "error_tc", OUTAGE_WINDOW[0], end)
+        """The headline claim: LC dead-reckons, TC keeps correcting.
 
-        self.assertGreater(peak_lc, 3.0)
-        self.assertLess(peak_tc, 1.0)
-        self.assertGreater(peak_lc / peak_tc, 5.0)
-
-    def test_tc_is_worse_at_the_outlier_events(self):
-        """The counterweight, and the reason gating exists.
-
-        Tight coupling is a trade: a corrupted range enters the filter
-        directly, where LC's front end can absorb it in the position solve.
-        If this ever stops holding, the example's caption must change too.
+        Measured away from the mirror-flip window below, because that flip is
+        a separate phenomenon and would otherwise mask this one. Checked at
+        four outage placements rather than one, since the whole reason the
+        claim needed re-establishing is that its previous evidence came from a
+        trajectory with 5 g corners.
         """
-        for low, high in ((35.0, 40.0), (55.0, 60.0)):
-            with self.subTest(window=(low, high)):
-                peak_lc = self._peak("t_lc", "error_lc", low, high)
-                peak_tc = self._peak("t_tc", "error_tc", low, high)
-                self.assertGreater(peak_tc, peak_lc)
+        for window in ((18.0, 26.0), (22.0, 30.0), (24.0, 32.0), (40.0, 48.0)):
+            with self.subTest(window=window):
+                scenario = run_outage_scenario(window=window, verbose=False)
+                end = window[1] + 3.0
+                t_lc, e_lc = scenario["t_lc"], scenario["error_lc"]
+                t_tc, e_tc = scenario["t_tc"], scenario["error_tc"]
+                peak_lc = e_lc[(t_lc >= window[0]) & (t_lc <= end)].max()
+                peak_tc = e_tc[(t_tc >= window[0]) & (t_tc <= end)].max()
 
-    def test_tc_still_wins_overall(self):
-        """Despite the outlier exposure, TC's RMSE is lower over the run."""
-        rmse_lc = np.sqrt(np.mean(self.scenario["error_lc"] ** 2))
-        rmse_tc = np.sqrt(np.mean(self.scenario["error_tc"] ** 2))
+                self.assertGreater(peak_lc, 1.5)
+                self.assertLess(peak_tc, 1.0)
+                self.assertLess(np.sqrt(np.mean(e_tc**2)), np.sqrt(np.mean(e_lc**2)))
 
-        self.assertLess(rmse_tc, rmse_lc)
+    def test_the_default_window_hits_a_mirror_ambiguity(self):
+        """The caveat the demo now leads with, pinned as a measurement.
+
+        The outage keeps the anchors at (0, 0) and (20, 0) while the platform
+        walks x = 20, so two ranges fit the truth and its reflection across
+        y = 0 equally well. TC briefly takes the wrong branch. This replaces a
+        claim about "two outlier events" at t = 37 s and t = 57 s, which were
+        the old trajectory's instantaneous-corner transients -- nothing in this
+        example ever injected an outlier.
+        """
+        error_tc = self.scenario["error_tc"]
+        worst = int(np.argmax(error_tc))
+        truth = self.scenario["dataset"]["truth"]
+        t_worst = self.scenario["t_tc"][worst]
+        y_true = np.interp(t_worst, truth["t"], truth["p_xy"][:, 1])
+        y_est = np.asarray(self.scenario["tc"]["x_est"])[worst, 1]
+
+        self.assertGreater(error_tc[worst], 10.0)
+        # The tell: the estimate is on the far side of the anchor baseline.
+        self.assertGreater(y_true, 0.0)
+        self.assertLess(y_est, 0.0)
+
+    def test_the_mirror_flip_is_brief(self):
+        """It is a transient, not a loss of lock; the filter recovers itself."""
+        t_tc, error_tc = self.scenario["t_tc"], self.scenario["error_tc"]
+        excursion = t_tc[error_tc > 5.0]
+
+        self.assertLess(excursion.max() - excursion.min(), 1.0)
+
+    def test_that_flip_is_what_costs_tc_the_run_at_this_window(self):
+        """Honest about the one number where LC wins, and about why.
+
+        Excluding the sub-second excursion, TC is far ahead over the same run.
+        Reporting only the whole-run RMSE would make a 0.2 s geometry event
+        look like a verdict on tight coupling.
+        """
+        error_lc = self.scenario["error_lc"]
+        error_tc = self.scenario["error_tc"]
+        rmse_lc = np.sqrt(np.mean(error_lc**2))
+        rmse_tc = np.sqrt(np.mean(error_tc**2))
+        rmse_tc_without = np.sqrt(np.mean(error_tc[error_tc <= 5.0] ** 2))
+
+        self.assertGreater(rmse_tc, rmse_lc)
+        self.assertLess(rmse_tc_without, 0.5 * rmse_lc)
 
 
 class TestOutageAnimation(unittest.TestCase):

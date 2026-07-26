@@ -1,25 +1,22 @@
-"""Chapter 8's headline fusion RMSE measures a trajectory artifact.
+"""Chapter 8's fusion accuracy must reflect the sensors, not the trajectory.
 
-Three demos report a single RMSE for tightly and loosely coupled UWB+IMU
-fusion, and the number is about 20x worse than the ranging that feeds it: the
-clean dataset's range errors have median 0.035 m, yet TC reports 0.739 m.
+It did not. Three demos reported a single RMSE about 20x worse than the
+ranging feeding them -- 0.739 m against range errors of 0.035 m median -- and
+the gap was never the filter. Median position error was already 0.026 m. But
+7.6% of samples exceeded 0.5 m and peaked at 4.5 m, and those alone lifted the
+RMS tenfold; excluding them it was 0.074 m.
 
-The gap is not the filter. Median position error is 0.026 m, which is what
-3.5 cm ranging with four anchors should give. But 7.6% of samples exceed
-0.5 m, peaking at 4.5 m, and those alone lift the RMS to 0.739 m -- excluding
-them it is 0.074 m.
+Those excursions were the two seconds after each corner, with all four anchors
+visible. The trajectory turned *instantaneously*: yaw stepped 90 degrees inside
+one sample, 9000 deg/s, which the IMU forward model rendered as 4501 deg/s and
+5.1 g. No estimator follows a step.
 
-Those excursions are the two seconds after each 90-degree corner, with all
-four anchors still visible. The trajectory turns *instantaneously*: yaw steps
-from 90 to 180 degrees inside one sample, a rate of 9000 deg/s, and the IMU
-forward model faithfully reports 4501 deg/s and 5.1 g. No estimator tracks
-that, so the filter lags for a couple of seconds after every corner.
-
-A real indoor platform at 1 m/s turns in a second or two, tens of deg/s. The
-underlying fix is a finite turn rate in the trajectory generator, which would
-change every committed Chapter 8 dataset, figure and number -- deliberately not
-done here. What is done is refusing to let the artifact keep masquerading as a
-sensor-fusion accuracy result.
+generate_rectangular_trajectory now rounds each corner, giving 57.3 deg/s at
+1 m/s, and RMSE fell to 0.167 m with the median unchanged -- confirming the
+steady state had been right all along and only the artifact was being measured.
+These tests hold that in place and keep the diagnosis attached to its cause, so
+a regression in the generator surfaces here rather than as a mysteriously worse
+fusion result.
 
 Author: Li-Ta Hsu
 References: Chapter 8, Sections 8.1-8.3
@@ -91,31 +88,35 @@ class TestFusionAccuracyIsTransientDominated(unittest.TestCase):
         """
         self.assertLess(np.median(self.error), 0.1)
 
-    def test_rmse_is_dominated_by_a_small_fraction_of_samples(self):
-        """A handful of excursions carry the whole headline number.
+    def test_the_transients_have_largely_gone(self):
+        """What the generator fix bought, held in place.
 
-        If this ever fails because the two converge, the distribution has
-        stopped being bimodal and the single-number summary becomes honest --
-        at which point the warnings in these demos should go.
+        Before the corners were rounded, 7.6% of samples exceeded 0.5 m,
+        peaking at 4.5 m, and the RMS sat ten times above its own median. The
+        residual is ordinary manoeuvre lag: a filter still takes a moment to
+        follow a 57 deg/s turn, and that is a tuning question rather than an
+        artifact.
         """
         transient = self.error > TRANSIENT_THRESHOLD_M
         rmse_all = compute_position_rmse(self.error)
-        rmse_excluding = compute_position_rmse(self.error[~transient])
 
-        self.assertLess(np.mean(transient), 0.15)
-        self.assertGreater(rmse_all, 5.0 * rmse_excluding)
+        self.assertLess(np.mean(transient), 0.05)
+        self.assertLess(self.error.max(), 2.0)
+        self.assertLess(rmse_all, 0.3)
 
-    def test_the_trajectory_turns_faster_than_anything_physical(self):
-        """The cause, pinned at its source rather than at the symptom.
+    def test_the_trajectory_turns_at_a_physical_rate(self):
+        """The cause, fixed at its source.
 
-        Fixing the generator to turn at a plausible rate should make this fail,
-        which is the point: it is the signal that the transients -- and the
-        inflated RMSE -- can stop being explained away.
+        This assertion used to run the other way, as the signal that the
+        generator still stepped yaw by 90 degrees inside one sample: 9000
+        deg/s, which the IMU model turned into 5.1 g. Rounding the corners
+        brought it to speed / corner_radius, about 57 deg/s at 1 m/s, and the
+        transients above went with it.
         """
         truth = self.dataset["truth"]
         yaw_rate = np.abs(np.diff(np.unwrap(truth["yaw"]))) / np.diff(truth["t"])
 
-        self.assertGreater(np.degrees(yaw_rate.max()), PLAUSIBLE_TURN_RATE_DEG_S)
+        self.assertLess(np.degrees(yaw_rate.max()), PLAUSIBLE_TURN_RATE_DEG_S)
 
 
 if __name__ == "__main__":
