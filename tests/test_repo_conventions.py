@@ -38,16 +38,19 @@ CHAPTER_GLOB = "ch*_*/*.py"
 # Deliberately not asserting that listed files still violate: one of them is
 # being fixed in a parallel session, and a stale-entry check would turn their
 # fix into someone else's red build.
+#
+# Down from ten to seven: the SLAM front-end fix converted the three below as
+# it went, and they now assert cleanly rather than skipping.
+#   ch7_slam/example_slam_frontend.py
+#   ch8_sensor_fusion/observability_demo.py
+#   ch8_sensor_fusion/temporal_calibration_demo.py
 KNOWN_RAW_SAVEFIG = {
     "ch7_slam/example_bundle_adjustment.py",
     "ch7_slam/example_pose_graph_slam.py",
-    "ch7_slam/example_slam_frontend.py",
     "ch8_sensor_fusion/calibration_demo.py",
     "ch8_sensor_fusion/compare_lc_tc.py",
     "ch8_sensor_fusion/lc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/observability_demo.py",
     "ch8_sensor_fusion/tc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/temporal_calibration_demo.py",
     "ch8_sensor_fusion/tuning_robust_demo.py",
 }
 
