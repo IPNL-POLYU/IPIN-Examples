@@ -987,11 +987,30 @@ def main():
     print(f"{'Odometry + Absolute Fixes':<35} {error_fixes:>15.3f}")
     print("="*70)
     
+    # Theory against measurement, side by side. This used to print the offset
+    # magnitude formatted as though it were the measured error, directly under
+    # a table giving a different number for the same quantity.
+    predicted = float(np.linalg.norm(translation_offset))
+    fix_noise = absolute_fixes['noise_std']
+
     print("\nInterpretation:")
-    print(f"  * Odometry-only error: ~{np.linalg.norm(translation_offset):.1f}m")
-    print(f"    (constant offset = unobservable translation)")
-    print(f"  * Odometry + Fixes error: {error_fixes:.2f}m")
-    print(f"    (corrected by absolute measurements)")
+    print(f"  * Translation is unobservable from odometry, so the initial "
+          f"offset should survive to the end untouched.")
+    print(f"    Predicted final error {predicted:.2f} m (the offset "
+          f"magnitude); measured {error_odom2:.2f} m. They agree to within the "
+          f"{error_odom1:.2f} m")
+    print(f"    of drift that odometry accumulates anyway, which is the "
+          f"offset-free run above.")
+    print(f"  * Adding absolute fixes: {error_fixes:.2f} m. The offset is gone "
+          f"-- that is what observability buys.")
+    print(f"  * Note what it does NOT buy. The offset-free odometry run scores "
+          f"{error_odom1:.2f} m, better than the {error_fixes:.2f} m with "
+          f"fixes,")
+    print(f"    because each fix carries {fix_noise:.1f} m of noise. Absolute "
+          f"measurements make the state observable; over a run this short they "
+          f"do not make it")
+    print(f"    more precise. Observability is about which errors can be "
+          f"corrected at all, not about how small they end up.")
     print("")
     
     # Plot

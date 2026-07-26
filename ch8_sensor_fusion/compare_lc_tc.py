@@ -201,6 +201,22 @@ def print_comparison_table(metrics: Dict) -> None:
           f"({abs(lc['acceptance_rate'] - tc['acceptance_rate']):.1f}% difference)")
     print(f"  • LC: {lc['n_updates']} updates, TC: {tc['n_updates']} updates "
           f"(TC has {tc['n_updates'] - lc['n_updates']:+d} more)")
+
+    # The trade-off is in the numbers above but was not being said. TC wins on
+    # typical error and loses on the worst case, and the mechanism is the same
+    # one in both directions: TC fuses each range directly, so it keeps working
+    # when there are too few for a fix, and a bad range also reaches the filter
+    # undiluted. LC solves for a position first, which needs three anchors but
+    # absorbs some of the damage on the way.
+    if tc['max_error'] > lc['max_error']:
+        print(f"  • ...but TC's worst case is larger: {tc['max_error']:.2f} m "
+              f"against {lc['max_error']:.2f} m, while its mean error is the")
+        print(f"    smaller of the two ({tc['mean_error']:.2f} m against "
+              f"{lc['mean_error']:.2f} m). Fusing raw ranges gives TC more "
+              f"updates and no")
+        print(f"    solver failures, and exposes it directly to a bad range; "
+              f"LC's least-squares step needs three anchors but absorbs part "
+              f"of the outlier.")
     print()
 
 
