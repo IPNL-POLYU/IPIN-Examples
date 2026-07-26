@@ -242,7 +242,10 @@ def generate_synthetic_extrinsic_data(
         'p_sensor2': p_sensor2,
         'true_R': R_true,
         'true_t': lever_arm,
-        'true_rotation_angle': rotation_angle
+        'true_rotation_angle': rotation_angle,
+        # Exposed so the caller can derive the expected alignment residual
+        # instead of quoting a number that has to be kept in sync by hand.
+        'noise_std': noise_std,
     }
 
 
@@ -573,8 +576,18 @@ def main():
         residuals = ext_data['p_sensor2'] - p1_transformed
         rmse = np.sqrt(np.mean(np.sum(residuals**2, axis=1)))
         
+        # Derive the expectation rather than quoting the sensor noise. The
+        # residual is a *difference* of two independently noisy positions, so
+        # its per-axis std is sigma*sqrt(2), and this RMSE is the 2-D magnitude,
+        # which brings another sqrt(2): 2*sigma, not sigma. Printing "~0.05 m"
+        # made a calibration that is right to 2% look twice as bad as expected.
+        sigma = ext_data['noise_std']
+        expected = 2.0 * sigma
         print(f"\nAlignment RMSE after calibration: {rmse:.4f} m")
-        print("(Should be close to measurement noise: ~0.05 m)")
+        print(f"(Expected {expected:.4f} m = 2 x the {sigma:.2f} m per-axis "
+              f"sensor noise: sqrt(2) for differencing two noisy sensors,")
+        print(f" and sqrt(2) again because this is a 2-D magnitude rather than "
+              f"one axis. Measured/expected = {rmse / expected:.2f}.)")
         
         # Plot
         save_path = "ch8_sensor_fusion/figs/extrinsic_calibration.svg"
