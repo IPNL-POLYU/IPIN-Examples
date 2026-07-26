@@ -44,9 +44,12 @@ MIN_MOTION_RATIO = 0.5
 # Unaided strapdown is expected to overshoot; it is the one method allowed to.
 MAX_MOTION_RATIO = 3.0
 
-# Known frozen as of this file's writing; being fixed separately. Listed rather
-# than skipped wholesale so that the moment they start moving, the entry can go.
-KNOWN_FROZEN = {"IMU + ZUPT", "PDR (Mag)"}
+# Methods still known to be pinned at the start point. Empty, and it should
+# stay that way: "IMU + ZUPT" and "PDR (Mag)" were listed here when this file
+# was written, and the entries came out the moment the detector fix landed --
+# the ratchet asserted they were *still* frozen, so the fix turned this test
+# red and forced the promotion instead of leaving a silent allowance behind.
+KNOWN_FROZEN: set = set()
 
 
 class TestMethodsActuallyMove(unittest.TestCase):
@@ -76,16 +79,20 @@ class TestMethodsActuallyMove(unittest.TestCase):
             q=np.array([1.0, 0.0, 0.0, 0.0]), v=vel_true[0], p=pos_true[0]
         )
 
+        # run_imu_zupt and run_pdr each return (positions, diagnostics). The
+        # diagnostics -- the detection mask and the step count -- came with the
+        # detector fix and are not what this file is guarding.
+        zupt_pos, _ = run_imu_zupt(t, accel, gyro, initial, frame, imu_params)
+        pdr_pos, _ = run_pdr(t, accel, mag, 1.75)
+
         cls.truth_xy = pos_true[:, :2]
         cls.results = {
             "IMU Only": run_imu_only(t, accel, gyro, initial, frame)[:, :2],
-            "IMU + ZUPT": run_imu_zupt(t, accel, gyro, initial, frame, imu_params)[
-                :, :2
-            ],
+            "IMU + ZUPT": zupt_pos[:, :2],
             "Wheel Odom": run_wheel_odom(
                 t, wheel, gyro, initial, np.array([1.0, 0.0, -0.2])
             )[:, :2],
-            "PDR (Mag)": run_pdr(t, accel, gyro, mag, 1.75)[:, :2],
+            "PDR (Mag)": pdr_pos[:, :2],
         }
 
     def test_truth_actually_walks(self):

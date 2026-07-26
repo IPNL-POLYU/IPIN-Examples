@@ -15,9 +15,11 @@ Date: December 2025
 """
 
 import time
-import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
+from typing import Dict, Optional, Tuple
+
+import matplotlib.pyplot as plt
+import numpy as np
 
 from core.eval import (
     plot_error_cdf,
@@ -28,16 +30,15 @@ from core.eval import (
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
-    strapdown_update,
-    detect_zupt_windowed,
-    wheel_odom_update,
-    total_accel_magnitude,
-    step_length_book_eq6_49,
-    pdr_step_update,
-    detect_step_simple,
-    mag_heading,
     NavStateQPVP,
-    units,
+    detect_steps_peak_detector,
+    detect_zupt_windowed,
+    mag_heading,
+    pdr_step_update,
+    step_frequency,
+    step_length_book_eq6_49,
+    strapdown_update,
+    wheel_odom_update,
 )
 from core.sim import generate_imu_from_trajectory
 
@@ -45,147 +46,345 @@ from core.sim import generate_imu_from_trajectory
 # regenerated exactly; see add_sensor_noise.
 DEFAULT_SEED = 42
 
+# Lever arm from the IMU/navigation centre to the wheel-speed sensor, in the
+# attitude frame A (Eq. 6.11): 1 m forward and 0.2 m below.
+LEVER_ARM_A = np.array([1.0, 0.0, -0.2])
 
-def generate_mixed_trajectory(duration=120.0, dt=0.01, frame=None):
+# Rotation C_S^A from the speed frame S (x=right, y=forward, z=up, Section 6.2)
+# to the attitude frame A. A is the IMU body frame, whose x-axis points forward
+# because the attitude quaternion is a yaw about the ENU heading -- so the two
+# frames differ by -90 deg about z and are NOT aligned. Leaving C_S^A at its
+# identity default feeds a forward speed of [0, v, 0] straight through, which
+# lands on the body y-axis and reports the entire track rotated 90 deg.
+C_SPEED_TO_BODY = np.array(
+    [
+        [0.0, 1.0, 0.0],
+        [-1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+)
+
+
+def _speed_envelope(
+    tau: np.ndarray, duration: float, ramp: float
+) -> np.ndarray:
+    """Raised-cosine trapezoid rising 0->1, holding, then falling 1->0.
+
+    A walker does not reach 1.2 m/s in one 10 ms sample. Stepping the speed
+    instead of ramping it puts a 120 m/s^2 spike into the synthesised
+    accelerometer at every start and stop -- two orders of magnitude above real
+    gait -- and those spikes were the only thing the old PDR step detector ever
+    fired on. The raised cosine keeps the acceleration continuous.
+
+    Args:
+        tau: Time since the start of the phase, shape (M,). Units: s.
+        duration: Total phase duration. Units: s.
+        ramp: Rise and fall time. Clipped to half the duration. Units: s.
+
+    Returns:
+        Envelope in [0, 1], shape (M,). Integrates to ``duration - ramp``.
     """
-    Generate trajectory suitable for multiple DR methods.
-    Walking-style motion with periodic stops.
-    Uses correct IMU forward model.
+    ramp = min(ramp, duration / 2.0)
+    env = np.ones_like(tau)
+    if ramp <= 0.0:
+        return env
+
+    rising = tau < ramp
+    env[rising] = 0.5 * (1.0 - np.cos(np.pi * tau[rising] / ramp))
+    falling = tau > duration - ramp
+    env[falling] = 0.5 * (
+        1.0 - np.cos(np.pi * (duration - tau[falling]) / ramp)
+    )
+    return np.clip(env, 0.0, 1.0)
+
+
+def _turn_profile(tau: np.ndarray, duration: float) -> np.ndarray:
+    """Smoothstep 0->1 used to rotate in place, with zero rate at both ends.
+
+    This is the integral of the raised cosine used for the speed ramps, so the
+    yaw rate starts and ends at zero. The alternative -- switching heading
+    between samples, as the trajectory used to -- synthesises a 200 rad/s gyro
+    spike that no first-order quaternion integrator can absorb: the wheel
+    odometry lost ~14 deg of heading at every corner.
+
+    Args:
+        tau: Time since the start of the turn, shape (M,). Units: s.
+        duration: Turn duration. Units: s.
+
+    Returns:
+        Fraction of the turn completed, in [0, 1], shape (M,).
+    """
+    u = np.clip(tau / duration, 0.0, 1.0)
+    return 0.5 * (1.0 - np.cos(np.pi * u))
+
+
+def _wrap_to_pi(angle: float) -> float:
+    """Wrap an angle to [-pi, pi]."""
+    return float(np.arctan2(np.sin(angle), np.cos(angle)))
+
+
+def generate_mixed_trajectory(
+    duration: float = 120.0,
+    dt: float = 0.01,
+    frame: Optional[FrameConvention] = None,
+    v_walk: float = 1.2,
+    step_freq: float = 1.75,
+    bob_accel_mps2: float = 2.5,
+    ramp_time: float = 0.6,
+    stop_duration: float = 3.0,
+    turn_time: float = 1.5,
+    lever_arm_a: Optional[np.ndarray] = None,
+) -> Tuple[
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+    np.ndarray,
+]:
+    """Generate one trajectory that all four DR methods can be run against.
+
+    A 30 m x 20 m rectangular walk with a pause and an in-place turn at each
+    corner. The whole point of the comparison is that every method sees the
+    *same* motion, so the trajectory has to carry every signal the methods
+    depend on:
+
+    - **Gait dynamics.** The vertical bob at ``step_freq`` is what the PDR peak
+      detector (Eqs. 6.46-6.47) counts and what lets the ZUPT test statistic
+      (Eq. 6.44) tell walking from standing. Without it this trajectory is
+      piecewise constant velocity, the specific force while walking is
+      indistinguishable from the specific force while standing, and both
+      detectors are blind: measured on the old trajectory, T_k had a median of
+      20.83 in motion against 20.85 at rest.
+    - **Bounded accelerations.** Speed ramps in and out of each segment rather
+      than stepping (see ``_speed_envelope``).
+    - **Bounded turn rates.** Heading rotates over ``turn_time`` in the middle
+      of each pause rather than jumping between samples (see
+      ``_turn_profile``).
+
+    Gait self-consistency: ``step_freq`` is chosen so the book's step-length
+    model (Eq. 6.49) reproduces the simulated walking speed. At h = 1.75 m,
+    Eq. (6.49) gives SL = 0.691 m at 1.75 Hz, hence 1.209 m/s against the
+    simulated 1.2 m/s -- a 0.75% step-length bias, which leaves PDR error
+    dominated by heading, as Section 6.3 argues it should be. Pairing an
+    arbitrary speed with an arbitrary step rate instead builds in a constant
+    scale error that teaches nothing about PDR.
+
+    Args:
+        duration: Total duration. Units: s.
+        dt: Sample interval. Units: s.
+        frame: Frame convention. Default: None (creates ENU).
+        v_walk: Cruise walking speed. Units: m/s.
+        step_freq: Step frequency; drives the vertical bob. Units: Hz.
+        bob_accel_mps2: Amplitude of the vertical gait acceleration.
+            Units: m/s^2. 2.5 m/s^2 matches ``example_pdr.generate_corridor_walk``.
+        ramp_time: Speed rise/fall time at each segment end. Units: s.
+        stop_duration: Pause at each corner. Units: s.
+        turn_time: In-place rotation time, centred in the pause. Units: s.
+        lever_arm_a: Lever arm to the wheel-speed sensor in frame A, shape (3,).
+            Default: None (uses ``LEVER_ARM_A``).
+
+    Returns:
+        Tuple ``(t, pos_true, vel_true, accel_body, gyro_body, heading_true,
+        mag_body, stance_mask, wheel_speed_true)``:
+            t: Time vector, shape (N,), units s.
+            pos_true: Ground-truth position in map frame, shape (N, 3), units m.
+            vel_true: Ground-truth velocity in map frame, shape (N, 3), m/s.
+            accel_body: Ideal specific force in body frame, shape (N, 3), m/s^2.
+            gyro_body: Ideal angular rate in body frame, shape (N, 3), rad/s.
+            heading_true: Ground-truth heading, shape (N,), rad (ENU: 0 = East).
+            mag_body: Ideal magnetometer reading in body frame, shape (N, 3).
+            stance_mask: True where the walker is not translating, shape (N,).
+            wheel_speed_true: Ideal speed-frame velocity at the wheel-speed
+                sensor, shape (N, 3), units m/s.
+
+    References:
+        Chapter 6, Sections 6.1-6.3; Eqs. (6.11), (6.44), (6.46)-(6.50).
     """
     if frame is None:
         frame = FrameConvention.create_enu()
-    
-    t = np.arange(0, duration, dt)
-    N = len(t)
-    
-    # Simple rectangular path: 30m x 20m
-    waypoints = np.array([[0, 0], [30, 0], [30, 20], [0, 20], [0, 0]])
-    v_walk = 1.2  # m/s
-    
-    # Calculate segment properties
-    segment_lengths = np.linalg.norm(np.diff(waypoints, axis=0), axis=1)
-    segment_times = segment_lengths / v_walk
-    
-    # Add stops between segments
-    stop_duration = 3.0  # seconds
-    
-    pos_true = np.zeros((N, 3))
-    vel_true = np.zeros((N, 3))
-    # NOTE FOR STUDENTS: In this comparison example, heading is DERIVED from the
-    # direction between waypoints (computed dynamically below). This creates a
-    # realistic rectangular path where heading changes at corners. The trajectory
-    # is shared by ALL methods (IMU, ZUPT, wheel odom, PDR) for fair comparison.
-    heading_true = np.zeros(N)  # Computed from waypoint directions
-    stance_mask = np.zeros(N, dtype=bool)
-    wheel_speed_true = np.zeros((N, 3))
-    
-    current_time = 0
-    current_wp = 0
-    in_stop = False
-    stop_start = 0
-    
-    for k in range(N):
-        if current_wp >= len(waypoints) - 1:
-            # Finished
-            if k == 0:
-                pos_true[k, :2] = waypoints[-1]
-            else:
-                pos_true[k] = pos_true[k-1]
-            stance_mask[k] = True
-            continue
-        
-        # Check if in stop phase
-        if in_stop:
-            if t[k] - stop_start >= stop_duration:
-                # End stop, move to next segment
-                in_stop = False
-                current_time = t[k]
-                current_wp += 1
-                if current_wp >= len(waypoints) - 1:
-                    pos_true[k, :2] = waypoints[-1]
-                    stance_mask[k] = True
-                    continue
-            else:
-                # Still stopped
-                if k > 0:
-                    pos_true[k] = pos_true[k-1]
-                else:
-                    pos_true[k, :2] = waypoints[current_wp]
-                stance_mask[k] = True
-                heading_true[k] = heading_true[k-1] if k > 0 else 0
-                continue
-        
-        # Walking phase
-        t_seg = t[k] - current_time
-        
-        if t_seg >= segment_times[current_wp]:
-            # Reached waypoint, enter stop
-            in_stop = True
-            stop_start = t[k]
-            pos_true[k, :2] = waypoints[current_wp + 1]
-            stance_mask[k] = True
-            continue
-        
-        # Interpolate along segment
-        alpha = t_seg / segment_times[current_wp]
-        pos_true[k, :2] = (1-alpha) * waypoints[current_wp] + alpha * waypoints[current_wp+1]
-        
-        # Heading derived from direction between waypoints
-        # This creates: 0° (East), 90° (North), 180° (West), -90° (South) segments
-        delta = waypoints[current_wp+1] - waypoints[current_wp]
-        heading_true[k] = np.arctan2(delta[1], delta[0])  # ENU: atan2(North, East)
-        
-        # Velocity
-        vel_true[k, :2] = v_walk * np.array([np.cos(heading_true[k]), np.sin(heading_true[k])])
-        
-        # Wheel speed (for vehicle scenario, book convention: y=forward)
-        wheel_speed_true[k] = np.array([0, v_walk, 0])
-    
-    # Create quaternion trajectory (yaw only, roll/pitch = 0)
-    quat_true = np.column_stack([
-        np.cos(heading_true / 2),
-        np.zeros(N),
-        np.zeros(N),
-        np.sin(heading_true / 2)
-    ])
-    
-    # Generate IMU measurements using correct forward model
+    if lever_arm_a is None:
+        lever_arm_a = LEVER_ARM_A
+
+    t = np.arange(0.0, duration, dt)
+    n_samples = len(t)
+
+    # Rectangular path: 30 m x 20 m, closing back on the start point.
+    waypoints = np.array(
+        [[0.0, 0.0], [30.0, 0.0], [30.0, 20.0], [0.0, 20.0], [0.0, 0.0]]
+    )
+    deltas = np.diff(waypoints, axis=0)
+    segment_lengths = np.linalg.norm(deltas, axis=1)
+    # ENU: heading is measured from East, so atan2(North, East).
+    segment_headings = np.arctan2(deltas[:, 1], deltas[:, 0])
+
+    speed = np.zeros(n_samples)
+    # Heading is accumulated UNWRAPPED. Wrapping it would flip the sign of the
+    # quaternion's scalar part halfway round the rectangle, and compute_gyro_body
+    # differences the raw components -- a sign flip there reads as an enormous
+    # angular rate, which is a subtler version of the same defect the smooth
+    # turns fix. cos/sin are indifferent to the unwrapping.
+    heading_true = np.zeros(n_samples)
+    current_heading = float(segment_headings[0])
+
+    k = 0
+    for seg in range(len(segment_lengths)):
+        # --- Walking phase -----------------------------------------------
+        # A raised-cosine trapezoid of duration T covers v * (T - ramp), so
+        # solving for T gives the segment length exactly.
+        walk_samples = int(round((segment_lengths[seg] / v_walk + ramp_time) / dt))
+        end = min(n_samples, k + walk_samples)
+        if end > k:
+            tau = np.arange(end - k) * dt
+            speed[k:end] = v_walk * _speed_envelope(
+                tau, walk_samples * dt, ramp_time
+            )
+            heading_true[k:end] = current_heading
+        k = end
+        if k >= n_samples:
+            break
+
+        # --- Pause, with an in-place turn to the next segment -------------
+        stop_samples = int(round(stop_duration / dt))
+        end = min(n_samples, k + stop_samples)
+        heading_true[k:end] = current_heading
+        if seg + 1 < len(segment_headings):
+            delta_psi = _wrap_to_pi(
+                segment_headings[seg + 1] - segment_headings[seg]
+            )
+            turn_start = k + int(round((stop_duration - turn_time) / 2.0 / dt))
+            turn_end = min(n_samples, turn_start + int(round(turn_time / dt)))
+            if turn_end > turn_start:
+                tau = np.arange(turn_end - turn_start) * dt
+                heading_true[turn_start:turn_end] = (
+                    current_heading + delta_psi * _turn_profile(tau, turn_time)
+                )
+            current_heading += delta_psi
+            heading_true[turn_end:end] = current_heading
+        k = end
+        if k >= n_samples:
+            break
+
+    # Whatever time is left over is spent standing at the final waypoint --
+    # useful in its own right, since it is where unaided strapdown runs away
+    # while the corrected solutions hold station.
+    if k < n_samples:
+        heading_true[k:] = current_heading
+
+    # Stance = not translating. Note this is looser than what the Eq. (6.44)
+    # detector will report: it also sees the yaw rate, so it correctly refuses
+    # to call the in-place turns stationary.
+    stance_mask = speed <= 1e-9
+
+    # Vertical gait. The envelope is the normalised speed, so the bob fades in
+    # and out with the walk instead of switching on at a stance boundary.
+    bob_vel_amplitude = bob_accel_mps2 / (2.0 * np.pi * step_freq)
+    vel_up = (
+        (speed / v_walk)
+        * bob_vel_amplitude
+        * np.cos(2.0 * np.pi * step_freq * t)
+    )
+
+    vel_true = np.column_stack(
+        [speed * np.cos(heading_true), speed * np.sin(heading_true), vel_up]
+    )
+    # Integrate with the same backward-Euler rule the estimators use
+    # (core.sensors.strapdown.pos_update), so truth and estimate share a
+    # discretisation and the residual is algorithm error, not quadrature error.
+    pos_true = np.cumsum(vel_true * dt, axis=0)
+
+    quat_true = np.column_stack(
+        [
+            np.cos(heading_true / 2.0),
+            np.zeros(n_samples),
+            np.zeros(n_samples),
+            np.sin(heading_true / 2.0),
+        ]
+    )
+
     accel_body, gyro_body = generate_imu_from_trajectory(
         pos_map=pos_true,
         vel_map=vel_true,
         quat_b_to_m=quat_true,
         dt=dt,
         frame=frame,
-        g=9.81
+        g=9.81,
     )
-    
-    # Generate magnetometer measurements (points to magnetic north in body frame)
-    mag_body = np.zeros((N, 3))
-    mag_north_map = np.array([1.0, 0.0, 0.0])  # North = x-axis in ENU (conventionally)
-    
-    for k in range(N):
-        # Rotate north vector from map to body frame
-        yaw = heading_true[k]
-        C_yaw = np.array([
-            [np.cos(yaw), np.sin(yaw), 0],
-            [-np.sin(yaw), np.cos(yaw), 0],
-            [0, 0, 1]
-        ])
-        mag_body[k] = C_yaw.T @ mag_north_map
-    
-    return t, pos_true, vel_true, accel_body, gyro_body, heading_true, mag_body, stance_mask, wheel_speed_true
+
+    # Speed-frame velocity at the wheel sensor, Eq. (6.11) read forwards:
+    #   v^S = C_A^S (v_nav^A + [omega^A x] l^A)
+    # The estimator subtracts the lever-arm term, so the truth has to contain
+    # it; generating a bare forward speed instead leaves the compensation with
+    # nothing to cancel and injects a spurious sideways sweep at every turn.
+    # Yaw rate is differenced from the heading itself, which is what
+    # ``compute_gyro_body`` recovers from the quaternion series.
+    yaw_rate = np.zeros(n_samples)
+    if n_samples > 1:
+        yaw_rate[1:] = np.diff(heading_true) / dt
+    omega_cross_lever = np.column_stack(
+        [
+            -yaw_rate * lever_arm_a[1],
+            yaw_rate * lever_arm_a[0],
+            np.zeros(n_samples),
+        ]
+    )
+    vel_wheel_body = np.column_stack(
+        [speed, np.zeros(n_samples), np.zeros(n_samples)]
+    )
+    vel_wheel_body += omega_cross_lever
+    wheel_speed_true = vel_wheel_body @ C_SPEED_TO_BODY
+
+    # Magnetometer: a fixed map-frame reference direction resolved into the
+    # body frame, so that mag_heading (Eqs. 6.51-6.53) recovers the heading the
+    # walker actually holds. The reference is the map +x axis, which in ENU is
+    # East -- the same direction heading is measured from.
+    mag_body = np.zeros((n_samples, 3))
+    mag_reference_map = np.array([1.0, 0.0, 0.0])
+    for sample in range(n_samples):
+        yaw = heading_true[sample]
+        c_yaw = np.array(
+            [
+                [np.cos(yaw), np.sin(yaw), 0.0],
+                [-np.sin(yaw), np.cos(yaw), 0.0],
+                [0.0, 0.0, 1.0],
+            ]
+        )
+        mag_body[sample] = c_yaw.T @ mag_reference_map
+
+    return (
+        t,
+        pos_true,
+        vel_true,
+        accel_body,
+        gyro_body,
+        heading_true,
+        mag_body,
+        stance_mask,
+        wheel_speed_true,
+    )
 
 
-def add_sensor_noise(accel_body, gyro_body, mag_body, wheel_true, dt,
-                     imu_params: IMUNoiseParams, seed: int = DEFAULT_SEED):
+def add_sensor_noise(
+    accel_body: np.ndarray,
+    gyro_body: np.ndarray,
+    mag_body: np.ndarray,
+    wheel_true: np.ndarray,
+    dt: float,
+    imu_params: IMUNoiseParams,
+    seed: int = DEFAULT_SEED,
+    wheel_scale_error: float = 0.02,
+) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Add noise to all sensors with explicit units.
 
     Args:
-        accel_body: Noise-free specific force [m/s^2], shape (N, 3).
-        gyro_body: Noise-free angular rate [rad/s], shape (N, 3).
-        mag_body: Noise-free magnetometer vector (unit), shape (N, 3).
-        wheel_true: Noise-free wheel speed [m/s], shape (N, 3).
-        dt: Sample interval [s].
+        accel_body: Ideal specific force, shape (N, 3), units m/s^2.
+        gyro_body: Ideal angular rate, shape (N, 3), units rad/s.
+        mag_body: Ideal magnetometer reading, shape (N, 3), normalised.
+        wheel_true: Ideal speed-frame velocity, shape (N, 3), units m/s.
+        dt: Sample interval. Units: s.
         imu_params: IMU noise specification.
         seed: Seed for this example's random draws. This is the only source of
             randomness in the script, so fixing it makes the committed figures
@@ -194,11 +393,19 @@ def add_sensor_noise(accel_body, gyro_body, mag_body, wheel_true, dt,
             genuinely changed rather than that the biases were redrawn.
             Unseeded, each run picked a new bias vector and the IMU-only track
             drifted off in a different direction every time.
+        wheel_scale_error: Encoder scale-factor error, i.e. a wrong assumed
+            wheel radius. Dimensionless; 0.02 (2%) is typical. This is the
+            error that decides odometry accuracy, because it is systematic and
+            therefore integrates into a drift proportional to distance -- the
+            bound Section 6.2 claims for the method. Zero-mean encoder noise on
+            its own averages out over a 100 m walk and leaves odometry looking
+            exact, which is a simulation artefact rather than a result.
 
     Returns:
-        Tuple of (accel_meas, gyro_meas, mag_meas, wheel_meas).
+        Tuple ``(accel_meas, gyro_meas, mag_meas, wheel_meas)`` with the same
+        shapes and units as the corresponding inputs.
     """
-    N = len(accel_body)
+    n_samples = len(accel_body)
 
     # Own the generator rather than seeding the global RNG: nothing else in
     # this script draws random numbers, so there is no hidden consumer that
@@ -208,79 +415,156 @@ def add_sensor_noise(accel_body, gyro_body, mag_body, wheel_true, dt,
     # IMU noise and biases
     gyro_bias = rng.standard_normal(3) * imu_params.gyro_bias_rad_s
     gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
-    gyro_noise = rng.standard_normal((N, 3)) * gyro_noise_std
+    gyro_noise = rng.standard_normal((n_samples, 3)) * gyro_noise_std
 
     accel_bias = rng.standard_normal(3) * imu_params.accel_bias_mps2
     accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
-    accel_noise = rng.standard_normal((N, 3)) * accel_noise_std
+    accel_noise = rng.standard_normal((n_samples, 3)) * accel_noise_std
 
     gyro_meas = gyro_body + gyro_bias + gyro_noise
     accel_meas = accel_body + accel_bias + accel_noise
 
     # Magnetometer noise
-    mag_noise = rng.standard_normal((N, 3)) * 0.05
+    mag_noise = rng.standard_normal((n_samples, 3)) * 0.05
     mag_meas = mag_body + mag_noise
 
-    # Wheel encoder noise
-    wheel_noise = rng.standard_normal((N, 3)) * 0.05
-    wheel_meas = wheel_true + wheel_noise
+    # Wheel encoder scale-factor error and noise
+    wheel_noise = rng.standard_normal((n_samples, 3)) * 0.05
+    wheel_meas = wheel_true * (1.0 + wheel_scale_error) + wheel_noise
 
     return accel_meas, gyro_meas, mag_meas, wheel_meas
 
 
-def run_imu_only(t, accel, gyro, initial, frame):
-    """Method 1: Pure IMU strapdown."""
-    N, dt = len(t), t[1] - t[0]
+def run_imu_only(
+    t: np.ndarray,
+    accel: np.ndarray,
+    gyro: np.ndarray,
+    initial: NavStateQPVP,
+    frame: FrameConvention,
+) -> np.ndarray:
+    """Method 1: pure IMU strapdown, Eqs. (6.2)-(6.10).
+
+    Args:
+        t: Time vector, shape (N,). Units: s.
+        accel: Measured specific force, shape (N, 3). Units: m/s^2.
+        gyro: Measured angular rate, shape (N, 3). Units: rad/s.
+        initial: Initial navigation state.
+        frame: Frame convention.
+
+    Returns:
+        Estimated position in the map frame, shape (N, 3). Units: m.
+    """
+    n_samples, dt = len(t), t[1] - t[0]
     q, v, p = initial.q.copy(), initial.v.copy(), initial.p.copy()
-    pos = np.zeros((N, 3))
+    pos = np.zeros((n_samples, 3))
     pos[0] = p
-    
-    for k in range(1, N):
-        q, v, p = strapdown_update(q, v, p, gyro[k-1], accel[k-1], dt, frame=frame)
+
+    for k in range(1, n_samples):
+        q, v, p = strapdown_update(
+            q, v, p, gyro[k - 1], accel[k - 1], dt, frame=frame
+        )
         pos[k] = p
     return pos
 
 
-def run_imu_zupt(t, accel, gyro, initial, frame, imu_params, window_size=10, gamma=1e6):
-    """Method 2: IMU + ZUPT (windowed detector, Eq. 6.44)."""
-    N, dt = len(t), t[1] - t[0]
+def run_imu_zupt(
+    t: np.ndarray,
+    accel: np.ndarray,
+    gyro: np.ndarray,
+    initial: NavStateQPVP,
+    frame: FrameConvention,
+    imu_params: IMUNoiseParams,
+    window_size: int = 10,
+    gamma: float = 100.0,
+) -> Tuple[np.ndarray, np.ndarray]:
+    """Method 2: IMU + ZUPT, windowed detector (Eq. 6.44) and reset (Eq. 6.45).
+
+    The threshold is the whole algorithm here. On this trajectory the test
+    statistic sits near 21 while standing and near 900 while walking, so gamma
+    has an order of magnitude of headroom on either side; the previous 1e6
+    accepted every sample, zeroed the velocity at every step and pinned the
+    solution to its start point.
+
+    Args:
+        t: Time vector, shape (N,). Units: s.
+        accel: Measured specific force, shape (N, 3). Units: m/s^2.
+        gyro: Measured angular rate, shape (N, 3). Units: rad/s.
+        initial: Initial navigation state.
+        frame: Frame convention.
+        imu_params: IMU noise specification, used to scale the detector.
+        window_size: Detector window length. Units: samples.
+        gamma: Detection threshold, Eq. (6.44). Dimensionless.
+
+    Returns:
+        Tuple ``(pos, zupt_detected)``:
+            pos: Estimated position, shape (N, 3). Units: m.
+            zupt_detected: True where the detector fired, shape (N,).
+    """
+    n_samples, dt = len(t), t[1] - t[0]
     q, v, p = initial.q.copy(), initial.v.copy(), initial.p.copy()
-    pos = np.zeros((N, 3))
+    pos = np.zeros((n_samples, 3))
     pos[0] = p
-    
+    zupt_detected = np.zeros(n_samples, dtype=bool)
+
     # Compute noise std devs for ZUPT detector
     sigma_a = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
     sigma_g = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
-    
-    for k in range(1, N):
-        q, v, p = strapdown_update(q, v, p, gyro[k-1], accel[k-1], dt, frame=frame)
-        
+
+    for k in range(1, n_samples):
+        q, v, p = strapdown_update(
+            q, v, p, gyro[k - 1], accel[k - 1], dt, frame=frame
+        )
+
         # Windowed ZUPT detection (OFFLINE/POST-PROCESSING)
-        # Uses centered window (includes future samples) - appropriate for batch processing
-        # For real-time: use trailing window (k-window_size+1:k+1) or accept latency
+        # Uses centered window (includes future samples) - appropriate for batch
+        # processing. For real-time: use a trailing window
+        # (k-window_size+1:k+1) or accept the latency.
         window_start = max(0, k - window_size // 2)
-        window_end = min(N, k + window_size // 2 + 1)
+        window_end = min(n_samples, k + window_size // 2 + 1)
         accel_window = accel[window_start:window_end]
         gyro_window = gyro[window_start:window_end]
-        
+
         if len(accel_window) >= window_size // 2:
-            if detect_zupt_windowed(accel_window, gyro_window, sigma_a, sigma_g, gamma):
+            if detect_zupt_windowed(
+                accel_window, gyro_window, sigma_a, sigma_g, gamma
+            ):
                 v = np.zeros(3)
-        
+                zupt_detected[k] = True
+
         pos[k] = p
-    return pos
+    return pos, zupt_detected
 
 
-def run_wheel_odom(t, wheel, gyro, initial, lever_arm):
-    """Method 3: Wheel odometry."""
-    N, dt = len(t), t[1] - t[0]
+def run_wheel_odom(
+    t: np.ndarray,
+    wheel: np.ndarray,
+    gyro: np.ndarray,
+    initial: NavStateQPVP,
+    lever_arm: np.ndarray,
+) -> np.ndarray:
+    """Method 3: wheel odometry, Eqs. (6.11)-(6.15).
+
+    Args:
+        t: Time vector, shape (N,). Units: s.
+        wheel: Measured speed-frame velocity, shape (N, 3). Units: m/s.
+        gyro: Measured angular rate, shape (N, 3). Units: rad/s.
+        initial: Initial navigation state.
+        lever_arm: Lever arm to the speed sensor in frame A, shape (3,), m.
+
+    Returns:
+        Estimated position in the map frame, shape (N, 3). Units: m.
+    """
+    n_samples, dt = len(t), t[1] - t[0]
     p = initial.p.copy()
     q = initial.q.copy()
-    pos = np.zeros((N, 3))
+    pos = np.zeros((n_samples, 3))
     pos[0] = p
-    
-    for k in range(1, N):
-        p = wheel_odom_update(p, q, wheel[k-1], gyro[k-1], lever_arm, dt)
+
+    for k in range(1, n_samples):
+        p = wheel_odom_update(
+            p, q, wheel[k - 1], gyro[k - 1], lever_arm, dt,
+            C_S_A=C_SPEED_TO_BODY,
+        )
         # Update quaternion from gyro
         q_new = q.copy()
         dq = 0.5 * dt * np.array([
@@ -295,44 +579,92 @@ def run_wheel_odom(t, wheel, gyro, initial, lever_arm):
     return pos
 
 
-def run_pdr(t, accel, gyro, mag, height=1.75):
-    """Method 4: Pedestrian DR with magnetometer heading."""
-    N, dt = len(t), t[1] - t[0]
-    pos = np.zeros((N, 2))
-    heading = 0
-    last_step_time = 0
-    last_a_mag = 10.0
-    
-    for k in range(1, N):
-        a_mag = total_accel_magnitude(accel[k])
-        
-        # Simple step detection: peak crossing
-        is_step = (last_a_mag < 11.0 and a_mag >= 11.0)
-        last_a_mag = a_mag
-        
-        if is_step and (t[k] - last_step_time) > 0.3:
+def run_pdr(
+    t: np.ndarray,
+    accel: np.ndarray,
+    mag: np.ndarray,
+    height: float = 1.75,
+) -> Tuple[np.ndarray, int]:
+    """Method 4: pedestrian DR with magnetometer heading, Eqs. (6.46)-(6.53).
+
+    Steps come from the book's peak detector rather than a bare threshold
+    crossing on the raw magnitude. The threshold version tested
+    ``|a| >= 11.0`` against a signal whose mean is 9.81 and whose only
+    excursions were the numerical spikes at the old trajectory's instantaneous
+    starts and stops: it found three "steps" in a 100 m walk. Removing gravity
+    first (Eq. 6.47) and requiring a prominent, refractory peak is both the
+    method Section 6.3.2 describes and what ``example_pdr`` already uses.
+
+    Args:
+        t: Time vector, shape (N,). Units: s.
+        accel: Measured specific force, shape (N, 3). Units: m/s^2.
+        mag: Measured magnetic field in the body frame, shape (N, 3).
+        height: Pedestrian height, used by Eq. (6.49). Units: m.
+
+    Returns:
+        Tuple ``(pos, step_count)``:
+            pos: Estimated position, shape (N, 3) with z = 0. Units: m.
+            step_count: Number of detected steps.
+    """
+    n_samples, dt = len(t), t[1] - t[0]
+
+    step_indices, _ = detect_steps_peak_detector(
+        accel,
+        dt=dt,
+        g=9.81,
+        min_peak_height=1.0,  # m/s^2 above gravity
+        min_peak_distance=0.3,  # s between steps (max ~3.3 steps/s)
+        lowpass_cutoff=5.0,  # Hz
+    )
+    is_step = np.zeros(n_samples, dtype=bool)
+    is_step[step_indices] = True
+
+    pos = np.zeros((n_samples, 2))
+    last_step_time = t[0]
+
+    for k in range(1, n_samples):
+        # Magnetometer heading (Eqs. 6.51-6.53); the walk is level, so roll and
+        # pitch are zero and tilt compensation is a no-op.
+        heading = mag_heading(mag[k], roll=0.0, pitch=0.0, declination=0.0)
+
+        if is_step[k]:
             delta_t = t[k] - last_step_time
             last_step_time = t[k]
-            f_step = 1.0 / delta_t if delta_t > 0 else 2.0
-            # Use book Eq. (6.49) for step length
-            L = step_length_book_eq6_49(height, f_step)
-            pos[k] = pdr_step_update(pos[k-1], L, heading)
+            f_step = step_frequency(delta_t) if delta_t > 0 else 2.0
+            # Book Eq. (6.49) for step length.
+            step_len = step_length_book_eq6_49(height, f_step)
+            pos[k] = pdr_step_update(pos[k - 1], step_len, heading)
         else:
-            pos[k] = pos[k-1]
-        
-        heading = mag_heading(mag[k], 0, 0, 0)
-    
-    pos_3d = np.column_stack([pos, np.zeros(N)])
-    return pos_3d
+            pos[k] = pos[k - 1]
+
+    pos_3d = np.column_stack([pos, np.zeros(n_samples)])
+    return pos_3d, int(len(step_indices))
 
 
-def plot_comparison(t, pos_true, results, figs_dir):
+def plot_comparison(
+    t: np.ndarray,
+    pos_true: np.ndarray,
+    results: Dict[str, np.ndarray],
+    figs_dir: Path,
+) -> Dict[str, Dict[str, float]]:
     """Generate comprehensive comparison plots.
 
     All three figures come from core.eval primitives rather than hand-rolled
     axes: the trajectory overlay, the error-magnitude history and the error CDF
     are the same plots every chapter needs, and keeping them shared means a
     styling or correctness fix lands everywhere at once.
+
+    Args:
+        t: Time vector, shape (N,). Units: s.
+        pos_true: Ground-truth position, shape (N, 3). Units: m.
+        results: {method name: estimated position, shape (N, 3)}.
+        figs_dir: Output directory for the figures.
+
+    Returns:
+        {method name: {'rmse', 'final', 'median', 'p90', 'path'}}, all in m.
+        Errors are horizontal: the walk is planar, every method reports its own
+        vertical channel (PDR has none at all), and the figures plot the
+        horizontal error, so the table has to agree with them.
     """
     # Errors are shared by figures 2 and 3, so compute them once.
     errors = {name: pos[:, :2] - pos_true[:, :2] for name, pos in results.items()}
@@ -347,15 +679,10 @@ def plot_comparison(t, pos_true, results, figs_dir):
     # the unbounded drift IS the lesson of Section 6.1; the right panel
     # resolves what happens at the scale of the walk itself.
     #
-    # KNOWN ISSUE (visible only once the zoom panel exists): at this scale the
-    # ZUPT and PDR tracks are revealed to be pinned at the origin -- they trace
-    # 0.5 m and 2.3 m respectively against a 100 m walk. Their small final
-    # errors in the table below are therefore an artefact of the truth path
-    # returning to its start, not evidence of tracking. The detectors need
-    # retuning (gamma = 1e6 makes the ZUPT test fire on every sample, and the
-    # constant-velocity trajectory never crosses the PDR step threshold of
-    # 11 m/s^2). Left as-is here: this figure change only makes the defect
-    # visible, and fixing the detectors is a separate change to the methods.
+    # The zoom panel is also what made the frozen ZUPT and PDR tracks visible
+    # in the first place -- at the full scale they were inside the blob. Both
+    # now track; the 'path' metric below is the non-visual version of the same
+    # check, so a regression does not depend on someone opening the figure.
     fig1 = plot_trajectory_2d(
         pos_true[:, :2],
         {name: pos[:, :2] for name, pos in results.items()},
@@ -386,111 +713,150 @@ def plot_comparison(t, pos_true, results, figs_dir):
     print(f"  [OK] Saved: {paths[0]}")
 
     plt.close('all')
-    
+
     # Compute metrics
     metrics = {}
     for name, pos in results.items():
-        error = np.linalg.norm(pos - pos_true, axis=1)
+        error = np.linalg.norm(errors[name], axis=1)
         metrics[name] = {
-            'rmse': np.sqrt(np.mean(error**2)),
-            'final': error[-1],
-            'median': np.median(error),
-            'p90': np.percentile(error, 90),
+            'rmse': float(np.sqrt(np.mean(error**2))),
+            'final': float(error[-1]),
+            'median': float(np.median(error)),
+            'p90': float(np.percentile(error, 90)),
+            # Horizontal path length. A method that has silently stopped
+            # tracking still scores well on error alone, because this ground
+            # truth returns to its own start point -- so report the distance
+            # actually traced next to it.
+            'path': float(
+                np.sum(np.linalg.norm(np.diff(pos[:, :2], axis=0), axis=1))
+            ),
         }
-    
+
     return metrics
 
 
-def main():
+def main() -> None:
     """Main execution."""
     print("\n" + "="*75)
     print("Chapter 6: COMPREHENSIVE COMPARISON of Dead Reckoning Methods")
     print("="*75)
     print("\nCompares all major DR approaches on a common trajectory.")
     print("Demonstrates trade-offs and the critical need for drift correction.\n")
-    
+
     duration = 120.0
     dt = 0.01
     height = 1.75
     frame = FrameConvention.create_enu()  # Use ENU frame
     imu_params = IMUNoiseParams.consumer_grade()  # Consumer-grade IMU
-    
-    print(f"Configuration:")
+
+    print("Configuration:")
     print(f"  Duration:        {duration} s")
-    print(f"  Trajectory:      30m x 20m rectangular path with stops")
+    print("  Trajectory:      30m x 20m rectangular path with stops")
     print(f"  IMU Rate:        {1/dt:.0f} Hz")
     print(f"  Frame:           {frame.map_frame}")
     print(f"  Noise seed:      {DEFAULT_SEED} (figures are reproducible)\n")
-    
+
     # Print IMU specifications
     print(imu_params.format_specs())
     print()
-    
+
     print("Generating trajectory with correct IMU forward model...")
-    t, pos_true, vel_true, accel_body, gyro_body, heading_true, mag_body, stance, wheel_true = \
-        generate_mixed_trajectory(duration, dt, frame)
-    
-    total_dist = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
-    print(f"  Total distance:  {total_dist:.1f} m")
-    
+    (t, pos_true, vel_true, accel_body, gyro_body, heading_true, mag_body,
+     stance, wheel_true) = generate_mixed_trajectory(
+        duration, dt, frame, lever_arm_a=LEVER_ARM_A)
+
+    total_dist = np.sum(np.linalg.norm(np.diff(pos_true[:, :2], axis=0), axis=1))
+    print(f"  Total distance:  {total_dist:.1f} m (horizontal)")
+    print(f"  Standing:        {100 * stance.mean():.1f}% of samples")
+
     print("\nAdding sensor noise...")
     accel_meas, gyro_meas, mag_meas, wheel_meas = add_sensor_noise(
         accel_body, gyro_body, mag_body, wheel_true, dt, imu_params,
         seed=DEFAULT_SEED)
-    
+
     initial = NavStateQPVP(q=np.array([1, 0, 0, 0]), v=vel_true[0], p=pos_true[0])
-    lever_arm = np.array([1.0, 0, -0.2])
-    
+
     # Run all methods
     print("\nRunning all methods...")
     methods = {}
-    
+
     print("  1. IMU only (pure strapdown)...")
     start = time.time()
     methods['IMU Only'] = run_imu_only(t, accel_meas, gyro_meas, initial, frame)
     print(f"     Time: {time.time()-start:.3f} s")
-    
+
     print("  2. IMU + ZUPT (windowed, Eq. 6.44)...")
     start = time.time()
-    methods['IMU + ZUPT'] = run_imu_zupt(t, accel_meas, gyro_meas, initial, frame, imu_params)
+    methods['IMU + ZUPT'], zupt_detected = run_imu_zupt(
+        t, accel_meas, gyro_meas, initial, frame, imu_params)
     print(f"     Time: {time.time()-start:.3f} s")
-    
+    print(f"     ZUPT fired on {100 * zupt_detected.mean():.1f}% of samples "
+          f"({100 * stance.mean():.1f}% truly stationary)")
+
     print("  3. Wheel Odometry...")
     start = time.time()
-    methods['Wheel Odom'] = run_wheel_odom(t, wheel_meas, gyro_meas, initial, lever_arm)
+    methods['Wheel Odom'] = run_wheel_odom(
+        t, wheel_meas, gyro_meas, initial, LEVER_ARM_A)
     print(f"     Time: {time.time()-start:.3f} s")
-    
+
     print("  4. PDR (step-and-heading)...")
     start = time.time()
-    methods['PDR (Mag)'] = run_pdr(t, accel_meas, gyro_meas, mag_meas, height)
+    methods['PDR (Mag)'], step_count = run_pdr(t, accel_meas, mag_meas, height)
     print(f"     Time: {time.time()-start:.3f} s")
-    
+    print(f"     Steps detected:  {step_count}")
+
     figs_dir = Path(__file__).parent / 'figs'
     figs_dir.mkdir(exist_ok=True)
-    
+
     print("\nGenerating comparison plots...")
     metrics = plot_comparison(t, pos_true, methods, figs_dir)
-    
+
     # Print comparison table
     print("\n" + "="*75)
-    print("RESULTS - Performance Comparison")
+    print("RESULTS - Performance Comparison (horizontal error)")
     print("="*75)
-    print(f"\n{'Method':<20} {'RMSE [m]':>10} {'Final [m]':>10} {'Median [m]':>10} {'90% [m]':>10} {'% Dist':>8}")
+    print(f"\n{'Method':<20} {'RMSE [m]':>10} {'Final [m]':>10} {'Median [m]':>10} "
+          f"{'90% [m]':>10} {'Path [m]':>10}")
     print("-"*75)
-    
+    print(f"{'(ground truth)':<20} {'-':>10} {'-':>10} {'-':>10} {'-':>10} "
+          f"{total_dist:>10.1f}")
+
     for name in ['IMU Only', 'IMU + ZUPT', 'Wheel Odom', 'PDR (Mag)']:
         m = metrics[name]
-        pct = (m['rmse'] / total_dist) * 100
-        print(f"{name:<20} {m['rmse']:>10.2f} {m['final']:>10.2f} {m['median']:>10.2f} {m['p90']:>10.2f} {pct:>7.1f}%")
-    
+        print(f"{name:<20} {m['rmse']:>10.2f} {m['final']:>10.2f} "
+              f"{m['median']:>10.2f} {m['p90']:>10.2f} {m['path']:>10.1f}")
+
     print(f"\nFigures saved to: {figs_dir}/")
     print()
     print("="*75)
     print("KEY INSIGHTS:")
-    print("  1. IMU-only: UNBOUNDED drift (unusable without corrections)")
-    print("  2. IMU+ZUPT: Dramatic improvement (~90-95% error reduction)")
-    print("  3. Wheel Odom: BOUNDED drift (~1-5% of distance)")
-    print("  4. PDR: BOUNDED, heading-limited (~2-5% of distance)")
+    zupt_reduction = 100 * (
+        1 - metrics['IMU + ZUPT']['rmse'] / metrics['IMU Only']['rmse']
+    )
+    pdr_overrun = 100 * (metrics['PDR (Mag)']['path'] / total_dist - 1)
+    print(f"  1. IMU-only: UNBOUNDED. {metrics['IMU Only']['final']:.0f} m off "
+          f"after {duration:.0f} s, tracing {metrics['IMU Only']['path']:.0f} m "
+          f"for a {total_dist:.0f} m walk.")
+    print( "     Unusable without corrections.")
+    print(f"  2. IMU+ZUPT: {zupt_reduction:.0f}% RMSE reduction "
+          f"({metrics['IMU Only']['rmse']:.0f} m -> "
+          f"{metrics['IMU + ZUPT']['rmse']:.1f} m), detector active on "
+          f"{100 * zupt_detected.mean():.0f}% of samples.")
+    print( "     Velocity is reset while standing but attitude is never "
+           "corrected, so error still grows -- far more slowly.")
+    print(f"  3. Wheel Odom: BOUNDED. Error follows distance, not time: RMSE "
+          f"{metrics['Wheel Odom']['rmse']:.2f} m over {total_dist:.0f} m, set "
+          f"by the 2% encoder scale error.")
+    print( "     'Final' is near zero only because the loop closes on its own "
+           "start point; read 'Path' instead.")
+    print(f"  4. PDR: BOUNDED, heading-limited. {step_count} detected steps "
+          f"cover {metrics['PDR (Mag)']['path']:.1f} m against "
+          f"{total_dist:.1f} m ({pdr_overrun:+.1f}%), RMSE "
+          f"{metrics['PDR (Mag)']['rmse']:.2f} m.")
+    print()
+    print("  The 'Path' column is the check that makes the rest meaningful: a")
+    print("  method frozen at the origin scores well on error alone, because this")
+    print("  ground truth ends where it started.")
     print()
     print("  Conclusion: Dead reckoning REQUIRES corrections or fusion!")
     print("             - Use ZUPT for foot-mounted IMU")
@@ -503,4 +869,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
