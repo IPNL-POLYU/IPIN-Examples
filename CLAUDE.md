@@ -103,6 +103,7 @@ the SVG is relative to it, so the whole file differs while the picture is
 identical. `ch3_estimator_comparison` does this; the Chapter 6 and 8 figures do
 not. If a figure diff looks total but the printed numbers are unchanged, check
 the width attribute before looking for a real cause.
+
 Regenerate the figures for any code you change, and **open the PNGs** — this
 repo has repeatedly shipped figure defects that no test caught.
 
