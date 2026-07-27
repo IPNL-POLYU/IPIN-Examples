@@ -55,7 +55,27 @@ def generate_test_queries(
         floor_id: Restrict queries to a single floor.  ``None`` = random
             floors.
         noise_std: Additional Gaussian noise std (dBm) on top of the shadow
-            fading already produced by the path-loss model.
+            fading already produced by the path-loss model. Read "on top of"
+            literally: every query draws its own shadow-fading term at the
+            model's shadow_fading_std_dBm, which is 4.0 for the shipped
+            database, so the scenario labels name the smaller half of the noise
+            a localiser actually faces. Measured on the grid database with
+            nearest-neighbour matching: sweeping this parameter from 1 to
+            5 dBm costs 3.49 m of RMSE, and removing the unmentioned query
+            shadowing recovers 2.59 m -- comparable, and invisible from the
+            labels.
+
+            Worth knowing where the floor is, too. With no query shadowing and
+            no extra noise, NN still scores 7.18 m on a 5 m grid whose
+            quantisation floor is about 2 m. Neither term above explains that
+            gap; it is an open question rather than a known cause.
+
+            That shadowing is redrawn per query is also a modelling choice
+            worth knowing. Shadowing is a property of a location -- the same
+            wall attenuates the same AP from the same spot every time -- so
+            redrawing it makes the query inconsistent with the map at its own
+            position, which is the correlation fingerprinting relies on. A
+            spatially correlated field would be the faithful model.
         seed: Random seed for reproducibility.
 
     Returns:
@@ -353,7 +373,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=1.0, seed=42
     )
     all_results["Baseline"] = evaluate_scenario(
-        "Baseline (sigma=1dBm, Floor 0)", db, queries1, true_locs1, floor_id=0
+        "Baseline (extra sigma=1dBm on top of 4dBm shadowing, Floor 0)", db, queries1, true_locs1, floor_id=0
     )
     
     # Scenario 2: Moderate noise
@@ -365,7 +385,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=2.0, seed=43
     )
     all_results["Moderate Noise"] = evaluate_scenario(
-        "Moderate Noise (sigma=2dBm, Floor 0)", db, queries2, true_locs2, floor_id=0
+        "Moderate (extra sigma=2dBm on top of 4dBm shadowing, Floor 0)", db, queries2, true_locs2, floor_id=0
     )
     
     # Scenario 3: High noise
@@ -377,7 +397,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=5.0, seed=44
     )
     all_results["High Noise"] = evaluate_scenario(
-        "High Noise (sigma=5dBm, Floor 0)", db, queries3, true_locs3, floor_id=0
+        "High (extra sigma=5dBm on top of 4dBm shadowing, Floor 0)", db, queries3, true_locs3, floor_id=0
     )
     
     # Print summary table
