@@ -94,6 +94,15 @@ If a ch7 test does fail, re-run it in isolation before believing it.
 
 `core.eval.save_figure` is the only output path; it writes svg/pdf/png together
 and is byte-reproducible, so a committed figure diff means the picture changed.
+
+One exception, worth knowing before you chase a phantom: `bbox_inches="tight"`
+derives the canvas size from measured text extents, and for a figure whose
+tight box lands on a rounding boundary that size can wobble by one ulp between
+processes -- `width="999.498437pt"` against `999.498438pt`. Every coordinate in
+the SVG is relative to it, so the whole file differs while the picture is
+identical. `ch3_estimator_comparison` does this; the Chapter 6 and 8 figures do
+not. If a figure diff looks total but the printed numbers are unchanged, check
+the width attribute before looking for a real cause.
 Regenerate the figures for any code you change, and **open the PNGs** — this
 repo has repeatedly shipped figure defects that no test caught.
 

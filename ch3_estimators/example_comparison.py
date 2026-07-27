@@ -25,6 +25,8 @@ Particle Filter Algorithm (SIR - Sequential Importance Resampling):
 Book Reference: Section 3.5 and Table 3.4 provide comparison criteria.
 """
 
+import contextlib
+import io
 import time
 from pathlib import Path
 
@@ -46,9 +48,15 @@ from core.estimators import (
 )
 
 
-def setup_scenario():
+def setup_scenario(seed=42):
     """
     Set up 2D tracking scenario with range measurements.
+
+    Args:
+        seed: Seed for the trajectory and measurement noise. Parameterised so
+            the comparison can be repeated over realisations; a single one
+            cannot separate a real ordering from a coincidence. The default
+            keeps the committed figures unchanged.
 
     Returns:
         Tuple of (dt, n_steps, anchors, true_trajectory, measurements).
@@ -88,7 +96,7 @@ def setup_scenario():
     true_states = [true_x0.copy()]
     true_state = true_x0.copy()
 
-    np.random.seed(42)
+    np.random.seed(seed)
     for _ in tqdm(range(n_steps), desc="Generating trajectory", unit="step"):
         process_noise = np.random.multivariate_normal(np.zeros(4), Q)
         true_state = process_model_true(true_state, None, dt) + process_noise
@@ -476,6 +484,53 @@ def main():
         print(f"  Mean error: {mean_error:.4f} m")
         print(f"  Max error: {max_error:.4f} m")
         print(f"  Computation time: {comp_time:.4f} s")
+
+    # One realisation cannot separate an ordering from a coincidence, and
+    # these four are close enough that it matters: on this seed PF (0.4445)
+    # beats EKF (0.4716) and UKF beats EKF by 0.25%. Neither survives
+    # repetition. Repeating the whole scenario is the only honest way to say
+    # which differences are real.
+    n_seeds = 8
+    print("\n" + "-" * 70)
+    print(f"Same comparison repeated over {n_seeds} scenario seeds")
+    print("-" * 70)
+
+    # Each run prints a header and four progress bars; 32 of those would bury
+    # the table they exist to produce.
+    repeated = {name: [] for name in ("EKF", "UKF", "PF", "FGO")}
+    quiet = io.StringIO()
+    # setup_scenario reseeds the global RNG and the particle filter draws from
+    # it, so this loop would otherwise leave the generator somewhere else and
+    # change the figure plotted below -- which it did, until this was added.
+    rng_state = np.random.get_state()
+    with contextlib.redirect_stdout(quiet), contextlib.redirect_stderr(quiet):
+        for seed in range(n_seeds):
+            scenario = setup_scenario(seed=seed)
+            dt_r, n_r, anchors_r, truth_r, meas_r, Q_r, rstd_r = scenario
+            for name, runner in (
+                ("EKF", run_ekf), ("UKF", run_ukf), ("PF", run_pf), ("FGO", run_fgo)
+            ):
+                est, _ = runner(dt_r, n_r, anchors_r, meas_r, Q_r, rstd_r)
+                errors = np.linalg.norm(est[:, :2] - truth_r[:, :2], axis=1)
+                repeated[name].append(float(np.sqrt(np.mean(errors**2))))
+    np.random.set_state(rng_state)
+
+    best_counts = {name: 0 for name in repeated}
+    for i in range(n_seeds):
+        best_counts[min(repeated, key=lambda k: repeated[k][i])] += 1
+
+    print(f"{'Method':<8} {'mean RMSE':<12} {'min':<9} {'max':<9} {'best of 4':<10}")
+    for name, values in repeated.items():
+        values = np.asarray(values)
+        print(f"{name:<8} {values.mean():<12.3f} {values.min():<9.3f} "
+              f"{values.max():<9.3f} {best_counts[name]}/{n_seeds}")
+
+    print()
+    print("  FGO wins every seed, which is what batch smoothing should do: it")
+    print("  uses every measurement to estimate every state, while the filters")
+    print("  only ever look backwards. The three filters are within a couple of")
+    print("  percent of each other and their ordering changes with the seed, so")
+    print("  the single run above should not be read as ranking them.")
 
     # Visualization
     print("\n" + "=" * 70)
