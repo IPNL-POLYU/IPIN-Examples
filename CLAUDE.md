@@ -67,6 +67,27 @@ loading. Consequence: running them rewrites tracked files under
 `ch7_slam/figs/`. That is why `slam_with_maps.png` keeps reappearing in
 `git status` — it is test churn, not someone's edit.
 
+## Auditing a chapter's numbers
+
+A sweep of Chapters 4 and 8 found a reported number wrong in nine of eleven
+examples. One question found almost all of them: **what should this number be?**
+Compute it from the noise, the geometry, or the kinematics, then compare. A
+50 ms clock offset at 1 m/s cannot cost 17.78 m. Range errors of 0.035 m do
+not produce 0.739 m of fusion error. An alignment residual between two sensors
+each carrying 0.05 m of noise should be 0.10 m, not 0.05 m.
+
+Two things made these survive, and both are worth expecting:
+
+- **The number looked plausible in isolation.** Nobody checks 0.67 m. It was
+  wrong by sqrt(2), and the tell was that it contradicted the per-axis figures
+  printed on the next two lines.
+- **The correct version was usually already in the same file.** The AOA
+  example's second table averaged properly while its first reported single
+  draws; Chapter 4 contains `example_dop_geometry`, which validates its own
+  prediction against Monte-Carlo and reports the 3.5% disagreement. When
+  something looks wrong, look for the sibling that does it right before
+  inventing an approach.
+
 If a ch7 test does fail, re-run it in isolation before believing it.
 
 ## Figures
