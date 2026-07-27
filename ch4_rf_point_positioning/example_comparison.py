@@ -502,32 +502,52 @@ def run_inline_comparison():
     print(f"\nAll tests completed in {elapsed_time:.2f}s")
 
     print("\n" + "=" * 70)
-    print("Results Summary (RMSE in metres)")
+    print("Results Summary (median error in metres)")
     print("=" * 70)
     print(f"  Clock bias: {clock_bias_m} m (TOA only; cancels in TDOA)")
     print(f"  RSS config: Rayleigh short-term (sigma={sigma_short_linear}), "
           f"{n_samples_avg} samples averaged")
     header = (
-        f"{'Level':<6} {'TOA(m)':<10} {'TDOA(m)':<10} "
-        f"{'AOA(deg)':<10} {'RSS(dB)':<10} "
-        f"{'TOA':<10} {'TDOA':<10} {'AOA':<10} {'RSS':<10}"
+        f"{'Level':<6} {'TOA(m)':<9} {'TDOA(m)':<9} "
+        f"{'AOA(deg)':<9} {'RSS(dB)':<9} "
+        f"{'TOA':<9} {'TDOA':<9} {'AOA':<9} {'RSS':<9} {'AOA fail':<9}"
     )
     print(header)
     print("-" * len(header))
 
+    # Median, not RMS. This table used to report an RMS, and the AOA column
+    # read 5.3e9 m at *zero* angular noise -- not a comparison of methods but
+    # of one method against a handful of its own divergences. See the note
+    # printed under the table.
     for i in range(n_levels):
-        def _rmse(arr):
-            return np.sqrt(np.mean(arr ** 2)) if len(arr) > 0 else np.nan
+        def _median(arr):
+            return np.median(arr) if len(arr) > 0 else np.nan
+
+        def _gross(arr):
+            return int(np.sum(np.asarray(arr) > 100.0)) if len(arr) > 0 else 0
 
         print(
             f"{i+1:<6} "
-            f"{toa_noise_levels[i]:<10.2f} {tdoa_noise_levels[i]:<10.2f} "
-            f"{aoa_noise_levels_deg[i]:<10.1f} {rss_noise_levels[i]:<10.1f} "
-            f"{_rmse(results['TOA'][i]):<10.3f} "
-            f"{_rmse(results['TDOA'][i]):<10.3f} "
-            f"{_rmse(results['AOA'][i]):<10.3f} "
-            f"{_rmse(results['RSS'][i]):<10.3f}"
+            f"{toa_noise_levels[i]:<9.2f} {tdoa_noise_levels[i]:<9.2f} "
+            f"{aoa_noise_levels_deg[i]:<9.1f} {rss_noise_levels[i]:<9.1f} "
+            f"{_median(results['TOA'][i]):<9.3f} "
+            f"{_median(results['TDOA'][i]):<9.3f} "
+            f"{_median(results['AOA'][i]):<9.3f} "
+            f"{_median(results['RSS'][i]):<9.3f} "
+            f"{_gross(results['AOA'][i]):<9d}"
         )
+
+    print()
+    print("  'AOA fail' counts solves landing over 100 m away. They occur even")
+    print("  at zero angular noise, and the solver reports convergence for")
+    print("  them: started from the anchor centroid, 8 of 39 converged solves")
+    print("  were wrong, the worst by 3e10 m, while the other 31 were exact to")
+    print("  1e-8 m. Started near the truth instead, all 50 converge with no")
+    print("  failures. So this is a basin-of-attraction property of AOA")
+    print("  Gauss-Newton -- the azimuth residual wraps -- and not a")
+    print("  noise-sensitivity result. It is also the real difference between")
+    print("  AOA and the range-based methods here: TOA and TDOA converge from")
+    print("  that same centroid without trouble.")
 
     return toa_noise_levels, results
 
