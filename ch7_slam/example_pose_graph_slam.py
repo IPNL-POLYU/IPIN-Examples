@@ -348,7 +348,11 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     import json
     summary = {
         "mode": "dataset",
+        # "used" means step() was called, which is not the same as it having
+        # done anything: the frontend currently returns odometry unchanged.
+        # frontend_correction_m is the quantity a gate should test.
         "frontend_used": True,  # SlamFrontend2D.step() was executed
+        "frontend_correction_m": round(float(max_trans_diff), 6),
         "n_scans": len(scans),
         "n_frontend_steps": n_poses,  # Each pose runs frontend.step()
         "n_poses": n_poses,
@@ -1882,7 +1886,11 @@ def run_with_inline_data(
         "mode": "inline",
         "trajectory": trajectory_type,
         "laps": n_laps if trajectory_type == "square" else 1,
+        # "used" means step() was called, which is not the same as it having
+        # done anything: the frontend currently returns odometry unchanged.
+        # frontend_correction_m is the quantity a gate should test.
         "frontend_used": True,  # SlamFrontend2D.step() was executed
+        "frontend_correction_m": round(float(max_trans_diff), 6),
         "n_scans": len(scans),
         "n_frontend_steps": n_poses,  # Each pose runs frontend.step()
         "n_poses": n_poses,
