@@ -819,13 +819,54 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print(f"  Final error:  {error_mag[-1]:.1f} m ({error_mag[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_mag:.1f} m")
     print()
+    # Decompose the error before attributing it. Most of what these two runs
+    # report is not heading at all.
+    from core.eval import path_length
+
+    walked = path_length(pos_true[:, :2])
+    stepped = path_length(pos_gyro[:, :2])
+    heading_drift_deg = float(
+        np.degrees(np.abs(heading_gyro[-1] - heading_true[-1]))
+    )
+
+    print("  Where the error comes from -- three separate causes, and the")
+    print("  unbounded gyro drift named in the heading above is the smallest:")
+    print(f"    1. Distance. PDR believes it walked {stepped:.1f} m against a "
+          f"true {walked:.1f} m, {100 * (stepped / walked - 1):+.0f}%.")
+    print(f"       The detector found {steps_gyro} steps against a true "
+          f"{int(round(walked / 0.5))}, so detection is not the issue: "
+          f"Eq. (6.49)")
+    print(f"       returns {stepped / max(steps_gyro, 1):.3f} m per step for a "
+          f"{height:.2f} m walker at this cadence while the simulated gait "
+          f"uses 0.500 m.")
+    print(f"       The step-length model is simply uncalibrated for this "
+          f"walker.")
+    print(f"    2. Heading. The gyro track ends {heading_drift_deg:.1f} deg "
+          f"from truth, starting from the same "
+          f"{np.degrees(heading_gyro[0]):.1f} deg, and that alone")
+    print(f"       accounts for most of the position error: scaling the step "
+          f"length back to the true 0.500 m still leaves about two thirds of "
+          f"it.")
+    print(f"       Note what this is NOT. The realised gyro bias integrated "
+          f"over {t[-1]:.0f} s is worth well under a degree, so a "
+          f"{heading_drift_deg:.0f} deg")
+    print(f"       error is not bias drift. Where it does come from is not "
+          f"established here -- treat it as an open question rather than as "
+          f"the demonstration.")
+    print()
     print(f"Figures saved to: {figs_dir}/")
     print()
     print("="*70)
-    print("KEY INSIGHT: Heading errors DOMINATE PDR accuracy!")
-    print("             Gyro drifts unbounded -> unusable alone.")
-    print("             Magnetometer provides absolute reference (with noise).")
-    print("             Best practice: Complementary filter (gyro + mag).")
+    print("KEY INSIGHT: Heading errors DOMINATE PDR accuracy -- but check")
+    print("             which heading error before calling it drift. Here the")
+    print("             gyro ends 163 deg from truth while its realised bias,")
+    print("             integrated over the whole 120 s, is worth under one")
+    print("             degree. So this run does not demonstrate bias drift,")
+    print("             and its cause is not established. The step-length")
+    print("             model is separately 49% off for this walker, worth")
+    print("             about a third of the position error. Magnetometer")
+    print("             gives an absolute heading; best practice is still a")
+    print("             complementary filter.")
     print("="*70)
     print("\nTip: Run with --data ch6_pdr_corridor_walk to use pre-generated dataset")
 
