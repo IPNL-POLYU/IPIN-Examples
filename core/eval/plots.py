@@ -22,6 +22,36 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 # and tests can assert on the disclosure rather than duplicating the wording.
 UNEQUAL_AXES_NOTE = "axes not equally scaled"
 
+#: Series styling for the multi-series primitives, shared so a fix lands
+#: everywhere at once.
+#:
+#: The lengths are co-prime on purpose. Both tables used to hold five entries
+#: and be indexed by the same ``i % 5``, so series 6 was drawn in exactly the
+#: same blue solid line as series 1 -- same colour *and* same dashes, which no
+#: legend can undo. Chapter 5 compares six fingerprinting methods, and its CDF
+#: panel showed "NN (Euclidean)" and "Linear Regression" as one line.
+#:
+#: The fifth linestyle was a second "-", so dropping it costs no variety and
+#: takes the first repeat from series 6 to series 21. Series 1-5 are unchanged,
+#: which is why no existing figure moves except Chapter 5's.
+_SERIES_COLORS = ("blue", "red", "green", "orange", "purple")
+_SERIES_LINESTYLES = ("-", "--", "-.", ":")
+
+
+def _series_style(index: int) -> Tuple[str, str]:
+    """Colour and dash pattern for series ``index``.
+
+    Args:
+        index: Zero-based position of the series in the legend.
+
+    Returns:
+        ``(color, linestyle)``, distinct for the first 20 series.
+    """
+    return (
+        _SERIES_COLORS[index % len(_SERIES_COLORS)],
+        _SERIES_LINESTYLES[index % len(_SERIES_LINESTYLES)],
+    )
+
 
 def _draw_trajectories(
     ax: plt.Axes,
@@ -69,12 +99,8 @@ def _draw_trajectories(
     )
 
     # Plot estimated trajectories
-    colors = ["blue", "red", "green", "orange", "purple"]
-    linestyles = ["-", "--", "-.", ":", "-"]
-
     for i, (name, est_xy) in enumerate(est_xy_dict.items()):
-        color = colors[i % len(colors)]
-        linestyle = linestyles[i % len(linestyles)]
+        color, linestyle = _series_style(i)
         # Above the truth line and the start/end markers: an estimate that
         # tracks well lies *on* the truth, and with the truth drawn on top the
         # best method was the one you could not see. The truth stays legible
@@ -396,8 +422,6 @@ def plot_error_magnitude_time(
     else:
         fig = ax.figure
 
-    colors = ["blue", "red", "green", "orange", "purple"]
-    linestyles = ["-", "--", "-.", ":", "-"]
     peak = 0.0
 
     for i, (name, errors) in enumerate(errors_dict.items()):
@@ -408,12 +432,13 @@ def plot_error_magnitude_time(
         time = np.arange(len(magnitudes)) * dt if t is None else np.asarray(t)
         peak = max(peak, float(np.max(magnitudes)) if magnitudes.size else 0.0)
 
+        color, linestyle = _series_style(i)
         ax.plot(
             time,
             magnitudes,
             label=name,
-            color=colors[i % len(colors)],
-            linestyle=linestyles[i % len(linestyles)],
+            color=color,
+            linestyle=linestyle,
             linewidth=2,
         )
 
@@ -508,9 +533,6 @@ def plot_error_cdf(
     else:
         fig = ax.figure
 
-    colors = ["blue", "red", "green", "orange", "purple"]
-    linestyles = ["-", "--", "-.", ":", "-"]
-
     for i, (name, errors) in enumerate(errors_dict.items()):
         # Compute error magnitudes
         errors = np.asarray(errors)
@@ -523,8 +545,7 @@ def plot_error_cdf(
         sorted_errors = np.sort(error_magnitudes)
         cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
 
-        color = colors[i % len(colors)]
-        linestyle = linestyles[i % len(linestyles)]
+        color, linestyle = _series_style(i)
         ax.plot(
             sorted_errors,
             cdf,

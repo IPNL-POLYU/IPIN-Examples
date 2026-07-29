@@ -60,12 +60,16 @@ invocation so it runs once per session (5 runs down to 3) and sets a timeout
 generous enough to be a deadlock guard rather than a performance budget. **If
 you add a test that shells out to an example, go through that runner.**
 
-Those tests still run the example with `cwd` at the repo root — the example
-resolves both `data/sim` and `ch7_slam/figs` relative to the working
-directory, so it cannot be redirected to a tmpdir without breaking dataset
-loading. Consequence: running them rewrites tracked files under
-`ch7_slam/figs/`. That is why `slam_with_maps.png` keeps reappearing in
-`git status` — it is test churn, not someone's edit.
+Those tests still run the example with `cwd` at the repo root, because the
+example resolves `data/sim` relative to the working directory. The figures are
+no longer written there, though: the runner points `IPIN_FIGS_DIR` at a
+scratch directory and exposes the result as `ExampleRun.figs_dir`. **Assert
+against that, never against the in-repo path** — an existence check on
+`ch7_slam/figs/slam_with_maps.png` passes on the committed file whether or not
+your run wrote anything.
+
+If `slam_with_maps.png` shows up in `git status` after a test run now, that is
+a real change and not the churn this note used to describe.
 
 ## Auditing a chapter's numbers
 

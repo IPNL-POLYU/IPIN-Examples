@@ -4970,7 +4970,7 @@ L 204.678392 323.319853
 L 224.456075 322.281377 
 L 257.86038 321.242901 
 L 257.86038 321.242901 
-" clip-path="url(#p172e2d56a5)" style="fill: none; stroke: #0000ff; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#p172e2d56a5)" style="fill: none; stroke-dasharray: 7.4,3.2; stroke-dashoffset: 0; stroke: #0000ff; stroke-width: 2"/>
    </g>
    <g id="patch_27">
     <path d="M 50.14375 528.938109 
@@ -5261,7 +5261,7 @@ L 268.27235 508.45764
      <path d="M 254.27235 518.732328 
 L 261.27235 518.732328 
 L 268.27235 518.732328 
-" style="fill: none; stroke: #0000ff; stroke-width: 2; stroke-linecap: square"/>
+" style="fill: none; stroke-dasharray: 7.4,3.2; stroke-dashoffset: 0; stroke: #0000ff; stroke-width: 2"/>
     </g>
     <g id="text_100">
      <!-- Post.Mean (std=5.0dBm) -->

@@ -26,6 +26,7 @@ from core.eval import (
     save_figure,
     set_axes_equal_3d,
 )
+from core.eval import plots
 from core.eval.plots import (
     _REPO_ROOT,
     FIGS_DIR_ENV_VAR,
@@ -702,3 +703,62 @@ class TestSaveAnimation:
         assert path.exists() and path.suffix == ".gif"
         with Image.open(path) as image:
             assert image.n_frames == 4
+
+
+class TestSeriesStylesAreDistinguishable:
+    """Two different series must never be drawn as the same line.
+
+    ``plot_error_cdf`` and its siblings cycled colours and dashes on the same
+    ``i % 5``, so series 6 came out in exactly the same blue solid as series 1.
+    A legend cannot repair that -- the reader has two entries and one visible
+    line. Chapter 5's six-method comparison shipped that way.
+
+    These assert on the style assignment rather than on any one figure, so the
+    guarantee survives a caller that adds a seventh method.
+    """
+
+    def test_styles_are_unique_up_to_the_cycle_length(self):
+        """No repeat before colours x dashes are exhausted."""
+        n = len(plots._SERIES_COLORS) * len(plots._SERIES_LINESTYLES)
+        styles = [plots._series_style(i) for i in range(n)]
+
+        assert len(set(styles)) == n, (
+            "two series share a colour and a dash pattern within the first "
+            f"{n}: the tables' lengths must stay co-prime."
+        )
+
+    def test_six_series_are_all_distinguishable(self):
+        """The case that shipped: six methods on one CDF panel."""
+        rng = np.random.default_rng(0)
+        errors = {f"m{i}": rng.gamma(2.0, 1.0, size=200) for i in range(6)}
+
+        fig = plot_error_cdf(errors, title="six")
+        try:
+            drawn = {
+                (line.get_color(), line.get_linestyle())
+                for line in fig.axes[0].get_lines()
+            }
+        finally:
+            plt.close(fig)
+
+        assert len(drawn) == 6, (
+            f"six series drew only {len(drawn)} distinct styles; at least two "
+            f"methods are indistinguishable on the page."
+        )
+
+    def test_the_first_five_styles_are_unchanged(self):
+        """Fixing the cycle must not silently redraw every existing figure.
+
+        The fifth linestyle was a duplicate ``-``, so dropping it moves the
+        repeat from series 6 to series 21 while leaving series 1-5 exactly as
+        they were. Anything with five or fewer series is byte-identical.
+        """
+        expected = [
+            ("blue", "-"),
+            ("red", "--"),
+            ("green", "-."),
+            ("orange", ":"),
+            ("purple", "-"),
+        ]
+
+        assert [plots._series_style(i) for i in range(5)] == expected
