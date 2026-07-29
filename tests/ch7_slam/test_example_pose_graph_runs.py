@@ -181,22 +181,22 @@ class TestExamplePoseGraphSLAMRuns(unittest.TestCase):
     def test_visualization_file_created(self):
         """Test that visualization file is created.
 
-        Asserts the file was written by *this* run rather than merely present:
-        slam_with_maps.png is tracked in git, so an existence check alone would
-        pass even if the example never wrote anything.
+        Asserts against the runner's diverted figs directory, not
+        ``ch7_slam/figs``: the run must not touch the committed figure. And on
+        mtime as well as existence -- all three shared invocations write
+        ``slam_with_maps.png`` to that one directory, so presence alone would
+        pass on a sibling invocation's file even if this one saved nothing.
         """
         run = run_pose_graph_example()
 
         self.assertEqual(run.process.returncode, 0)
 
-        # Check output file exists
-        output_file = self.workspace_root / "ch7_slam" / "figs" / "slam_with_maps.png"
+        output_file = run.figs_dir / "slam_with_maps.png"
         self.assertTrue(
             output_file.exists(), f"Visualization file not created: {output_file}"
         )
 
-        # ...and is fresh. One second of slack for filesystem timestamp
-        # granularity.
+        # One second of slack for filesystem timestamp granularity.
         self.assertGreaterEqual(
             output_file.stat().st_mtime,
             run.started_at - 1.0,

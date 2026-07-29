@@ -779,6 +779,71 @@ def set_axes_equal_3d(ax, radius: float = 1.5) -> None:
         pass
 
 
+#: Set this to a directory to keep figure output out of the repository: writes
+#: that would land inside the working tree are mirrored beneath it instead. The
+#: test suite sets it so running pytest cannot rewrite committed figures. See
+#: :func:`_resolve_out_dir`.
+FIGS_DIR_ENV_VAR = "IPIN_FIGS_DIR"
+
+#: Repository root, i.e. the parent of ``core/``.
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+def _resolve_out_dir(out_dir: Union[str, Path]) -> Path:
+    """Mirror in-repository figure output elsewhere when asked to.
+
+    Examples hardcode their output as ``chX_*/figs`` relative to their own
+    source file. That is right for a reader running an example, but wrong for
+    the test suite: several tests run an example end to end to prove its
+    figures are still produced, and doing so rewrote the committed figures and
+    left the working tree dirty, so every test run manufactured a diff.
+
+    Only paths inside the repository are redirected. A caller that names a
+    directory elsewhere -- a test writing to `tmp_path`, a reader exporting to
+    their desktop -- gets exactly what it asked for, because silently moving an
+    explicitly chosen absolute path would be a nasty surprise. The path
+    relative to the repository root is preserved, so chapters cannot collide.
+
+    Args:
+        out_dir: Directory the caller asked to write to.
+
+    Returns:
+        The directory to write to: `out_dir` unchanged unless the variable is
+        set and `out_dir` lies inside the repository.
+    """
+    requested = Path(out_dir)
+
+    override = os.environ.get(FIGS_DIR_ENV_VAR)
+    if not override:
+        return requested
+
+    try:
+        within_repo = requested.resolve().relative_to(_REPO_ROOT)
+    except ValueError:
+        return requested
+
+    return Path(override) / within_repo
+
+
+def resolve_figs_dir(out_dir: Union[str, Path]) -> Path:
+    """Return the directory to write figures to, creating it if needed.
+
+    :func:`save_figure` and :func:`save_animation` do this internally. Use this
+    directly only when saving outside them -- a lone ``plt.savefig`` to a fixed
+    filename, say -- so that such output still honours ``IPIN_FIGS_DIR`` and a
+    test run cannot overwrite a committed figure.
+
+    Args:
+        out_dir: Directory the caller wants, normally ``chX_*/figs``.
+
+    Returns:
+        The directory to write to, guaranteed to exist.
+    """
+    resolved = _resolve_out_dir(out_dir)
+    resolved.mkdir(parents=True, exist_ok=True)
+    return resolved
+
+
 def save_animation(
     fig: plt.Figure,
     update: Callable[[int], object],
@@ -806,7 +871,8 @@ def save_animation(
         fig: Figure to animate.
         update: Called with the frame index; draws that frame.
         n_frames: Number of frames.
-        out_dir: Output directory, normally ``chX_*/figs``.
+        out_dir: Output directory, normally ``chX_*/figs``. Diverted when
+            ``IPIN_FIGS_DIR`` is set.
         name: Base filename, without the ``.gif`` extension.
         fps: Frames per second in the written file.
         dpi: Resolution. 80 keeps a 10-inch-wide figure near 800 px.
@@ -816,7 +882,7 @@ def save_animation(
     Returns:
         Path to the written GIF.
     """
-    out_dir = Path(out_dir)
+    out_dir = _resolve_out_dir(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{name}.gif"
 
@@ -847,14 +913,14 @@ def save_figure(
 
     Args:
         fig: Matplotlib figure to save
-        out_dir: Output directory
+        out_dir: Output directory. Diverted when ``IPIN_FIGS_DIR`` is set.
         name: Base filename (without extension)
         formats: Tuple of format extensions
 
     Returns:
         paths: List of saved file paths
     """
-    out_dir = Path(out_dir)
+    out_dir = _resolve_out_dir(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
 
     # Make the output byte-reproducible. By default matplotlib stamps SVG and

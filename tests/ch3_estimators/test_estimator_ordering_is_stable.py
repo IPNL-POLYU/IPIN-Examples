@@ -47,7 +47,9 @@ def _rmse_by_method(seed):
             ("PF", run_pf),
             ("FGO", run_fgo),
         ):
-            estimates, _ = runner(dt, n_steps, anchors, meas, Q, range_std)
+            # Index rather than unpack: run_pf returns a third value
+            # (n_particles) that the others do not.
+            estimates = runner(dt, n_steps, anchors, meas, Q, range_std)[0]
             errors = np.linalg.norm(estimates[:, :2] - truth[:, :2], axis=1)
             out[name] = float(np.sqrt(np.mean(errors**2)))
     return out

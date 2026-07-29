@@ -1484,11 +1484,17 @@ def plot_slam_results(
     # Save to figs directory with deterministic filename. Resolved from this
     # file rather than the working directory: the tests run the example from
     # the repo root, but nothing here should depend on that.
+    #
+    # origin/main reached the same goal differently, with a raw plt.savefig
+    # wrapped in resolve_figs_dir. save_figure is kept because it subsumes
+    # that -- it calls the same resolver internally, so IPIN_FIGS_DIR still
+    # redirects a test run away from the committed figure -- and it also emits
+    # svg and pdf, which the raw savefig did not.
     from pathlib import Path
     figs_dir = Path(__file__).resolve().parent / "figs"
     paths = save_figure(fig, figs_dir, "slam_with_maps")
     print(f"\n[OK] Saved figure: {paths[0]}")
-    
+
     # Only show interactively if not in automated mode
     import os
     if os.environ.get("DISPLAY") or os.environ.get("MPLBACKEND") != "Agg":

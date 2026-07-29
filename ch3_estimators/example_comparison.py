@@ -335,7 +335,7 @@ def run_pf(dt, n_steps, anchors, measurements, Q, range_std):
     elapsed_time = time.time() - start_time
     print(f"  [OK] PF completed in {elapsed_time:.4f}s")
 
-    return np.array(estimates), elapsed_time
+    return np.array(estimates), elapsed_time, n_particles
 
 
 def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
@@ -415,18 +415,66 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
         graph.add_factor(meas_factor)
 
     # Optimize
-    print(f"  Optimizing factor graph (10 Gauss-Newton iterations)...")
+    print(f"  Optimizing factor graph (up to 10 Gauss-Newton iterations)...")
     start_time = time.time()
-    optimized_vars, _ = graph.optimize(method="gauss_newton", max_iterations=10)
+    optimized_vars, costs = graph.optimize(
+        method="gauss_newton", max_iterations=10
+    )
     elapsed_time = time.time() - start_time
-    print(f"  [OK] FGO completed in {elapsed_time:.4f}s")
+    # optimize() returns the cost at each iteration, so this is the number of
+    # iterations actually taken rather than the 10 it was allowed.
+    n_iterations = len(costs)
+    print(f"  [OK] FGO completed in {elapsed_time:.4f}s "
+          f"({n_iterations} iterations)")
 
     # Extract estimates
     estimates = []
     for i in range(n_steps + 1):
         estimates.append(optimized_vars[i])
 
-    return np.array(estimates), elapsed_time
+    return np.array(estimates), elapsed_time, n_iterations
+
+
+def model_evaluation_counts(n_steps, n_states, n_particles, fgo_iterations):
+    """Count how many model evaluations each estimator spends on the run.
+
+    This is what the cost panel plots, in place of the wall-clock seconds it
+    used to. A measured second cannot be committed to a figure: it differs on
+    every run and every machine, so the figure churned on regeneration while
+    telling a reader nothing about their own hardware. What separates these four
+    estimators is not clock speed but how many times each pushes a state vector
+    through the process and measurement models, and that is exact.
+
+    One evaluation is one state vector passed through one model:
+
+        - EKF propagates the mean and predicts the measurement once per step.
+        - UKF does both for each of its 2n+1 sigma points (Section 3.4).
+        - PF does both for every particle -- this is why it dominates.
+        - FGO is a batch smoother: each Gauss-Newton iteration re-evaluates the
+          motion and measurement residual at every step, so its cost scales with
+          the iterations it actually takes, not with the limit it was given.
+
+    Jacobians and the linear algebra are deliberately not counted. They differ
+    per estimator too, but including them would mean guessing at BLAS internals
+    and would trade an exact number for a fabricated one.
+
+    Args:
+        n_steps: Number of filter steps in the run.
+        n_states: State dimension, which sets the UKF's sigma-point count.
+        n_particles: Particle count used by the PF.
+        fgo_iterations: Gauss-Newton iterations the FGO actually took.
+
+    Returns:
+        Dict mapping estimator name to its model-evaluation count (int).
+    """
+    n_sigma = 2 * n_states + 1
+
+    return {
+        'EKF': n_steps * 2,
+        'UKF': n_steps * 2 * n_sigma,
+        'PF': n_steps * 2 * n_particles,
+        'FGO': fgo_iterations * 2 * n_steps,
+    }
 
 
 def main():
@@ -461,10 +509,21 @@ def main():
     results['UKF'], results['UKF_time'] = run_ukf(dt, n_steps, anchors, measurements, Q, range_std)
     
     print("\n[3/4] Particle Filter (PF)")
-    results['PF'], results['PF_time'] = run_pf(dt, n_steps, anchors, measurements, Q, range_std)
-    
+    results['PF'], results['PF_time'], n_particles = run_pf(
+        dt, n_steps, anchors, measurements, Q, range_std
+    )
+
     print("\n[4/4] Factor Graph Optimization (FGO)")
-    results['FGO'], results['FGO_time'] = run_fgo(dt, n_steps, anchors, measurements, Q, range_std)
+    results['FGO'], results['FGO_time'], fgo_iterations = run_fgo(
+        dt, n_steps, anchors, measurements, Q, range_std
+    )
+
+    results['model_evaluations'] = model_evaluation_counts(
+        n_steps=n_steps,
+        n_states=true_states.shape[1],
+        n_particles=n_particles,
+        fgo_iterations=fgo_iterations,
+    )
 
     # Compute errors
     print("\n" + "=" * 70)
@@ -510,7 +569,10 @@ def main():
             for name, runner in (
                 ("EKF", run_ekf), ("UKF", run_ukf), ("PF", run_pf), ("FGO", run_fgo)
             ):
-                est, _ = runner(dt_r, n_r, anchors_r, meas_r, Q_r, rstd_r)
+                # Index rather than unpack: run_pf returns a third value
+                # (n_particles) that the others do not, and only the estimates
+                # are wanted here.
+                est = runner(dt_r, n_r, anchors_r, meas_r, Q_r, rstd_r)[0]
                 errors = np.linalg.norm(est[:, :2] - truth_r[:, :2], axis=1)
                 repeated[name].append(float(np.sqrt(np.mean(errors**2))))
     np.random.set_state(rng_state)
@@ -567,22 +629,29 @@ def main():
         errors, title="Cumulative Distribution of Errors", ax=axes[1, 0]
     )
 
-    # Plot 4: Computation Time Comparison
+    # Plot 4: Computational cost, counted rather than timed
+    #
+    # This panel used to plot measured seconds, which made the committed figure
+    # churn on every regeneration and told a reader nothing about their own
+    # machine. Counting model evaluations is exact and reproducible, and it is
+    # the quantity that actually separates these estimators.
     ax = axes[1, 1]
     methods = ['EKF', 'UKF', 'PF', 'FGO']
-    times = [results[f'{m}_time'] for m in methods]
+    evaluations = [results['model_evaluations'][m] for m in methods]
     colors = ['b', 'g', 'm', 'r']
-    bars = ax.bar(methods, times, color=colors, alpha=0.7, edgecolor='black')
+    bars = ax.bar(methods, evaluations, color=colors, alpha=0.7,
+                  edgecolor='black')
 
-    ax.set_ylabel("Computation Time [s]", fontsize=12)
+    ax.set_yscale('log')
+    ax.set_ylabel("Model evaluations", fontsize=12)
     ax.set_title("Computational Cost", fontsize=14, fontweight="bold")
     ax.grid(True, alpha=0.3, axis='y')
 
     # Add value labels on bars
-    for bar, t in zip(bars, times):
+    for bar, n_evals in zip(bars, evaluations):
         height = bar.get_height()
         ax.text(bar.get_x() + bar.get_width() / 2., height,
-                f'{t:.3f}s', ha='center', va='bottom', fontsize=10)
+                f'{n_evals:,}', ha='center', va='bottom', fontsize=10)
 
     plt.tight_layout()
     paths = save_figure(fig, Path(__file__).parent / "figs",

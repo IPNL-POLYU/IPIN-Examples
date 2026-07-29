@@ -253,7 +253,7 @@ def compare_geometries(verbose: bool = True) -> Dict:
                 rmse = np.sqrt(np.mean(res['TOA']['errors']**2))
                 gdop = np.mean(res['gdop']['TOA'])
                 print(f"  {geom}: {rmse:.3f}m (GDOP={gdop:.2f})")
-        print("\nGeometry can cause 10× variation in positioning accuracy!")
+        print("\nGeometry can cause 10x variation in positioning accuracy!")
     
     return all_results
 

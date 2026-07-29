@@ -177,13 +177,81 @@ def _generate_queries_holdout(db, *, n_queries, floor_id, noise_std):
     return query_fingerprints, true_locs, floor_ids_out
 
 
+def per_query_operation_counts(db, floor_id=None):
+    """Count the work one query costs each method, exactly as implemented.
+
+    This is what the cost figures plot, in place of the wall-clock timings they
+    used to. A measured millisecond cannot be committed to a figure: it differs
+    on every run and on every machine, so the figure churned on every
+    regeneration while telling a reader nothing about their own hardware. How
+    much work each method does per query is exact, reproducible, and the thing
+    the chapter is actually comparing.
+
+    One operation is counted per elementary term the implementation evaluates:
+
+        - one per (RP, AP) pair whose distance or Gaussian log-density is formed
+        - one per RP examined by the estimator step: argmin/argmax, exp, or one
+          term of the posterior-weighted sum
+        - one per multiply-add in the linear model's matrix-vector product
+
+    Two implementation details dominate the result and are worth reading off the
+    figure:
+
+        - The floor constraint is applied at different points. `nn_localize` and
+          `knn_localize` slice the database by floor *before* computing
+          distances, so they only touch that floor's RPs. `log_likelihood`
+          evaluates every RP in the database and masks the other floors to -inf
+          afterwards. Here that is one floor's RPs against all three.
+        - `top_k` does not avoid the dominant term. `posterior_mean_localize`
+          computes the full posterior over every RP first and only then
+          truncates the weighted sum, so top-k trims an O(M*d) step while the
+          O(M*N) likelihood stands.
+
+    Args:
+        db: Fingerprint database being queried.
+        floor_id: Floor constraint passed to the localisers, or None for all.
+
+    Returns:
+        Dict mapping method name to its per-query operation count (int).
+    """
+    n_all = db.n_reference_points
+    n_features = db.features.shape[1]
+    n_dims = db.locations.shape[1]
+
+    # Distances are computed over the floor-filtered set; likelihoods are not.
+    if floor_id is not None:
+        n_searched = int(np.sum(db.get_floor_mask(floor_id)))
+    else:
+        n_searched = n_all
+
+    distance_terms = n_searched * n_features
+    likelihood_terms = n_all * n_features
+
+    return {
+        # distances + argmin
+        "NN (Euclidean)": distance_terms + n_searched,
+        # distances + partial selection + weighted average of k locations
+        "k-NN (k=3)": distance_terms + n_searched + 3 * n_dims,
+        # log-densities + argmax
+        "MAP": likelihood_terms + n_all,
+        # log-densities + exp + full posterior-weighted sum
+        "Posterior Mean": likelihood_terms + n_all + n_all * n_dims,
+        # log-densities + exp + partial selection + weighted sum of k locations
+        "Post.Mean (k=10)": likelihood_terms + 2 * n_all + 10 * n_dims,
+        # W z + b: one multiply-add per weight, plus the bias
+        "Linear Regression": n_dims * n_features + n_dims,
+    }
+
+
 def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     """
     Evaluate all methods on a specific scenario.
-    
+
     Returns:
         List of result dictionaries.
     """
+    ops_per_query = per_query_operation_counts(db, floor_id=floor_id)
+
     print(f"\n{'='*70}")
     print(f"Scenario: {scenario_name}")
     print(f"{'='*70}")
@@ -213,6 +281,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         "median": np.median(errors),
         "p90": np.percentile(errors, 90),
         "mean_time_ms": np.mean(times),
+        "ops_per_query": ops_per_query[method_name],
     })
     print(f"RMSE={results[-1]['rmse']:.2f}m")
     
@@ -237,6 +306,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         "median": np.median(errors),
         "p90": np.percentile(errors, 90),
         "mean_time_ms": np.mean(times),
+        "ops_per_query": ops_per_query[method_name],
     })
     print(f"RMSE={results[-1]['rmse']:.2f}m")
     
@@ -268,6 +338,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         "median": np.median(errors),
         "p90": np.percentile(errors, 90),
         "mean_time_ms": np.mean(times),
+        "ops_per_query": ops_per_query[method_name],
     })
     print(f"RMSE={results[-1]['rmse']:.2f}m")
     
@@ -291,6 +362,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         "median": np.median(errors),
         "p90": np.percentile(errors, 90),
         "mean_time_ms": np.mean(times),
+        "ops_per_query": ops_per_query[method_name],
     })
     print(f"RMSE={results[-1]['rmse']:.2f}m")
     
@@ -314,6 +386,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         "median": np.median(errors),
         "p90": np.percentile(errors, 90),
         "mean_time_ms": np.mean(times),
+        "ops_per_query": ops_per_query[method_name],
     })
     print(f"RMSE={results[-1]['rmse']:.2f}m")
     
@@ -344,6 +417,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         "median": np.median(errors),
         "p90": np.percentile(errors, 90),
         "mean_time_ms": np.mean(times),
+        "ops_per_query": ops_per_query[method_name],
     })
     print(f"RMSE={results[-1]['rmse']:.2f}m")
     
@@ -451,11 +525,12 @@ def main():
     # Plot 3: Computation time comparison
     ax3 = plt.subplot(3, 3, 3)
     methods = [r['method'] for r in all_results["Baseline"]]
-    times = [r['mean_time_ms'] for r in all_results["Baseline"]]
-    colors = ['blue', 'cyan', 'red', 'orange', 'green']
-    ax3.barh(methods, times, color=colors, alpha=0.7)
-    ax3.set_xlabel('Computation Time (ms)')
-    ax3.set_title('Speed Comparison (Baseline)')
+    ops = [r['ops_per_query'] for r in all_results["Baseline"]]
+    colors = ['blue', 'cyan', 'red', 'orange', 'green', 'purple']
+    ax3.barh(methods, ops, color=colors[:len(methods)], alpha=0.7)
+    ax3.set_xscale('log')
+    ax3.set_xlabel('Operations per query')
+    ax3.set_title('Per-Query Cost (Baseline)')
     ax3.grid(True, alpha=0.3, axis='x')
     
     # Plot 4: Box plot comparison (Baseline)
@@ -488,15 +563,16 @@ def main():
     ax5.legend(fontsize=7)
     ax5.grid(True, alpha=0.3)
     
-    # Plot 6: Speed vs Accuracy (Baseline)
+    # Plot 6: Cost vs Accuracy (Baseline)
     ax6 = plt.subplot(3, 3, 6)
     for r in all_results["Baseline"]:
-        ax6.scatter(r['mean_time_ms'], r['rmse'], s=150, alpha=0.7)
-        ax6.annotate(r['method'], (r['mean_time_ms'], r['rmse']),
+        ax6.scatter(r['ops_per_query'], r['rmse'], s=150, alpha=0.7)
+        ax6.annotate(r['method'], (r['ops_per_query'], r['rmse']),
                     xytext=(5, 5), textcoords='offset points', fontsize=8)
-    ax6.set_xlabel('Computation Time (ms)')
+    ax6.set_xscale('log')
+    ax6.set_xlabel('Operations per query')
     ax6.set_ylabel('RMSE (m)')
-    ax6.set_title('Speed vs Accuracy Trade-off')
+    ax6.set_title('Cost vs Accuracy Trade-off')
     ax6.grid(True, alpha=0.3)
     
     # Plot 7: Category comparison

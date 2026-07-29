@@ -11,6 +11,7 @@ References: Chapter 2, Sections 2.1-2.2
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -29,8 +30,19 @@ class TestAttitudeVisualizationExample(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Divert the example's output: writing into ch2_coords/figs/ would
+        # rewrite the committed figures, so a plain test run left the working
+        # tree dirty and every run manufactured a diff.
+        cls._figs_root = tempfile.TemporaryDirectory()
+
         env = os.environ.copy()
-        env.update({"MPLBACKEND": "Agg", "PYTHONPATH": str(WORKSPACE_ROOT)})
+        env.update(
+            {
+                "MPLBACKEND": "Agg",
+                "PYTHONPATH": str(WORKSPACE_ROOT),
+                "IPIN_FIGS_DIR": cls._figs_root.name,
+            }
+        )
 
         cls.result = subprocess.run(
             [
@@ -45,7 +57,11 @@ class TestAttitudeVisualizationExample(unittest.TestCase):
             timeout=300,
             env=env,
         )
-        cls.figs_dir = WORKSPACE_ROOT / "ch2_coords" / "figs"
+        cls.figs_dir = Path(cls._figs_root.name) / "ch2_coords" / "figs"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._figs_root.cleanup()
 
     def test_example_runs_successfully(self):
         """Exit code 0 with no traceback."""

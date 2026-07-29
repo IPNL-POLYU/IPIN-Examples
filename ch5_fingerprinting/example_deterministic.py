@@ -96,6 +96,50 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
     return np.array(query_fingerprints), true_locs, floor_ids_out
 
 
+def per_query_operations(db, floor_id=None, k=None, **_unused):
+    """Count the work one query costs, in place of timing it.
+
+    The cost figure used to plot measured milliseconds, which cannot be
+    committed: the number differs on every run and every machine, so the figure
+    churned on regeneration and told a reader nothing about their own hardware.
+    The operation count is exact and reproducible.
+
+    One operation is counted per elementary term the implementation evaluates:
+    one per (RP, AP) pair entering `pairwise_distances`, one per RP examined by
+    the argmin or the k-way partial selection, and one per multiply-add in the
+    weighted average of the k chosen locations.
+
+    The headline this produces is that every variant here costs essentially the
+    same. `nn_localize` and `knn_localize` both slice the database by floor and
+    then scan it in full, so the choice of metric, of weighting, and of k are
+    all free -- what you pay for is the scan. Only the database size moves this
+    number.
+
+    Args:
+        db: Fingerprint database being queried.
+        floor_id: Floor constraint passed to the localiser, or None for all.
+        k: Neighbour count for k-NN, or None for plain nearest neighbour.
+        **_unused: Remaining localiser kwargs (metric, weighting) do not change
+            the count; accepted so the caller can forward its kwargs verbatim.
+
+    Returns:
+        Per-query operation count (int).
+    """
+    if floor_id is not None:
+        n_searched = int(np.sum(db.get_floor_mask(floor_id)))
+    else:
+        n_searched = db.n_reference_points
+
+    n_features = db.features.shape[1]
+    n_dims = db.locations.shape[1]
+
+    # Distance to every reference point in the search set, then the selection.
+    ops = n_searched * n_features + n_searched
+    if k is not None:
+        ops += k * n_dims  # weighted average over the k neighbours
+    return ops
+
+
 def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kwargs):
     """
     Evaluate a positioning method.
@@ -138,6 +182,7 @@ def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kw
         "p90": np.percentile(errors, 90),
         "p95": np.percentile(errors, 95),
         "mean_time_ms": np.mean(times),
+        "ops_per_query": per_query_operations(**kwargs),
     }
     
     print(f"    RMSE: {results['rmse']:.2f}m")
@@ -292,15 +337,22 @@ def main():
     ax5.grid(True, alpha=0.3)
     ax5.set_xticks(k_values)
     
-    # Plot 6: Speed vs Accuracy
+    # Plot 6: Cost vs accuracy, counted rather than timed
+    #
+    # This panel used to plot measured milliseconds, which churned the committed
+    # figure on every regeneration. Counting operations instead is exact -- and
+    # it makes the real point, which the timing noise obscured: every variant
+    # sits on the same vertical line, because all of them scan the whole floor.
+    # Accuracy is bought by choosing k and the weighting, and none of it costs
+    # anything. Only a bigger database moves the cost.
     ax6 = plt.subplot(2, 3, 6)
     for r in results:
-        ax6.scatter(r['mean_time_ms'], r['rmse'], s=100, alpha=0.7)
-        ax6.annotate(r['method'], (r['mean_time_ms'], r['rmse']),
+        ax6.scatter(r['ops_per_query'], r['rmse'], s=100, alpha=0.7)
+        ax6.annotate(r['method'], (r['ops_per_query'], r['rmse']),
                     xytext=(5, 5), textcoords='offset points', fontsize=7)
-    ax6.set_xlabel('Computation Time (ms)')
+    ax6.set_xlabel('Operations per query')
     ax6.set_ylabel('RMSE (m)')
-    ax6.set_title('Speed vs Accuracy Trade-off')
+    ax6.set_title('Accuracy is Free: Cost is the Database Scan')
     ax6.grid(True, alpha=0.3)
     
     plt.tight_layout()

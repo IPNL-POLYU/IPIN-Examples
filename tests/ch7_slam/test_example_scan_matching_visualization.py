@@ -12,6 +12,7 @@ References: Chapter 7, Sections 7.3.1-7.3.2, Eqs. (7.10)-(7.16)
 import os
 import subprocess
 import sys
+import tempfile
 import unittest
 from pathlib import Path
 
@@ -32,8 +33,19 @@ class TestScanMatchingVisualizationExample(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        # Divert the example's output: writing into ch7_slam/figs/ would rewrite
+        # the committed figures, so a plain test run left the working tree dirty
+        # and every run manufactured a diff.
+        cls._figs_root = tempfile.TemporaryDirectory()
+
         env = os.environ.copy()
-        env.update({"MPLBACKEND": "Agg", "PYTHONPATH": str(WORKSPACE_ROOT)})
+        env.update(
+            {
+                "MPLBACKEND": "Agg",
+                "PYTHONPATH": str(WORKSPACE_ROOT),
+                "IPIN_FIGS_DIR": cls._figs_root.name,
+            }
+        )
 
         cls.result = subprocess.run(
             [
@@ -48,7 +60,11 @@ class TestScanMatchingVisualizationExample(unittest.TestCase):
             timeout=900,
             env=env,
         )
-        cls.figs_dir = WORKSPACE_ROOT / "ch7_slam" / "figs"
+        cls.figs_dir = Path(cls._figs_root.name) / "ch7_slam" / "figs"
+
+    @classmethod
+    def tearDownClass(cls):
+        cls._figs_root.cleanup()
 
     def test_example_runs_successfully(self):
         """Exit code 0 with no traceback."""
@@ -68,8 +84,14 @@ class TestScanMatchingVisualizationExample(unittest.TestCase):
                     self.assertGreater(path.stat().st_size, 0, f"empty {path}")
 
     def test_figures_land_in_figs_not_the_chapter_root(self):
-        """Repo rule: chapter figures live in chX_*/figs/."""
-        stray = list((WORKSPACE_ROOT / "ch7_slam").glob("*.png"))
+        """Repo rule: chapter figures live in chX_*/figs/.
+
+        Checked in the diverted tree, which is where this run's output actually
+        went. Globbing the real ch7_slam/ would pass no matter what the example
+        did, and quietly stop testing anything.
+        """
+        chapter_root = Path(self._figs_root.name) / "ch7_slam"
+        stray = list(chapter_root.glob("*.png"))
 
         self.assertEqual(stray, [], f"figures written beside the source: {stray}")
 

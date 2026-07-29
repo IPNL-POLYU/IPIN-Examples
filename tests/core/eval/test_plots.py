@@ -26,7 +26,12 @@ from core.eval import (
     save_figure,
     set_axes_equal_3d,
 )
-from core.eval.plots import UNEQUAL_AXES_NOTE
+from core.eval.plots import (
+    _REPO_ROOT,
+    FIGS_DIR_ENV_VAR,
+    UNEQUAL_AXES_NOTE,
+    _resolve_out_dir,
+)
 
 
 def _panel_notes(ax):
@@ -618,6 +623,60 @@ class TestCompositePanelSupport:
                 assert ax.title.get_fontweight() == "bold"
             finally:
                 plt.close(fig)
+
+class TestFigureOutputRedirect:
+    """Test the IPIN_FIGS_DIR escape hatch that keeps pytest out of the repo.
+
+    Running the suite used to rewrite committed figures, because several tests
+    run a chapter example end to end and examples write next to their own
+    source. `git status` was dirty after every run.
+    """
+
+    @pytest.fixture
+    def override(self, tmp_path, monkeypatch):
+        """Point IPIN_FIGS_DIR at this test's own tmp_path.
+
+        The session fixture in conftest already sets the variable, but to a
+        directory shared by the whole run. Overriding it per test keeps the
+        expected paths below exact rather than approximate.
+        """
+        monkeypatch.setenv(FIGS_DIR_ENV_VAR, str(tmp_path))
+        return tmp_path
+
+    def test_in_repo_output_is_mirrored_under_the_override(self, override):
+        """A chapter's figs/ is redirected, preserving its path in the repo."""
+        chapter_figs = _REPO_ROOT / "ch2_coords" / "figs"
+
+        resolved = _resolve_out_dir(chapter_figs)
+
+        assert resolved == override / "ch2_coords" / "figs"
+
+    def test_path_outside_the_repo_is_left_alone(self, override):
+        """An explicitly chosen directory is never silently moved."""
+        target = override / "somewhere" / "else"
+
+        assert _resolve_out_dir(target) == target
+
+    def test_no_override_means_no_redirect(self, monkeypatch):
+        """Unset variable: a reader running an example gets chX_*/figs."""
+        monkeypatch.delenv(FIGS_DIR_ENV_VAR, raising=False)
+        chapter_figs = _REPO_ROOT / "ch2_coords" / "figs"
+
+        assert _resolve_out_dir(chapter_figs) == chapter_figs
+
+    def test_save_figure_does_not_touch_the_repository(self, override):
+        """End to end: nothing is written into the working tree."""
+        chapter_figs = _REPO_ROOT / "ch0_redirect_probe" / "figs"
+
+        fig = plt.figure()
+        try:
+            paths = save_figure(fig, chapter_figs, "probe", formats=("png",))
+        finally:
+            plt.close(fig)
+
+        assert paths[0].exists()
+        assert override in paths[0].parents
+        assert not chapter_figs.exists(), f"wrote into the repo: {chapter_figs}"
 
 
 class TestSaveAnimation:

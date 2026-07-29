@@ -299,20 +299,37 @@ def main():
     ax7.grid(True, alpha=0.3)
     ax7.axis('equal')
     
-    # Plot 8: Computation time comparison
+    # Plot 8: Per-query cost, counted rather than timed
+    #
+    # This panel used to plot measured milliseconds against the model std. Two
+    # things were wrong with that. The measurement is unreproducible, so the
+    # committed figure churned on every regeneration; and the cost does not
+    # depend on the std at all, so the bars were varying only by timing noise.
+    # Counting the operations instead is exact, machine-independent, and shows
+    # the structure: both estimators pay the same Gaussian likelihood bill, and
+    # the choice between them barely moves the total.
     ax8 = plt.subplot(3, 3, 8)
-    map_times = [r['mean_time_ms'] for r in map_results]
-    pm_times = [r['mean_time_ms'] for r in pm_results]
-    x = np.arange(len(std_values))
-    width = 0.35
-    ax8.bar(x - width/2, map_times, width, label='MAP', alpha=0.8)
-    ax8.bar(x + width/2, pm_times, width, label='Posterior Mean', alpha=0.8)
-    ax8.set_xlabel('Model Std (dBm)')
-    ax8.set_ylabel('Computation Time (ms)')
-    ax8.set_title('Computation Time Comparison')
-    ax8.set_xticks(x)
-    ax8.set_xticklabels([f'{s}' for s in std_values])
-    ax8.legend()
+    cost_model = models[2.0]
+    n_rps = cost_model.n_reference_points
+    n_features = cost_model.n_features
+    n_dims = cost_model.locations.shape[1]
+
+    # log_likelihood forms one Gaussian log-density per (RP, AP) pair, for every
+    # RP in the database -- the floor constraint is applied afterwards, so it
+    # does not reduce this term.
+    likelihood_ops = n_rps * n_features
+    # MAP then takes an argmax over the RPs (Eq. 5.4); the posterior mean
+    # exponentiates and forms a weighted sum over them instead (Eq. 5.5).
+    estimator_ops = [n_rps, n_rps + n_rps * n_dims]
+    labels = ['MAP', 'Posterior Mean']
+
+    ax8.bar(labels, [likelihood_ops] * 2, label='Gaussian log-densities',
+            alpha=0.85, color='steelblue')
+    ax8.bar(labels, estimator_ops, bottom=[likelihood_ops] * 2,
+            label='Estimator step', alpha=0.85, color='indianred')
+    ax8.set_ylabel('Operations per query')
+    ax8.set_title('Per-Query Cost (independent of std)')
+    ax8.legend(fontsize=7)
     ax8.grid(True, alpha=0.3, axis='y')
     
     # Plot 9: Example posterior distribution
@@ -350,8 +367,8 @@ def main():
     print("\nReferences:")
     print("  - Equation 5.3: Bayes posterior P(x_i|z) = P(z|x_i)P(x_i)/P(z)")
     print("  - Equation 5.4: MAP estimate i* = argmax_i P(x_i|z)")
-    print("  - Equation 5.5: Posterior mean x̂ = Σ P(x_i|z) x_i")
-    print("  - Equation 5.6: Gaussian likelihood P(z|x_i) = N(z; μ_i, Σ_i)")
+    print("  - Equation 5.5: Posterior mean x_hat = sum_i P(x_i|z) x_i")
+    print("  - Equation 5.6: Gaussian likelihood P(z|x_i) = N(z; mu_i, Sigma_i)")
 
 
 if __name__ == "__main__":
