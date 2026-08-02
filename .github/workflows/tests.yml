@@ -53,7 +53,12 @@ jobs:
       - name: Run the suite
         env:
           MPLBACKEND: Agg
-        run: python -m pytest -q
+        # -rs reports why each test skipped. The first run of this workflow
+        # went green having run 21 fewer tests than a developer machine, because
+        # an undeclared scikit-learn made a module skip itself. A green tick on
+        # a suite that quietly shrank is worse than a red one, so the skips are
+        # printed rather than merely counted.
+        run: python -m pytest -q -rs
 
       - name: A test run must leave the working tree clean
         # This repo spent real effort on a phantom: ch7_slam/figs/*.png kept

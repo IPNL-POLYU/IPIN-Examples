@@ -14,6 +14,7 @@ Author: Li-Ta Hsu
 """
 
 import ast
+import importlib
 import re
 from pathlib import Path
 
@@ -155,3 +156,56 @@ def test_examples_do_not_draw_from_the_unseeded_global_rng(script):
         f"figures cannot be regenerated. Prefer threading an explicit "
         f"rng = np.random.default_rng(seed)."
     )
+
+
+# Distribution name in pyproject.toml -> module name to import, where the two
+# differ. Only the exceptions need listing.
+IMPORT_NAMES = {"scikit-learn": "sklearn"}
+
+
+def _declared_dependencies():
+    """Runtime dependencies declared in pyproject.toml, as distribution names."""
+    text = (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+
+    block = re.search(r"^dependencies = \[(.*?)^\]", text, re.S | re.M)
+    assert block, "pyproject.toml has no [project] dependencies block"
+
+    # Strip the version specifier and any extras: "scikit-learn>=1.0.0" -> name.
+    return [
+        re.split(r"[<>=!~\[]", line.strip().strip('",'))[0].strip()
+        for line in block.group(1).splitlines()
+        if line.strip().startswith('"')
+    ]
+
+
+@pytest.mark.parametrize("dist", _declared_dependencies())
+def test_declared_dependency_is_importable(dist):
+    """Every declared dependency must actually be installed.
+
+    This exists because a missing dependency does not fail loudly here -- it
+    fails *silently*. ``core/fingerprinting/classification.py`` guards its
+    scikit-learn import and sets SKLEARN_AVAILABLE, and the matching test
+    module skips itself when that is False. scikit-learn was installed in the
+    development environment and declared nowhere, so:
+
+      - locally, 21 tests passed and nobody could tell
+      - on a clean install, the same 21 skipped and the suite still went green
+      - and a reader running ch5's example_classification got an ImportError,
+        because that guard re-raises rather than degrading
+
+    The first CI run made it visible: 1692 passed / 30 skipped on the runner
+    against 1713 / 9 locally. A test that quietly stops running is worse than
+    one that fails, so this asserts the environment the suite claims to need
+    is the environment it got.
+    """
+    module = IMPORT_NAMES.get(dist, dist)
+
+    try:
+        importlib.import_module(module)
+    except ImportError as exc:
+        pytest.fail(
+            f"pyproject.toml declares {dist!r} but `import {module}` fails "
+            f"({exc}). Any test guarded by an optional-import flag will skip "
+            f"rather than fail, so the suite would stay green while running "
+            f"less than it appears to."
+        )
