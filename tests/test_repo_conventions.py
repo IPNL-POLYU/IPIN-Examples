@@ -209,3 +209,61 @@ def test_declared_dependency_is_importable(dist):
             f"rather than fail, so the suite would stay green while running "
             f"less than it appears to."
         )
+
+
+# Chapter examples known to build a generator without a seed, predating this
+# check. Same ratchet as the others: entries come out, never in.
+#
+# Empty. example_allan_variance was the last, and it is the reason this check
+# exists at all.
+KNOWN_UNSEEDED_GENERATOR: set = set()
+
+
+def _bare_default_rng_lines(source: str):
+    """Line numbers of ``default_rng()`` calls that pass no seed.
+
+    AST rather than a regex, for the same reason the savefig check uses one: a
+    comment or docstring explaining why not to write ``np.random.default_rng()``
+    should not itself be reported as a violation. This file's own docstrings
+    contain that string.
+    """
+    hits = []
+    for node in ast.walk(ast.parse(source)):
+        if not isinstance(node, ast.Call):
+            continue
+        func = node.func
+        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        if name == "default_rng" and not node.args and not node.keywords:
+            hits.append(node.lineno)
+    return hits
+
+
+@pytest.mark.parametrize("script", _chapter_scripts(), ids=_relative)
+def test_examples_seed_the_generators_they_create(script):
+    """``np.random.default_rng()`` without a seed is not seeded randomness.
+
+    The sibling check above accepts the mere *presence* of ``default_rng(`` as
+    evidence that a file seeds its randomness. That is a hole, and Chapter 6's
+    Allan variance example sat in it: it built a bare
+    ``np.random.default_rng()``, so every run drew a different record. Bias
+    instability came out 11.15 deg/hr on one run and 7.85 on the next -- a 42%
+    swing in a number the figure reports, with the committed figure
+    unreproducible and any diff against it meaningless.
+
+    Reaching for the modern generator is the right instinct, which is exactly
+    why it needs its own check: it looks more careful than np.random.seed()
+    while giving the same guarantee as no seed at all.
+    """
+    relative = _relative(script)
+    hits = _bare_default_rng_lines(script.read_text(encoding="utf-8"))
+
+    if relative in KNOWN_UNSEEDED_GENERATOR:
+        pytest.skip(f"known pre-existing unseeded generator ({relative})")
+
+    assert not hits, (
+        f"{relative} calls np.random.default_rng() with no seed at line(s) "
+        f"{', '.join(str(n) for n in hits)}, so its figures cannot be "
+        f"regenerated. Pass a seed -- a module-level DEFAULT_SEED threaded "
+        f"through the generating function is the pattern used elsewhere in "
+        f"Chapter 6."
+    )
