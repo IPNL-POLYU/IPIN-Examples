@@ -55,7 +55,27 @@ def generate_test_queries(
         floor_id: Restrict queries to a single floor.  ``None`` = random
             floors.
         noise_std: Additional Gaussian noise std (dBm) on top of the shadow
-            fading already produced by the path-loss model.
+            fading already produced by the path-loss model. Read "on top of"
+            literally: every query draws its own shadow-fading term at the
+            model's shadow_fading_std_dBm, which is 4.0 for the shipped
+            database, so the scenario labels name the smaller half of the noise
+            a localiser actually faces. Measured on the grid database with
+            nearest-neighbour matching: sweeping this parameter from 1 to
+            5 dBm costs 3.49 m of RMSE, and removing the unmentioned query
+            shadowing recovers 2.59 m -- comparable, and invisible from the
+            labels.
+
+            Worth knowing where the floor is, too. With no query shadowing and
+            no extra noise, NN still scores 7.18 m on a 5 m grid whose
+            quantisation floor is about 2 m. Neither term above explains that
+            gap; it is an open question rather than a known cause.
+
+            That shadowing is redrawn per query is also a modelling choice
+            worth knowing. Shadowing is a property of a location -- the same
+            wall attenuates the same AP from the same spot every time -- so
+            redrawing it makes the query inconsistent with the map at its own
+            position, which is the correlation fingerprinting relies on. A
+            spatially correlated field would be the faithful model.
         seed: Random seed for reproducibility.
 
     Returns:
@@ -427,7 +447,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=1.0, seed=42
     )
     all_results["Baseline"] = evaluate_scenario(
-        "Baseline (sigma=1dBm, Floor 0)", db, queries1, true_locs1, floor_id=0
+        "Baseline (extra sigma=1dBm on top of 4dBm shadowing, Floor 0)", db, queries1, true_locs1, floor_id=0
     )
     
     # Scenario 2: Moderate noise
@@ -439,7 +459,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=2.0, seed=43
     )
     all_results["Moderate Noise"] = evaluate_scenario(
-        "Moderate Noise (sigma=2dBm, Floor 0)", db, queries2, true_locs2, floor_id=0
+        "Moderate (extra sigma=2dBm on top of 4dBm shadowing, Floor 0)", db, queries2, true_locs2, floor_id=0
     )
     
     # Scenario 3: High noise
@@ -451,7 +471,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=5.0, seed=44
     )
     all_results["High Noise"] = evaluate_scenario(
-        "High Noise (sigma=5dBm, Floor 0)", db, queries3, true_locs3, floor_id=0
+        "High (extra sigma=5dBm on top of 4dBm shadowing, Floor 0)", db, queries3, true_locs3, floor_id=0
     )
     
     # Print summary table
@@ -544,11 +564,18 @@ def main():
     ax5.grid(True, alpha=0.3)
     
     # Plot 6: Cost vs Accuracy (Baseline)
+    #
+    # Labelled by legend, not by annotate(). Every point used the same (5, 5)
+    # offset, and MAP, Posterior Mean and Post.Mean (k=10) sit at almost the
+    # same cost and RMSE, so three labels printed on top of each other and
+    # none of them could be read. That the points coincide is the panel's
+    # actual finding, so it should not be what breaks the labelling. Colours
+    # match the per-query cost panel above, so a method reads the same in both.
     ax6 = plt.subplot(3, 3, 6)
-    for r in all_results["Baseline"]:
-        ax6.scatter(r['ops_per_query'], r['rmse'], s=150, alpha=0.7)
-        ax6.annotate(r['method'], (r['ops_per_query'], r['rmse']),
-                    xytext=(5, 5), textcoords='offset points', fontsize=8)
+    for r, color in zip(all_results["Baseline"], colors):
+        ax6.scatter(r['ops_per_query'], r['rmse'], s=150, alpha=0.7,
+                    color=color, label=r['method'])
+    ax6.legend(fontsize=7)
     ax6.set_xscale('log')
     ax6.set_xlabel('Operations per query')
     ax6.set_ylabel('RMSE (m)')
@@ -634,6 +661,28 @@ def main():
     print("  3. Robustness: k-NN and Posterior Mean most stable with noise")
     print("  4. Smoothness: Posterior Mean > k-NN > Linear Reg > MAP ~= NN")
     print("  5. Training: Linear Reg requires training, others just use database")
+
+    # The CDF panel shows five lines for six methods, and the reader has no way
+    # to tell a coincidence from a plotting bug. It is a coincidence, and the
+    # chapter's own claim: Section 5.1.2 says the top-k calculation is
+    # typically sufficient, and here the two posterior means are the same
+    # estimator to five significant figures. Computed, not asserted, so it
+    # cannot go stale if the database or the noise changes.
+    by_name = {r["method"]: r for r in all_results["Baseline"]}
+    full, topk = by_name["Posterior Mean"], by_name["Post.Mean (k=10)"]
+    gap = abs(full["rmse"] - topk["rmse"])
+    print(
+        f"  6. Truncation is free here: the full posterior mean scores "
+        f"{full['rmse']:.4f} m and the top-10 {topk['rmse']:.4f} m, a "
+        f"difference of {gap * 1000:.2f} mm, so their CDFs coincide and only "
+        f"five curves are visible. The posterior concentrates on a handful of "
+        f"RPs, so dropping the rest costs nothing in accuracy -- but it saves "
+        f"little either, only "
+        f"{full['ops_per_query'] / topk['ops_per_query']:.2f}x, because "
+        f"posterior_mean_localize evaluates the likelihood at every RP before "
+        f"it truncates. Truncating the weighted sum trims O(M*d) while the "
+        f"O(M*N) likelihood stands."
+    )
     print("\nRecommendations:")
     print("  - Real-time apps: Use NN or Linear Regression for speed")
     print("  - High accuracy: Use k-NN or Bayesian methods")

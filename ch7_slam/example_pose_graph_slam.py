@@ -50,6 +50,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 
+from core.eval import save_figure
 from core.slam import (
     se2_apply,
     se2_compose,
@@ -347,7 +348,11 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     import json
     summary = {
         "mode": "dataset",
+        # "used" means step() was called, which is not the same as it having
+        # done anything: the frontend currently returns odometry unchanged.
+        # frontend_correction_m is the quantity a gate should test.
         "frontend_used": True,  # SlamFrontend2D.step() was executed
+        "frontend_correction_m": round(float(max_trans_diff), 6),
         "n_scans": len(scans),
         "n_frontend_steps": n_poses,  # Each pose runs frontend.step()
         "n_poses": n_poses,
@@ -1476,13 +1481,20 @@ def plot_slam_results(
         fontsize=14, fontweight="bold", y=0.98
     )
     
-    # Save to figs directory with deterministic filename
-    from core.eval import resolve_figs_dir
-    figs_dir = resolve_figs_dir("ch7_slam/figs")
-    output_file = figs_dir / "slam_with_maps.png"
-    plt.savefig(output_file, dpi=150, bbox_inches="tight")
-    print(f"\n[OK] Saved figure: {output_file}")
-    
+    # Save to figs directory with deterministic filename. Resolved from this
+    # file rather than the working directory: the tests run the example from
+    # the repo root, but nothing here should depend on that.
+    #
+    # origin/main reached the same goal differently, with a raw plt.savefig
+    # wrapped in resolve_figs_dir. save_figure is kept because it subsumes
+    # that -- it calls the same resolver internally, so IPIN_FIGS_DIR still
+    # redirects a test run away from the committed figure -- and it also emits
+    # svg and pdf, which the raw savefig did not.
+    from pathlib import Path
+    figs_dir = Path(__file__).resolve().parent / "figs"
+    paths = save_figure(fig, figs_dir, "slam_with_maps")
+    print(f"\n[OK] Saved figure: {paths[0]}")
+
     # Only show interactively if not in automated mode
     import os
     if os.environ.get("DISPLAY") or os.environ.get("MPLBACKEND") != "Agg":
@@ -1880,7 +1892,11 @@ def run_with_inline_data(
         "mode": "inline",
         "trajectory": trajectory_type,
         "laps": n_laps if trajectory_type == "square" else 1,
+        # "used" means step() was called, which is not the same as it having
+        # done anything: the frontend currently returns odometry unchanged.
+        # frontend_correction_m is the quantity a gate should test.
         "frontend_used": True,  # SlamFrontend2D.step() was executed
+        "frontend_correction_m": round(float(max_trans_diff), 6),
         "n_scans": len(scans),
         "n_frontend_steps": n_poses,  # Each pose runs frontend.step()
         "n_poses": n_poses,

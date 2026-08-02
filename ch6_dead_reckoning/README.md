@@ -476,7 +476,10 @@ This behavior demonstrates the **critical importance of calibration** in PDR sys
 - More detected steps (factor ×1.4 typical, e.g., 239 vs 171 expected)
 - Heading spread (adds ~5-10% boundary expansion)
 - **Result**: PDR estimate can be significantly larger than actual path (50-100% error in uncalibrated scenarios)
-- **Note**: Proper calibration and tuning can reduce this to ~20% error (as shown in comparison example)
+- **Note**: Matching the simulated gait to the step-length model removes almost
+  all of it. `example_comparison.py` walks at 1.2 m/s with a 1.75 Hz step rate,
+  which is the pair Eq. (6.49) is self-consistent with at h = 1.75 m, and its
+  PDR track comes out 2.3% long (0.51 m RMSE over 100 m)
 
 **Pedagogical Value:**
 
@@ -632,51 +635,72 @@ Running `python -m ch6_dead_reckoning.example_comparison` compares all methods.
 
 ```
 ===========================================================================
-RESULTS - Performance Comparison
+RESULTS - Performance Comparison (horizontal error)
 ===========================================================================
 
-Method                 RMSE [m]  Final [m] Median [m]    90% [m]   % Dist
+Method                 RMSE [m]  Final [m] Median [m]    90% [m]   Path [m]
 ---------------------------------------------------------------------------
-IMU Only                 722.40    1613.46     408.01    1306.61   722.4%
-IMU + ZUPT                20.78       0.51      19.32      32.64    20.8%
-Wheel Odom                31.86      47.85      22.84      47.85    31.9%
-PDR (Mag)                 20.03       2.91      19.27      31.06    20.0%
+(ground truth)                -          -          -          -      100.0
+IMU Only                  53.78      99.73      40.28      89.75      169.5
+IMU + ZUPT                 8.82       9.48       9.48      10.64       85.1
+Wheel Odom                 0.42       0.12       0.32       0.66      104.3
+PDR (Mag)                  0.51       0.49       0.49       0.66      102.3
 
 KEY INSIGHTS:
-  1. IMU-only: UNBOUNDED drift (unusable without corrections)
-  2. IMU+ZUPT: Dramatic improvement (97.1% RMSE reduction: 722.4m -> 20.8m)
-  3. Wheel Odom: BOUNDED drift (~30% of distance)
-  4. PDR: BOUNDED, heading-limited (~20% of distance)
+  1. IMU-only: UNBOUNDED. 100 m off after 120 s, tracing 169 m for a 100 m walk.
+     Unusable without corrections.
+  2. IMU+ZUPT: 84% RMSE reduction (54 m -> 8.8 m), detector active on 25% of samples.
+     Velocity is reset while standing but attitude is never corrected, so error
+     still grows -- far more slowly.
+  3. Wheel Odom: BOUNDED. Error follows distance, not time: RMSE 0.42 m over
+     100 m, set by the 2% encoder scale error.
+     'Final' is near zero only because the loop closes on its own start point;
+     read 'Path' instead.
+  4. PDR: BOUNDED, heading-limited. 149 detected steps cover 102.3 m against
+     100.0 m (+2.3%), RMSE 0.51 m.
 
 Conclusion: Dead reckoning REQUIRES corrections or fusion!
-           ZUPT-EKF provides >95% error reduction for foot-mounted IMU.
 ```
+
+**Read the `Path` column first.** Every method here is scored against a ground
+truth that returns to its own start point, so a method that has stopped
+integrating altogether still reports a small *final* error — which is how two of
+these four sat frozen at the origin for a long time while the table flattered
+them. `Path` is the distance actually traced, and it is the check that makes the
+error columns mean anything.
 
 #### Comparison Figures
 
 | Figure | Description |
 |--------|-------------|
-| ![Comparison Trajectories](figs/comparison_trajectories.svg) | **Side-by-side trajectory comparison** of all DR methods on the same trajectory. IMU-only (red) drifts away; corrected methods stay close to ground truth. |
-| ![Comparison Error Time](figs/comparison_error_time.svg) | **Position error vs. time** for all methods. IMU-only grows unboundedly; others are bounded. |
+| ![Comparison Trajectories](figs/comparison_trajectories.svg) | **Side-by-side trajectory comparison** of all DR methods on the same trajectory. IMU-only (blue) runs away; wheel odometry (green) and PDR (orange) trace the rectangle slightly oversized; IMU+ZUPT (red) follows the truth until the first stop, then wanders. |
+| ![Comparison Error Time](figs/comparison_error_time.svg) | **Position error vs. time** for all methods, log scale. IMU-only grows unboundedly. IMU+ZUPT is indistinguishable from it until t ≈ 26 s — the first stop is the first chance the detector gets — and is pulled back from there. Wheel odometry and PDR stay under a metre throughout. |
 | ![Comparison Error CDF](figs/comparison_error_cdf.svg) | **Cumulative distribution of position errors.** Shows what percentage of time each method achieves a given error level. |
 
 ---
 
 ## Performance Summary
 
-Based on actual outputs from `example_comparison.py` (100m trajectory, consumer-grade IMU):
+Based on actual outputs from `example_comparison.py` (100 m trajectory,
+consumer-grade IMU, seed 42):
 
-| Method | RMSE | Final Error | Drift Type | Best For |
-|--------|------|-------------|------------|----------|
-| **IMU Only** | 722.4 m (722%) | 1613.5 m | Unbounded | Never use alone |
-| **IMU + ZUPT** | 20.8 m (21%) | 0.5 m | Bounded | Foot-mounted systems |
-| **Wheel Odometry** | 31.9 m (32%) | 47.9 m | Bounded | Vehicles |
-| **PDR (Mag)** | 20.0 m (20%) | 2.9 m | Bounded | Smartphones |
+| Method | RMSE | Final Error | Path Traced | Drift Type | Best For |
+|--------|------|-------------|-------------|------------|----------|
+| *(ground truth)* | — | — | 100.0 m | — | — |
+| **IMU Only** | 53.8 m (54%) | 99.7 m | 169.5 m | Unbounded in time | Never use alone |
+| **IMU + ZUPT** | 8.8 m (8.8%) | 9.5 m | 85.1 m | Slowed, not bounded | Foot-mounted systems |
+| **Wheel Odometry** | 0.42 m (0.4%) | 0.12 m | 104.3 m | Bounded by distance | Vehicles |
+| **PDR (Mag)** | 0.51 m (0.5%) | 0.49 m | 102.3 m | Bounded by distance | Smartphones |
 
 **Key Findings:**
-- ZUPT provides **97.1% RMSE reduction** over IMU-only
-- Wheel odometry and PDR both achieve ~20-30% error (bounded drift)
-- All corrections dramatically outperform pure IMU integration
+- ZUPT provides an **84% RMSE reduction** over IMU-only. It is not a bound: the
+  zero-velocity update corrects velocity during stance but never touches
+  attitude, so the residual error still grows — just far more slowly.
+- Wheel odometry and PDR are genuinely bounded by *distance travelled* rather
+  than by elapsed time. Their errors are set by the 2% encoder scale factor and
+  by the step-length model respectively, both of which show up in `Path Traced`
+  rather than in `Final Error` on a closed loop.
+- All corrections dramatically outperform pure IMU integration.
 
 ---
 

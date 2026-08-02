@@ -29,6 +29,10 @@ from core.rf import (
 )
 
 
+
+# Seed for the Monte Carlo in Demo 2.
+SEED = 42
+
 def demo_tdoa_basic():
     """Demonstrate basic TDOA positioning with I-WLS."""
     print("\n" + "=" * 70)
@@ -100,49 +104,67 @@ def demo_tdoa_with_noise():
     print(f"\nTrue position: {true_position}")
     print(f"Testing {len(noise_levels)} noise levels...")
 
+    # Median over repeated draws rather than one solve per noise level. A
+    # single draw per row does not support the trend the table invites you to
+    # read: it gave 0.046, 0.136 and 0.857 m for 0.1, 0.5 and 1.0 m of noise,
+    # ratios of 3.0x and 6.3x where the noise ratios are 5x and 2x. Demos 3
+    # and 4 in this same file already average; this row now matches them.
+    trials = 300
+    rng = np.random.default_rng(SEED)
+
     for noise_std in noise_levels:
-        # Add noise
-        tdoa_noisy = tdoa_true + np.random.randn(len(tdoa_true)) * noise_std
+        errors, n_failed = [], 0
+        for _ in range(trials if noise_std > 0 else 1):
+            tdoa_noisy = (
+                tdoa_true + rng.standard_normal(len(tdoa_true)) * noise_std
+            )
+            positioner = TDOAPositioner(anchors, reference_idx=0)
+            est_pos, info = positioner.solve(
+                tdoa_noisy, initial_guess=np.array([10.0, 10.0])
+            )
+            if info["converged"]:
+                errors.append(float(np.linalg.norm(est_pos - true_position)))
+            else:
+                n_failed += 1
 
-        # Solve
-        positioner = TDOAPositioner(anchors, reference_idx=0)
-        est_pos, info = positioner.solve(
-            tdoa_noisy, initial_guess=np.array([10.0, 10.0])
-        )
-
-        if info["converged"]:
-            error = np.linalg.norm(est_pos - true_position)
+        if errors:
+            errors = np.asarray(errors)
             results.append(
                 {
                     "noise": noise_std,
-                    "position": est_pos,
-                    "error": error,
-                    "iterations": info["iterations"],
+                    "error": float(np.median(errors)),
+                    "n_failed": n_failed,
+                    "n_gross": int(np.sum(errors > 100.0)),
                 }
             )
         else:
             results.append(
                 {
                     "noise": noise_std,
-                    "position": None,
                     "error": np.inf,
-                    "iterations": info["iterations"],
+                    "n_failed": n_failed,
+                    "n_gross": 0,
                 }
             )
 
     # Print results
     print("\n" + "-" * 70)
-    print(f"{'Noise (m)':<15} {'Est. Position':<25} {'Error (m)':<12} {'Iters':<8}")
+    print(f"Median position error over {trials} draws per noise level.")
+    print(f"{'Noise (m)':<13} {'Median err (m)':<16} {'err/noise':<11} "
+          f"{'no-converge':<13} {'>100 m':<8}")
     print("-" * 70)
     for r in results:
-        pos_str = (
-            f"[{r['position'][0]:.3f}, {r['position'][1]:.3f}]"
-            if r["position"] is not None
-            else "FAILED"
-        )
         error_str = f"{r['error']:.4f}" if r["error"] != np.inf else "FAILED"
+        # Constant if the relationship is linear, which is the check worth
+        # running on a table like this.
+        slope = (
+            f"{r['error'] / r['noise']:.4f}"
+            if r["noise"] > 0 and r["error"] != np.inf
+            else "-"
+        )
         print(
-            f"{r['noise']:<15.2f} {pos_str:<25} {error_str:<12} {r['iterations']:<8}"
+            f"{r['noise']:<13.2f} {error_str:<16} {slope:<11} "
+            f"{r['n_failed']:<13d} {r['n_gross']:<8d}"
         )
 
     return results

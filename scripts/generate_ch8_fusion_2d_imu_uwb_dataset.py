@@ -97,18 +97,33 @@ def generate_rectangular_trajectory(
     speed: float = 1.0,
     dt: float = 0.01,
     duration: float = 60.0,
+    corner_radius: float = 1.0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Generate 2D rectangular walking trajectory.
-    
-    Walks a rectangle starting from (0, 0), counter-clockwise:
+    """Generate 2D rectangular walking trajectory with rounded corners.
+
+    Walks a rectangle starting near (0, 0), counter-clockwise:
         (0, 0) → (width, 0) → (width, height) → (0, height) → (0, 0)
-    
+    with each corner cut by a quarter-circle of ``corner_radius``.
+
+    The rounding is not cosmetic. Square corners made yaw step 90 degrees
+    within a single sample -- a rate of 9000 deg/s, which the IMU forward model
+    turned into 4501 deg/s and 5.1 g. No estimator can follow a step, so every
+    Chapter 8 filter lagged for about two seconds after each corner and spiked
+    to ~4.5 m. Those few percent of samples then dominated the reported RMSE:
+    tightly coupled fusion measured 0.739 m overall against a median of
+    0.026 m, so the headline number described this trajectory rather than the
+    fusion. At the default radius the turn rate is speed / corner_radius,
+    about 57 deg/s at 1 m/s, which is what a pedestrian rounding a corner
+    actually does.
+
     Args:
         width: Rectangle width (meters).
         height: Rectangle height (meters).
         speed: Walking speed (m/s).
         dt: Time step (seconds).
         duration: Total duration (seconds).
+        corner_radius: Turn radius at each corner (meters). Must be positive
+            and no more than half the shorter side.
     
     Returns:
         Tuple of (t, p_xy, v_xy, yaw):
@@ -117,44 +132,68 @@ def generate_rectangular_trajectory(
             v_xy: velocities (N, 2) in m/s
             yaw: heading angles (N,) in radians
     """
-    # Time array
+    if corner_radius <= 0:
+        raise ValueError(f"corner_radius must be positive, got {corner_radius}")
+    if 2 * corner_radius > min(width, height):
+        raise ValueError(
+            f"corner_radius {corner_radius} does not fit a "
+            f"{width} x {height} rectangle"
+        )
+
     t = np.arange(0, duration, dt)
-    N = len(t)
-    
-    # Rectangle perimeter
-    perimeter = 2 * (width + height)
-    
-    # Distance traveled per step
-    distances = speed * t
-    distances = distances % perimeter  # wrap around
-    
-    # Allocate arrays
-    p_xy = np.zeros((N, 2))
-    v_xy = np.zeros((N, 2))
-    yaw = np.zeros(N)
-    
-    for i, d in enumerate(distances):
-        if d < width:
-            # Side 1: (0,0) → (width, 0), heading = 0
-            p_xy[i] = [d, 0]
-            v_xy[i] = [speed, 0]
-            yaw[i] = 0.0
-        elif d < width + height:
-            # Side 2: (width, 0) → (width, height), heading = π/2
-            p_xy[i] = [width, d - width]
-            v_xy[i] = [0, speed]
-            yaw[i] = np.pi / 2
-        elif d < 2 * width + height:
-            # Side 3: (width, height) → (0, height), heading = π
-            p_xy[i] = [width - (d - width - height), height]
-            v_xy[i] = [-speed, 0]
-            yaw[i] = np.pi
-        else:
-            # Side 4: (0, height) → (0, 0), heading = 3π/2
-            p_xy[i] = [0, height - (d - 2 * width - height)]
-            v_xy[i] = [0, -speed]
-            yaw[i] = 3 * np.pi / 2
-    
+    r = corner_radius
+
+    # The path as an arc-length parameterisation: four straights shortened by
+    # r at each end, joined by four quarter-circle arcs. Walking it at a
+    # constant speed makes position, velocity and yaw all continuous, and the
+    # yaw rate piecewise constant at 0 or speed / r.
+    straight_x = width - 2 * r     # length of the sides parallel to x
+    straight_y = height - 2 * r    # length of the sides parallel to y
+    arc = 0.5 * np.pi * r
+    perimeter = 2 * (straight_x + straight_y) + 4 * arc
+
+    # (start_length, kind, ...) walked counter-clockwise from (r, 0).
+    # Straights carry a start point and a heading; arcs carry a centre and the
+    # heading they begin at, turning left through 90 degrees.
+    segments = [
+        ("line", straight_x, np.array([r, 0.0]), 0.0),
+        ("arc", arc, np.array([width - r, r]), 0.0),
+        ("line", straight_y, np.array([width, r]), 0.5 * np.pi),
+        ("arc", arc, np.array([width - r, height - r]), 0.5 * np.pi),
+        ("line", straight_x, np.array([width - r, height]), np.pi),
+        ("arc", arc, np.array([r, height - r]), np.pi),
+        ("line", straight_y, np.array([0.0, height - r]), 1.5 * np.pi),
+        ("arc", arc, np.array([r, r]), 1.5 * np.pi),
+    ]
+
+    p_xy = np.zeros((len(t), 2))
+    v_xy = np.zeros((len(t), 2))
+    yaw = np.zeros(len(t))
+
+    for i, distance in enumerate(speed * t % perimeter):
+        travelled = distance
+        for kind, length, anchor, heading0 in segments:
+            if travelled >= length:
+                travelled -= length
+                continue
+            if kind == "line":
+                heading = heading0
+                position = anchor + travelled * np.array(
+                    [np.cos(heading), np.sin(heading)]
+                )
+            else:
+                # Left turn: heading advances with arc length, and the point
+                # sits at radius r from the centre, 90 degrees to its right.
+                heading = heading0 + travelled / r
+                outward = heading - 0.5 * np.pi
+                position = anchor + r * np.array(
+                    [np.cos(outward), np.sin(outward)]
+                )
+            p_xy[i] = position
+            v_xy[i] = speed * np.array([np.cos(heading), np.sin(heading)])
+            yaw[i] = heading % (2 * np.pi)
+            break
+
     return t, p_xy, v_xy, yaw
 
 

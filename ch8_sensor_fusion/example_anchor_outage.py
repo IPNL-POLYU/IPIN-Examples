@@ -18,20 +18,36 @@ This example constructs that outage deliberately -- 8 seconds with at most two
 of four anchors visible -- because the shipped dataset does not contain one.
 (At most two, not exactly two: the dataset's own dropouts stack on top of the
 mask, leaving a single anchor for 6 of the 81 epochs.) With the outage in place
-the gap is no longer subtle. LC's error ramps linearly to 4.5 m -- the shape of
-pure dead reckoning -- and snaps back the instant anchors return, while TC
-holds 0.3 m throughout. That is a factor of 15, and 93 LC position fixes fail
-outright.
+the gap is no longer subtle. LC's error ramps to 5.7 m by the end of the outage
+-- the shape of pure dead reckoning -- and snaps back the instant anchors
+return. TC keeps being corrected the whole way through: its median error inside
+the outage is 0.71 m against LC's 2.98 m, and at the moment anchors return LC
+sits at 5.65 m while TC is at 0.04 m. 93 LC position fixes fail outright.
+
+The comparison is between an estimator that stops updating and one that does
+not, so read the *end* of the outage rather than the average: LC's error grows
+without bound for as long as the outage lasts, while TC's does not.
 
 Two caveats keep this honest, because tight coupling is a trade, not a free
 win:
 
-- **TC is more exposed to a bad range.** Away from the outage this dataset has
-  two outlier events, and at both of them TC peaks *higher* than LC: 4.4 m
-  against 3.4 m near t = 37 s, and 5.2 m against 3.4 m near t = 57 s. A
-  corrupted range enters the filter directly, whereas LC's front end solves a
-  position from all ranges at once and can absorb or reject the bad one there.
-  This is exactly what the chi-square gating of Section 8.3.2 is for.
+- **Two collinear anchors leave a mirror ambiguity, and TC can latch onto the
+  wrong branch.** The outage keeps anchors 0 and 1, at (0, 0) and (20, 0), both
+  on the line y = 0, while the platform travels the x = 20 leg. Two ranges to
+  two anchors are satisfied equally well by the true position and by its
+  reflection across the anchor baseline, and for 0.2 s around t = 25.8 s this
+  filter takes the wrong one: the estimate jumps to (30.1, -35.5) against a
+  truth of (20.0, 7.2), a 43.9 m peak, before the returning anchors snap it
+  back. LC never does this because its front end solves a position from all
+  available ranges and simply fails when it cannot.
+
+  That excursion is brief but it is what puts TC's whole-run RMSE (2.34 m)
+  above LC's (1.57 m) *at this particular window*, which is worth stating
+  because it is the one number in this demo where LC wins. It is a knife edge,
+  not the general case: moving the outage to (18, 26), (22, 30), (24, 32) or
+  (40, 48) gives TC peak errors of 0.36, 0.12, 0.79 and 0.05 m against LC's
+  7.19, 7.25, 1.82 and 5.98 m, and TC RMSE around 0.17 m against LC's 1.1 to
+  1.9 m. The window has deliberately not been moved to a flattering one.
 - **TC needs usable geometry.** Repeating the outage with a *single* visible
   anchor leaves TC updating from a degenerate configuration and its overall
   RMSE degrades to 1.8 m, worse than LC's 1.3 m. One range constrains a circle,
@@ -277,20 +293,28 @@ def plot_outage_summary(scenario) -> plt.Figure:
         fontsize=11,
     )
 
-    axes[1].plot(scenario["t_lc"], scenario["error_lc"], color=COLOR_LC,
-                 linewidth=1.6, label="loosely coupled")
-    axes[1].plot(scenario["t_tc"], scenario["error_tc"], color=COLOR_TC,
-                 linewidth=1.6, label="tightly coupled")
+    # Log axis. The mirror-branch flip reaches 43.9 m while the claim this
+    # panel exists to make -- LC's dead-reckoning ramp -- tops out at 5.9 m, so
+    # a linear axis renders the ramp as a low squiggle beneath one narrow
+    # spike. The error is positive and spans two decades, which is what a log
+    # axis is for.
+    floor = 1e-3  # a log axis cannot show an exact zero
+    axes[1].semilogy(scenario["t_lc"],
+                     np.maximum(scenario["error_lc"], floor),
+                     color=COLOR_LC, linewidth=1.6, label="loosely coupled")
+    axes[1].semilogy(scenario["t_tc"],
+                     np.maximum(scenario["error_tc"], floor),
+                     color=COLOR_TC, linewidth=1.6, label="tightly coupled")
     axes[1].axvspan(*window, color="0.85", zorder=0)
     axes[1].set_xlabel("time [s]")
-    axes[1].set_ylabel("horizontal position error [m]")
+    axes[1].set_ylabel("horizontal position error [m], log")
     axes[1].legend(fontsize=9, loc="upper left")
     axes[1].grid(alpha=0.3)
     axes[1].set_title(
         "In the outage LC dead-reckons (linear ramp) while TC keeps fusing "
         "the surviving ranges.\n"
-        "Outside it, at the two outlier events, TC peaks HIGHER: "
-        "a bad range hits the filter directly.",
+        "TC's one spike is a mirror-branch flip: the two surviving anchors "
+        "are collinear with the leg being walked.",
         fontsize=11,
     )
 
@@ -336,17 +360,27 @@ def main() -> None:
     print(f"  Peak error in outage:   LC {peak_lc:.2f} m   TC {peak_tc:.2f} m "
           f"({peak_lc / peak_tc:.0f}x)")
 
-    # The other half of the story: TC is more exposed to a corrupted range.
-    for lo, hi in ((35.0, 40.0), (55.0, 60.0)):
-        span_lc = scenario["error_lc"][
-            (scenario["t_lc"] >= lo) & (scenario["t_lc"] <= hi)
-        ].max()
-        span_tc = scenario["error_tc"][
-            (scenario["t_tc"] >= lo) & (scenario["t_tc"] <= hi)
-        ].max()
-        verdict = "TC worse" if span_tc > span_lc else "TC better"
-        print(f"  Outlier event t={lo:.0f}-{hi:.0f}s:  LC {span_lc:.2f} m   "
-              f"TC {span_tc:.2f} m   ({verdict})")
+    # The other half of the story, and it is a geometry problem rather than a
+    # bad measurement. The surviving anchors are collinear with the leg being
+    # walked, so two ranges fit the truth and its mirror image equally well.
+    worst = int(np.argmax(scenario["error_tc"]))
+    if scenario["error_tc"][worst] > 5.0:
+        est = np.asarray(scenario["tc"]["x_est"])[worst, :2]
+        truth = scenario["dataset"]["truth"]
+        t_worst = scenario["t_tc"][worst]
+        truth_xy = np.array([
+            np.interp(t_worst, truth["t"], truth["p_xy"][:, 0]),
+            np.interp(t_worst, truth["t"], truth["p_xy"][:, 1]),
+        ])
+        print(f"  TC's peak is a mirror-branch flip at t="
+              f"{scenario['t_tc'][worst]:.1f} s: estimate "
+              f"({est[0]:.1f}, {est[1]:.1f}) against truth "
+              f"({truth_xy[0]:.1f}, {truth_xy[1]:.1f}),")
+        print(f"    reflected across the y = 0 baseline joining the two "
+              f"surviving anchors. It lasts under a second, and it is what "
+              f"puts TC's")
+        print(f"    whole-run RMSE above LC's at this window. Other outage "
+              f"windows do not trigger it -- see the module docstring.")
     print()
 
     paths = save_figure(plot_outage_summary(scenario), args.out_dir,

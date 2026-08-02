@@ -26,7 +26,44 @@ from core.eval import (
     save_figure,
     set_axes_equal_3d,
 )
-from core.eval.plots import _REPO_ROOT, FIGS_DIR_ENV_VAR, _resolve_out_dir
+from core.eval import plots
+from core.eval.plots import (
+    _REPO_ROOT,
+    FIGS_DIR_ENV_VAR,
+    UNEQUAL_AXES_NOTE,
+    _resolve_out_dir,
+)
+
+
+def _panel_notes(ax):
+    """Return the text drawn on ``ax``, for checking the not-to-scale label."""
+    return [text.get_text() for text in ax.texts]
+
+
+def _vertical_pixel_gap(ax, first_xy, second_xy):
+    """Largest on-page vertical separation between two tracks, in pixels.
+
+    Data coordinates say nothing about legibility -- 0.1 m is either obvious
+    or invisible depending on the limits and the aspect. Going through
+    ``transData`` asks the question the reader asks: can these two lines be
+    told apart on the page?
+    """
+    ax.figure.canvas.draw()
+    first = ax.transData.transform(np.asarray(first_xy))
+    second = ax.transData.transform(np.asarray(second_xy))
+    return float(np.max(np.abs(first[:, 1] - second[:, 1])))
+
+
+def _height_fraction(ax, *tracks):
+    """Share of the panel's height that the drawn series actually occupy.
+
+    The complement is wasted space. A near-1-D path under equal axes uses a
+    few percent of its panel, which is the same statement as "all the detail
+    is inside one hairline band".
+    """
+    ax.figure.canvas.draw()
+    ys = ax.transData.transform(np.vstack(tracks))[:, 1]
+    return float(np.ptp(ys) / ax.get_window_extent().height)
 
 
 @pytest.fixture
@@ -217,6 +254,253 @@ class TestPlotTrajectory2D:
         fig = plot_trajectory_2d(truth, {"m": truth})
         try:
             assert fig.axes[0].get_xlabel() == "X (m)"
+        finally:
+            plt.close(fig)
+
+    def test_single_panel_by_default(self):
+        """zoom_to_truth is opt-in; existing callers keep one pair of axes."""
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+
+        fig = plot_trajectory_2d(truth, {"m": truth})
+        try:
+            assert len(fig.axes) == 1
+        finally:
+            plt.close(fig)
+
+    def test_estimates_are_drawn_above_the_truth(self):
+        """An estimate that tracks well lies on the truth and must stay visible.
+
+        With the truth on top, the best method was the one you could not see.
+        """
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+
+        fig = plot_trajectory_2d(truth, {"m": truth})
+        try:
+            by_label = {line.get_label(): line for line in fig.axes[0].lines}
+            assert by_label["m"].get_zorder() > by_label["Ground Truth"].get_zorder()
+        finally:
+            plt.close(fig)
+
+    def test_zoom_panel_frames_the_truth_not_the_outlier(self):
+        """The zoomed axes bound the truth and exclude the diverging estimate.
+
+        This is the wide-dynamic-range case: comparing an unbounded estimator
+        against bounded ones, equal axes force one pair of limits to span the
+        divergence, and everything near the truth collapses to a blob.
+        """
+        truth = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 5.0]])
+        diverging = np.array([[0.0, 0.0], [500.0, 0.0], [900.0, 0.0]])
+
+        fig = plot_trajectory_2d(truth, {"drift": diverging}, zoom_to_truth=True)
+        try:
+            assert len(fig.axes) == 2
+            zoom_x = fig.axes[1].get_xlim()
+            zoom_y = fig.axes[1].get_ylim()
+            # Contains the truth ...
+            assert zoom_x[0] <= 0.0 and zoom_x[1] >= 10.0
+            assert zoom_y[0] <= 0.0 and zoom_y[1] >= 5.0
+            # ... but is nowhere near the far end of the drift.
+            assert zoom_x[1] < 100.0
+            # The full-extent panel keeps the drift, which is usually the point.
+            assert fig.axes[0].get_xlim()[1] >= 900.0
+        finally:
+            plt.close(fig)
+
+    def test_draws_into_a_supplied_axes(self):
+        """As one panel of a composite, without creating a second figure."""
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+        host, (left, right) = plt.subplots(1, 2)
+
+        try:
+            before = len(plt.get_fignums())
+            fig = plot_trajectory_2d(truth, {"m": truth}, ax=left)
+
+            assert fig is host
+            assert len(plt.get_fignums()) == before  # no stray figure
+            assert len(left.lines) > 0
+            assert len(right.lines) == 0  # drew into the axes it was given
+        finally:
+            plt.close(host)
+
+    def test_supplied_axes_and_zoom_are_mutually_exclusive(self):
+        """Two panels cannot share one supplied axes, so say so.
+
+        Silently honouring either one would betray the other: the caller's
+        composite would lose its zoom, or gain a figure it does not contain.
+        """
+        truth = np.array([[0.0, 0.0], [1.0, 1.0]])
+        host, host_ax = plt.subplots()
+
+        try:
+            with pytest.raises(ValueError, match="zoom_to_truth"):
+                plot_trajectory_2d(
+                    truth, {"m": truth}, ax=host_ax, zoom_to_truth=True
+                )
+        finally:
+            plt.close(host)
+
+    def test_zoom_title_weight_is_configurable(self):
+        """title_fontweight reaches the figure title in the two-panel layout.
+
+        The panel captions stay plain either way -- they label parts, they do
+        not announce a figure.
+        """
+        truth = np.array([[0.0, 0.0], [10.0, 5.0]])
+
+        fig = plot_trajectory_2d(
+            truth, {"m": truth}, zoom_to_truth=True, title_fontweight="normal"
+        )
+        try:
+            assert fig._suptitle.get_fontweight() == "normal"
+        finally:
+            plt.close(fig)
+
+    def test_zoom_handles_a_stationary_truth(self):
+        """A degenerate truth still yields orderable limits, not a zero span."""
+        truth = np.zeros((5, 2))
+
+        fig = plot_trajectory_2d(truth, {"drift": np.ones((5, 2))}, zoom_to_truth=True)
+        try:
+            x_lo, x_hi = fig.axes[1].get_xlim()
+            y_lo, y_hi = fig.axes[1].get_ylim()
+            assert x_hi > x_lo
+            assert y_hi > y_lo
+        finally:
+            plt.close(fig)
+
+
+class TestNear1DTrajectories:
+    """Test the ``equal_aspect`` escape hatch for near-straight paths.
+
+    The opposite failure to ``zoom_to_truth``. There the truth is well-shaped
+    and one estimate leaves the frame. Here the *truth* is the degenerate
+    thing: a corridor walk covering metres along track and centimetres across
+    it. Equal axes stretch the short axis to fill the panel, so every series
+    lands on one horizontal line and no choice of limits recovers it.
+    """
+
+    # A 4.5 m walk with ~0.1 m of cross-track motion: Chapter 7's SLAM
+    # front-end geometry, and the ratio at which the panel breaks.
+    TRUTH = np.column_stack([np.linspace(0.0, 4.5, 10), np.zeros(10)])
+    DRIFTING = np.column_stack([np.linspace(0.0, 4.5, 10), np.linspace(0.0, -0.1, 10)])
+
+    def test_equal_aspect_is_the_default(self):
+        """Existing callers keep equal axes and gain no label."""
+        fig = plot_trajectory_2d(self.TRUTH, {"drift": self.DRIFTING})
+        try:
+            assert fig.axes[0].get_aspect() == 1.0
+            assert UNEQUAL_AXES_NOTE not in _panel_notes(fig.axes[0])
+        finally:
+            plt.close(fig)
+
+    def test_dropping_equal_aspect_frees_the_short_axis(self):
+        """The y limits come to bracket the data instead of the aspect ratio."""
+        fig = plot_trajectory_2d(
+            self.TRUTH, {"drift": self.DRIFTING}, equal_aspect=False
+        )
+        try:
+            assert fig.axes[0].get_aspect() == "auto"
+            y_lo, y_hi = fig.axes[0].get_ylim()
+            # The cross-track motion spans 0.1 m; allow generous padding but
+            # nothing like the ~4 m an equal aspect opens up here.
+            assert (y_hi - y_lo) < 0.5
+        finally:
+            plt.close(fig)
+
+    def test_equal_aspect_squeezes_the_data_into_a_hairline(self):
+        """Pins the defect, so the fix cannot silently regress.
+
+        This is the committed-figure failure: every series lands inside a band
+        a few percent of the panel tall, and the rest is white. If this
+        assertion ever starts failing, the default has changed and the test
+        below is no longer proving anything.
+        """
+        fig = plot_trajectory_2d(self.TRUTH, {"drift": self.DRIFTING})
+        try:
+            share = _height_fraction(fig.axes[0], self.TRUTH, self.DRIFTING)
+            assert share < 0.1, f"expected a hairline, got {share:.1%} of the panel"
+        finally:
+            plt.close(fig)
+
+    def test_unequal_aspect_makes_the_drift_resolvable(self):
+        """The claim the flag makes: the deviation is legible on the page.
+
+        Both halves matter. The series have to fill the panel rather than a
+        sliver of it, *and* the gap between them has to be many times the
+        stroke width -- a band that fills the panel but holds two lines drawn
+        on top of each other is no better than before.
+        """
+        fig = plot_trajectory_2d(
+            self.TRUTH, {"drift": self.DRIFTING}, equal_aspect=False
+        )
+        try:
+            share = _height_fraction(fig.axes[0], self.TRUTH, self.DRIFTING)
+            gap = _vertical_pixel_gap(fig.axes[0], self.TRUTH, self.DRIFTING)
+
+            assert share > 0.5, f"data still uses only {share:.1%} of the panel"
+            assert gap > 50.0, f"drift still compressed to {gap:.2f} px"
+        finally:
+            plt.close(fig)
+
+    def test_the_distorted_panel_says_so(self):
+        """A reader takes in the shape of a trajectory before the tick labels.
+
+        Unequal axes draw a path the platform never walked, so the panel has
+        to disclose it rather than leaving the reader to divide the tick
+        spacings.
+        """
+        fig = plot_trajectory_2d(
+            self.TRUTH, {"drift": self.DRIFTING}, equal_aspect=False
+        )
+        try:
+            assert UNEQUAL_AXES_NOTE in _panel_notes(fig.axes[0])
+        finally:
+            plt.close(fig)
+
+    def test_works_on_a_supplied_axes(self):
+        """Near-1-D panels are composites too; the flag must survive ax=."""
+        host, (left, right) = plt.subplots(1, 2)
+        try:
+            plot_trajectory_2d(
+                self.TRUTH, {"drift": self.DRIFTING}, ax=left, equal_aspect=False
+            )
+
+            assert left.get_aspect() == "auto"
+            assert UNEQUAL_AXES_NOTE in _panel_notes(left)
+            assert _panel_notes(right) == []
+        finally:
+            plt.close(host)
+
+    def test_combines_with_zoom_to_truth(self):
+        """The two flags address different failures and stay independent.
+
+        Both panels drop the aspect together; a zoom panel that quietly kept
+        equal axes would re-collapse exactly the detail it was added to show.
+        """
+        fig = plot_trajectory_2d(
+            self.TRUTH,
+            {"drift": self.DRIFTING},
+            zoom_to_truth=True,
+            equal_aspect=False,
+        )
+        try:
+            for index, panel in enumerate(fig.axes):
+                assert panel.get_aspect() == "auto", f"panel {index} kept equal axes"
+                assert UNEQUAL_AXES_NOTE in _panel_notes(panel)
+        finally:
+            plt.close(fig)
+
+    def test_zoom_panels_keep_equal_aspect_by_default(self):
+        """The zoom path's existing behaviour is untouched."""
+        truth = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 5.0]])
+
+        fig = plot_trajectory_2d(
+            truth, {"drift": truth * 50.0}, zoom_to_truth=True
+        )
+        try:
+            assert fig.axes[0].get_aspect() == 1.0
+            assert fig.axes[1].get_aspect() == 1.0
+            assert _panel_notes(fig.axes[1]) == []
         finally:
             plt.close(fig)
 
@@ -419,3 +703,62 @@ class TestSaveAnimation:
         assert path.exists() and path.suffix == ".gif"
         with Image.open(path) as image:
             assert image.n_frames == 4
+
+
+class TestSeriesStylesAreDistinguishable:
+    """Two different series must never be drawn as the same line.
+
+    ``plot_error_cdf`` and its siblings cycled colours and dashes on the same
+    ``i % 5``, so series 6 came out in exactly the same blue solid as series 1.
+    A legend cannot repair that -- the reader has two entries and one visible
+    line. Chapter 5's six-method comparison shipped that way.
+
+    These assert on the style assignment rather than on any one figure, so the
+    guarantee survives a caller that adds a seventh method.
+    """
+
+    def test_styles_are_unique_up_to_the_cycle_length(self):
+        """No repeat before colours x dashes are exhausted."""
+        n = len(plots._SERIES_COLORS) * len(plots._SERIES_LINESTYLES)
+        styles = [plots._series_style(i) for i in range(n)]
+
+        assert len(set(styles)) == n, (
+            "two series share a colour and a dash pattern within the first "
+            f"{n}: the tables' lengths must stay co-prime."
+        )
+
+    def test_six_series_are_all_distinguishable(self):
+        """The case that shipped: six methods on one CDF panel."""
+        rng = np.random.default_rng(0)
+        errors = {f"m{i}": rng.gamma(2.0, 1.0, size=200) for i in range(6)}
+
+        fig = plot_error_cdf(errors, title="six")
+        try:
+            drawn = {
+                (line.get_color(), line.get_linestyle())
+                for line in fig.axes[0].get_lines()
+            }
+        finally:
+            plt.close(fig)
+
+        assert len(drawn) == 6, (
+            f"six series drew only {len(drawn)} distinct styles; at least two "
+            f"methods are indistinguishable on the page."
+        )
+
+    def test_the_first_five_styles_are_unchanged(self):
+        """Fixing the cycle must not silently redraw every existing figure.
+
+        The fifth linestyle was a duplicate ``-``, so dropping it moves the
+        repeat from series 6 to series 21 while leaving series 1-5 exactly as
+        they were. Anything with five or fewer series is byte-identical.
+        """
+        expected = [
+            ("blue", "-"),
+            ("red", "--"),
+            ("green", "-."),
+            ("orange", ":"),
+            ("purple", "-"),
+        ]
+
+        assert [plots._series_style(i) for i in range(5)] == expected

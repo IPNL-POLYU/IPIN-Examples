@@ -18,49 +18,61 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
 
+# Drawn on any trajectory panel that gives up equal axes. Exported so callers
+# and tests can assert on the disclosure rather than duplicating the wording.
+UNEQUAL_AXES_NOTE = "axes not equally scaled"
 
-def plot_trajectory_2d(
-    truth_xy: np.ndarray,
-    est_xy_dict: Dict[str, np.ndarray],
-    anchors_xy: Optional[np.ndarray] = None,
-    title: str = "2D Trajectory",
-    axis_labels: Tuple[str, str] = ("X (m)", "Y (m)"),
-    ax: Optional[plt.Axes] = None,
-    title_fontweight: str = "bold",
-) -> plt.Figure:
-    """
-    Plot 2D trajectory with true and estimated paths.
+#: Series styling for the multi-series primitives, shared so a fix lands
+#: everywhere at once.
+#:
+#: The lengths are co-prime on purpose. Both tables used to hold five entries
+#: and be indexed by the same ``i % 5``, so series 6 was drawn in exactly the
+#: same blue solid line as series 1 -- same colour *and* same dashes, which no
+#: legend can undo. Chapter 5 compares six fingerprinting methods, and its CDF
+#: panel showed "NN (Euclidean)" and "Linear Regression" as one line.
+#:
+#: The fifth linestyle was a second "-", so dropping it costs no variety and
+#: takes the first repeat from series 6 to series 21. Series 1-5 are unchanged,
+#: which is why no existing figure moves except Chapter 5's.
+_SERIES_COLORS = ("blue", "red", "green", "orange", "purple")
+_SERIES_LINESTYLES = ("-", "--", "-.", ":")
+
+
+def _series_style(index: int) -> Tuple[str, str]:
+    """Colour and dash pattern for series ``index``.
 
     Args:
-        truth_xy: True trajectory, shape (N, 2)
-        est_xy_dict: Dictionary of estimated trajectories {name: array}
-        anchors_xy: Anchor positions, shape (M, 2) (optional)
-        title: Plot title
-        axis_labels: Axis labels as (x, y). Pass ("East [m]", "North [m]") for
-            a local-level frame; the default is frame-agnostic. Chapters that
-            plot in ENU were previously hand-rolling this whole function purely
-            to relabel the axes.
-        ax: Draw into this existing axes instead of creating a figure. Most of
-            the book's figures are multi-panel composites where the trajectory
-            is one panel of a 2x2, so without this the function could only ever
-            be used for a standalone figure -- which is why every chapter but
-            one had reimplemented it. Follows the usual matplotlib library
-            convention: ``ax=None`` creates its own figure.
-        title_fontweight: Weight for the panel title. Defaults to bold, which
-            suits a standalone figure. Pass "normal" when drawing into a
-            composite whose sibling panels are unbold, or the shared panel
-            stands out as though it were more important.
+        index: Zero-based position of the series in the legend.
 
     Returns:
-        fig: The figure drawn into, whether created here or supplied via ``ax``.
+        ``(color, linestyle)``, distinct for the first 20 series.
     """
-    owns_figure = ax is None
-    if owns_figure:
-        fig, ax = plt.subplots(figsize=(10, 8))
-    else:
-        fig = ax.figure
+    return (
+        _SERIES_COLORS[index % len(_SERIES_COLORS)],
+        _SERIES_LINESTYLES[index % len(_SERIES_LINESTYLES)],
+    )
 
-    # Plot true trajectory
+
+def _draw_trajectories(
+    ax: plt.Axes,
+    truth_xy: np.ndarray,
+    est_xy_dict: Dict[str, np.ndarray],
+    anchors_xy: Optional[np.ndarray],
+    axis_labels: Tuple[str, str],
+) -> None:
+    """Draw one trajectory overlay onto ``ax``.
+
+    Factored out so the full-extent and zoomed panels are guaranteed to show
+    the same series in the same colours -- a zoom panel that quietly dropped a
+    method, or recoloured one, would misrepresent the comparison.
+
+    Args:
+        ax: Target axes.
+        truth_xy: True trajectory, shape (N, 2).
+        est_xy_dict: Dictionary of estimated trajectories {name: array}.
+        anchors_xy: Anchor positions, shape (M, 2), or None.
+        axis_labels: Axis labels as (x, y).
+    """
     ax.plot(
         truth_xy[:, 0],
         truth_xy[:, 1],
@@ -87,12 +99,12 @@ def plot_trajectory_2d(
     )
 
     # Plot estimated trajectories
-    colors = ["blue", "red", "green", "orange", "purple"]
-    linestyles = ["-", "--", "-.", ":", "-"]
-
     for i, (name, est_xy) in enumerate(est_xy_dict.items()):
-        color = colors[i % len(colors)]
-        linestyle = linestyles[i % len(linestyles)]
+        color, linestyle = _series_style(i)
+        # Above the truth line and the start/end markers: an estimate that
+        # tracks well lies *on* the truth, and with the truth drawn on top the
+        # best method was the one you could not see. The truth stays legible
+        # underneath because it is drawn thicker.
         ax.plot(
             est_xy[:, 0],
             est_xy[:, 1],
@@ -101,6 +113,7 @@ def plot_trajectory_2d(
             linewidth=1.5,
             label=name,
             alpha=0.7,
+            zorder=12,
         )
 
     # Plot anchors if provided
@@ -117,13 +130,188 @@ def plot_trajectory_2d(
 
     ax.set_xlabel(axis_labels[0], fontsize=12)
     ax.set_ylabel(axis_labels[1], fontsize=12)
-    ax.set_title(title, fontsize=14, fontweight=title_fontweight)
-    ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
-    ax.axis("equal")
 
-    if owns_figure:
-        plt.tight_layout()
+
+def _apply_aspect(ax: plt.Axes, equal_aspect: bool) -> None:
+    """Set a trajectory panel's aspect ratio, annotating the anisotropic case.
+
+    Args:
+        ax: Target axes.
+        equal_aspect: Whether one metre along x must measure the same on the
+            page as one metre along y.
+    """
+    if equal_aspect:
+        ax.axis("equal")
+        return
+
+    ax.set_aspect("auto")
+    # An unequal-aspect trajectory panel draws a shape the platform never
+    # traced: a 10 cm cross-track wobble stretched to the width of a 4.5 m
+    # walk reads as a wild excursion. The tick labels say so, but a reader
+    # scanning the figure reads the *shape* first, so say it in words too.
+    ax.text(
+        1.0,
+        -0.13,
+        UNEQUAL_AXES_NOTE,
+        transform=ax.transAxes,
+        ha="right",
+        va="top",
+        fontsize=8,
+        style="italic",
+        color="0.35",
+    )
+
+
+def _truth_extent_limits(
+    truth_xy: np.ndarray, pad_fraction: float = 0.1
+) -> Tuple[Tuple[float, float], Tuple[float, float]]:
+    """Return padded (xlim, ylim) bounding the ground-truth path.
+
+    Args:
+        truth_xy: True trajectory, shape (N, 2).
+        pad_fraction: Margin added on each side, as a fraction of the larger
+            of the two truth extents.
+
+    Returns:
+        Tuple of ((xmin, xmax), (ymin, ymax)).
+    """
+    x_min, y_min = truth_xy[:, 0].min(), truth_xy[:, 1].min()
+    x_max, y_max = truth_xy[:, 0].max(), truth_xy[:, 1].max()
+
+    # A stationary or purely axis-aligned truth has zero extent in at least one
+    # direction; fall back to an absolute margin so the limits stay orderable.
+    span = max(x_max - x_min, y_max - y_min)
+    pad = pad_fraction * span if span > 0 else 1.0
+
+    return (x_min - pad, x_max + pad), (y_min - pad, y_max + pad)
+
+
+def plot_trajectory_2d(
+    truth_xy: np.ndarray,
+    est_xy_dict: Dict[str, np.ndarray],
+    anchors_xy: Optional[np.ndarray] = None,
+    title: str = "2D Trajectory",
+    axis_labels: Tuple[str, str] = ("X (m)", "Y (m)"),
+    ax: Optional[plt.Axes] = None,
+    title_fontweight: str = "bold",
+    zoom_to_truth: bool = False,
+    equal_aspect: bool = True,
+) -> plt.Figure:
+    """
+    Plot 2D trajectory with true and estimated paths.
+
+    Args:
+        truth_xy: True trajectory, shape (N, 2)
+        est_xy_dict: Dictionary of estimated trajectories {name: array}
+        anchors_xy: Anchor positions, shape (M, 2) (optional)
+        title: Plot title
+        axis_labels: Axis labels as (x, y). Pass ("East [m]", "North [m]") for
+            a local-level frame; the default is frame-agnostic. Chapters that
+            plot in ENU were previously hand-rolling this whole function purely
+            to relabel the axes.
+        ax: Draw into this existing axes instead of creating a figure. Most of
+            the book's figures are multi-panel composites where the trajectory
+            is one panel of a 2x2, so without this the function could only ever
+            be used for a standalone figure -- which is why every chapter but
+            one had reimplemented it. Follows the usual matplotlib library
+            convention: ``ax=None`` creates its own figure. Mutually exclusive
+            with ``zoom_to_truth``, which needs two panels of its own.
+        title_fontweight: Weight for the title. Defaults to bold, which suits a
+            standalone figure. Pass "normal" when drawing into a composite whose
+            sibling panels are unbold, or the shared panel stands out as though
+            it were more important. Under ``zoom_to_truth`` this applies to the
+            figure-level title; the two panel captions are deliberately plain,
+            since they label parts rather than announce a figure.
+        zoom_to_truth: Add a second panel clipped to the ground-truth extent.
+            Set this when one estimator diverges by orders of magnitude more
+            than the others -- comparing an unbounded method against bounded
+            ones, which is the standard dead-reckoning figure. A trajectory
+            plot needs equal axes, so a single pair of limits has to span the
+            divergence, and everything that stayed near the truth collapses
+            into one blob. The left panel keeps the full extent (the
+            divergence is usually the point being made) and the right panel
+            resolves the rest. Both panels draw every series; the diverging
+            one simply leaves the zoomed frame.
+        equal_aspect: Keep one metre along x the same size on the page as one
+            metre along y. On by default, and normally right: a trajectory is a
+            shape, and an anisotropic axes distorts it.
+
+            Clear it for a *near-1-D* path -- a corridor walk, a rail, a
+            straight-line SLAM demo -- where equal axes are what destroys the
+            figure. Matplotlib stretches the short axis to fill the panel, so
+            Chapter 7's 4.5 m x 0.13 m front-end walk gets a y range of roughly
+            [-2, 2]. Every series then shares one hairline band under 3% of the
+            panel's height, and the method that tracks best -- the one the
+            figure is arguing for -- ends up within its own stroke width of the
+            ground truth.
+
+            Note this is the *opposite* failure to ``zoom_to_truth``. There the
+            truth is well-shaped and one estimate leaves the frame, so a second
+            set of limits fixes it. Here the truth extent is itself degenerate,
+            and no choice of limits helps while the aspect is locked. The two
+            flags are independent and may be combined.
+
+            When cleared, the panel is labelled ``"axes not equally scaled"``,
+            because a reader takes in the shape of a trajectory before the tick
+            labels.
+
+    Returns:
+        fig: The figure drawn into, whether created here or supplied via ``ax``.
+
+    Raises:
+        ValueError: If both ``ax`` and ``zoom_to_truth`` are given. The zoom is
+            a second set of axes, so there is nothing sensible to do with one
+            supplied axes: honouring ``ax`` would silently drop the zoom the
+            caller asked for, and honouring the zoom would ignore the axes and
+            return a figure the caller's composite does not contain.
+    """
+    if zoom_to_truth and ax is not None:
+        raise ValueError(
+            "zoom_to_truth=True draws two panels and cannot share a single "
+            "supplied ax. Either drop ax to get the two-panel figure, or keep "
+            "ax and call plot_trajectory_2d twice -- once plain, once on a "
+            "second axes you set to the truth extent."
+        )
+
+    if not zoom_to_truth:
+        owns_figure = ax is None
+        if owns_figure:
+            fig, ax = plt.subplots(figsize=(10, 8))
+        else:
+            fig = ax.figure
+        _draw_trajectories(ax, truth_xy, est_xy_dict, anchors_xy, axis_labels)
+        ax.set_title(title, fontsize=14, fontweight=title_fontweight)
+        ax.legend(fontsize=10)
+        _apply_aspect(ax, equal_aspect)
+        if owns_figure:
+            plt.tight_layout()
+        return fig
+
+    fig, (ax_full, ax_zoom) = plt.subplots(1, 2, figsize=(15, 7))
+
+    _draw_trajectories(ax_full, truth_xy, est_xy_dict, anchors_xy, axis_labels)
+    ax_full.set_title("full extent", fontsize=12)
+    ax_full.legend(fontsize=9, loc="best")
+    _apply_aspect(ax_full, equal_aspect)
+
+    _draw_trajectories(ax_zoom, truth_xy, est_xy_dict, anchors_xy, axis_labels)
+    ax_zoom.set_title("zoom: ground-truth extent", fontsize=12)
+    xlim, ylim = _truth_extent_limits(truth_xy)
+    ax_zoom.set_xlim(*xlim)
+    ax_zoom.set_ylim(*ylim)
+    if equal_aspect:
+        # set_aspect rather than _apply_aspect: the latter goes through
+        # ax.axis("equal"), which would autoscale the limits just set back out
+        # to the full data range. Setting the aspect directly leaves them
+        # alone -- with the default adjustable="box" it reshapes the axes box
+        # instead.
+        ax_zoom.set_aspect("equal")
+    else:
+        _apply_aspect(ax_zoom, equal_aspect=False)
+
+    fig.suptitle(title, fontsize=14, fontweight=title_fontweight)
+    plt.tight_layout()
     return fig
 
 
@@ -234,8 +422,6 @@ def plot_error_magnitude_time(
     else:
         fig = ax.figure
 
-    colors = ["blue", "red", "green", "orange", "purple"]
-    linestyles = ["-", "--", "-.", ":", "-"]
     peak = 0.0
 
     for i, (name, errors) in enumerate(errors_dict.items()):
@@ -246,12 +432,13 @@ def plot_error_magnitude_time(
         time = np.arange(len(magnitudes)) * dt if t is None else np.asarray(t)
         peak = max(peak, float(np.max(magnitudes)) if magnitudes.size else 0.0)
 
+        color, linestyle = _series_style(i)
         ax.plot(
             time,
             magnitudes,
             label=name,
-            color=colors[i % len(colors)],
-            linestyle=linestyles[i % len(linestyles)],
+            color=color,
+            linestyle=linestyle,
             linewidth=2,
         )
 
@@ -346,9 +533,6 @@ def plot_error_cdf(
     else:
         fig = ax.figure
 
-    colors = ["blue", "red", "green", "orange", "purple"]
-    linestyles = ["-", "--", "-.", ":", "-"]
-
     for i, (name, errors) in enumerate(errors_dict.items()):
         # Compute error magnitudes
         errors = np.asarray(errors)
@@ -361,8 +545,7 @@ def plot_error_cdf(
         sorted_errors = np.sort(error_magnitudes)
         cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
 
-        color = colors[i % len(colors)]
-        linestyle = linestyles[i % len(linestyles)]
+        color, linestyle = _series_style(i)
         ax.plot(
             sorted_errors,
             cdf,

@@ -27,6 +27,28 @@ from core.eval import save_figure
 from core.sensors import wheel_odom_update, NavStateQPVP
 
 
+
+# Seed for this example's sensor-noise draws. Fixed so the committed
+# figures can be regenerated exactly; see the noise function below.
+DEFAULT_SEED = 42
+
+# Rotation C_S^A from the speed frame S (x=right, y=forward, z=up, Section 6.2)
+# to the attitude frame A. A is the IMU body frame, whose x-axis points forward
+# because the attitude quaternion is a yaw about the ENU heading -- so the two
+# frames differ by -90 deg about z and are NOT aligned. Leaving C_S^A at its
+# identity default feeds a forward speed of [0, v, 0] straight through, which
+# lands on the body y-axis and reports the entire track rotated 90 deg: 30.63 m
+# of final error on a 270 m square instead of 1.63 m. Chapter 6's comparison
+# example carries the same constant for the same reason.
+C_SPEED_TO_BODY = np.array(
+    [
+        [0.0, 1.0, 0.0],
+        [-1.0, 0.0, 0.0],
+        [0.0, 0.0, 1.0],
+    ]
+)
+
+
 def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
     """
     Generate vehicle trajectory (square or circle).
@@ -99,17 +121,33 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
     return t, pos_true, vel_true, quat_true, wheel_speed_true, gyro_true
 
 
-def add_wheel_noise(wheel_speed_true, gyro_true, add_slip=False, slip_intervals=None):
-    """Add wheel encoder noise and optional slip."""
+def add_wheel_noise(wheel_speed_true, gyro_true, add_slip=False,
+                    slip_intervals=None, seed=DEFAULT_SEED):
+    """Add wheel encoder noise and optional slip.
+
+    Args:
+        wheel_speed_true: Noise-free wheel speed [m/s], shape (N, 3).
+        gyro_true: Noise-free angular rate [rad/s], shape (N, 3).
+        add_slip: Whether to inject wheel slip over ``slip_intervals``.
+        slip_intervals: Sample ranges to slip over, as (start, end) pairs.
+        seed: Seed for this run's noise. Both the no-slip and slip runs use the
+            same default, so the two differ only by the slip itself rather than
+            by an unrelated redraw -- the comparison the figure makes is then
+            controlled. Unseeded, every run produced a different figure.
+
+    Returns:
+        Tuple of (wheel_meas, gyro_meas).
+    """
     N = len(wheel_speed_true)
-    
+    rng = np.random.default_rng(seed)
+
     # Scale error (wrong wheel radius) - systematic bias
     scale_error = 0.02  # 2% scale error (typical)
-    
+
     # Random noise
     noise_std = 0.05  # m/s
-    wheel_noise = np.random.randn(N, 3) * noise_std
-    gyro_noise = np.random.randn(N, 3) * np.deg2rad(0.5)
+    wheel_noise = rng.standard_normal((N, 3)) * noise_std
+    gyro_noise = rng.standard_normal((N, 3)) * np.deg2rad(0.5)
     
     wheel_meas = wheel_speed_true * (1 + scale_error) + wheel_noise
     gyro_meas = gyro_true + gyro_noise
@@ -143,7 +181,8 @@ def run_wheel_odometry(t, wheel_speed, gyro, initial_state, lever_arm):
             v_s=wheel_speed[k-1],
             omega_a=gyro[k-1],
             lever_arm_a=lever_arm,
-            dt=dt
+            dt=dt,
+            C_S_A=C_SPEED_TO_BODY,
         )
         
         # Update quaternion
@@ -202,6 +241,9 @@ def plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir):
     return error_odom, error_slip
 
 
+SLIP_SPEED_HINT = 5.0  # cruise speed on the straights, m/s
+
+
 def main():
     """Main execution."""
     print("\n" + "="*70)
@@ -230,7 +272,14 @@ def main():
     
     # Add noise WITH slip during turns
     print("Adding wheel encoder noise + slip...")
-    slip_intervals = [(4, 6), (10, 12), (16, 18), (22, 24)]  # During turns
+    # Slip while the vehicle is actually driving. The previous windows --
+    # (4, 6), (10, 12), (16, 18), (22, 24) -- were labelled "during turns", and
+    # this trajectory turns in place: forward speed is exactly 0.000 m/s
+    # throughout every one of them. Multiplying a zero wheel speed by 1.3
+    # injects nothing, which is why the no-slip and slip runs used to print
+    # identical errors to three significant figures while the module docstring
+    # advertised "sensitivity to wheel slip".
+    slip_intervals = [(2, 4), (8, 10), (14, 16), (20, 22)]  # On the straights
     wheel_slip, gyro_slip = add_wheel_noise(wheel_true, gyro_true, add_slip=True, slip_intervals=slip_intervals)
     
     # Initial state
@@ -263,9 +312,20 @@ def main():
     print(f"  Final error:  {error_odom[-1]:.2f} m ({error_odom[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_odom:.2f} m")
     print()
-    print(f"Wheel Odometry (with slip during turns):")
+    print(f"Wheel Odometry (with 30% slip on four 2 s straights):")
     print(f"  Final error:  {error_slip[-1]:.2f} m ({error_slip[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_slip:.2f} m")
+    print()
+    # Read the RMSE, not the final error. This route is a closed square, so
+    # both runs finish near the start and their final errors agree to two
+    # decimals while the tracks separate by metres in between -- the same
+    # degenerate metric that let two Chapter 6 methods look good by never
+    # moving. The peak separation is what slip actually costs you.
+    print(f"  Slip cost, read properly:")
+    print(f"    RMSE {rmse_odom:.2f} m -> {rmse_slip:.2f} m")
+    print(f"    peak track separation {np.abs(error_slip - error_odom).max():.2f} m")
+    print(f"    (4 windows x 2 s x {SLIP_SPEED_HINT:.1f} m/s x 30% = "
+          f"{4 * 2 * SLIP_SPEED_HINT * 0.3:.1f} m of phantom travel, as injected)")
     print()
     print(f"Figures saved to: {figs_dir}/")
     print()

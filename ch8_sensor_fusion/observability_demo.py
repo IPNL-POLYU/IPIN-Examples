@@ -27,6 +27,7 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 
 from core.estimators import ExtendedKalmanFilter
+from core.eval import save_figure
 
 
 def generate_trajectory(
@@ -686,7 +687,9 @@ def plot_observability_demo(
         odom_only_2: Odometry-only fusion (offset 2)
         odom_with_fixes: Odometry + absolute fixes fusion
         translation_offset: Translation offset used
-        save_path: Path to save figure
+        save_path: Where to save the figure. Only the directory and the stem
+            are used -- ``core.eval.save_figure`` writes svg, pdf and png, so
+            any extension given here is ignored.
     """
     fig = plt.figure(figsize=(16, 10))
     gs = GridSpec(2, 3, figure=fig, hspace=0.3, wspace=0.3)
@@ -813,9 +816,14 @@ def plot_observability_demo(
                 fontsize=16, fontweight='bold')
     
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
-        print(f"\nSaved figure: {save_path}")
-    
+        # Via save_figure, not plt.savefig: it writes the book's svg/pdf
+        # alongside the png and strips the timestamps and random element ids
+        # matplotlib would otherwise stamp in, so a committed figure diff
+        # means the picture actually changed. The extension on save_path is
+        # dropped -- every format gets written.
+        paths = save_figure(fig, Path(save_path).parent, Path(save_path).stem)
+        print(f"\nSaved figure: {paths[0]}")
+
     plt.show()
 
 
@@ -979,11 +987,30 @@ def main():
     print(f"{'Odometry + Absolute Fixes':<35} {error_fixes:>15.3f}")
     print("="*70)
     
+    # Theory against measurement, side by side. This used to print the offset
+    # magnitude formatted as though it were the measured error, directly under
+    # a table giving a different number for the same quantity.
+    predicted = float(np.linalg.norm(translation_offset))
+    fix_noise = absolute_fixes['noise_std']
+
     print("\nInterpretation:")
-    print(f"  * Odometry-only error: ~{np.linalg.norm(translation_offset):.1f}m")
-    print(f"    (constant offset = unobservable translation)")
-    print(f"  * Odometry + Fixes error: {error_fixes:.2f}m")
-    print(f"    (corrected by absolute measurements)")
+    print(f"  * Translation is unobservable from odometry, so the initial "
+          f"offset should survive to the end untouched.")
+    print(f"    Predicted final error {predicted:.2f} m (the offset "
+          f"magnitude); measured {error_odom2:.2f} m. They agree to within the "
+          f"{error_odom1:.2f} m")
+    print(f"    of drift that odometry accumulates anyway, which is the "
+          f"offset-free run above.")
+    print(f"  * Adding absolute fixes: {error_fixes:.2f} m. The offset is gone "
+          f"-- that is what observability buys.")
+    print(f"  * Note what it does NOT buy. The offset-free odometry run scores "
+          f"{error_odom1:.2f} m, better than the {error_fixes:.2f} m with "
+          f"fixes,")
+    print(f"    because each fix carries {fix_noise:.1f} m of noise. Absolute "
+          f"measurements make the state observable; over a run this short they "
+          f"do not make it")
+    print(f"    more precise. Observability is about which errors can be "
+          f"corrected at all, not about how small they end up.")
     print("")
     
     # Plot

@@ -2785,7 +2785,7 @@ L 581.370396 40.898329
 L 581.429538 39.585981 
 L 653.332658 36.961286 
 L 653.332658 36.961286 
-" clip-path="url(#pc4e2aaaf10)" style="fill: none; stroke: #0000ff; stroke-width: 2; stroke-linecap: square"/>
+" clip-path="url(#pc4e2aaaf10)" style="fill: none; stroke-dasharray: 7.4,3.2; stroke-dashoffset: 0; stroke: #0000ff; stroke-width: 2"/>
    </g>
    <g id="patch_9">
     <path d="M 403.770068 299.430764 
@@ -3167,7 +3167,7 @@ L 616.942011 276.024514
      <path d="M 600.942011 287.767014 
 L 608.942011 287.767014 
 L 616.942011 287.767014 
-" style="fill: none; stroke: #0000ff; stroke-width: 2; stroke-linecap: square"/>
+" style="fill: none; stroke-dasharray: 7.4,3.2; stroke-dashoffset: 0; stroke: #0000ff; stroke-width: 2"/>
     </g>
     <g id="text_41">
      <!-- k-NN (k=5, uniform) -->

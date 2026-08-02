@@ -85,6 +85,10 @@ def demo_aoa_basic():
     return anchors, true_position, aoa_measurements
 
 
+
+# Seed for the Monte Carlo in Demo 2.
+SEED = 42
+
 def demo_aoa_with_noise():
     """Demonstrate AOA positioning with measurement noise."""
     print("\n" + "=" * 70)
@@ -105,26 +109,49 @@ def demo_aoa_with_noise():
     print(f"\nTrue position: {true_position}")
     print(f"Testing {len(noise_levels_deg)} noise levels...")
 
+    # RMS over repeated draws, not one solve per noise level. A single draw
+    # made this table contradict itself: it read 1.74 m at 5 deg and 2.04 m at
+    # 10 deg, an apparent saturation, when AOA position error is linear in the
+    # angular noise. The OVE/PLE table further down this same file always
+    # averaged, and shows that linearity cleanly -- its RMSE divided by the
+    # noise is constant to within 1.5%.
+    trials = 300
+    rng = np.random.default_rng(SEED)
+
     for noise_deg in noise_levels_deg:
         noise_rad = np.deg2rad(noise_deg)
 
-        # Add noise
-        aoa_noisy = aoa_true + np.random.randn(len(aoa_true)) * noise_rad
+        errors = []
+        last_pos, last_iters = None, 0
+        n_failed = 0
+        for _ in range(trials if noise_deg > 0 else 1):
+            aoa_noisy = aoa_true + rng.standard_normal(len(aoa_true)) * noise_rad
+            positioner = AOAPositioner(anchors)
+            est_pos, info = positioner.solve(
+                aoa_noisy, initial_guess=np.array([7.5, 7.5])
+            )
+            if info["converged"]:
+                errors.append(np.linalg.norm(est_pos - true_position))
+                last_pos, last_iters = est_pos, info["iterations"]
+            else:
+                n_failed += 1
 
-        # Solve
-        positioner = AOAPositioner(anchors)
-        est_pos, info = positioner.solve(
-            aoa_noisy, initial_guess=np.array([7.5, 7.5])
-        )
-
-        if info["converged"]:
-            error = np.linalg.norm(est_pos - true_position)
+        if errors:
+            # Median, not RMS. Averaging revealed something a single draw hid:
+            # at 10 deg a handful of solves blow up to 1e14 m *while reporting
+            # convergence*, and they alone move the RMS to 9e8. The median is
+            # unaffected and shows the actual law -- 0.25, 1.21, 2.44 m for
+            # 1, 5, 10 deg, i.e. 0.24 m per degree throughout. Both facts are
+            # reported rather than one being allowed to hide the other.
+            errors = np.asarray(errors)
             results.append(
                 {
                     "noise": noise_deg,
-                    "position": est_pos,
-                    "error": error,
-                    "iterations": info["iterations"],
+                    "position": last_pos,
+                    "error": float(np.median(errors)),
+                    "iterations": last_iters,
+                    "n_failed": n_failed,
+                    "n_gross": int(np.sum(errors > 100.0)),
                 }
             )
         else:
@@ -133,24 +160,41 @@ def demo_aoa_with_noise():
                     "noise": noise_deg,
                     "position": None,
                     "error": np.inf,
-                    "iterations": info["iterations"],
+                    "iterations": 0,
+                    "n_failed": n_failed,
+                    "n_gross": 0,
                 }
             )
 
     # Print results
     print("\n" + "-" * 70)
-    print(f"{'Noise (deg)':<15} {'Est. Position':<25} {'Error (m)':<12} {'Iters':<8}")
+    print(f"Median position error over {trials} draws per noise level "
+          f"(Eq. 4.64 geometry).")
+    print(f"{'Noise (deg)':<13} {'Median err (m)':<16} {'m/deg':<9} "
+          f"{'no-converge':<13} {'>100 m':<8}")
     print("-" * 70)
     for r in results:
-        pos_str = (
-            f"[{r['position'][0]:.3f}, {r['position'][1]:.3f}]"
-            if r["position"] is not None
-            else "FAILED"
-        )
         error_str = f"{r['error']:.4f}" if r["error"] != np.inf else "FAILED"
-        print(
-            f"{r['noise']:<15.1f} {pos_str:<25} {error_str:<12} {r['iterations']:<8}"
+        # Error per degree of angular noise: constant if the relationship is
+        # linear, which is the check this table is worth running.
+        slope = (
+            f"{r['error'] / r['noise']:.4f}"
+            if r["noise"] > 0 and r["error"] != np.inf
+            else "-"
         )
+        print(
+            f"{r['noise']:<13.1f} {error_str:<16} {slope:<9} "
+            f"{r['n_failed']:<13d} {r['n_gross']:<8d}"
+        )
+
+    print()
+    print("  Median error is linear in the angular noise, as the geometry")
+    print("  implies. The last two columns are why this table reports a median")
+    print("  rather than an RMS: at 10 deg a few solves diverge, and some of")
+    print("  those report convergence while landing over 100 m away, which is")
+    print("  enough to move an RMS by eight orders of magnitude. Treat the")
+    print("  solver's converged flag as necessary, not sufficient, at high")
+    print("  angular noise.")
 
     return results
 

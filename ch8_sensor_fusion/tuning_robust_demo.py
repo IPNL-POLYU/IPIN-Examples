@@ -9,6 +9,23 @@ Demonstrates filter tuning and robust measurement handling:
 This demo uses the NLOS dataset where some UWB anchors have biased
 measurements, demonstrating the need for robust estimation.
 
+Read the gating result before drawing a conclusion from it. Chi-square gating
+scores far worse here than doing nothing at all -- around 18 m RMSE against a
+0.7 m baseline -- and that outcome is real, not a bug. R is set from the
+line-of-sight range noise (0.05 m) while roughly half of this dataset's ranges
+carry an NLOS bias near 0.8 m, so the filter is over-confident by more than an
+order of magnitude: ungated NIS has a median near 28 where a consistent 1-DOF
+filter would sit at 0.45. A 95% gate tested against that covariance rejects
+most *good* measurements, the starved state drifts, drift inflates the next
+innovation, and the rejection feeds itself.
+
+The lesson is therefore not that gating is inferior to a robust loss. It is
+that a hard gate inherits every error in the covariance it tests against,
+while a robust loss scales an outlier's influence down rather than removing
+it, and so survives the same mis-specified R. See
+tests/ch8_sensor_fusion/test_tuning_robust_claims.py, which pins each step of
+that chain.
+
 Key Equations:
 - Eq. (8.5): Innovation y_k = z_k - h(x_k|k-1)
 - Eq. (8.6): Innovation covariance S_k = H_k P_k|k-1 H_k^T + R_k
@@ -27,7 +44,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from core.eval import compute_position_errors, compute_rmse
+from core.eval import compute_position_errors, compute_rmse, save_figure
 from core.fusion import (
     chi_square_gate,
     huber_R_scale,
@@ -308,7 +325,19 @@ def plot_tuning_comparison(
                edgecolors='darkred', linewidths=2, label='Anchors', zorder=5)
     ax2.set_xlabel('X [m]')
     ax2.set_ylabel('Y [m]')
-    ax2.set_title('Chi-Square Gating')
+    ax2.set_title('Chi-Square Gating: diverges (see NIS panel)')
+    # Without this the panel reads as "gating is broken". It is not: the gate
+    # is only as valid as the covariance it tests against, and this filter is
+    # over-confident. Say so on the panel, because a reader looks at the
+    # picture and not at the terminal. Placed inside the axes -- below them
+    # lands on the next row of the GridSpec, over the NIS panel.
+    ax2.text(
+        0.5, 0.03,
+        'hard rejection + over-confident R -> starves the filter -> drift',
+        transform=ax2.transAxes, ha='center', va='bottom',
+        fontsize=7.5, style='italic', color=color_gating,
+        bbox=dict(facecolor='white', alpha=0.75, edgecolor='none', pad=1.5),
+    )
     ax2.legend(fontsize=8)
     ax2.grid(True, alpha=0.3)
     ax2.axis('equal')
@@ -359,24 +388,39 @@ def plot_tuning_comparison(
         nis_baseline = np.array(baseline['nis'])
         nis_gating = np.array(gating['nis'])
         
-        # Downsample for visibility
+        # Log axis and dots rather than a linear axis and lines. NIS here
+        # spans four decades -- baseline median 28, gating reaching 1e4 --
+        # against a 3.84 gate, so a linear axis clipped at 20 sent almost
+        # every sample off the top and rendered as a solid hash with the
+        # threshold squashed onto the floor. This panel carries the
+        # explanation for the gating result; it has to be readable.
         step = max(1, len(nis_baseline) // 500)
-        ax5.plot(nis_baseline[::step], color=color_baseline,
-                linewidth=0.5, alpha=0.5, label='Baseline')
-        ax5.plot(nis_gating[::step], color=color_gating,
-                linewidth=0.5, alpha=0.5, label='Gating')
-        
+        floor = 1e-2  # log scale cannot show an exact zero
+        ax5.semilogy(np.maximum(nis_baseline[::step], floor), '.',
+                     color=color_baseline, markersize=1.5, alpha=0.5,
+                     label='Baseline')
+        ax5.semilogy(np.maximum(nis_gating[::step], floor), '.',
+                     color=color_gating, markersize=1.5, alpha=0.5,
+                     label='Gating')
+
         # Chi-square bound
         from core.fusion import chi_square_threshold
         threshold = chi_square_threshold(dof=1, confidence=0.95)
         ax5.axhline(threshold, color='r', linestyle='--',
                    linewidth=1.5, label=f'95% bound (chi^2={threshold:.2f})')
-        
+        # ...and where a *consistent* filter would sit. The gap between this
+        # line and the baseline cloud is the over-confidence that makes the
+        # gate reject good measurements.
+        ax5.axhline(0.4549, color='0.35', linestyle=':', linewidth=1.2,
+                    label='median if consistent (0.45)')
+
         ax5.set_xlabel('UWB Update Index')
-        ax5.set_ylabel('NIS (1 DOF)')
-        ax5.set_title('NIS: Baseline vs Gating')
-        ax5.set_ylim([0, min(20, np.percentile(nis_baseline, 99))])
-        ax5.legend()
+        ax5.set_ylabel('NIS (1 DOF, log)')
+        ax5.set_title(
+            f'NIS: baseline median {np.median(nis_baseline):.0f} vs 0.45 '
+            f'if consistent'
+        )
+        ax5.legend(fontsize=7, loc='upper left')
         ax5.grid(True, alpha=0.3)
     
     # 6. Robust covariance scales
@@ -464,7 +508,10 @@ def plot_tuning_comparison(
                 fontsize=16, fontweight='bold')
     
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        # save_figure takes a directory and a stem, and writes svg/pdf/png
+        # together; callers still pass a single path, so split it here.
+        save_path = Path(save_path)
+        save_figure(fig, save_path.parent, save_path.stem)
         print(f"\nSaved figure: {save_path}")
     
     plt.show()
@@ -550,7 +597,12 @@ def main():
             np.interp(history['t'], truth['t'], truth['p_xy'][:, 1])
         ])
         errors = history['x_est'][:, :2] - p_true_interp
-        return compute_rmse(errors)
+        # Norm first, then RMS. Passing the (N, 2) vectors straight to
+        # compute_rmse averages over 2N components instead of N positions,
+        # which is the per-axis RMS and is smaller by exactly sqrt(2) -- this
+        # table used to report 12.74 m for a gating run the figure's own bar
+        # chart labelled 18.02 m.
+        return compute_rmse(np.linalg.norm(errors, axis=1))
     
     rmse_baseline = compute_final_rmse(baseline)
     rmse_gating = compute_final_rmse(gating)
@@ -578,12 +630,38 @@ def main():
     )[0]
     improvement = 100 * (rmse_baseline - min(rmse_gating, rmse_huber, rmse_cauchy)) / rmse_baseline
     
+    # Why gating fails here, measured rather than asserted. For a filter whose
+    # covariance is right, NIS follows chi-square with 1 DOF: median 0.45, and
+    # 95% of samples below the 3.84 gate. Reading the baseline -- which never
+    # gates, so it cannot have been driven off course by its own rejections --
+    # tells us whether the gate is judging against a covariance worth trusting.
+    nis_baseline = np.asarray(baseline['nis'])
+    nis_median = float(np.median(nis_baseline))
+    frac_inside = 100.0 * float(np.mean(nis_baseline < 3.84))
+    gate_rate = 100.0 * gating['n_uwb_accepted'] / (
+        gating['n_uwb_accepted'] + gating['n_uwb_rejected'])
+
     print(f"\nKey Findings:")
     print(f"  * Best method: {best_method}")
     print(f"  * Improvement over baseline: {improvement:.1f}%")
-    print(f"  * Gating rejects {gating['n_uwb_rejected']} outliers (hard rejection)")
     print(f"  * Robust losses inflate R for outliers (soft rejection via Eq. 8.7)")
     print(f"  * Huber: linear inflation, Cauchy: quadratic inflation")
+    print("")
+    print(f"  Why chi-square gating collapses here (RMSE {rmse_gating:.2f} m):")
+    print(f"    - The filter is over-confident. Ungated NIS has median "
+          f"{nis_median:.1f}, against {0.45:.2f} for a consistent 1-DOF filter,")
+    print(f"      and only {frac_inside:.0f}% of samples fall inside the 3.84 "
+          f"gate. R is set from the line-of-sight noise, while roughly half")
+    print(f"      this dataset's ranges carry an NLOS bias an order of "
+          f"magnitude larger.")
+    print(f"    - So the gate is not discarding outliers, it is discarding "
+          f"most measurements: {gate_rate:.0f}% accepted.")
+    print(f"    - Starved of updates the state drifts, drift inflates the next "
+          f"innovation, and the rejection feeds itself.")
+    print(f"    - The lesson is not that gating is inferior. A hard gate is "
+          f"only as good as the covariance it tests against; the robust")
+    print(f"      losses survive the same mis-specified R because they scale "
+          f"an outlier's influence down instead of removing it.")
     print("")
     
     # Plot

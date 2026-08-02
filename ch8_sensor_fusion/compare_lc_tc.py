@@ -19,7 +19,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from core.eval import compute_position_errors, compute_rmse
+from core.eval import (
+    compute_position_errors,
+    compute_position_rmse,
+    save_figure,
+)
 from ch8_sensor_fusion.lc_uwb_imu_ekf import load_fusion_dataset, run_lc_fusion
 from ch8_sensor_fusion.tc_uwb_imu_ekf import run_tc_fusion
 
@@ -97,13 +101,13 @@ def compute_comparative_metrics(
     p_true_lc = interpolate_truth(lc_results['t'])
     p_est_lc = lc_results['x_est'][:, :2]
     errors_lc = compute_position_errors(p_true_lc, p_est_lc)
-    rmse_lc = compute_rmse(errors_lc)
+    rmse_lc = compute_position_rmse(errors_lc)
     
     # TC metrics
     p_true_tc = interpolate_truth(tc_results['t'])
     p_est_tc = tc_results['x_est'][:, :2]
     errors_tc = compute_position_errors(p_true_tc, p_est_tc)
-    rmse_tc = compute_rmse(errors_tc)
+    rmse_tc = compute_position_rmse(errors_tc)
     
     metrics = {
         'lc': {
@@ -197,6 +201,22 @@ def print_comparison_table(metrics: Dict) -> None:
           f"({abs(lc['acceptance_rate'] - tc['acceptance_rate']):.1f}% difference)")
     print(f"  • LC: {lc['n_updates']} updates, TC: {tc['n_updates']} updates "
           f"(TC has {tc['n_updates'] - lc['n_updates']:+d} more)")
+
+    # The trade-off is in the numbers above but was not being said. TC wins on
+    # typical error and loses on the worst case, and the mechanism is the same
+    # one in both directions: TC fuses each range directly, so it keeps working
+    # when there are too few for a fix, and a bad range also reaches the filter
+    # undiluted. LC solves for a position first, which needs three anchors but
+    # absorbs some of the damage on the way.
+    if tc['max_error'] > lc['max_error']:
+        print(f"  • ...but TC's worst case is larger: {tc['max_error']:.2f} m "
+              f"against {lc['max_error']:.2f} m, while its mean error is the")
+        print(f"    smaller of the two ({tc['mean_error']:.2f} m against "
+              f"{lc['mean_error']:.2f} m). Fusing raw ranges gives TC more "
+              f"updates and no")
+        print(f"    solver failures, and exposes it directly to a bad range; "
+              f"LC's least-squares step needs three anchors but absorbs part "
+              f"of the outlier.")
     print()
 
 
@@ -425,7 +445,10 @@ def plot_comparison(
                 fontsize=16, fontweight='bold')
     
     if save_path:
-        plt.savefig(save_path, dpi=150, bbox_inches='tight')
+        # save_figure takes a directory and a stem, and writes svg/pdf/png
+        # together; callers still pass a single path, so split it here.
+        save_path = Path(save_path)
+        save_figure(fig, save_path.parent, save_path.stem)
         print(f"\nSaved comparison figure: {save_path}")
     
     plt.show()

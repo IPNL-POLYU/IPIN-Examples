@@ -35,8 +35,21 @@ from core.fingerprinting import (
 )
 
 
-def create_multifloor_test_database() -> FingerprintDatabase:
-    """Create a synthetic multi-floor database for testing."""
+
+# Seed for this example's synthetic database and query draws. Fixed so the
+# committed figures and reported accuracies can be regenerated exactly.
+DEFAULT_SEED = 42
+
+def create_multifloor_test_database(rng=None) -> FingerprintDatabase:
+    """Create a synthetic multi-floor database for testing.
+
+    Args:
+        rng: Generator for the synthetic RSS draws. Pass the run's shared
+            generator so the database and the queries below come from one
+            seeded stream; defaults to a fresh seeded one.
+    """
+    if rng is None:
+        rng = np.random.default_rng(DEFAULT_SEED)
     print("\n--- Creating synthetic multi-floor database ---")
     
     # Parameters
@@ -61,7 +74,7 @@ def create_multifloor_test_database() -> FingerprintDatabase:
         # Floor 1: -55 to -95 dBm range (offset)
         # Floor 2: -60 to -100 dBm range (offset)
         base_rss = -50 - floor * 5
-        feats = base_rss - np.random.rand(n_rps_per_floor, n_aps) * 40
+        feats = base_rss - rng.random((n_rps_per_floor, n_aps)) * 40
         
         floors = np.full(n_rps_per_floor, floor, dtype=int)
         
@@ -147,8 +160,20 @@ def test_classification_accuracy(db: FingerprintDatabase):
     return rf_classifier, svm_classifier
 
 
-def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier):
-    """Test classification with noisy queries."""
+def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier,
+                       rng=None):
+    """Test classification with noisy queries.
+
+    Args:
+        db: Fingerprint database under test.
+        rf_classifier: Trained random-forest floor classifier.
+        svm_classifier: Trained SVM floor classifier.
+        rng: Generator for the query draws; defaults to a fresh seeded one.
+            Unseeded, the reported accuracies moved on every run, so the
+            committed figure could not be reproduced.
+    """
+    if rng is None:
+        rng = np.random.default_rng(DEFAULT_SEED)
     print("\n" + "=" * 70)
     print("Test 2: Robustness to Noise")
     print("=" * 70)
@@ -168,9 +193,9 @@ def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier):
         
         for _ in range(n_queries):
             # Random RP
-            rp_idx = np.random.randint(0, db.n_reference_points)
+            rp_idx = rng.integers(0, db.n_reference_points)
             true_loc = db.locations[rp_idx]
-            query = db.get_mean_features()[rp_idx] + np.random.randn(db.n_features) * noise_std
+            query = db.get_mean_features()[rp_idx] + rng.standard_normal(db.n_features) * noise_std
             floor_id = db.floor_ids[rp_idx]
             
             # RF classification
@@ -214,8 +239,15 @@ def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier):
     plt.close()
 
 
-def test_hierarchical_localization(db: FingerprintDatabase):
-    """Test hierarchical coarse-to-fine localization."""
+def test_hierarchical_localization(db: FingerprintDatabase, rng=None):
+    """Test hierarchical coarse-to-fine localization.
+
+    Args:
+        db: Fingerprint database under test.
+        rng: Generator for the query draws; defaults to a fresh seeded one.
+    """
+    if rng is None:
+        rng = np.random.default_rng(DEFAULT_SEED)
     print("\n" + "=" * 70)
     print("Test 3: Hierarchical Localization (Coarse -> Fine)")
     print("=" * 70)
@@ -227,8 +259,8 @@ def test_hierarchical_localization(db: FingerprintDatabase):
     true_floors = []
     
     for _ in range(n_queries):
-        rp_idx = np.random.randint(0, db.n_reference_points)
-        query = db.get_mean_features()[rp_idx] + np.random.randn(db.n_features) * 3.0
+        rp_idx = rng.integers(0, db.n_reference_points)
+        query = db.get_mean_features()[rp_idx] + rng.standard_normal(db.n_features) * 3.0
         queries.append(query)
         true_locs.append(db.locations[rp_idx])
         true_floors.append(db.floor_ids[rp_idx])
@@ -394,16 +426,19 @@ def main():
     print("  3. Hierarchical coarse-to-fine localization")
     
     # Create test database
-    db = create_multifloor_test_database()
+    # One generator for the whole run: the database and both query sets are
+    # then consecutive draws from a single seeded stream.
+    rng = np.random.default_rng(DEFAULT_SEED)
+    db = create_multifloor_test_database(rng=rng)
     
     # Test 1: Classification accuracy
     rf_classifier, svm_classifier = test_classification_accuracy(db)
     
     # Test 2: Robustness to noise
-    test_noisy_queries(db, rf_classifier, svm_classifier)
+    test_noisy_queries(db, rf_classifier, svm_classifier, rng=rng)
     
     # Test 3: Hierarchical localization
-    test_hierarchical_localization(db)
+    test_hierarchical_localization(db, rng=rng)
     
     print("\n" + "=" * 70)
     print("All demonstrations completed successfully!")

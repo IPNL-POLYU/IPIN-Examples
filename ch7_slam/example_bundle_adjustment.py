@@ -31,6 +31,7 @@ from matplotlib.animation import FuncAnimation, PillowWriter
 from pathlib import Path
 from typing import List, Tuple, Dict
 
+from core.eval import save_figure
 from core.slam import (
     CameraIntrinsics,
     se2_compose,
@@ -445,11 +446,11 @@ def plot_bundle_adjustment_results(
     
     plt.tight_layout()
     # Figures belong in the chapter's figs/ directory, not beside the source.
-    figs_dir = Path("ch7_slam/figs")
-    figs_dir.mkdir(parents=True, exist_ok=True)
-    output_file = figs_dir / "bundle_adjustment_results.png"
-    plt.savefig(output_file, dpi=150, bbox_inches="tight")
-    print(f"\n[OK] Saved figure: {output_file}")
+    # Resolved from this file rather than the working directory: the tests run
+    # the example from the repo root, but nothing here should depend on that.
+    figs_dir = Path(__file__).resolve().parent / "figs"
+    paths = save_figure(fig, figs_dir, "bundle_adjustment_results")
+    print(f"\n[OK] Saved figure: {paths[0]}")
     
     # Only show interactively if display available
     import os

@@ -13,9 +13,7 @@ from typing import Dict, Optional, Union
 import numpy as np
 
 
-def compute_position_errors(
-    truth: np.ndarray, estimated: np.ndarray
-) -> np.ndarray:
+def compute_position_errors(truth: np.ndarray, estimated: np.ndarray) -> np.ndarray:
     """
     Compute position errors between true and estimated positions.
 
@@ -40,7 +38,9 @@ def compute_position_errors(
     return estimated - truth
 
 
-def compute_rmse(errors: np.ndarray, axis: Optional[int] = None) -> Union[float, np.ndarray]:
+def compute_rmse(
+    errors: np.ndarray, axis: Optional[int] = None
+) -> Union[float, np.ndarray]:
     """
     Compute Root Mean Square Error (RMSE).
 
@@ -140,8 +140,7 @@ def compute_nees(
 
     if covariance.shape != (N, n, n):
         raise ValueError(
-            f"covariance must have shape ({N}, {n}, {n}), "
-            f"got {covariance.shape}"
+            f"covariance must have shape ({N}, {n}, {n}), " f"got {covariance.shape}"
         )
 
     nees = np.zeros(N)
@@ -187,9 +186,7 @@ def compute_nis(innovation: np.ndarray, S: np.ndarray) -> np.ndarray:
     N, m = innovation.shape
 
     if S.shape != (N, m, m):
-        raise ValueError(
-            f"S must have shape ({N}, {m}, {m}), got {S.shape}"
-        )
+        raise ValueError(f"S must have shape ({N}, {m}, {m}), got {S.shape}")
 
     nis = np.zeros(N)
     for i in range(N):
@@ -202,4 +199,93 @@ def compute_nis(innovation: np.ndarray, S: np.ndarray) -> np.ndarray:
     return nis
 
 
+def compute_position_rmse(errors: np.ndarray) -> float:
+    """
+    RMS of the position error *magnitude*.
 
+    Use this, not ``compute_rmse``, whenever the quantity being reported is a
+    position error. Handing ``compute_rmse`` the (N, 2) error vectors averages
+    over 2N components instead of N positions, which is the per-axis RMS and
+    is smaller by exactly sqrt(2). It fails silently: the number looks
+    plausible, just 29% too small. Four Chapter 8 examples reported position
+    RMSE that way, and one of them disagreed with its own figure -- the bar
+    chart said 18.02 m where the printed table said 12.74 m.
+
+    Args:
+        errors: Error vectors of shape (N, D), or magnitudes of shape (N,)
+            if already normed.
+
+    Returns:
+        sqrt(mean(|error|^2)) [m].
+    """
+    errors = np.asarray(errors, dtype=float)
+
+    if errors.ndim == 1:
+        magnitudes = np.abs(errors)
+    elif errors.ndim == 2:
+        magnitudes = np.linalg.norm(errors, axis=1)
+    else:
+        raise ValueError(
+            f"errors must be (N,) magnitudes or (N, D) vectors, got " f"{errors.shape}"
+        )
+
+    return float(np.sqrt(np.mean(magnitudes**2)))
+
+
+def path_length(positions: np.ndarray) -> float:
+    """
+    Total distance travelled along a path.
+
+    Args:
+        positions: Positions, shape (N, D). Any dimension; pass ``pos[:, :2]``
+            for the horizontal path.
+
+    Returns:
+        Sum of the distances between consecutive samples [m]. Zero for a
+        single sample or an empty array.
+    """
+    positions = np.asarray(positions, dtype=float)
+
+    if positions.ndim != 2:
+        raise ValueError(
+            f"positions must be 2-D of shape (N, D), got {positions.shape}"
+        )
+    if len(positions) < 2:
+        return 0.0
+
+    return float(np.sum(np.linalg.norm(np.diff(positions, axis=0), axis=1)))
+
+
+def motion_ratio(est: np.ndarray, truth: np.ndarray) -> float:
+    """
+    How far an estimator travelled, relative to the ground truth.
+
+    Guards against a degenerate estimator -- one that barely moves and so
+    scores well by accident. On a closed-loop ground truth (a path returning
+    to its start), *final position error* rewards standing still perfectly:
+    Chapter 6's comparison reported final errors of 0.32 m and 1.13 m for two
+    methods that had traced 0.5 m and 2.3 m against a 100 m walk, and the
+    example printed "90-95% error reduction" on that basis. RMSE does not
+    catch it either -- for a stationary estimate it merely measures the mean
+    distance of the truth from the start point.
+
+    A working estimator returns a ratio near 1. Well below 1 means it is not
+    moving; well above 1 means it is accumulating spurious motion, which is
+    the signature of an unaided integrator drifting.
+
+    Args:
+        est: Estimated positions, shape (N, D).
+        truth: Ground-truth positions, shape (M, D). Need not match ``est``
+            in length; only the traced distances are compared.
+
+    Returns:
+        ``path_length(est) / path_length(truth)``, or ``inf`` if the truth is
+        stationary while the estimate is not (0.0 if neither moves).
+    """
+    truth_distance = path_length(truth)
+    est_distance = path_length(est)
+
+    if truth_distance == 0.0:
+        return 0.0 if est_distance == 0.0 else float("inf")
+
+    return est_distance / truth_distance
