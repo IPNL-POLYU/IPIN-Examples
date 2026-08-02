@@ -1,0 +1,89 @@
+# Run the test suite, and prove a run leaves the repository alone.
+#
+# This repo's checks are mostly ratchets -- KNOWN_RAW_SAVEFIG,
+# KNOWN_UNSEEDED_RNG, KNOWN_DISCONTINUOUS, KNOWN_FROZEN,
+# FRONTEND_IS_KNOWN_NO_OP. Each lists the debt that exists today and fails on
+# anything new. Their entire value is that they run, and until this file there
+# was nothing making them run: the audit that emptied two of those lists was
+# merged on the strength of one contributor's local pytest.
+#
+# Author: Li-Ta Hsu
+
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# This repository hands workflow tokens write access by default
+# (default_workflow_permissions: write), which this job has no use for -- it
+# reads the code and runs pytest. Narrowing it here means a compromised package
+# pulled in during `pip install` cannot push to a public repo on the strength of
+# a token that happened to be lying around.
+permissions:
+  contents: read
+
+# A second push to the same PR makes the first run irrelevant. The suite is
+# ~10 minutes locally, so not cancelling wastes a lot of runner time.
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    # The suite takes ~10 min locally and several tests shell out to chapter
+    # examples, the slowest at ~135 s. This is a hang guard, not a budget --
+    # see tests/ch7_slam/slam_example_runner.py for why a tight limit here
+    # buys nothing and costs false failures.
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install
+        # Editable, matching how the examples are run locally, and via the
+        # declared dependencies rather than a hand-listed set -- so a
+        # dependency missing from pyproject.toml fails here rather than for
+        # the next reader who clones it.
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Run the suite
+        env:
+          MPLBACKEND: Agg
+        # -rs reports why each test skipped. The first run of this workflow
+        # went green having run 21 fewer tests than a developer machine, because
+        # an undeclared scikit-learn made a module skip itself. A green tick on
+        # a suite that quietly shrank is worse than a red one, so the skips are
+        # printed rather than merely counted.
+        run: python -m pytest -q -rs
+
+      - name: A test run must leave the working tree clean
+        # This repo spent real effort on a phantom: ch7_slam/figs/*.png kept
+        # reappearing in git status because the tests wrote their figures into
+        # the tracked directory, so every run manufactured a diff and everyone
+        # who noticed investigated it as if it were an edit. It is fixed --
+        # the SLAM runner points IPIN_FIGS_DIR at scratch -- and this step is
+        # what keeps it fixed.
+        #
+        # Untracked files count too: a figure written to a *new* path is the
+        # same defect and `git diff` alone would not see it.
+        run: |
+          if [ -n "$(git status --porcelain --untracked-files=all)" ]; then
+            echo "::error::The test run modified the working tree."
+            echo "Figures belong in IPIN_FIGS_DIR during tests, not in chX/figs."
+            git status --porcelain --untracked-files=all
+            git diff --stat
+            exit 1
+          fi
+          echo "Working tree clean."

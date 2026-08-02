@@ -35,6 +35,12 @@ dependencies = [
     "matplotlib>=3.3.0",
     "jupyter>=1.0.0",
     "tqdm>=4.62.0",
+    # Required by core/fingerprinting/classification.py, which raises
+    # ImportError without it, and so by ch5's example_classification. It was
+    # undeclared: it happened to be installed in the development environment,
+    # so nothing local noticed, while a reader installing from this file got a
+    # chapter example that could not run.
+    "scikit-learn>=1.0.0",
 ]
 
 [project.optional-dependencies]
