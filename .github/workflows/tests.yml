@@ -16,6 +16,14 @@ on:
   push:
     branches: [main]
 
+# This repository hands workflow tokens write access by default
+# (default_workflow_permissions: write), which this job has no use for -- it
+# reads the code and runs pytest. Narrowing it here means a compromised package
+# pulled in during `pip install` cannot push to a public repo on the strength of
+# a token that happened to be lying around.
+permissions:
+  contents: read
+
 # A second push to the same PR makes the first run irrelevant. The suite is
 # ~10 minutes locally, so not cancelling wastes a lot of runner time.
 concurrency:
