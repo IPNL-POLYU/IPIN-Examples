@@ -41,6 +41,7 @@ from ch6_dead_reckoning.example_comparison import (
     run_pdr,
     run_wheel_odom,
 )
+from core.eval import path_length
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -56,18 +57,6 @@ STEP_FREQ = 1.75
 # The rectangular walk the example defines: 30 x 20 m, closing on the start.
 TRUTH_PATH_M = 100.0
 WAYPOINTS = np.array([[30.0, 0.0], [30.0, 20.0], [0.0, 20.0], [0.0, 0.0]])
-
-
-def _horizontal_path_length(pos: np.ndarray) -> float:
-    """Total horizontal distance traced by a track.
-
-    Args:
-        pos: Positions, shape (N, 2) or (N, 3). Units: m.
-
-    Returns:
-        Sum of consecutive horizontal displacements. Units: m.
-    """
-    return float(np.sum(np.linalg.norm(np.diff(pos[:, :2], axis=0), axis=1)))
 
 
 class TestMotionProfiles(unittest.TestCase):
@@ -158,7 +147,7 @@ class TestMixedTrajectory(unittest.TestCase):
     def test_walk_follows_the_waypoints(self):
         """100 m rectangle, each corner reached, closing on the start."""
         self.assertAlmostEqual(
-            _horizontal_path_length(self.pos_true), TRUTH_PATH_M, delta=0.5
+            path_length(self.pos_true[:, :2]), TRUTH_PATH_M, delta=0.5
         )
         for waypoint in WAYPOINTS:
             distance = np.linalg.norm(self.pos_true[:, :2] - waypoint, axis=1)
@@ -358,7 +347,7 @@ class TestMethodsActuallyTrack(unittest.TestCase):
         """
         for name, pos in self.results.items():
             with self.subTest(method=name):
-                path = _horizontal_path_length(pos)
+                path = path_length(pos[:, :2])
                 self.assertGreater(
                     path, 0.5 * TRUTH_PATH_M,
                     f"{name} traced only {path:.2f} m of a "
@@ -441,7 +430,7 @@ class TestMethodsActuallyTrack(unittest.TestCase):
             with self.subTest(method=name):
                 self.assertAlmostEqual(
                     metrics[name]["path"],
-                    _horizontal_path_length(pos),
+                    path_length(pos[:, :2]),
                     places=6,
                 )
 

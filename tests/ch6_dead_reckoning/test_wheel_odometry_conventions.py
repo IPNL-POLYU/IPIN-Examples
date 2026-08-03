@@ -38,6 +38,7 @@ from ch6_dead_reckoning.example_wheel_odometry import (
     generate_vehicle_trajectory,
     run_wheel_odometry,
 )
+from core.eval import path_length
 from core.sensors import NavStateQPVP
 
 LEVER_ARM = np.array([1.5, 0.0, -0.3])
@@ -143,9 +144,6 @@ class TestSlipActuallySlips(unittest.TestCase):
             )
         clean = _track(self.t, clean_w, clean_g, self.truth, self.vel, self.quat)
         slipped = _track(self.t, slip_w, slip_g, self.truth, self.vel, self.quat)
-
-        def path_length(track):
-            return float(np.sum(np.linalg.norm(np.diff(track, axis=0), axis=1)))
 
         extra = path_length(slipped) - path_length(clean)
         self.assertGreater(extra, 6.0)
