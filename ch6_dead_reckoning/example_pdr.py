@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import Dict, Optional
 
-from core.eval import save_figure
+from core.eval import resolve_figs_dir, save_figure
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -833,40 +833,92 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print("  unbounded gyro drift named in the heading above is the smallest:")
     print(f"    1. Distance. PDR believes it walked {stepped:.1f} m against a "
           f"true {walked:.1f} m, {100 * (stepped / walked - 1):+.0f}%.")
+    # Both figures below are measured from the generated trajectory rather
+    # than assumed. An earlier version of this budget assumed a 0.5 m gait and
+    # divided the distance by it to get a "true" step count, which inverted
+    # the whole attribution: it blamed the step-length model and cleared the
+    # detector, when the measurements say the reverse.
+    walk_speed = np.linalg.norm(np.diff(pos_true[:, :2], axis=0), axis=1) / (t[1] - t[0])
+    moving = walk_speed > 0.05
+    walking_time = float(np.sum(moving)) * (t[1] - t[0])
+    true_step_len = float(np.mean(walk_speed[moving])) / 2.0
+    true_steps = int(round(walking_time * 2.0))
+
     print(f"       The detector found {steps_gyro} steps against a true "
-          f"{int(round(walked / 0.5))}, so detection is not the issue: "
-          f"Eq. (6.49)")
-    print(f"       returns {stepped / max(steps_gyro, 1):.3f} m per step for a "
-          f"{height:.2f} m walker at this cadence while the simulated gait "
-          f"uses 0.500 m.")
-    print(f"       The step-length model is simply uncalibrated for this "
-          f"walker.")
+          f"{true_steps}, so detection is most of it: the walk covers its "
+          f"{walked:.0f} m")
+    print(f"       in {walking_time:.1f} s at "
+          f"{float(np.mean(walk_speed[moving])):.2f} m/s and then stands still "
+          f"for the remaining {t[-1] - walking_time:.1f} s, while "
+          f"generate_corridor_walk")
+    print(f"       keeps emitting the same gait oscillation throughout. The "
+          f"detector faithfully counts those {steps_gyro - true_steps} phantom "
+          f"steps.")
+    print(f"       Eq. (6.49) returns "
+          f"{stepped / max(steps_gyro, 1):.3f} m per step against a simulated "
+          f"gait of {true_step_len:.3f} m -- "
+          f"{100 * (stepped / max(steps_gyro, 1) / true_step_len - 1):+.0f}%, "
+          f"so the step-length")
+    print(f"       model is nearly right. Detection alone accounts for most "
+          f"of the {100 * (stepped / walked - 1):+.0f}%: at the true step "
+          f"count the same model gives "
+          f"{true_steps * stepped / max(steps_gyro, 1):.1f} m.")
     print(f"    2. Heading. The gyro track ends {heading_drift_deg:.1f} deg "
           f"from truth, starting from the same "
           f"{np.degrees(heading_gyro[0]):.1f} deg, and that alone")
-    print(f"       accounts for most of the position error: scaling the step "
-          f"length back to the true 0.500 m still leaves about two thirds of "
-          f"it.")
+    print(f"       accounts for most of the position error: correcting the "
+          f"distance to the {true_steps} true steps still leaves about two "
+          f"thirds of it.")
     print(f"       Note what this is NOT. The realised gyro bias integrated "
-          f"over {t[-1]:.0f} s is worth well under a degree, so a "
+          f"over {t[-1]:.0f} s is worth about 1.2 deg, so a "
           f"{heading_drift_deg:.0f} deg")
-    print(f"       error is not bias drift. Where it does come from is not "
-          f"established here -- treat it as an open question rather than as "
-          f"the demonstration.")
+    print(f"       error is not bias drift. The cause is in the simulated "
+          f"trajectory, not in the estimator: generate_corridor_walk turns "
+          f"each")
+    print(f"       corner by 90 deg inside a single 0.01 s sample -- 9000 "
+          f"deg/s. The gyro forward model cannot carry a step that large, so "
+          f"the")
+    print(f"       *true* gyro signal integrates to only 162 deg over a walk "
+          f"whose heading actually comes all the way round to 360 deg. Any "
+          f"estimator")
+    print(f"       that integrates this gyro loses the missing ~198 deg, and "
+          f"that is the error above. Chapter 8 had the identical defect and "
+          f"the same")
+    print(f"       9000 deg/s: see tests/test_simulated_truth_is_physical.py, "
+          f"which was written for it but only checks stored data/sim "
+          f"datasets, so this")
+    print(f"       inline generator was never covered. Rounding these corners "
+          f"is the fix, and it will change every number on this page.")
     print()
-    print(f"Figures saved to: {figs_dir}/")
+    # Report where the figures actually went. save_figure resolves this
+    # internally through IPIN_FIGS_DIR, so printing the requested path made
+    # this line contradict the per-figure "[OK] Saved:" lines above it
+    # whenever the variable was set -- which is every test run.
+    print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
     print("="*70)
     print("KEY INSIGHT: Heading errors DOMINATE PDR accuracy -- but check")
-    print("             which heading error before calling it drift. Here the")
-    print("             gyro ends 163 deg from truth while its realised bias,")
-    print("             integrated over the whole 120 s, is worth under one")
-    print("             degree. So this run does not demonstrate bias drift,")
-    print("             and its cause is not established. The step-length")
-    print("             model is separately 49% off for this walker, worth")
-    print("             about a third of the position error. Magnetometer")
-    print("             gives an absolute heading; best practice is still a")
-    print("             complementary filter.")
+    print("             which heading error before calling it drift. The gyro")
+    print("             ends 163 deg from truth while its realised bias over")
+    print("             120 s is worth 1.2 deg, so this run does not show bias")
+    print("             drift. It shows something more useful: the simulated")
+    print("             corridor turns 90 deg inside one 0.01 s sample, the")
+    print("             gyro forward model cannot represent that, and so the")
+    print("             true gyro integrates to 162 deg on a walk whose")
+    print("             heading really comes round to 360. The estimator is")
+    print("             faithfully reporting a rotation the data never")
+    print("             contained. Check that a simulated truth is achievable")
+    print("             before reading an estimator's error as the estimator's")
+    print("             -- Chapter 8 lost 0.739 m to the identical defect.")
+    print("             The distance error has the same shape. The generator")
+    print("             walks for 85.7 s then stands still for 34.3 s while")
+    print("             still emitting gait acceleration, so the detector")
+    print("             counts 239 steps where 171 were taken. Eq. (6.49) is")
+    print("             only 7% off the simulated 0.700 m gait; the phantom")
+    print("             steps are the rest. Both causes are the trajectory,")
+    print("             not the algorithm.")
+    print("             Magnetometer gives an absolute heading; best practice")
+    print("             is still a complementary filter.")
     print("="*70)
     print("\nTip: Run with --data ch6_pdr_corridor_walk to use pre-generated dataset")
 
