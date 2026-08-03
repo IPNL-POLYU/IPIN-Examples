@@ -41,6 +41,20 @@ MAX_ACCEL_M_S2 = 5.0 * 9.81
 # deliberate change and not a side effect of adding this test.
 KNOWN_DISCONTINUOUS = {
     "ch6_foot_zupt_walk",
+    # Found by the text-dataset checks at the bottom of this file, on their
+    # first run -- the npz glob above had never looked at either.
+    #
+    # ch6_env_sensors_heading_altitude: 255.2 m/s^2, 26 g, at a peak speed of
+    # 51.05 m/s. That is 184 km/h in a dead-reckoning chapter, so the position
+    # is not merely jumpy, it is describing something that is not a pedestrian.
+    # Worth a look before anyone reads an accuracy off it.
+    #
+    # ch6_wheel_odom_square: 50.0 m/s^2, 5.1 g, at 5.00 m/s -- square corners
+    # on a wheeled platform, the same shape as Chapter 8's and this chapter's
+    # PDR corridor. Both left listed rather than fixed here: each needs its
+    # generator understood, and this change already regenerates one dataset.
+    "ch6_env_sensors_heading_altitude",
+    "ch6_wheel_odom_square",
 }
 
 
@@ -137,4 +151,88 @@ def test_position_and_velocity_agree(path):
     assert disagreement < 0.1 * scale, (
         f"{name}: stored velocity disagrees with d(position)/dt by "
         f"{disagreement:.3f} m/s against a peak speed of {scale:.2f} m/s."
+    )
+
+
+# ---------------------------------------------------------------------------
+# Text datasets.
+#
+# The checks above glob data/sim/*/truth.npz, which is how they missed the
+# defect they exist to catch. Chapter 6's PDR dataset ships plain .txt columns,
+# so it was never examined -- and its ground-truth position teleported 0.7477 m
+# within one 0.01 s sample at every step event, 170 times: 74.8 m/s, an implied
+# 190 g. A walker's foot lands periodically; the walker does not.
+#
+# Position only, because these files carry no stored velocity. Differentiating
+# twice is noisier than reading a v_xy, so the bound is looser -- this is a
+# smoke alarm for teleports, not a fidelity standard.
+# ---------------------------------------------------------------------------
+
+#: Datasets whose ground truth is stored as text columns rather than an npz.
+TEXT_TRUTH_GLOB = "data/sim/*/ground_truth_position.txt"
+
+
+def _text_truth_datasets():
+    """Every dataset storing its truth as text columns beside a time base."""
+    found = []
+    for path in sorted(glob.glob(os.path.join(REPO_ROOT, TEXT_TRUTH_GLOB))):
+        if os.path.exists(os.path.join(os.path.dirname(path), "time.txt")):
+            found.append(path)
+    return found
+
+
+@pytest.mark.parametrize("path", _text_truth_datasets(), ids=_dataset_name)
+def test_text_truth_position_is_achievable(path):
+    """Differentiating a stored position twice must not imply a teleport."""
+    name = _dataset_name(path)
+    directory = os.path.dirname(path)
+
+    t = np.loadtxt(os.path.join(directory, "time.txt"))
+    p_xy = np.loadtxt(path)[:, :2]
+
+    if name in KNOWN_DISCONTINUOUS:
+        pytest.skip(f"known pre-existing discontinuity ({name})")
+
+    velocity = np.gradient(p_xy, t, axis=0)
+    accel = np.linalg.norm(np.gradient(velocity, t, axis=0), axis=1).max()
+
+    assert accel < MAX_ACCEL_M_S2, (
+        f"{name} implies {accel:.1f} m/s^2 ({accel / 9.81:.1f} g) from its "
+        f"stored position alone, at a peak speed of "
+        f"{np.linalg.norm(velocity, axis=1).max():.2f} m/s. Ground truth that "
+        f"jumps gives every estimator a sawtooth error it did not cause."
+    )
+
+
+@pytest.mark.parametrize("path", _text_truth_datasets(), ids=_dataset_name)
+def test_text_truth_heading_matches_its_gyro(path):
+    """A stored gyro must integrate to the stored heading.
+
+    Chapter 6's inline PDR generator failed exactly this -- corners turned
+    inside one sample, so the true gyro integrated to 162 deg over a lap whose
+    heading came round to 360, and the 198 deg shortfall was reported as the
+    estimator's heading error for as long as the example existed. The stored
+    dataset passes; the check is here so that a regenerated one cannot quietly
+    stop passing.
+    """
+    name = _dataset_name(path)
+    directory = os.path.dirname(path)
+    gyro_path = os.path.join(directory, "gyro_clean.txt")
+    heading_path = os.path.join(directory, "ground_truth_heading.txt")
+
+    if not (os.path.exists(gyro_path) and os.path.exists(heading_path)):
+        pytest.skip(f"{name} carries no clean gyro or heading")
+
+    t = np.loadtxt(os.path.join(directory, "time.txt"))
+    gyro_z = np.loadtxt(gyro_path)[:, 2]
+    heading = np.unwrap(np.loadtxt(heading_path))
+
+    integrated = float(np.sum(gyro_z) * (t[1] - t[0]))
+    travelled = float(heading[-1] - heading[0])
+
+    assert np.degrees(abs(integrated - travelled)) < 5.0, (
+        f"{name}: integrating the clean gyro gives "
+        f"{np.degrees(integrated):.1f} deg against {np.degrees(travelled):.1f} "
+        f"deg of stored heading change. They must agree, or every estimator "
+        f"that integrates this gyro is charged for the difference."
     )

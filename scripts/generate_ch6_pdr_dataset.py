@@ -92,6 +92,7 @@ def generate_corridor_walk(
     gyro = np.zeros((N, 3))
     mag = np.zeros((N, 3))
     heading = np.zeros(N)
+    speed_profile = np.zeros(N)
     step_times = []
 
     # Initial state
@@ -124,9 +125,9 @@ def generate_corridor_walk(
                 step_times.append(current_time)
                 time_since_last_step = 0.0
 
-                # Move forward
-                x += step_len * np.cos(yaw)
-                y += step_len * np.sin(yaw)
+                # The step event itself: the accelerometer spike below and
+                # the entry in step_times. Position is advanced continuously
+                # outside this branch -- see the note there.
 
                 # Acceleration spike during step (vertical + forward)
                 accel[i, 0] = 1.5 * np.cos(yaw)  # Forward acceleration
@@ -153,9 +154,7 @@ def generate_corridor_walk(
                 step_times.append(current_time)
                 time_since_last_step = 0.0
 
-                # Smaller step during turn
-                x += step_len * 0.6 * np.cos(yaw)
-                y += step_len * 0.6 * np.sin(yaw)
+                # As above: the event, not the displacement.
 
                 accel[i, 0] = 1.0 * np.cos(yaw)
                 accel[i, 1] = 1.0 * np.sin(yaw)
@@ -172,8 +171,30 @@ def generate_corridor_walk(
             time_in_leg = 0.0
             yaw = current_leg * (np.pi / 2)
 
+        # Advance the ground truth continuously.
+        #
+        # Position used to move only at step events, jumping 0.7477 m within
+        # one 0.01 s sample -- 74.8 m/s, an implied 190 g, 170 times over the
+        # record. A walker does not teleport between footfalls: the foot lands
+        # periodically, the body does not. Ground truth that steps like this
+        # gives every estimator a sawtooth error it cannot follow and did not
+        # cause, which is the same mistake as Chapter 8's square corners and
+        # this chapter's own inline generator.
+        #
+        # The mean speed is unchanged -- the same distance per step period --
+        # so the walk and its step count are the same; only the motion between
+        # footfalls is now continuous.
+        # Speed is recorded per sample and smoothed after the loop: a walker
+        # slows into a turn rather than changing pace between two samples, and
+        # switching abruptly left a 4.6 g step at each of the four gait
+        # changes -- smaller than the teleport, the same kind of defect.
+        speed_profile[i] = (
+            0.6 * step_len / (step_period * 1.5)
+            if is_turning
+            else step_len / step_period
+        )
+
         # Store state
-        pos[i] = [x, y]
         heading[i] = yaw
 
         # Magnetometer (points North in map frame)
@@ -181,6 +202,18 @@ def generate_corridor_walk(
         mag[i, 0] = np.cos(-yaw)
         mag[i, 1] = np.sin(-yaw)
         mag[i, 2] = 0.0
+
+    # Smooth the gait changes over half a second, then integrate to position.
+    # A walker slows into a turn rather than changing pace between two
+    # samples; switching abruptly left a 4.6 g step at each of the four gait
+    # changes -- smaller than the teleport this replaced, but the same defect.
+    window = max(int(round(0.5 / dt)), 1)
+    speed_smooth = np.convolve(speed_profile, np.ones(window) / window, mode="same")
+    step_xy = np.column_stack([
+        speed_smooth * np.cos(heading),
+        speed_smooth * np.sin(heading),
+    ]) * dt
+    pos = np.cumsum(step_xy, axis=0) - step_xy[0]
 
     return t, pos, accel, gyro, mag, heading, step_times
 

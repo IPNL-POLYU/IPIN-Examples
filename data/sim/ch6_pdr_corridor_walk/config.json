@@ -1,11 +1,11 @@
 {
   "dataset": "ch6_pdr",
-  "preset": "baseline",
+  "preset": null,
   "trajectory": {
     "type": "corridor_walk",
     "num_legs": 4,
     "leg_length_m": 30.0,
-    "total_distance_m": 124.11321999999994,
+    "total_distance_m": 124.24929593999695,
     "duration_s": 87.99
   },
   "pedestrian": {
@@ -17,23 +17,23 @@
   "sample_rate_hz": 100.0,
   "num_samples": 8800,
   "sensors": {
-    "accel_noise_std_m_s2": 0.15,
-    "gyro_noise_std_rad_s": 0.005,
-    "gyro_bias_rad_s": 0.002,
-    "mag_noise_std": 0.05
+    "accel_noise_std_m_s2": 0.2,
+    "gyro_noise_std_rad_s": 0.01,
+    "gyro_bias_rad_s": 0.005,
+    "mag_noise_std": 0.1
   },
   "performance": {
     "gyro_heading": {
       "steps_detected": 170,
-      "final_error_m": 3.531496461838327,
-      "mean_error_m": 1.6419012915750186
+      "final_error_m": 8.664246305485255,
+      "mean_error_m": 4.293223631074608
     },
     "mag_heading": {
       "steps_detected": 170,
-      "final_error_m": 1.2780440401211477,
-      "mean_error_m": 32.44461585857497
+      "final_error_m": 2.132297785679398,
+      "mean_error_m": 33.15208577713203
     },
-    "improvement_factor": 2.763204045381387
+    "improvement_factor": 4.063337852562011
   },
   "equations": [
     "6.46",
