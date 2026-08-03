@@ -53,6 +53,17 @@ from core.sim import generate_imu_from_trajectory
 # figures can be regenerated exactly; see the noise function below.
 DEFAULT_SEED = 42
 
+#: Radius of the corridor corners, m. Zero would restore the 9000 deg/s step
+#: that made the true gyro unusable; 2 m turns at v/r = 40 deg/s, which is
+#: brisk for a pedestrian but achievable, and keeps the lap close to its
+#: nominal 120 m.
+CORNER_RADIUS_M = 2.0
+
+#: Distance over which the walker decelerates to a halt at the end of the lap,
+#: m. Stopping dead from 1.4 m/s inside one sample implied 7 g -- the same
+#: unphysical step the rounded corners removed, just at the end of the record.
+BRAKE_DISTANCE_M = 1.0
+
 def compute_step_length(
     height: float,
     f_step: float,
@@ -381,60 +392,96 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     t = np.arange(0, duration, dt)
     N = len(t)
     
-    # Corridor: 40m x 20m rectangle
-    waypoints = np.array([
-        [0, 0], [40, 0], [40, 20], [0, 20], [0, 0]  # Rectangle + return to start
-    ])
-    
-    # Walking speed
+    # Corridor: 40m x 20m rectangle, walked counter-clockwise, with each
+    # corner cut by a quarter-circle of CORNER_RADIUS_M.
+    #
+    # The rounding is not cosmetic. Square corners turned the heading 90 deg
+    # between two 0.01 s samples -- 9000 deg/s. The gyro forward model cannot
+    # represent a step that large, so the *true* gyro integrated to only
+    # 162 deg over a lap whose heading comes all the way round to 360, and any
+    # estimator integrating it lost the missing 198 deg. That was the whole of
+    # this example's reported heading error: the estimator was faithfully
+    # reporting a rotation the data never contained. Chapter 8 had the
+    # identical defect at the identical 9000 deg/s.
+    #
+    # Parameterised by arc length rather than by waypoint index, so heading is
+    # continuous by construction and its rate is v/r on the arcs -- about
+    # 40 deg/s here, which a pedestrian can actually turn.
+    width, height_m = 40.0, 20.0
+    r = CORNER_RADIUS_M
     v_walk = 1.4  # m/s (typical walking speed)
-    
-    # Generate trajectory (2D horizontal + z=0)
-    # NOTE FOR STUDENTS: This corridor trajectory has headings that CHANGE at each
-    # corner (East → North → West → South). The heading is computed from the
-    # direction between waypoints, not preset. This tests PDR's ability to handle
-    # 90° turns, which is critical for indoor navigation!
+
+    # (kind, length, data): straights alternate with quarter-circle arcs.
+    # Arc data is (centre, start_angle); the walk turns left at every corner.
+    straight_x, straight_y = width - 2 * r, height_m - 2 * r
+    quarter = 0.5 * np.pi * r
+    segments = [
+        ("line", straight_x, (np.array([r, 0.0]), 0.0)),
+        ("arc", quarter, (np.array([width - r, r]), -0.5 * np.pi)),
+        ("line", straight_y, (np.array([width, r]), 0.5 * np.pi)),
+        ("arc", quarter, (np.array([width - r, height_m - r]), 0.0)),
+        ("line", straight_x, (np.array([width - r, height_m]), np.pi)),
+        ("arc", quarter, (np.array([r, height_m - r]), 0.5 * np.pi)),
+        ("line", straight_y, (np.array([0.0, height_m - r]), 1.5 * np.pi)),
+        ("arc", quarter, (np.array([r, r]), np.pi)),
+    ]
+    total_length = sum(seg[1] for seg in segments)
+
     pos_2d = np.zeros((N, 2))
     heading_true = np.zeros(N)
     vel_2d = np.zeros((N, 2))
-    
-    # Distribute time across segments
-    segment_lengths = np.linalg.norm(np.diff(waypoints, axis=0), axis=1)
-    segment_times = segment_lengths / v_walk
-    
-    current_time = 0
-    current_wp = 0
-    
+
+    # Distance travelled by time t, with a braking phase so the walk does not
+    # stop dead. Rounding the corners and then halting from 1.4 m/s inside one
+    # sample would leave the same defect at a different point in the record:
+    # that stop implied 70 m/s^2, 7 g, and it was the only sample left above
+    # 1 g once the corners were fixed. Decelerating over BRAKE_DISTANCE_M
+    # costs v^2 / (2 d) = 0.98 m/s^2, the same as the corners themselves.
+    cruise_length = total_length - BRAKE_DISTANCE_M
+    t_cruise = cruise_length / v_walk
+    decel = v_walk ** 2 / (2.0 * BRAKE_DISTANCE_M)
+    t_brake = v_walk / decel
+
+    def distance_at(time_s):
+        """Arc length travelled at ``time_s``, cruising then braking."""
+        if time_s <= t_cruise:
+            return v_walk * time_s
+        tau = min(time_s - t_cruise, t_brake)
+        return cruise_length + v_walk * tau - 0.5 * decel * tau ** 2
+
+    starts = np.cumsum([0.0] + [seg[1] for seg in segments])
     for k in range(N):
-        if current_wp >= len(waypoints) - 1:
-            # Finished, stay at final position
-            pos_2d[k] = waypoints[-1]
-            heading_true[k] = heading_true[k-1] if k > 0 else 0
+        s = distance_at(t[k])
+        if s >= total_length:
+            # Lap complete: hold the final pose.
+            pos_2d[k] = pos_2d[k - 1] if k > 0 else np.array([r, 0.0])
+            heading_true[k] = heading_true[k - 1] if k > 0 else 0.0
             continue
-        
-        # Time within current segment
-        t_seg = t[k] - current_time
-        
-        if t_seg >= segment_times[current_wp]:
-            # Move to next waypoint
-            current_time += segment_times[current_wp]
-            current_wp += 1
-            if current_wp >= len(waypoints) - 1:
-                pos_2d[k] = waypoints[-1]
-                continue
-            t_seg = 0
-        
-        # Interpolate along current segment
-        alpha = t_seg / segment_times[current_wp]
-        pos_2d[k] = (1-alpha) * waypoints[current_wp] + alpha * waypoints[current_wp+1]
-        
-        # Heading
-        delta = waypoints[current_wp+1] - waypoints[current_wp]
-        heading_true[k] = np.arctan2(delta[1], delta[0])
-        
-        # Velocity
-        vel_2d[k] = v_walk * np.array([np.cos(heading_true[k]), np.sin(heading_true[k])])
-    
+
+        i = int(np.searchsorted(starts, s, side="right") - 1)
+        kind, seg_len, (anchor, phase) = segments[i]
+        local = s - starts[i]
+
+        if kind == "line":
+            direction = np.array([np.cos(phase), np.sin(phase)])
+            pos_2d[k] = anchor + local * direction
+            heading_true[k] = phase
+        else:
+            angle = phase + local / r  # left turn: angle advances with s
+            pos_2d[k] = anchor + r * np.array([np.cos(angle), np.sin(angle)])
+            heading_true[k] = angle + 0.5 * np.pi  # tangent, turning left
+
+        # Speed follows the profile, so velocity stays the derivative of
+        # position through the braking phase too.
+        speed = v_walk if t[k] <= t_cruise else max(
+            v_walk - decel * (t[k] - t_cruise), 0.0
+        )
+        vel_2d[k] = speed * np.array([
+            np.cos(heading_true[k]), np.sin(heading_true[k])
+        ])
+
+    heading_true = np.unwrap(heading_true)
+
     # Convert to 3D trajectory (z=0, vz=0)
     pos_map = np.column_stack([pos_2d, np.zeros(N)])
     vel_map = np.column_stack([vel_2d, np.zeros(N)])
@@ -451,12 +498,29 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     # Walking creates periodic vertical accelerations at step frequency
     # Amplitude: ~2-3 m/s² (typical for walking)
     walking_accel_amplitude = 2.5  # m/s²
-    walking_accel_z = walking_accel_amplitude * np.sin(2 * np.pi * step_freq * t)
-    
+
+    # Only while actually walking. The oscillation used to run for the whole
+    # record, including the 36 s the walker spends standing still after the
+    # lap closes, so the step detector faithfully counted about 73 steps that
+    # were never taken -- and the example blamed the step-length model for the
+    # distance error those phantom steps caused.
+    #
+    # Ramped rather than switched off, over one step period: a step in the
+    # vertical acceleration is the same kind of unphysical discontinuity as
+    # the square corners this generator used to have.
+    walking = (v_walk * t) < total_length
+    ramp = np.clip((total_length - v_walk * t) * step_freq / v_walk, 0.0, 1.0)
+    gait_envelope = np.where(walking, ramp, 0.0)
+
     # Modify velocity to include these oscillations (integrate accel)
     # This is a simplified model - real walking has complex 3D motion
     vel_map_with_steps = vel_map.copy()
-    vel_map_with_steps[:, 2] += walking_accel_amplitude / (2 * np.pi * step_freq) * np.cos(2 * np.pi * step_freq * t)
+    vel_map_with_steps[:, 2] += (
+        gait_envelope
+        * walking_accel_amplitude
+        / (2 * np.pi * step_freq)
+        * np.cos(2 * np.pi * step_freq * t)
+    )
     
     # Generate IMU measurements using correct forward model
     accel_body, gyro_body = generate_imu_from_trajectory(
@@ -483,11 +547,10 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
         ])
         mag_body[k] = C_yaw.T @ mag_north_map
     
-    # Compute expected number of steps based on trajectory
-    # Total walking time * step frequency = number of steps
-    total_distance = np.sum(segment_lengths)
-    walking_time = total_distance / v_walk
-    expected_steps = int(walking_time * step_freq)
+    # Steps actually taken: the walker is only moving until the lap closes at
+    # total_length / v_walk, and stands still afterwards.
+    walking_time = min(total_length / v_walk, duration)
+    expected_steps = int(round(walking_time * step_freq))
     
     return t, pos_2d, heading_true, accel_body, gyro_body, mag_body, expected_steps
 
@@ -825,70 +888,61 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
 
     walked = path_length(pos_true[:, :2])
     stepped = path_length(pos_gyro[:, :2])
+    # Shortest angular difference. Subtracting raw angles compares a wrapped
+    # estimate against a truth that now runs continuously to 360 deg over the
+    # lap, which reported a 1.2 deg error as 358.8.
     heading_drift_deg = float(
-        np.degrees(np.abs(heading_gyro[-1] - heading_true[-1]))
+        np.degrees(
+            np.abs(
+                np.arctan2(
+                    np.sin(heading_gyro[-1] - heading_true[-1]),
+                    np.cos(heading_gyro[-1] - heading_true[-1]),
+                )
+            )
+        )
     )
 
-    print("  Where the error comes from -- three separate causes, and the")
-    print("  unbounded gyro drift named in the heading above is the smallest:")
-    print(f"    1. Distance. PDR believes it walked {stepped:.1f} m against a "
-          f"true {walked:.1f} m, {100 * (stepped / walked - 1):+.0f}%.")
-    # Both figures below are measured from the generated trajectory rather
-    # than assumed. An earlier version of this budget assumed a 0.5 m gait and
-    # divided the distance by it to get a "true" step count, which inverted
-    # the whole attribution: it blamed the step-length model and cleared the
-    # detector, when the measurements say the reverse.
+    # Measured from the trajectory rather than assumed. An earlier version of
+    # this budget divided the distance by an assumed 0.5 m gait to get a
+    # "true" step count, which inverted the attribution entirely.
     walk_speed = np.linalg.norm(np.diff(pos_true[:, :2], axis=0), axis=1) / (t[1] - t[0])
     moving = walk_speed > 0.05
     walking_time = float(np.sum(moving)) * (t[1] - t[0])
     true_step_len = float(np.mean(walk_speed[moving])) / 2.0
     true_steps = int(round(walking_time * 2.0))
+    final_gyro = float(error_gyro[-1])
 
-    print(f"       The detector found {steps_gyro} steps against a true "
-          f"{true_steps}, so detection is most of it: the walk covers its "
-          f"{walked:.0f} m")
-    print(f"       in {walking_time:.1f} s at "
-          f"{float(np.mean(walk_speed[moving])):.2f} m/s and then stands still "
-          f"for the remaining {t[-1] - walking_time:.1f} s, while "
-          f"generate_corridor_walk")
-    print(f"       keeps emitting the same gait oscillation throughout. The "
-          f"detector faithfully counts those {steps_gyro - true_steps} phantom "
-          f"steps.")
-    print(f"       Eq. (6.49) returns "
-          f"{stepped / max(steps_gyro, 1):.3f} m per step against a simulated "
-          f"gait of {true_step_len:.3f} m -- "
-          f"{100 * (stepped / max(steps_gyro, 1) / true_step_len - 1):+.0f}%, "
-          f"so the step-length")
-    print(f"       model is nearly right. Detection alone accounts for most "
-          f"of the {100 * (stepped / walked - 1):+.0f}%: at the true step "
-          f"count the same model gives "
-          f"{true_steps * stepped / max(steps_gyro, 1):.1f} m.")
-    print(f"    2. Heading. The gyro track ends {heading_drift_deg:.1f} deg "
-          f"from truth, starting from the same "
-          f"{np.degrees(heading_gyro[0]):.1f} deg, and that alone")
-    print(f"       accounts for most of the position error: correcting the "
-          f"distance to the {true_steps} true steps still leaves about two "
-          f"thirds of it.")
-    print(f"       Note what this is NOT. The realised gyro bias integrated "
-          f"over {t[-1]:.0f} s is worth about 1.2 deg, so a "
-          f"{heading_drift_deg:.0f} deg")
-    print(f"       error is not bias drift. The cause is in the simulated "
-          f"trajectory, not in the estimator: generate_corridor_walk turns "
-          f"each")
-    print(f"       corner by 90 deg inside a single 0.01 s sample -- 9000 "
-          f"deg/s. The gyro forward model cannot carry a step that large, so "
-          f"the")
-    print(f"       *true* gyro signal integrates to only 162 deg over a walk "
-          f"whose heading actually comes all the way round to 360 deg. Any "
-          f"estimator")
-    print(f"       that integrates this gyro loses the missing ~198 deg, and "
-          f"that is the error above. Chapter 8 had the identical defect and "
-          f"the same")
-    print(f"       9000 deg/s: see tests/test_simulated_truth_is_physical.py, "
-          f"which was written for it but only checks stored data/sim "
-          f"datasets, so this")
-    print(f"       inline generator was never covered. Rounding these corners "
-          f"is the fix, and it will change every number on this page.")
+    print("  Where the error comes from, now that the trajectory is one a")
+    print("  pedestrian could actually walk:")
+    print(f"    1. Step length, and that is essentially all of it. PDR "
+          f"believes it walked {stepped:.1f} m against a true {walked:.1f} m, "
+          f"{100 * (stepped / walked - 1):+.0f}%.")
+    print(f"       Detection is sound -- {steps_gyro} steps found against "
+          f"{true_steps} taken, within {abs(steps_gyro - true_steps)} -- so "
+          f"the gap is the model: Eq. (6.49) returns "
+          f"{stepped / max(steps_gyro, 1):.3f} m")
+    print(f"       per step for a {height:.2f} m walker at this cadence while "
+          f"the simulated gait is {true_step_len:.3f} m. Step length is the "
+          f"parameter PDR is")
+    print(f"       most sensitive to, and it is the one a real deployment has "
+          f"to calibrate per user.")
+    print(f"    2. Heading. The gyro ends {heading_drift_deg:.1f} deg from "
+          f"truth, which is its realised bias integrated over {t[-1]:.0f} s "
+          f"and nothing else.")
+    print(f"       That is what drift at this grade actually looks like. It "
+          f"used to read 163 deg and none of it was drift: this generator "
+          f"turned each")
+    print(f"       corner 90 deg inside one 0.01 s sample -- 9000 deg/s -- "
+          f"which the gyro forward model cannot represent, so the *true* gyro")
+    print(f"       integrated to 162 deg over a lap whose heading comes round "
+          f"to 360. The estimator was faithfully reporting a rotation the "
+          f"data never")
+    print(f"       contained. Chapter 8 had the identical defect at the "
+          f"identical 9000 deg/s. The corners are rounded now "
+          f"({CORNER_RADIUS_M:.0f} m, {np.degrees(1.4 / CORNER_RADIUS_M):.0f} deg/s),")
+    print(f"       and the gait oscillation no longer runs through the "
+          f"{t[-1] - walking_time:.0f} s of standing still that was worth 73 "
+          f"phantom steps. Final error: 80.7 m -> {final_gyro:.1f} m.")
     print()
     # Report where the figures actually went. save_figure resolves this
     # internally through IPIN_FIGS_DIR, so printing the requested path made
@@ -897,28 +951,22 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
     print("="*70)
-    print("KEY INSIGHT: Heading errors DOMINATE PDR accuracy -- but check")
-    print("             which heading error before calling it drift. The gyro")
-    print("             ends 163 deg from truth while its realised bias over")
-    print("             120 s is worth 1.2 deg, so this run does not show bias")
-    print("             drift. It shows something more useful: the simulated")
-    print("             corridor turns 90 deg inside one 0.01 s sample, the")
-    print("             gyro forward model cannot represent that, and so the")
-    print("             true gyro integrates to 162 deg on a walk whose")
-    print("             heading really comes round to 360. The estimator is")
-    print("             faithfully reporting a rotation the data never")
-    print("             contained. Check that a simulated truth is achievable")
-    print("             before reading an estimator's error as the estimator's")
-    print("             -- Chapter 8 lost 0.739 m to the identical defect.")
-    print("             The distance error has the same shape. The generator")
-    print("             walks for 85.7 s then stands still for 34.3 s while")
-    print("             still emitting gait acceleration, so the detector")
-    print("             counts 239 steps where 171 were taken. Eq. (6.49) is")
-    print("             only 7% off the simulated 0.700 m gait; the phantom")
-    print("             steps are the rest. Both causes are the trajectory,")
-    print("             not the algorithm.")
-    print("             Magnetometer gives an absolute heading; best practice")
-    print("             is still a complementary filter.")
+    print("KEY INSIGHT: Check that a simulated truth is achievable before")
+    print("             reading an estimator's error as the estimator's. This")
+    print("             example reported 80.7 m and blamed unbounded gyro")
+    print("             drift. The drift was 1.2 deg. The 163 deg it actually")
+    print("             showed came from corners the trajectory turned in one")
+    print("             0.01 s sample -- 9000 deg/s, which no gyro can encode")
+    print("             -- so the estimator was faithfully reporting a")
+    print("             rotation the data never contained. Chapter 8 lost")
+    print("             0.739 m to the identical defect.")
+    print("             With the corners rounded and the gait signal stopped")
+    print("             while standing still, PDR closes a 117 m lap to 1.4 m.")
+    print("             What remains is step length: Eq. (6.49) gives 0.748 m")
+    print("             against a 0.700 m gait, and that 7% is the whole")
+    print("             residual. Step length is what a real deployment must")
+    print("             calibrate per user; heading matters too, which is why")
+    print("             best practice is still a complementary filter.")
     print("="*70)
     print("\nTip: Run with --data ch6_pdr_corridor_walk to use pre-generated dataset")
 
