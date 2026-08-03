@@ -26,6 +26,7 @@ import numpy as np
 
 from ch6_dead_reckoning.example_comparison import (
     DEFAULT_SEED,
+    LEVER_ARM_A,
     add_sensor_noise,
     generate_mixed_trajectory,
     run_imu_only,
@@ -90,7 +91,7 @@ class TestMethodsActuallyMove(unittest.TestCase):
             "IMU Only": run_imu_only(t, accel, gyro, initial, frame)[:, :2],
             "IMU + ZUPT": zupt_pos[:, :2],
             "Wheel Odom": run_wheel_odom(
-                t, wheel, gyro, initial, np.array([1.0, 0.0, -0.2])
+                t, wheel, gyro, initial, LEVER_ARM_A
             )[:, :2],
             "PDR (Mag)": pdr_pos[:, :2],
         }
