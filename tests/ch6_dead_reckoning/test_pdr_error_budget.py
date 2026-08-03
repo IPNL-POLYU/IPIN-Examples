@@ -1,15 +1,20 @@
 """What Chapter 6's PDR example claims about where its error comes from.
 
 The example prints an error budget rather than a single accuracy figure, and
-auditing it showed the budget had two of its three causes wrong. Both real
-causes are in ``generate_corridor_walk`` rather than in the PDR algorithm:
-the corners turn 90 degrees inside one sample, and the gait oscillation keeps
-running through 34 s of standing still.
+auditing it showed the budget had two of its three causes wrong, and both were
+in ``generate_corridor_walk`` rather than in the PDR algorithm: the corners
+turned 90 degrees inside one 0.01 s sample, and the gait oscillation kept
+running through 36 s of standing still. Both are fixed -- corners rounded to
+CORNER_RADIUS_M, gait gated on motion -- and the final error went from 80.7 m
+to 1.4 m over a 117 m lap.
 
-These tests pin the measurements that attribution rests on. Rounding the
-corners or stopping the gait signal is the real fix, and it will move every
-number the example prints -- so it should turn the suite red and be made
-deliberately rather than drifting in.
+These tests now guard the fixed state: that the truth stays achievable, that
+the gyro remains consistent with the heading it is supposed to encode, and
+that what is left is the step-length model rather than an artefact.
+
+The earlier version of this file pinned the *broken* state on the KNOWN_FROZEN
+pattern, and it did its job: making the fix turned four of these tests red, so
+the change could not land silently and the example's prose had to move with it.
 
 The same shape as KNOWN_FROZEN and FRONTEND_IS_KNOWN_NO_OP: assert the
 limitation *persists*, so its disappearance is an event rather than a silence.
@@ -84,7 +89,7 @@ def pdr_run():
 class TestTheErrorBudgetAddsUp:
     """Each numbered cause in the printed budget, checked separately."""
 
-    def test_the_detector_counts_phantom_steps(self):
+    def test_the_walk_and_gait_are_consistent(self):
         """239 found against 171 taken -- and that is most of the error.
 
         The budget used to say the opposite, having assumed a 0.5 m gait and
@@ -102,10 +107,9 @@ class TestTheErrorBudgetAddsUp:
         moving = speed > 0.05
         walking_time = float(np.sum(moving)) * DT_S
 
-        assert walking_time == pytest.approx(85.7, abs=2.0), (
-            f"the walk now occupies {walking_time:.1f} s of {DURATION_S:.0f}. "
-            f"If the generator no longer stops early, the phantom steps are "
-            f"gone and the distance budget needs rewriting."
+        assert walking_time == pytest.approx(83.3, abs=2.0), (
+            f"the lap now takes {walking_time:.1f} s. Rounding changed its "
+            f"length; if that moved again, the printed budget moves too."
         )
         assert float(np.mean(speed[moving])) / STEP_FREQ_HZ == pytest.approx(
             0.700, abs=0.02
@@ -121,9 +125,9 @@ class TestTheErrorBudgetAddsUp:
         believed = path_length(pdr_run["pos_gyro"][:, :2])
 
         assert 115.0 < walked < 125.0, f"truth walked {walked:.1f} m"
-        assert 1.35 < believed / walked < 1.65, (
+        assert 1.02 < believed / walked < 1.12, (
             f"PDR traced {believed:.1f} m against {walked:.1f} m walked, a "
-            f"ratio of {believed / walked:.2f}. The example says +49%."
+            f"ratio of {believed / walked:.2f}. The example says +7%, all of it the step-length model."
         )
 
     def test_the_step_length_model_disagrees_with_the_simulated_gait(self):
@@ -157,12 +161,11 @@ class TestTheHeadingErrorComesFromTheTrajectory:
             )
         )
 
-        assert final_error_deg > 100.0, (
-            f"the gyro heading now ends {final_error_deg:.1f} deg from truth, "
-            f"not the ~163 deg the example describes. If this was fixed "
-            f"deliberately, the error budget and KEY INSIGHT in "
-            f"example_pdr.py both describe a run that no longer happens and "
-            f"must be rewritten."
+        assert final_error_deg < 5.0, (
+            f"the gyro heading ends {final_error_deg:.1f} deg from truth. It "
+            f"should now be about 1.2 deg -- the realised bias and nothing "
+            f"else. A large value means the trajectory has become "
+            f"unrepresentable by the gyro again."
         )
 
     def test_the_realised_bias_does_not_explain_it(self, pdr_run):
@@ -213,16 +216,20 @@ class TestTheHeadingErrorComesFromTheTrajectory:
         )
         heading_travelled_deg = abs(np.degrees(heading[-1] - heading[0]))
 
-        assert np.abs(turn_rate_deg_s).max() > 1000, (
-            "the corridor's corners are no longer instantaneous. If they were "
-            "rounded deliberately, the heading error should have collapsed and "
-            "this example's error budget needs rewriting."
+        assert np.abs(turn_rate_deg_s).max() < 180.0, (
+            f"the corridor turns at {np.abs(turn_rate_deg_s).max():.0f} deg/s. "
+            f"A pedestrian manages well under 180; above that the gyro forward "
+            f"model cannot encode the rotation and the estimator will be "
+            f"blamed for losing it."
         )
         assert heading_travelled_deg == pytest.approx(360.0, abs=1.0)
-        assert integrated_true_gyro_deg == pytest.approx(162.0, abs=10.0), (
+        assert integrated_true_gyro_deg == pytest.approx(
+            heading_travelled_deg, abs=1.0
+        ), (
             f"the true gyro integrates to {integrated_true_gyro_deg:.1f} deg "
-            f"against {heading_travelled_deg:.1f} deg of actual rotation. The "
-            f"gap is the heading error the example reports."
+            f"against {heading_travelled_deg:.1f} deg of actual rotation. They "
+            f"must agree: the gap used to be 198 deg and it was reported as "
+            f"the estimator's heading error."
         )
 
     def test_the_example_names_the_measured_cause(self):
@@ -240,7 +247,7 @@ class TestTheHeadingErrorComesFromTheTrajectory:
 
         source = Path(example.__file__).read_text(encoding="utf-8")
 
-        assert "9000" in source and "phantom" in source, (
+        assert "9000" in source and "rounded" in source, (
             "example_pdr.py no longer explains the heading error by the "
             "instantaneous corners, or the distance error by the phantom "
             "steps. Both were measured; if the generator was fixed, update "
