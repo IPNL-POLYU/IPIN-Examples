@@ -59,6 +59,11 @@ DEFAULT_SEED = 42
 #: nominal 120 m.
 CORNER_RADIUS_M = 2.0
 
+#: Distance over which the walker decelerates to a halt at the end of the lap,
+#: m. Stopping dead from 1.4 m/s inside one sample implied 7 g -- the same
+#: unphysical step the rounded corners removed, just at the end of the record.
+BRAKE_DISTANCE_M = 1.0
+
 def compute_step_length(
     height: float,
     f_step: float,
@@ -426,9 +431,27 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     heading_true = np.zeros(N)
     vel_2d = np.zeros((N, 2))
 
+    # Distance travelled by time t, with a braking phase so the walk does not
+    # stop dead. Rounding the corners and then halting from 1.4 m/s inside one
+    # sample would leave the same defect at a different point in the record:
+    # that stop implied 70 m/s^2, 7 g, and it was the only sample left above
+    # 1 g once the corners were fixed. Decelerating over BRAKE_DISTANCE_M
+    # costs v^2 / (2 d) = 0.98 m/s^2, the same as the corners themselves.
+    cruise_length = total_length - BRAKE_DISTANCE_M
+    t_cruise = cruise_length / v_walk
+    decel = v_walk ** 2 / (2.0 * BRAKE_DISTANCE_M)
+    t_brake = v_walk / decel
+
+    def distance_at(time_s):
+        """Arc length travelled at ``time_s``, cruising then braking."""
+        if time_s <= t_cruise:
+            return v_walk * time_s
+        tau = min(time_s - t_cruise, t_brake)
+        return cruise_length + v_walk * tau - 0.5 * decel * tau ** 2
+
     starts = np.cumsum([0.0] + [seg[1] for seg in segments])
     for k in range(N):
-        s = v_walk * t[k]
+        s = distance_at(t[k])
         if s >= total_length:
             # Lap complete: hold the final pose.
             pos_2d[k] = pos_2d[k - 1] if k > 0 else np.array([r, 0.0])
@@ -448,7 +471,12 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
             pos_2d[k] = anchor + r * np.array([np.cos(angle), np.sin(angle)])
             heading_true[k] = angle + 0.5 * np.pi  # tangent, turning left
 
-        vel_2d[k] = v_walk * np.array([
+        # Speed follows the profile, so velocity stays the derivative of
+        # position through the braking phase too.
+        speed = v_walk if t[k] <= t_cruise else max(
+            v_walk - decel * (t[k] - t_cruise), 0.0
+        )
+        vel_2d[k] = speed * np.array([
             np.cos(heading_true[k]), np.sin(heading_true[k])
         ])
 
@@ -889,8 +917,9 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print(f"    1. Step length, and that is essentially all of it. PDR "
           f"believes it walked {stepped:.1f} m against a true {walked:.1f} m, "
           f"{100 * (stepped / walked - 1):+.0f}%.")
-    print(f"       Detection is exact -- {steps_gyro} steps found against "
-          f"{true_steps} taken -- so the gap is the model: Eq. (6.49) returns "
+    print(f"       Detection is sound -- {steps_gyro} steps found against "
+          f"{true_steps} taken, within {abs(steps_gyro - true_steps)} -- so "
+          f"the gap is the model: Eq. (6.49) returns "
           f"{stepped / max(steps_gyro, 1):.3f} m")
     print(f"       per step for a {height:.2f} m walker at this cadence while "
           f"the simulated gait is {true_step_len:.3f} m. Step length is the "
