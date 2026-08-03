@@ -358,8 +358,10 @@ class TestMethodsActuallyTrack(unittest.TestCase):
     def test_every_method_covers_the_extent_of_the_walk(self):
         """Path length alone could be spent jittering in place.
 
-        The truth reaches 36 m from the origin; the two frozen methods reached
-        0.33 m and 1.18 m.
+        The complement to ``motion_ratio``, which test_methods_actually_move.py
+        owns: a track can accumulate the right total distance without ever
+        going anywhere. The truth reaches 36 m from the origin; the two frozen
+        methods reached 0.33 m and 1.18 m.
         """
         truth_reach = np.linalg.norm(self.pos_true[:, :2], axis=1).max()
         for name, pos in self.results.items():
