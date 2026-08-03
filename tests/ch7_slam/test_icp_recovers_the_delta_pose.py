@@ -18,9 +18,12 @@ What failed was the *convergence flag*: the run needs 59 iterations and the
 harness allowed 50. Nine short. Anyone following that hint would have gone
 looking for a sign error in working code.
 
-So the budget was wrong, not the library, and the cases are worth keeping --
-particularly case 2, which is the one that would catch a genuine update-order
-bug. The original also imported ``se2_relative`` and then immediately
+So the budget was wrong, not the library, and the cases are worth keeping as
+alignment tests. Not as a guard against the bug the hint names, though: see
+``test_large_rotation`` for why the numbers do not support that reading
+either.
+
+The original also imported ``se2_relative`` and then immediately
 redefined it, shadowing the library function, so the case written to exercise
 the relative-pose path never touched it. The two are exactly equal (checked
 over 500 random pose pairs, worst disagreement 0.0), so the redefinition is
@@ -130,10 +133,20 @@ class TestIcpRecoversTheDeltaPose:
     def test_large_rotation(self):
         """35 degrees, started 10 degrees and 0.6 m away.
 
-        The case that matters. A left/right-multiply error in the pose update
-        survives small-motion tests -- at 5 degrees the two conventions differ
-        by little -- and shows up here, where it would put the estimate metres
-        and tens of degrees out rather than the millimetres below.
+        The case the original harness got wrong, and the one most sensitive to
+        the composition order its hint blamed. Measured rather than assumed:
+        swapping the two operands of a single se2_compose moves the result
+        0.025 m at this file's 5 degree case and 0.149 m at 35 degrees, so the
+        larger rotation is about six times as sensitive.
+
+        Two things that measurement also settles, against the original's
+        framing. The yaw is identical under the swap -- 0.00 degrees in both
+        cases -- because SE(2) composes angles by addition, which commutes; an
+        update-order bug can only move translation. And 0.149 m is close enough
+        to the 0.15 m tolerance below that this test should not be described as
+        a guard against that bug. It is a large-rotation alignment test, which
+        is worth having on its own; catching a systematic composition error
+        deserves a test that targets it directly.
         """
         delta = np.array([2.0, 1.0, np.deg2rad(35.0)])
         guess = delta + np.array([-0.5, 0.3, np.deg2rad(-10.0)])
