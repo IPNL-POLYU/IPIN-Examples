@@ -128,10 +128,15 @@ def generate_imu_stationary_data(
     t = np.arange(N) / fs
     dt = 1.0 / fs
     
-    spec = IMU_SPECS.get(imu_grade, IMU_SPECS['consumer'])
-    
-    # Convert ARW to noise density
-    gyro_noise_density = spec['gyro_arw'] / np.sqrt(3600)  # rad/sqrt(s)
+    # Go through injected_si rather than converting here. The sqrt(3600) used
+    # to be written out separately in this function and again where the record
+    # is described, and two copies of one conversion that must agree is exactly
+    # how this example's unit errors happened -- the console and the figure
+    # each carried their own, and agreeing with each other made them look
+    # right. One definition, consumed everywhere.
+    spec = injected_si(imu_grade)
+
+    gyro_noise_density = spec['gyro_arw']  # rad/sqrt(s)
     accel_noise_density = spec['accel_vrw']  # m/s/sqrt(s)
     
     # Create RNG for reproducibility
@@ -169,7 +174,7 @@ def generate_imu_stationary_data(
         
         # 3) Rate Random Walk (diffusion of bias, slope +1/2)
         # Single random walk term (NOT double cumsum)
-        rrw_coeff = spec['gyro_rrw'] / np.sqrt(3600)  # Convert to rad/s/sqrt(s)
+        rrw_coeff = spec['gyro_rrw']  # rad/s/sqrt(s), already converted
         rrw_bias = np.cumsum(rng.standard_normal(N)) * rrw_coeff * np.sqrt(dt)
         
         # Combine all three components
