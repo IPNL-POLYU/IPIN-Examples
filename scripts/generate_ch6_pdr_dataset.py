@@ -73,6 +73,10 @@ def generate_corridor_walk(
     GRAVITY = 9.81
     HEIGHT = 1.75  # meters
     TURN_DURATION = 2.0  # seconds for 90-degree turn
+    # Duration of one step's acceleration pulse, s. A single-sample impulse
+    # does not survive the detector's 5 Hz low-pass; a real stance phase is a
+    # few hundred milliseconds.
+    STEP_PULSE_S = 0.25
 
     # Compute step parameters
     step_period = 1.0 / step_freq
@@ -93,6 +97,7 @@ def generate_corridor_walk(
     mag = np.zeros((N, 3))
     heading = np.zeros(N)
     speed_profile = np.zeros(N)
+    step_samples = []
     step_times = []
 
     # Initial state
@@ -129,10 +134,8 @@ def generate_corridor_walk(
                 # the entry in step_times. Position is advanced continuously
                 # outside this branch -- see the note there.
 
-                # Acceleration spike during step (vertical + forward)
-                accel[i, 0] = 1.5 * np.cos(yaw)  # Forward acceleration
-                accel[i, 1] = 1.5 * np.sin(yaw)
-                accel[i, 2] = GRAVITY + 2.0  # Upward spike
+                step_samples.append((i, yaw, 1.5, 2.0))
+                accel[i, 2] = GRAVITY
             else:
                 # No step: just gravity
                 accel[i, 0] = 0.0
@@ -156,9 +159,8 @@ def generate_corridor_walk(
 
                 # As above: the event, not the displacement.
 
-                accel[i, 0] = 1.0 * np.cos(yaw)
-                accel[i, 1] = 1.0 * np.sin(yaw)
-                accel[i, 2] = GRAVITY + 1.5
+                step_samples.append((i, yaw, 1.0, 1.5))
+                accel[i, 2] = GRAVITY
             else:
                 accel[i, 0] = 0.0
                 accel[i, 1] = 0.0
@@ -202,6 +204,31 @@ def generate_corridor_walk(
         mag[i, 0] = np.cos(-yaw)
         mag[i, 1] = np.sin(-yaw)
         mag[i, 2] = 0.0
+
+    # Give each step a gait-shaped pulse rather than a single-sample impulse.
+    #
+    # The spike used to occupy exactly one 0.01 s sample. The book's own
+    # detector (Eqs. 6.46-6.47) low-passes at 5 Hz before looking for peaks,
+    # and a one-sample impulse at 100 Hz keeps almost none of its energy below
+    # 5 Hz: the filtered signal peaked at 0.379 m/s^2 against a 1.0 threshold,
+    # so `example_pdr.py --data` detected *zero* steps. The estimator then
+    # never left the origin and reported a 0.1 m final error, which reads as
+    # excellent and means nothing.
+    #
+    # A real step does not deliver its acceleration in 10 ms -- heel strike to
+    # toe off is a few hundred. A raised cosine over STEP_PULSE_S carries the
+    # same peak through the filter, which is what the detector is entitled to
+    # assume.
+    pulse_half = max(int(round(0.5 * STEP_PULSE_S / dt)), 1)
+    offsets = np.arange(-pulse_half, pulse_half + 1)
+    shape = 0.5 * (1.0 + np.cos(np.pi * offsets / (pulse_half + 1)))
+    for idx, yaw_at_step, forward, vertical in step_samples:
+        lo, hi = idx - pulse_half, idx + pulse_half + 1
+        window = slice(max(lo, 0), min(hi, N))
+        clipped = shape[max(0, -lo):len(shape) - max(0, hi - N)]
+        accel[window, 0] += forward * np.cos(yaw_at_step) * clipped
+        accel[window, 1] += forward * np.sin(yaw_at_step) * clipped
+        accel[window, 2] += vertical * clipped
 
     # Smooth the gait changes over half a second, then integrate to position.
     # A walker slows into a turn rather than changing pace between two
