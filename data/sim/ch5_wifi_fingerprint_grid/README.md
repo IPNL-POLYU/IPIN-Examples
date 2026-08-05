@@ -92,7 +92,7 @@ from core.fingerprinting import load_fingerprint_database
 db = load_fingerprint_database("data/sim/ch5_wifi_fingerprint_grid")
 
 print(f"Database: {db}")
-print(f"Reference points: {db.n_samples}")
+print(f"Reference points: {db.n_reference_points}")
 print(f"APs: {db.n_features}")
 print(f"Floors: {np.unique(db.floor_ids)}")
 print(f"Area: {db.meta['area_size']}")
