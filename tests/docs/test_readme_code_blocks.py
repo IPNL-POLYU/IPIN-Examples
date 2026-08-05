@@ -3,25 +3,34 @@
 Replaces `tests/docs/test_ch6_examples.py`, which did this and had never run:
 it held a `main()` and no `def test_`, so pytest collected nothing from it.
 
-Running it changed the answer twice over.
+Running it changed the answer three times over.
 
 It executed every block in a *fresh* namespace and reported 13 of 32 failing.
 That is not the reader's experience -- a README is read top to bottom, and its
 later blocks legitimately use names the earlier ones introduced. Under a
 shared namespace, which is what a reader actually has, 8 fail rather than 13.
 
-The old file also looked only at Chapter 6. Widening it to every dataset
-README took the count to 30 broken blocks across 10 datasets, Chapters 2
-through 8.
+Widening it from Chapter 6 to every dataset README took that to 30 failures
+across 10 datasets. **But most of that 30 was not broken code.** Twenty-one of
+the blocks are illustrative fragments never meant to run standalone -- a bare
+`quat = quat / np.linalg.norm(quat)` showing a normalisation, a block opening
+`# In tc_uwb_imu_ekf.py, add parameter:`, or `Δt_{k+1} = Δt_k + w_Δt` which is
+maths rather than Python. Executing those is the wrong check, and counting them
+made the register mean "failed to execute" when it should mean "is wrong".
 
-**Most of that 30 was not broken code.** Roughly 25 of the blocks are
-fragments never meant to run standalone -- `quat = quat / np.linalg.norm(quat)`
-illustrating a normalisation, or a block opening `# In tc_uwb_imu_ekf.py, add
-parameter:` and then showing the line to add. Executing those is the wrong
-check. The genuinely broken ones were five, and they are the interesting
-category, because reading the prose never reveals them:
+So fragments are now fenced ```py and runnable examples ```python. Both still
+highlight as Python in GitHub, VS Code and mkdocs; only ```python is collected
+here. **A block you expect a reader to run must be fenced ```python.**
 
-- `ch5_wifi_fingerprint_grid` #1 used `db.n_samples`; the attribute is now
+`FRAGMENT_BLOCKS` pins how many ```py fences each README carries, because
+otherwise the fence is an unreviewed escape hatch: demoting a genuinely broken
+example to ```py would silence this test with a one-word diff. Adding a
+fragment is fine, it just has to be a deliberate line in the diff.
+
+The eight genuine defects found this way are the reason the check earns its
+keep -- reading the prose reveals none of them:
+
+- `ch5_wifi_fingerprint_grid` #1 used `db.n_samples`; it is now
   `db.n_reference_points`.
 - `ch7_slam_2d_square` #4 and #9 imported `optimize_factor_graph` from
   `core.estimators`. No such function: optimisation is `FactorGraph.optimize`,
@@ -32,12 +41,21 @@ category, because reading the prose never reveals them:
 - `ch3_estimator_nonlinear` #7 documented `f_jac=` / `h_jac=` keywords that do
   not exist -- the Jacobians are positional, next to the model each
   differentiates.
-- `ch6_pdr_corridor_walk` #4 elided the computation it then plotted
-  (`# ... heading_gyro, heading_mag = ...`).
+- `ch6_pdr_corridor_walk` #4 elided the computation it then plotted.
+- `ch2_coords_san_francisco` #5 unpacked `ref_llh[0]`, a scalar; the file is a
+  single row, so the (3,) vector unpacks directly.
+- `ch4_rf_2d_square` #6 called `toa_solver.solve(ranges)`; `initial_guess` is
+  required, not optional.
+- `ch6_env_sensors_heading_altitude` #9 passed the whole pressure series to
+  `pressure_to_altitude`, which takes one sample at a time. The same README
+  maps it correctly 350 lines earlier.
 
-So the register below still counts fragments, and until they are fenced as
-something other than ```python it will keep doing so. Treat a nonzero entry as
-"this many blocks do not execute", not "this many are wrong".
+Worth knowing how the last three were separated from the fragments, because
+the rule generalises: **the exception type tells you which kind you have.**
+A `NameError` on an undefined placeholder means the block was never meant to
+run alone. A `TypeError`, `ValueError`, `ImportError` or `AttributeError` means
+every name resolved and the *call* was wrong -- that is API drift, and it is
+always real.
 
 Author: Li-Ta Hsu
 """
@@ -55,15 +73,17 @@ import matplotlib.pyplot as plt  # noqa: E402 -- after use()
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-#: Blocks that fail even when the README is read in order, as {dataset: count}.
+#: ```py fences per README: illustrative fragments, deliberately not executed.
 #:
-#: THIS MAY ONLY SHRINK. Each entry is a snippet a reader cannot run.
-KNOWN_BROKEN_BLOCKS = {
-    "ch2_coords_san_francisco": 2,
+#: A new entry here must be a fragment, not a broken example. See the module
+#: docstring: if the block fails with anything other than a NameError on a
+#: placeholder, it is API drift and belongs in ```python, fixed.
+FRAGMENT_BLOCKS = {
+    "ch2_coords_san_francisco": 1,
     "ch3_estimator_nonlinear": 4,
-    "ch4_rf_2d_square": 2,
+    "ch4_rf_2d_square": 1,
     "ch5_wifi_fingerprint_grid": 3,
-    "ch6_env_sensors_heading_altitude": 4,
+    "ch6_env_sensors_heading_altitude": 3,
     "ch6_pdr_corridor_walk": 2,
     "ch6_wheel_odom_square": 1,
     "ch7_slam_2d_square": 2,
@@ -120,12 +140,23 @@ def test_readme_blocks_run_in_order(readme):
                 plt.close("all")
     plt.savefig, plt.show, plt.Figure.savefig = saved
 
-    allowed = KNOWN_BROKEN_BLOCKS.get(name, 0)
-    assert len(failures) <= allowed, (
-        f"{name}: {len(failures)} of {len(blocks)} blocks fail, above the "
-        f"{allowed} on record.\n  " + "\n  ".join(failures)
+    assert not failures, (
+        f"{name}: {len(failures)} of {len(blocks)} ```python blocks fail.\n  "
+        + "\n  ".join(failures)
+        + "\n\nA NameError on a placeholder means the block is a fragment: "
+        "fence it ```py and add it to FRAGMENT_BLOCKS. Anything else means "
+        "the names resolved and the call is wrong -- fix the block."
     )
-    assert len(failures) == allowed or allowed == 0, (
-        f"{name}: only {len(failures)} blocks fail now, against {allowed} on "
-        f"record. Lower the entry in KNOWN_BROKEN_BLOCKS."
+
+
+@pytest.mark.parametrize("readme", _readmes(), ids=_dataset_name)
+def test_fragment_fence_count_is_pinned(readme):
+    """```py is an opt-out from the check above, so it is counted."""
+    name = _dataset_name(readme)
+    found = len(re.findall(r"```py\n", readme.read_text(encoding="utf-8")))
+    expected = FRAGMENT_BLOCKS.get(name, 0)
+    assert found == expected, (
+        f"{name}: {found} ```py fragment fences, against {expected} on record. "
+        "Update FRAGMENT_BLOCKS if the change is deliberate -- but a block that "
+        "a reader is meant to run belongs in ```python."
     )

@@ -644,7 +644,7 @@ min_step_interval = 0.4  # was 0.3
 **Likely Cause**: Step length model is incorrect or magnetometer is severely distorted
 
 **Solution**: Check step length calibration or magnetometer quality:
-```python
+```py
 # Print step length statistics
 print(f"Mean step length: {mean_step_length:.3f} m")
 print(f"Expected: ~0.7m for 2 Hz, ~0.9m for 2.5 Hz")
@@ -688,7 +688,7 @@ L = max(0.3, min(1.5, L))  # Clamp to [0.3, 1.5] m
 **Cause**: Magnetometer noise too high or not normalized
 
 **Fix**: Apply low-pass filter and ensure normalization:
-```python
+```py
 # Normalize magnetometer
 mag_norm = np.linalg.norm(mag_meas[k])
 if mag_norm > 1e-9:

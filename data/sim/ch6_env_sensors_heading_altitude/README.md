@@ -567,7 +567,7 @@ if mag_norm > 1e-9:
 **Likely Cause**: Threshold too large or altitude not changing enough
 
 **Solution**: Adjust floor detection threshold:
-```python
+```py
 # Reduce threshold for more sensitive detection
 delta_floor = detect_floor_change(alt_prev, alt_curr, floor_height=3.5, threshold=1.0)  # was 1.5
 
@@ -583,7 +583,7 @@ print(f"Expected range: 0 to {num_floors * floor_height:.2f} m")
 **Likely Cause**: Tilt compensation not applied or incorrect roll/pitch
 
 **Solution**: Verify tilt compensation:
-```python
+```py
 # Check roll/pitch values
 print(f"Roll range: {np.rad2deg(roll.min()):.1f} to {np.rad2deg(roll.max()):.1f} deg")
 print(f"Pitch range: {np.rad2deg(pitch.min()):.1f} to {np.rad2deg(pitch.max()):.1f} deg")
@@ -603,7 +603,8 @@ heading = mag_heading(mag, roll, pitch)  # Correct
 ```python
 # Use ground-level pressure as reference
 p0 = pressure_meas[0]  # First measurement at ground level
-altitude = pressure_to_altitude(pressure_meas, p0)
+# pressure_to_altitude takes one pressure at a time, so map it over the series.
+altitude = np.array([pressure_to_altitude(p, p0) for p in pressure_meas])
 ```
 
 ### Warning: Magnetometer magnitude changes significantly
@@ -625,7 +626,7 @@ if abs(mag_magnitude - MAG_NOMINAL) > 20.0:
 **Cause**: Smoothing filter too aggressive (alpha too small)
 
 **Fix**: Increase filter responsiveness:
-```python
+```py
 # Increase alpha for faster response (but more noise)
 altitude_smooth[k] = smooth_measurement_simple(altitude_smooth[k-1], altitude_raw[k], alpha=0.2)  # was 0.1
 ```

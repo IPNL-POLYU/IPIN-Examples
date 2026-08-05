@@ -367,7 +367,7 @@ Is system linear?
 **Likely Cause**: System is nonlinear (circular motion)
 
 **Solution**: Use EKF or UKF instead:
-```python
+```py
 # Wrong: KF assumes linear
 kf = KalmanFilter(F_linear, Q, H_linear, R)  # Will fail!
 
@@ -384,7 +384,7 @@ ekf = ExtendedKalmanFilter(f_nonlinear, Q, h_nonlinear, R)  # ✓
 **Likely Cause**: High nonlinearity breaks EKF linearization
 
 **Solution**: Use UKF (or PF):
-```python
+```py
 # EKF may diverge with high nonlinearity
 ekf = ExtendedKalmanFilter(f, Q, h, R)  # Struggles
 
@@ -401,7 +401,7 @@ ukf = UnscentedKalmanFilter(f, Q, h, R)  # ✓
 **Likely Cause**: Outlier measurements (10% in outliers variant)
 
 **Solution**: Use Particle Filter or robust estimation:
-```python
+```py
 # EKF/UKF sensitive to outliers
 ekf.update(z_outlier)  # Large error spike
 
@@ -466,7 +466,7 @@ print(f"EKF after one update: x={x_est[0]:.2f}m, y={x_est[1]:.2f}m")
 **Cause**: Covariance matrix not positive definite
 
 **Fix**: Add small regularization:
-```python
+```py
 P = P + 1e-6 * np.eye(state_dim)  # Regularize
 ```
 

@@ -378,17 +378,17 @@ done
 **Setup**:
 
 Implement augmented EKF with state:
-```python
+```py
 x = [x, y, vx, vy, θ, ω, Δt]  # 7D state (added Δt)
 ```
 
 Process model for Δt:
-```python
+```py
 Δt_{k+1} = Δt_k + w_Δt  # Random walk or constant
 ```
 
 Measurement model (modified):
-```python
+```py
 # Predict state at corrected time
 t_corrected = t_uwb + Δt  # Use estimated offset
 x_pred = propagate_state_to(t_corrected)

@@ -530,7 +530,7 @@ pose_rel, _, residual, converged = icp_point_to_point(
 **Likely Cause**: Trajectory doesn't actually close loop, or detection threshold too strict
 
 **Solution**: Check trajectory type and relax distance threshold:
-```python
+```py
 # In generation script
 loop_closures = detect_loop_closures(
     poses,
@@ -573,7 +573,7 @@ scan_i = scans_data[f"scan_{i}"]  # Note f-string format
 **Cause**: Scans don't overlap well (false loop closure)
 
 **Fix**: This is expected for false positives. Filter by residual:
-```python
+```py
 if residual < 0.05:  # Threshold
     # Accept loop closure
 else:

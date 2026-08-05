@@ -174,7 +174,7 @@ python scripts/generate_ch2_coordinate_transforms_dataset.py --preset london
 **Cause**: Gimbal lock or angle wrapping
 
 **Solution**: Use quaternions instead:
-```python
+```py
 # Avoid Euler for computation
 q1 = euler_to_quat(roll, pitch, yaw)
 q2 = euler_to_quat(roll2, pitch2, yaw2)
@@ -191,9 +191,10 @@ q_combined = quat_multiply(q1, q2)  # No gimbal lock!
 
 **Solution**: Use building center as reference:
 ```python
-# Load correct reference
+# Load correct reference. The file holds a single row, so loadtxt returns a
+# (3,) vector -- unpack it directly; ref_llh[0] is just the latitude.
 ref_llh = np.loadtxt("data/sim/ch2_coords_san_francisco/reference_llh.txt")
-lat_ref, lon_ref, h_ref = ref_llh[0]
+lat_ref, lon_ref, h_ref = ref_llh
 ```
 
 ## Experiments

@@ -609,7 +609,7 @@ This dataset directly implements the wheel odometry algorithms from Section 6.2:
 **Cause**: Numerical errors in integration
 
 **Fix**: Re-normalize quaternion after each integration:
-```python
+```py
 quat = quat / np.linalg.norm(quat)
 ```
 
