@@ -45,7 +45,7 @@ KNOWN_BROKEN_BLOCKS = {
     "ch2_coords_san_francisco": 2,
     "ch3_estimator_nonlinear": 5,
     "ch4_rf_2d_square": 2,
-    "ch5_wifi_fingerprint_grid": 4,
+    "ch5_wifi_fingerprint_grid": 3,
     "ch6_env_sensors_heading_altitude": 4,
     "ch6_pdr_corridor_walk": 3,
     "ch6_wheel_odom_square": 1,
