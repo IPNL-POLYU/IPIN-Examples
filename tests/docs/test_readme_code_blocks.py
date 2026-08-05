@@ -10,17 +10,34 @@ That is not the reader's experience -- a README is read top to bottom, and its
 later blocks legitimately use names the earlier ones introduced. Under a
 shared namespace, which is what a reader actually has, 8 fail rather than 13.
 
-Those 8 are real: `alt_prev`, `mag`, `heading_gyro`, `mean_step_length` and
-`quat` are never defined anywhere in their README, in any order. A reader
-copying those blocks gets a NameError.
-
 The old file also looked only at Chapter 6. Widening it to every dataset
-README takes the count from 8 to **30 broken blocks across 10 datasets**,
-Chapters 2 through 8. Chapter 3's README fails 5 of its 8 blocks.
+README took the count to 30 broken blocks across 10 datasets, Chapters 2
+through 8.
 
-Listed rather than fixed here, on the same ratchet as everywhere else in this
-repo: the count may only go down, and repairing eight documentation snippets
-is its own change with its own review.
+**Most of that 30 was not broken code.** Roughly 25 of the blocks are
+fragments never meant to run standalone -- `quat = quat / np.linalg.norm(quat)`
+illustrating a normalisation, or a block opening `# In tc_uwb_imu_ekf.py, add
+parameter:` and then showing the line to add. Executing those is the wrong
+check. The genuinely broken ones were five, and they are the interesting
+category, because reading the prose never reveals them:
+
+- `ch5_wifi_fingerprint_grid` #1 used `db.n_samples`; the attribute is now
+  `db.n_reference_points`.
+- `ch7_slam_2d_square` #4 and #9 imported `optimize_factor_graph` from
+  `core.estimators`. No such function: optimisation is `FactorGraph.optimize`,
+  a method, and `create_pose_graph` wants (from, to, relative_pose) triples
+  rather than the bare index pairs the README passed.
+- `ch7_slam_2d_square` #5 called `se2_apply` once per point; it takes the whole
+  (N, 2) cloud and rejects a bare (2,) row.
+- `ch3_estimator_nonlinear` #7 documented `f_jac=` / `h_jac=` keywords that do
+  not exist -- the Jacobians are positional, next to the model each
+  differentiates.
+- `ch6_pdr_corridor_walk` #4 elided the computation it then plotted
+  (`# ... heading_gyro, heading_mag = ...`).
+
+So the register below still counts fragments, and until they are fenced as
+something other than ```python it will keep doing so. Treat a nonzero entry as
+"this many blocks do not execute", not "this many are wrong".
 
 Author: Li-Ta Hsu
 """
@@ -43,13 +60,13 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 #: THIS MAY ONLY SHRINK. Each entry is a snippet a reader cannot run.
 KNOWN_BROKEN_BLOCKS = {
     "ch2_coords_san_francisco": 2,
-    "ch3_estimator_nonlinear": 5,
+    "ch3_estimator_nonlinear": 4,
     "ch4_rf_2d_square": 2,
     "ch5_wifi_fingerprint_grid": 3,
     "ch6_env_sensors_heading_altitude": 4,
-    "ch6_pdr_corridor_walk": 3,
+    "ch6_pdr_corridor_walk": 2,
     "ch6_wheel_odom_square": 1,
-    "ch7_slam_2d_square": 5,
+    "ch7_slam_2d_square": 2,
     "ch8_fusion_2d_imu_uwb": 1,
     "ch8_fusion_2d_imu_uwb_timeoffset": 3,
 }

@@ -132,8 +132,8 @@ fprintf('Loaded %d samples, %d steps\n', length(t), length(step_times));
     "type": "corridor_walk",
     "num_legs": 4,
     "leg_length_m": 30.0,
-    "total_distance_m": 123.9,
-    "duration_s": 48.0
+    "total_distance_m": 124.2,
+    "duration_s": 87.99
   }
 }
 ```
@@ -141,7 +141,8 @@ fprintf('Loaded %d samples, %d steps\n', length(t), length(step_times));
 **Key Parameters**:
 - **num_legs**: Number of straight corridor segments (4 legs)
 - **leg_length**: Length of each straight segment (30m)
-- **total_distance**: Total walk distance (123.9m)
+- **total_distance**: Total walk distance (124.2m)
+- **duration**: 88s at 100 Hz (8800 samples)
 
 ### Pedestrian Configuration
 ```json
@@ -149,7 +150,7 @@ fprintf('Loaded %d samples, %d steps\n', length(t), length(step_times));
   "pedestrian": {
     "height_m": 1.75,
     "step_freq_hz": 2.0,
-    "num_steps": 90
+    "num_steps": 170
   }
 }
 ```
@@ -157,25 +158,29 @@ fprintf('Loaded %d samples, %d steps\n', length(t), length(step_times));
 **Key Parameters**:
 - **height**: Pedestrian height (1.75m) - affects step length model
 - **step_freq**: Step frequency (2 Hz = 120 steps/min, normal walking pace)
-- **num_steps**: Total steps in trajectory (90 steps)
+- **num_steps**: Total steps in trajectory (170 steps)
 
 ### Sensor Configuration (Baseline)
 ```json
 {
   "sensors": {
-    "accel_noise_std_m_s2": 0.15,
-    "gyro_noise_std_rad_s": 0.005,
-    "gyro_bias_rad_s": 0.002,
-    "mag_noise_std": 0.05
+    "accel_noise_std_m_s2": 0.2,
+    "gyro_noise_std_rad_s": 0.01,
+    "gyro_bias_rad_s": 0.005,
+    "mag_noise_std": 0.1
   }
 }
 ```
 
 **Key Parameters**:
-- **accel_noise**: Accelerometer noise (0.15 m/s² std dev)
-- **gyro_noise**: Gyro noise (0.005 rad/s)
-- **gyro_bias**: Gyro bias causing heading drift (0.002 rad/s)
-- **mag_noise**: Magnetometer noise (0.05 normalized)
+- **accel_noise**: Accelerometer noise (0.2 m/s² std dev)
+- **gyro_noise**: Gyro noise (0.01 rad/s)
+- **gyro_bias**: Gyro bias causing heading drift (0.005 rad/s)
+- **mag_noise**: Magnetometer noise (0.1 normalized)
+
+The bias dominates: 0.005 rad/s over the 88s walk is 25° of heading drift,
+against 0.5° (1σ) from integrating the noise. That is what the heading error
+plot below shows.
 
 ## Quick Start Example
 
@@ -297,14 +302,30 @@ python tools/compare_fusion_variants.py \
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
+from core.sensors import integrate_gyro_heading, mag_heading, wrap_heading
 
 # Load dataset
 data_dir = Path("data/sim/ch6_pdr_corridor_walk")
 t = np.loadtxt(data_dir / "time.txt")
 heading_true = np.loadtxt(data_dir / "ground_truth_heading.txt")
+gyro_meas = np.loadtxt(data_dir / "gyro.txt")
+mag_meas = np.loadtxt(data_dir / "magnetometer.txt")
 
-# Run PDR with gyro and mag (code from Quick Start)
-# ... heading_gyro, heading_mag = ...
+# The two heading sources from the Quick Start examples above, side by side.
+# Gyro integrates a rate, so it starts from a known heading and drifts away
+# from it; the magnetometer measures direction outright at every sample.
+N = len(t)
+dt = t[1] - t[0]
+heading_gyro = np.zeros(N)
+heading_mag = np.zeros(N)
+heading_gyro[0] = heading_true[0]
+heading_mag[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)
+
+for k in range(1, N):
+    heading_gyro[k] = wrap_heading(
+        integrate_gyro_heading(heading_gyro[k - 1], gyro_meas[k, 2], dt)
+    )
+    heading_mag[k] = mag_heading(mag_meas[k], roll=0.0, pitch=0.0, declination=0.0)
 
 # Compute heading errors
 heading_error_gyro = np.abs(heading_gyro - heading_true)
