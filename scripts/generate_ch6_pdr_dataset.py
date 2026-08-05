@@ -199,10 +199,19 @@ def generate_corridor_walk(
         # Store state
         heading[i] = yaw
 
-        # Magnetometer (points North in map frame)
-        # In body frame, this is rotated by -yaw
-        mag[i, 0] = np.cos(-yaw)
-        mag[i, 1] = np.sin(-yaw)
+        # Magnetometer: the map-frame reference direction expressed in the
+        # body frame, matching the convention core.sensors.mag_heading inverts
+        # and the one example_pdr's inline generator uses -- at yaw = 90 deg
+        # the body-frame reading is (0, 1, 0).
+        #
+        # The sign here was negated, so mag_heading returned exactly minus the
+        # true heading: correct at 0 and 180 deg, 180 deg wrong at 90 and 270.
+        # Half of every run had a heading error above 90 deg. It survived
+        # because the walk is a closed loop -- the final error came out 3.0 m,
+        # which looks respectable, while the track had wandered 64.9 m away
+        # mid-lap for an RMSE of 42.3 m.
+        mag[i, 0] = np.cos(yaw)
+        mag[i, 1] = np.sin(yaw)
         mag[i, 2] = 0.0
 
     # Give each step a gait-shaped pulse rather than a single-sample impulse.
