@@ -25,15 +25,15 @@
   "performance": {
     "gyro_heading": {
       "steps_detected": 170,
-      "final_error_m": 8.664246305485255,
-      "mean_error_m": 4.293223631074608
+      "final_error_m": 8.72014939283506,
+      "mean_error_m": 4.269751639670893
     },
     "mag_heading": {
       "steps_detected": 170,
-      "final_error_m": 2.132297785679398,
-      "mean_error_m": 33.15208577713203
+      "final_error_m": 0.7525134475476891,
+      "mean_error_m": 32.06936399740333
     },
-    "improvement_factor": 4.063337852562011
+    "improvement_factor": 11.588031311935374
   },
   "equations": [
     "6.46",
