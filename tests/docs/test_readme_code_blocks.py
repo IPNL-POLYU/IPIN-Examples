@@ -34,6 +34,7 @@ import matplotlib
 import pytest
 
 matplotlib.use("Agg")
+import matplotlib.pyplot as plt  # noqa: E402 -- after use()
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -76,8 +77,21 @@ def test_readme_blocks_run_in_order(readme):
     )
     assert blocks, f"{name}: no Python blocks found"
 
+    # Neutralise figure writing for the duration. These blocks are run to
+    # prove they execute, not to produce pictures, and several of them call
+    # savefig with a bare filename -- which, with the working directory at the
+    # repo root so their `data/sim/...` paths resolve, drops eight SVGs there
+    # and trips test_no_figures_written_to_the_repo_root.
+    #
+    # Worth knowing that a `git status` check does not catch this: the repo
+    # ignores stray figures, so they are invisible to porcelain and visible
+    # only to a filesystem glob. CI found it; the local check had not.
     namespace = {}
     failures = []
+    saved = (plt.savefig, plt.show, plt.Figure.savefig)
+    plt.savefig = lambda *a, **k: None
+    plt.show = lambda *a, **k: None
+    plt.Figure.savefig = lambda *a, **k: None
     with contextlib.chdir(REPO_ROOT):
         for number, block in enumerate(blocks, start=1):
             try:
@@ -85,6 +99,9 @@ def test_readme_blocks_run_in_order(readme):
                     exec(compile(block, f"{name}#{number}", "exec"), namespace)
             except Exception as exc:  # noqa: BLE001 -- reporting, not handling
                 failures.append(f"block {number}: {type(exc).__name__}: {exc}")
+            finally:
+                plt.close("all")
+    plt.savefig, plt.show, plt.Figure.savefig = saved
 
     allowed = KNOWN_BROKEN_BLOCKS.get(name, 0)
     assert len(failures) <= allowed, (
