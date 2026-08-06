@@ -158,7 +158,7 @@ fprintf('Loaded %d samples over %.1f seconds\n', length(t), t(end));
 {
   "slip": {
     "enabled": false,
-    "magnitude": 0.0,
+    "magnitude": 0.3,
     "num_events": 0
   }
 }

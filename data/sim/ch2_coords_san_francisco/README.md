@@ -143,7 +143,7 @@ print(f"Quaternion: {quat}")
 
 # Convert to rotation matrix
 R = quat_to_rotation_matrix(quat)
-print(f"Rotation matrix:\\n{R}")
+print(f"Rotation matrix:\n{R}")
 
 # Apply rotation to a vector
 v_body = np.array([1, 0, 0])  # Forward in body frame

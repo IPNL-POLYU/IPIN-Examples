@@ -10,8 +10,8 @@ This dataset demonstrates **smartphone-based pedestrian navigation using step de
 
 ### Learning Goals
 1. **Heading is Critical**: 1° heading error = 1.7% position error (trigonometric amplification)
-2. **Gyro Drift**: Gyro-integrated heading drifts unbounded (~10-50m error over 2 minutes)
-3. **Magnetometer Solution**: Provides absolute heading but is noisy (~1-3m error)
+2. **Gyro Drift**: Gyro-integrated heading drifts unbounded (8.7m error over the 88s walk)
+3. **Magnetometer Solution**: Provides absolute heading but is noisy (0.46m error)
 4. **Step Detection**: Accelerometer magnitude peaks detect steps (Eq. 6.46)
 5. **Step Length Models**: Weinberg formula relates step frequency to step length (Eq. 6.49)
 
@@ -50,7 +50,7 @@ This dataset demonstrates **smartphone-based pedestrian navigation using step de
 
 | Variant | Directory | Heading Quality | Final Error | Description |
 |---------|-----------|-----------------|-------------|-------------|
-| **Baseline** | `ch6_pdr_corridor_walk` | Clean sensors | Gyro: 2m, Mag: 1m | Clean sensors, demonstrates concepts |
+| **Baseline** | `ch6_pdr_corridor_walk` | Clean sensors | Gyro: 8.7m, Mag: 0.46m | Clean sensors, demonstrates concepts |
 | **Noisy** | `ch6_pdr_noisy` | Higher noise | Gyro: 50m, Mag: 6m | Consumer smartphone quality |
 | **Poor Gyro** | `ch6_pdr_poor_gyro` | Severe drift | Gyro: 100m+, Mag: 4m | Shows catastrophic gyro drift |
 | **Poor Mag** | `ch6_pdr_poor_mag` | Distorted mag | Gyro: 25m, Mag: 12m | Indoor magnetic disturbances |
@@ -190,7 +190,7 @@ import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
 from core.sensors import (
-    total_accel_magnitude, step_length, pdr_step_update,
+    total_accel_magnitude, step_length_book_eq6_49, pdr_step_update,
     integrate_gyro_heading, wrap_heading
 )
 
@@ -229,8 +229,10 @@ for k in range(1, N):
         # Step frequency (Eq. 6.48)
         f_step = 1.0 / delta_t if delta_t > 0 else 2.0
         
-        # Step length (Eq. 6.49)
-        L = step_length(height, f_step)
+        # Step length (Eq. 6.49). Use the book equation, not the generic
+        # `step_length` helper -- that one returns ~1.44m per step at 2 Hz for
+        # a 1.75m walker, and is what this dataset was NOT generated with.
+        L = step_length_book_eq6_49(height, f_step)
         
         # Update position (Eq. 6.50)
         pos_est[k] = pdr_step_update(pos_est[k-1], L, heading_est[k-1])
@@ -263,25 +265,51 @@ plt.tight_layout()
 plt.show()
 ```
 
-**Expected Result**: ~2m final error (gyro heading drifts)
+**Expected Result**: 170 steps detected, 8.72m final error, 4.27m mean error.
+The heading drift of the previous section is what you are seeing: 25° of
+accumulated bias error, applied to a 124m walk.
 
 ### Run PDR with Magnetometer Heading (Better!)
 ```python
 from core.sensors import mag_heading
 
-# Same initialization as above...
-# Change only the heading update:
+# Identical to the loop above except for the heading update, so only the
+# changed line is commented. Re-running the whole loop is what makes the two
+# final errors comparable.
+mag_meas = np.loadtxt(data_dir / "magnetometer.txt")
+
+pos_mag = np.zeros((N, 2))
+heading_mag = np.zeros(N)
+step_count_mag = 0
+last_step_time = 0.0
+last_a_mag = 10.0
 
 for k in range(1, N):
-    # ... step detection code (same as above) ...
-    
-    # Magnetometer heading instead of gyro (Eqs. 6.51-6.53)
-    heading_est[k] = mag_heading(mag_meas[k], roll=0.0, pitch=0.0, declination=0.0)
+    a_mag = total_accel_magnitude(accel_meas[k])
+    is_step = (last_a_mag < 11.0 and a_mag >= 11.0)
+    last_a_mag = a_mag
 
-# ... rest is the same ...
+    if is_step and (t[k] - last_step_time) > 0.3:
+        step_count_mag += 1
+        delta_t = t[k] - last_step_time
+        last_step_time = t[k]
+        f_step = 1.0 / delta_t if delta_t > 0 else 2.0
+        L = step_length_book_eq6_49(height, f_step)
+        pos_mag[k] = pdr_step_update(pos_mag[k-1], L, heading_mag[k-1])
+    else:
+        pos_mag[k] = pos_mag[k-1]
+
+    # Magnetometer heading instead of gyro (Eqs. 6.51-6.53). Absolute, so it
+    # never accumulates -- no wrap_heading and no previous value needed.
+    heading_mag[k] = mag_heading(mag_meas[k], roll=0.0, pitch=0.0, declination=0.0)
+
+error_mag = np.linalg.norm(pos_mag - pos_true, axis=1)
+print(f"Steps detected: {step_count_mag}")
+print(f"Final error: {error_mag[-1]:.3f} m")
+print(f"Mean error: {np.mean(error_mag):.3f} m")
 ```
 
-**Expected Result**: ~1m final error (2× better than gyro!)
+**Expected Result**: 0.46m final error, 0.42m mean — 18.8× better than gyro.
 
 ## Visualization
 
@@ -448,7 +476,7 @@ Over 100 steps: 1.2m error (1.7% of distance)
 
 **Expected Results**:
 - 0° heading error: ~0.5m error (step length estimation errors)
-- 1° heading error: ~1.5m error (1.7% of 124m = 2.1m)
+- 1° heading error: ~2.1m error (1.7% of 124m = 2.1m)
 - 5° heading error: ~10m error (8.7% of distance)
 - 10° heading error: ~20m error (17.6% of distance)
 
@@ -532,9 +560,9 @@ for bias_deg, err in zip(heading_biases, errors):
 4. Compare trajectories and errors
 
 **Expected Results**:
-- Gyro heading: Drifts ~10-20° over 48s → 15-25m final error
-- Mag heading: Noisy but bounded ~2-5° → 1-3m final error
-- Magnetometer is 5-10× better!
+- Gyro heading: drifts 25° over the 88s walk → 8.72m final error
+- Mag heading: noisy but bounded, 3.4° mean → 0.46m final error
+- Magnetometer is 18.8× better!
 
 **Code**:
 ```bash
@@ -559,7 +587,7 @@ python tools/compare_fusion_variants.py \
 3. Measure missed steps and false detections
 
 **Expected Results**:
-- 0.05 m/s²: 100% detection rate (90/90 steps)
+- 0.05 m/s²: 100% detection rate (170/170 steps)
 - 0.15 m/s²: 95-100% detection rate
 - 0.30 m/s²: 85-95% detection rate
 - 0.50 m/s²: 70-85% detection rate (many false detections)
@@ -582,15 +610,19 @@ python scripts/generate_ch6_pdr_dataset.py --output data/sim/pdr_accel_050 --acc
 
 | Metric | Gyro Heading | Mag Heading | Notes |
 |--------|--------------|-------------|-------|
-| **Final Error** | 1.9m | 1.0m | After 124m walk |
-| **Mean Error** | 1.1m | 32.7m | Mag has higher mean due to noise |
-| **Steps Detected** | 90/90 | 90/90 | 100% detection rate |
-| **Heading Drift** | ~5-10° | Bounded | Gyro drifts, mag doesn't |
+| **Final Error** | 8.72m | 0.46m | After 124m walk |
+| **Mean Error** | 4.27m | 0.42m | Gyro's grows with time; mag's does not |
+| **Steps Detected** | 170/170 | 170/170 | 100% detection rate |
+| **Heading Drift** | 25° at 88s | Bounded, ~3° | Gyro drifts, mag doesn't |
 | **Sample Rate** | 100 Hz | 100 Hz | 10ms time steps |
-| **Duration** | 48s | 48s | 4 legs + 3 turns |
-| **Total Distance** | 123.9m | 123.9m | 90 steps @ ~1.4m/step |
+| **Duration** | 88s | 88s | 4 legs + 3 turns |
+| **Total Distance** | 124.2m | 124.2m | 170 steps @ ~0.73m/step |
 
-**Key Insight**: Magnetometer heading provides 2× better accuracy despite being noisier, because it doesn't drift!
+**Key Insight**: Magnetometer heading is 18.8× more accurate here despite being
+the noisier sensor, because its error is bounded and the gyro's is not. Note
+the mean error tells the story better than the final: the gyro's mean (4.27m)
+is half its final (8.72m), which is what a steadily growing error looks like,
+while the magnetometer's mean and final are the same size.
 
 ## Book Connection
 
