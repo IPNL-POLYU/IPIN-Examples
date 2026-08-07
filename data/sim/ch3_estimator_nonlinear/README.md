@@ -367,7 +367,7 @@ Is system linear?
 **Likely Cause**: System is nonlinear (circular motion)
 
 **Solution**: Use EKF or UKF instead:
-```python
+```py
 # Wrong: KF assumes linear
 kf = KalmanFilter(F_linear, Q, H_linear, R)  # Will fail!
 
@@ -384,7 +384,7 @@ ekf = ExtendedKalmanFilter(f_nonlinear, Q, h_nonlinear, R)  # ✓
 **Likely Cause**: High nonlinearity breaks EKF linearization
 
 **Solution**: Use UKF (or PF):
-```python
+```py
 # EKF may diverge with high nonlinearity
 ekf = ExtendedKalmanFilter(f, Q, h, R)  # Struggles
 
@@ -401,7 +401,7 @@ ukf = UnscentedKalmanFilter(f, Q, h, R)  # ✓
 **Likely Cause**: Outlier measurements (10% in outliers variant)
 
 **Solution**: Use Particle Filter or robust estimation:
-```python
+```py
 # EKF/UKF sensitive to outliers
 ekf.update(z_outlier)  # Large error spike
 
@@ -415,17 +415,50 @@ pf.update(z_outlier)  # Minimal impact ✓
 
 **Cause**: EKF needs ∂f/∂x and ∂h/∂x
 
-**Fix**: Provide Jacobian functions:
+**Fix**: Each Jacobian is a *positional* argument next to the model it
+differentiates — there are no optional `f_jac=` / `h_jac=` keywords. The order is
+`(f, F, h, H, Q, R, x0, P0)`, and `Q` and `R` are callables, not arrays:
+
 ```python
-def f_jacobian(x):
-    # Return Jacobian of process model
-    return F_k
+import numpy as np
+from core.estimators import ExtendedKalmanFilter
 
-def h_jacobian(x):
-    # Return Jacobian of measurement model  
-    return H_k
+dt = 0.1
 
-ekf = ExtendedKalmanFilter(f, Q, h, R, f_jac=f_jacobian, h_jac=h_jacobian)
+def process_model(x, u, dt):          # f: constant velocity [x, y, vx, vy]
+    F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
+    return F @ x
+
+def process_jacobian(x, u, dt):       # ∂f/∂x -- constant velocity is linear
+    return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
+
+def measurement_model(x):             # h: ranges to beacons -- the nonlinear part
+    return np.linalg.norm(beacons - x[:2], axis=1)
+
+def measurement_jacobian(x):          # ∂h/∂x: unit bearing vectors, no velocity terms
+    offset = x[:2] - beacons
+    H = np.zeros((len(beacons), 4))
+    H[:, :2] = offset / np.linalg.norm(offset, axis=1, keepdims=True)
+    return H
+
+def Q_func(dt):                       # Q is called with dt each predict
+    return np.diag([0.01, 0.01, 0.1, 0.1]) * dt
+
+def R_func():                         # R is called with no arguments
+    return np.eye(len(beacons)) * 0.5**2
+
+ekf = ExtendedKalmanFilter(
+    process_model, process_jacobian,
+    measurement_model, measurement_jacobian,
+    Q_func, R_func,
+    x0=np.array([10.0, 0.0, 0.0, 3.0]),
+    P0=np.diag([4.0, 4.0, 2.0, 2.0]),
+)
+
+ekf.predict(dt=dt)
+ekf.update(ranges[1])
+x_est, P_est = ekf.get_state()
+print(f"EKF after one update: x={x_est[0]:.2f}m, y={x_est[1]:.2f}m")
 ```
 
 ### Warning: UKF sigma points negative
@@ -433,7 +466,7 @@ ekf = ExtendedKalmanFilter(f, Q, h, R, f_jac=f_jacobian, h_jac=h_jacobian)
 **Cause**: Covariance matrix not positive definite
 
 **Fix**: Add small regularization:
-```python
+```py
 P = P + 1e-6 * np.eye(state_dim)  # Regularize
 ```
 

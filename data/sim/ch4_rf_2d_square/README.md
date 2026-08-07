@@ -512,8 +512,9 @@ This dataset directly implements RF positioning from Chapter 4:
 
 **Solution**: Use TOA solution as initial guess for TDOA:
 ```python
-# Get TOA solution first
-toa_pos, _ = toa_solver.solve(toa_ranges[i])
+# Get TOA solution first. initial_guess is required, not optional --
+# both solvers are iterative and have no default starting point.
+toa_pos, _ = toa_solver.solve(toa_ranges[i], initial_guess=np.array([10.0, 10.0]))
 
 # Use as initial guess for TDOA
 tdoa_pos, _ = tdoa_solver.solve(tdoa_diffs[i], initial_guess=toa_pos)
@@ -578,7 +579,7 @@ for x in np.linspace(0, 20, 5):
 **Cause**: Very poor geometry (linear array or near singularity)
 
 **Fix**: Add beacons or avoid problematic regions:
-```python
+```py
 if gdop > 10:
     print("Warning: Positioning unreliable (GDOP too high)")
     # Either reject position or increase measurement uncertainty

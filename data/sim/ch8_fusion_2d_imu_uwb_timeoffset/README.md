@@ -94,7 +94,10 @@ print(f"  Raw difference: {(t_uwb_sensor[0] - t_imu[0])*1000:.1f} ms")
 
 # Apply correction: Convert UWB sensor time → fusion time
 from core.fusion import TimeSyncModel
-time_sync = TimeSyncModel(offset=-time_offset, drift=-clock_drift)
+# Pass the calibration values as-is. to_fusion_time applies
+# (1 + drift) * t_sensor + offset, so negating them here double-negates and
+# doubles the misalignment instead of removing it.
+time_sync = TimeSyncModel(offset=time_offset, drift=clock_drift)
 t_uwb_fusion = time_sync.to_fusion_time(t_uwb_sensor[0])
 
 print(f"\nAfter TimeSyncModel correction:")
@@ -185,8 +188,10 @@ p_xy_wrong = np.column_stack([
     np.interp(t_uwb, truth['t'], truth['p_xy'][:, 1])
 ])
 
-# Position at corrected timestamps (CORRECT)
-t_uwb_corrected = t_uwb - time_offset - clock_drift * t_uwb
+# Position at corrected timestamps (CORRECT). Same convention as
+# TimeSyncModel.to_fusion_time above; subtracting instead of adding moves the
+# timestamps the wrong way and is worse than not correcting at all.
+t_uwb_corrected = (1.0 + clock_drift) * t_uwb + time_offset
 p_xy_correct = np.column_stack([
     np.interp(t_uwb_corrected, truth['t'], truth['p_xy'][:, 0]),
     np.interp(t_uwb_corrected, truth['t'], truth['p_xy'][:, 1])
@@ -378,17 +383,17 @@ done
 **Setup**:
 
 Implement augmented EKF with state:
-```python
+```py
 x = [x, y, vx, vy, θ, ω, Δt]  # 7D state (added Δt)
 ```
 
 Process model for Δt:
-```python
+```py
 Δt_{k+1} = Δt_k + w_Δt  # Random walk or constant
 ```
 
 Measurement model (modified):
-```python
+```py
 # Predict state at corrected time
 t_corrected = t_uwb + Δt  # Use estimated offset
 x_pred = propagate_state_to(t_corrected)

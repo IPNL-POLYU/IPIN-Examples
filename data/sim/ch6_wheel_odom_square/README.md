@@ -158,7 +158,7 @@ fprintf('Loaded %d samples over %.1f seconds\n', length(t), t(end));
 {
   "slip": {
     "enabled": false,
-    "magnitude": 0.0,
+    "magnitude": 0.3,
     "num_events": 0
   }
 }
@@ -609,7 +609,7 @@ This dataset directly implements the wheel odometry algorithms from Section 6.2:
 **Cause**: Numerical errors in integration
 
 **Fix**: Re-normalize quaternion after each integration:
-```python
+```py
 quat = quat / np.linalg.norm(quat)
 ```
 

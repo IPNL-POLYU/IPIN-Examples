@@ -464,7 +464,7 @@ This dataset directly supports Chapter 5 fingerprinting methods:
 - Grid too sparse (> 10m)
 
 **Solution**: Check floor constraint and grid spacing:
-```python
+```py
 # Always specify floor if known
 estimated_pos = knn_localize(query, db, k=5, floor_id=0)  # Correct
 
@@ -479,7 +479,7 @@ estimated_pos = knn_localize(query, db, k=5)  # May be wrong!
 **Cause**: NN always returns a reference point (discrete)
 
 **Solution**: Use k-NN or Posterior Mean for smooth estimates:
-```python
+```py
 # NN: discrete
 pos_nn = nn_localize(query, db)  # One of the RPs
 
@@ -505,7 +505,7 @@ pos_knn = knn_localize(query, db, k=5)  # Weighted average
 **Cause**: Query has different number of APs than database
 
 **Fix**: Ensure query matches database:
-```python
+```py
 print(f"Database features: {db.n_features}")  # Should be 8
 print(f"Query features: {len(query)}")  # Must match!
 ```

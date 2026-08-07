@@ -340,7 +340,7 @@ python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_mems
 **Setup**:
 Modify fusion script to scale R by factors: 0.1, 0.5, 1.0, 2.0, 5.0
 
-```python
+```py
 # In tc_uwb_imu_ekf.py, add parameter:
 R_scale = 1.0  # vary this: 0.1, 0.5, 1.0, 2.0, 5.0
 R = (range_noise_std ** 2) * R_scale * np.eye(4)
