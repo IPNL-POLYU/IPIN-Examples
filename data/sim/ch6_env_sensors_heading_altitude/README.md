@@ -343,7 +343,7 @@ plt.show()
 |----------------|--------------------------|-------|
 | 0.5 (excellent) | 1-2 | High-quality MEMS, outdoor |
 | 1.5 (good) | 2-4 | Baseline quality |
-| 4.0 (fair) | 5-8 | Consumer smartphone |
+| 4.0 (fair) | 9-10 | Consumer smartphone |
 | 6.0 (poor) | 10-15 | Low-cost or uncalibrated |
 
 **Generate sweep**:
@@ -403,8 +403,9 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_weather
 4. Compare heading errors
 
 **Expected Results**:
-- With tilt compensation: 2-4° error
-- Without tilt compensation: 10-30° error (device tilts during walking!)
+- With tilt compensation: 2.7° error
+- Without tilt compensation: 5.1° error — 1.9× worse. The walking tilt here is
+  ±5.5° roll and ±2.9° pitch; a larger tilt widens the gap.
 
 **Code**:
 ```python
@@ -503,8 +504,8 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_poor --
 
 | Metric | Magnetometer | Barometer | Notes |
 |--------|--------------|-----------|-------|
-| **Mean Error** | 2-4 deg | 1.5m | Bounded, no drift |
-| **Max Error** | 8-12 deg | 2.8m | Occasional spikes |
+| **Mean Error** | 2.7 deg | 1.6m | Bounded, no drift |
+| **Max Error** | 14.6 deg | 2.9m | Occasional spikes |
 | **Floor Detection** | N/A | 50-70% | 3-floor building |
 | **Drift Over Time** | None! | ~2m/hour | Weather-dependent |
 | **Sample Rate** | 10 Hz | 10 Hz | 0.1s time steps |

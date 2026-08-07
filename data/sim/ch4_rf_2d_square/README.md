@@ -230,22 +230,35 @@ tdoa_solver = TDOAPositioner(beacons, reference_idx=0)
 # Estimate positions
 estimated_pos_tdoa = np.zeros((N, 2))
 
+initial_guess = beacons.mean(axis=0)  # centre of the anchor set
+solved_tdoa = np.zeros(N, dtype=bool)
+
 for i in range(N):
     try:
-        pos_est, info = tdoa_solver.solve(
-            tdoa_diffs[i],
-            initial_guess=np.array([10.0, 10.0])
-        )
-        estimated_pos_tdoa[i] = pos_est
-    except:
-        estimated_pos_tdoa[i] = positions[i]
+        pos_est, info = tdoa_solver.solve(tdoa_diffs[i], initial_guess=initial_guess)
+    except Exception:
+        estimated_pos_tdoa[i] = np.nan
+        continue
+    estimated_pos_tdoa[i] = pos_est
+    # A solve that never left the initial guess has not solved anything, even
+    # when the solver says it converged.
+    stalled = np.linalg.norm(pos_est - initial_guess) < 1e-6
+    solved_tdoa[i] = bool(info.get("converged", True)) and not stalled
 
-# Compute errors
+# Report the median, not the mean: one solve landing far away makes a mean a
+# property of that outlier rather than of the method.
 errors_tdoa = np.linalg.norm(estimated_pos_tdoa - positions, axis=1)
-print(f"TDOA mean error: {errors_tdoa.mean():.3f} m")
+good = solved_tdoa & np.isfinite(errors_tdoa) & (errors_tdoa < 100)
+print(f"TDOA median error: {np.median(errors_tdoa[np.isfinite(errors_tdoa)]):.3f} m")
+print(f"TDOA mean over solved: {errors_tdoa[good].mean():.3f} m")
+print(f"TDOA failed to solve: {np.sum(~good)}/{N}")
 ```
 
-**Note**: TDOA may have larger errors due to hyperbolic geometry and linearization
+**Expected Result**: 13.75m median, 12.51m mean over the 89 that solve, 11/100 failed.
+
+**Note**: TDOA errors are large here because of the hyperbolic geometry and the
+linearisation, not because of initialisation — seeding the solver from the true
+position instead changes the median by less than a millimetre.
 
 ### AOA Positioning
 ```python
@@ -260,22 +273,36 @@ aoa_solver = AOAPositioner(beacons)
 # Estimate positions
 estimated_pos_aoa = np.zeros((N, 2))
 
+initial_guess = beacons.mean(axis=0)
+solved_aoa = np.zeros(N, dtype=bool)
+
 for i in range(N):
     try:
-        pos_est, info = aoa_solver.solve(
-            aoa_angles[i],
-            initial_guess=np.array([10.0, 10.0])
-        )
-        estimated_pos_aoa[i] = pos_est
-    except:
-        estimated_pos_aoa[i] = positions[i]
+        pos_est, info = aoa_solver.solve(aoa_angles[i], initial_guess=initial_guess)
+    except Exception:
+        estimated_pos_aoa[i] = np.nan
+        continue
+    estimated_pos_aoa[i] = pos_est
+    stalled = np.linalg.norm(pos_est - initial_guess) < 1e-6
+    solved_aoa[i] = bool(info.get("converged", True)) and not stalled
 
-# Compute errors
 errors_aoa = np.linalg.norm(estimated_pos_aoa - positions, axis=1)
-print(f"AOA mean error: {errors_aoa.mean():.3f} m")
+good = solved_aoa & np.isfinite(errors_aoa) & (errors_aoa < 100)
+print(f"AOA median error: {np.median(errors_aoa[np.isfinite(errors_aoa)]):.3f} m")
+print(f"AOA mean over solved: {errors_aoa[good].mean():.3f} m")
+print(f"AOA failed to solve: {np.sum(~good)}/{N}")
+# Do NOT print errors_aoa.mean() -- it is about 1e15 m here.
 ```
 
-**Expected Result**: ~0.5m mean error (angle errors amplify with distance)
+**Expected Result**: 0.88m median, 0.57m mean over the 64 that solve, and
+**36 of 100 fail outright**.
+
+That failure rate is the result worth taking away. When AOA solves it is
+accurate — 0.57m, second only to TOA — but on this geometry more than a third
+of positions do not solve at all, and the solver reports `converged: True`
+while sitting on a residual of 2e10. The arithmetic mean of the errors is
+around 1e15 m, so a mean is not a usable summary: report the median and the
+failure count separately, and never a single draw.
 
 ## Visualization
 
@@ -458,21 +485,32 @@ python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset nlos
 
 ## Performance Metrics (Baseline)
 
+All solvers start from the centre of the anchor set. A solve counts as failed
+if it raised, reported `converged: False`, never left the initial guess, or
+landed more than 100 m away.
+
 | Metric | TOA | TDOA | AOA | Notes |
 |--------|-----|------|-----|-------|
-| **Mean Error** | 0.10m | ~15m* | 0.46m | TOA best |
-| **Std Dev Error** | 0.05m | ~15m* | 0.29m | Consistent |
-| **Max Error** | 0.27m | ~154m* | 1.39m | Outliers |
+| **Median Error** | 0.10m | 13.75m | 0.88m | Robust to the tail |
+| **Mean over solved** | 0.10m | 12.51m | 0.57m | TOA best |
+| **Max over solved** | 0.27m | 21.14m | 1.57m | |
+| **Failed to solve** | **0/100** | **11/100** | **36/100** | TOA is the only reliable one |
 | **Mean GDOP** | 1.02 | 0.87 | 15.04 | TOA/TDOA similar |
 | **Min GDOP** | 1.00 | 0.81 | 13.84 | Center of area |
 | **Max GDOP** | 1.09 | 1.03 | 16.74 | Near edges |
 
-*Note: TDOA errors are high due to linearization and hyperbolic geometry - requires good initialization
+There is no arithmetic-mean column because for AOA it is about 1e15 m. A single
+solve that "converges" to somewhere absurd makes a mean a property of that
+outlier, so the median and the failure count carry the result instead.
 
 **Key Insights**:
-- TOA: Best accuracy, requires clock sync
-- TDOA: Clock-free but larger errors
-- AOA: Good for bearing, errors grow with distance
+- TOA: best accuracy and the only method that solves every position; requires clock sync
+- TDOA: clock-free, but the hyperbolic geometry costs two orders of magnitude
+  here — and it is the geometry, not the initialisation. Seeding from the true
+  position changes the median by under a millimetre.
+- AOA: accurate *when it solves*, at 0.57m, but fails on more than a third of
+  positions and claims convergence while doing so. Judge it on the failure rate,
+  not the accuracy of the survivors.
 
 ## Book Connection
 

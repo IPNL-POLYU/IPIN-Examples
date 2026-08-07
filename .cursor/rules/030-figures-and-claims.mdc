@@ -45,6 +45,49 @@ A test that only checks a file was created tells you nothing about the picture.
   panel flattened to a single line — were invisible to every test and obvious
   on sight. This step is not optional and cannot be delegated to CI.
 
+## A demonstration that does not demonstrate
+
+If an example exists to show that X matters, **print the with-X and without-X
+numbers and look at the ratio.** Four separate sections argued for a correction
+while their own output showed it doing nothing or hurting, and each survived a
+green suite because nothing asserted on the comparison:
+
+- Chapter 6's tilt compensation printed 65.69° against 65.24°, "1.0x worse".
+  The generator had dropped the roll/pitch term as "small", so there was no
+  tilt in the data to compensate for.
+- Chapter 6's lever arm printed "1.0× worse" and called itself ESSENTIAL. The
+  wheel sensor was simulated at the body origin with no ω×r term, so applying
+  the advertised lever arm *injected* error — 1.75 m mean against 0.41 m for
+  applying nothing. The two final errors agreed to 7 mm, which is what hid it:
+  the loop closes, so compare the mean, not the endpoint.
+- Chapter 8's time-offset correction turned a 50 ms misalignment into 100 ms by
+  negating an already-negative offset, and its "corrected" innovation std was
+  0.0855 m against 0.0607 m for doing nothing.
+
+A ratio of 1.0, or a correction that loses to doing nothing, is a failing test
+result. Treat it as one.
+
+## Report the failure rate, not just the accuracy of the survivors
+
+An iterative solver that misses can land 1e15 m away **while reporting
+`converged: True`**, and one such solve makes an arithmetic mean a property of
+that outlier rather than of the method. Chapter 4's AOA did this on 36 of 100
+positions; the README reported a mean and called it 0.5 m.
+
+- Report the **median** and the **failure count** separately. Never a bare mean
+  over solves that include divergences.
+- Count three failure modes, not one: the solver raised or reported
+  `converged: False`; it landed absurdly far away; or **it never left the
+  initial guess.** The third is the sneaky one — on collinear anchors every
+  method stalled at the seed and scored the seed-to-truth distance, giving an
+  identical 6.77 m median for TOA, TDOA and AOA alike. Identical numbers across
+  methods that share nothing but their initialisation is the tell.
+- **Never seed a solver with the ground truth.** All three Chapter 4 solvers
+  used `initial_guess=true_positions[i] + 1.0`, so no reported error was
+  reproducible by a reader. It changed nothing for TOA and TDOA and everything
+  for AOA, which is exactly why it has to go: it silently converts a fragility
+  into an accuracy.
+
 ## One draw is not a measurement
 
 An error computed from a single noise realisation is a sample, not an accuracy.

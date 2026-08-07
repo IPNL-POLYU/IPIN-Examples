@@ -159,22 +159,32 @@ def generate_building_walk(
         pitch = 0.05 * np.cos(2 * np.pi * 2.0 * time_now)
         att[i] = [roll, pitch, yaw]
 
-        # Magnetometer (points toward magnetic north in body frame)
-        # Rotate magnetic field by device attitude
-        mag_map = np.array([MAG_NORTH, 0.0, -MAG_DOWN])  # North + Down in map frame
-
-        # Rotation from map to body (inverse of body to map)
-        # Simplified: rotate by -yaw around z (ignore small roll/pitch for generation)
-        c_yaw = np.cos(-yaw)
-        s_yaw = np.sin(-yaw)
-        R_z = np.array([
-            [c_yaw, -s_yaw, 0],
-            [s_yaw,  c_yaw, 0],
-            [0,      0,     1]
+        # Magnetometer, in the convention core.sensors.mag_heading inverts:
+        # the horizontal field in the *level* frame points along the current
+        # heading, so atan2(m_y, m_x) returns yaw directly. This is the same
+        # fix generate_ch6_pdr_dataset.py already carries -- see the comment
+        # there. Building it as R_z(-yaw) @ [MAG_NORTH, 0, -MAG_DOWN] instead
+        # made mag_heading return exactly minus the true heading, for a 65.7 deg
+        # mean error that config.json then recorded as if it were a property of
+        # the sensor.
+        mag_level = np.array([
+            MAG_NORTH * np.cos(yaw),
+            MAG_NORTH * np.sin(yaw),
+            -MAG_DOWN,
         ])
 
-        mag_body = R_z @ mag_map
-        mag[i] = mag_body
+        # Tilt the level-frame field into the body frame. This is the forward
+        # rotation that mag_tilt_compensate (Eq. 6.52) inverts, so the reading
+        # now genuinely depends on roll and pitch. The previous version dropped
+        # this term as "small", which left nothing for tilt compensation to
+        # remove -- the README's tilt-compensation experiment compared 65.69 deg
+        # against 65.24 deg and printed "1.0x worse".
+        c_r, s_r = np.cos(-roll), np.sin(-roll)
+        c_p, s_p = np.cos(-pitch), np.sin(-pitch)
+        R_x = np.array([[1, 0, 0], [0, c_r, -s_r], [0, s_r, c_r]])
+        R_y = np.array([[c_p, 0, s_p], [0, 1, 0], [-s_p, 0, c_p]])
+
+        mag[i] = R_y @ R_x @ mag_level
 
         # Barometric pressure (decreases with altitude)
         # International barometric formula (Eq. 6.54)

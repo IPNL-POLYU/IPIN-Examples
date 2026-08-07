@@ -515,9 +515,13 @@ for i in range(1, N):
 error_with = np.linalg.norm(pos_with - pos_true, axis=1)
 error_without = np.linalg.norm(pos_without - pos_true, axis=1)
 
-print(f"With lever arm compensation: {error_with[-1]:.2f}m error")
-print(f"Without compensation: {error_without[-1]:.2f}m error")
-print(f"Degradation: {error_without[-1] / error_with[-1]:.1f}× worse!")
+# Compare on the mean, not the final error. The trajectory is a closed loop
+# walked twice, so the lever-arm error largely cancels by the end: the two
+# final errors agree to 6 mm and would report "1.0x worse" while the tracks
+# differ by up to 3.5 m mid-lap.
+print(f"With lever arm compensation:  mean {np.mean(error_with):.2f}m, final {error_with[-1]:.2f}m")
+print(f"Without compensation:         mean {np.mean(error_without):.2f}m, final {error_without[-1]:.2f}m")
+print(f"Degradation in mean error: {np.mean(error_without) / np.mean(error_with):.1f}× worse!")
 
 # Plot
 plt.figure(figsize=(12, 6))
@@ -538,9 +542,9 @@ plt.show()
 
 | Metric | Value | Notes |
 |--------|-------|-------|
-| **Final Error** | 0.8m | After 327m distance |
-| **Mean Error** | 1.75m | Average over trajectory |
-| **Max Error** | 2.83m | Peak error (during turn) |
+| **Final Error** | 0.82m | After 327m distance |
+| **Mean Error** | 0.42m | Average over trajectory |
+| **Max Error** | 0.83m | Peak error (during turn) |
 | **Drift Rate** | 0.25% | Error per distance traveled |
 | **Sample Rate** | 100 Hz | 10ms time steps |
 | **Duration** | 73.9s | 2 laps of 20m square |

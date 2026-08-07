@@ -275,34 +275,51 @@ def run_positioning(
     tdoa_pos = np.zeros((N_pos, 2))
     aoa_pos = np.zeros((N_pos, 2))
 
-    # TOA positioning
-    toa_solver = TOAPositioner(beacons, method="iwls")
-    for i in range(N_pos):
-        try:
-            pos_est, _ = toa_solver.solve(toa_ranges[i], initial_guess=true_positions[i] + 1.0)
-            toa_pos[i] = pos_est
-        except:
-            toa_pos[i] = true_positions[i]  # Fallback
+    # Every solver here used to be seeded with `true_positions[i] + 1.0` -- the
+    # answer plus a metre. No user has that, so none of the reported errors
+    # were reproducible. The beacon centroid is what a real system starts from.
+    #
+    # It changes nothing for TOA (0.095 m median either way) or TDOA (13.75 m
+    # either way): both are insensitive to initialisation on this geometry.
+    # For AOA it is the whole story -- seeded with the truth it diverges on 0
+    # of 100 positions, seeded honestly on 30 of 100. That fragility is the
+    # measurement, and hiding it behind a warm start reported AOA as the
+    # best-behaved of the three when it is by far the worst.
+    initial_guess = beacons.mean(axis=0)
 
-    # TDOA positioning
-    tdoa_solver = TDOAPositioner(beacons, reference_idx=0)
-    for i in range(N_pos):
-        try:
-            pos_est, _ = tdoa_solver.solve(tdoa_diffs[i], initial_guess=true_positions[i] + 1.0)
-            tdoa_pos[i] = pos_est
-        except:
-            tdoa_pos[i] = true_positions[i]  # Fallback
+    # A solve can fail three ways, and only counting one of them is how AOA
+    # came to look like the best-behaved method here:
+    #   - it raises, or the solver reports converged=False;
+    #   - it "converges" to somewhere absurd (1e15 m) -- caught downstream by
+    #     the magnitude check;
+    #   - it never leaves the initial guess. On the collinear `poor_geometry`
+    #     beacons every method stalls at the seed, which then scores as the
+    #     distance from the centroid to the truth -- an identical 6.77 m median
+    #     for TOA, TDOA and AOA alike, which is the tell. AOA reports
+    #     converged=True while doing this, with a residual of 2e10.
+    STALL_M = 1e-6
 
-    # AOA positioning
-    aoa_solver = AOAPositioner(beacons)
-    for i in range(N_pos):
-        try:
-            pos_est, _ = aoa_solver.solve(aoa_angles[i], initial_guess=true_positions[i] + 1.0)
-            aoa_pos[i] = pos_est
-        except:
-            aoa_pos[i] = true_positions[i]  # Fallback
+    def solve_all(solver, measurements):
+        estimates = np.zeros((N_pos, 2))
+        ok = np.zeros(N_pos, dtype=bool)
+        for i in range(N_pos):
+            try:
+                pos_est, info = solver.solve(
+                    measurements[i], initial_guess=initial_guess
+                )
+            except Exception:
+                estimates[i] = np.nan
+                continue
+            estimates[i] = pos_est
+            stalled = np.linalg.norm(pos_est - initial_guess) < STALL_M
+            ok[i] = bool(info.get("converged", True)) and not stalled
+        return estimates, ok
 
-    return toa_pos, tdoa_pos, aoa_pos
+    toa_pos, toa_ok = solve_all(TOAPositioner(beacons, method="iwls"), toa_ranges)
+    tdoa_pos, tdoa_ok = solve_all(TDOAPositioner(beacons, reference_idx=0), tdoa_diffs)
+    aoa_pos, aoa_ok = solve_all(AOAPositioner(beacons), aoa_angles)
+
+    return (toa_pos, toa_ok), (tdoa_pos, tdoa_ok), (aoa_pos, aoa_ok)
 
 
 def save_dataset(
@@ -505,7 +522,7 @@ def generate_dataset(
     # Run positioning
     print("\nStep 5: Running positioning algorithms...")
     start = time.time()
-    toa_pos, tdoa_pos, aoa_pos = run_positioning(
+    (toa_pos, toa_ok), (tdoa_pos, tdoa_ok), (aoa_pos, aoa_ok) = run_positioning(
         beacons, toa_ranges, tdoa_diffs, aoa_angles, positions
     )
     elapsed = time.time() - start
@@ -515,11 +532,40 @@ def generate_dataset(
     tdoa_errors = np.linalg.norm(tdoa_pos - positions, axis=1)
     aoa_errors = np.linalg.norm(aoa_pos - positions, axis=1)
 
+    # Report the median and the diverged count, not the mean. An iterative
+    # solver that misses can land 1e15 m away while reporting convergence, and
+    # one such solve makes the mean a property of the worst outlier rather than
+    # of the method. AOA does exactly this on 30 of 100 positions here. See
+    # .cursor/rules/030-figures-and-claims.mdc, "One draw is not a measurement".
+    DIVERGENCE_M = 100.0
+
+    def summarise(errors, ok, label):
+        finite = np.isfinite(errors)
+        good = finite & ok & (errors < DIVERGENCE_M)
+        n_fail = int(np.sum(~good))
+        median = float(np.median(errors[finite])) if finite.any() else float("nan")
+        mean_ok = float(errors[good].mean()) if good.any() else float("nan")
+        max_ok = float(errors[good].max()) if good.any() else float("nan")
+        print(
+            f"  {label:5s} median={median:8.3f}m, mean(solved)={mean_ok:8.3f}m, "
+            f"max(solved)={max_ok:8.3f}m, failed={n_fail}/{len(errors)}"
+        )
+        return {
+            "median_m": median,
+            "mean_solved_m": mean_ok,
+            "max_solved_m": max_ok,
+            "failed_count": n_fail,
+            "n_positions": int(len(errors)),
+        }
+
     print(f"  Positioning time: {elapsed:.3f} s")
-    print(f"\nPositioning Errors:")
-    print(f"  TOA:  mean={toa_errors.mean():.3f}m, std={toa_errors.std():.3f}m, max={toa_errors.max():.3f}m")
-    print(f"  TDOA: mean={tdoa_errors.mean():.3f}m, std={tdoa_errors.std():.3f}m, max={tdoa_errors.max():.3f}m")
-    print(f"  AOA:  mean={aoa_errors.mean():.3f}m, std={aoa_errors.std():.3f}m, max={aoa_errors.max():.3f}m")
+    print(
+        f"\nPositioning Errors (failed = did not converge, stalled at the "
+        f"initial guess, or landed >{DIVERGENCE_M:.0f} m away):"
+    )
+    toa_stats = summarise(toa_errors, toa_ok, "TOA:")
+    tdoa_stats = summarise(tdoa_errors, tdoa_ok, "TDOA:")
+    aoa_stats = summarise(aoa_errors, aoa_ok, "AOA:")
 
     # Save dataset
     config = {
@@ -562,9 +608,12 @@ def generate_dataset(
             },
         },
         "performance": {
-            "toa_error_mean_m": float(toa_errors.mean()),
-            "tdoa_error_mean_m": float(tdoa_errors.mean()),
-            "aoa_error_mean_m": float(aoa_errors.mean()),
+            # Median and diverged count, not a mean: a single 1e15 m solve made
+            # the old aoa_error_mean_m a property of the worst outlier.
+            "divergence_threshold_m": DIVERGENCE_M,
+            "toa": toa_stats,
+            "tdoa": tdoa_stats,
+            "aoa": aoa_stats,
         },
         "equations": ["4.1-4.3", "4.27-4.33", "4.63-4.66", "4.5 (DOP)"],
         "seed": seed,
