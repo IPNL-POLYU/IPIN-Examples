@@ -38,9 +38,28 @@
     }
   },
   "performance": {
-    "toa_error_mean_m": 0.10055482565933645,
-    "tdoa_error_mean_m": 14.604601663591403,
-    "aoa_error_mean_m": 0.45871857688221496
+    "divergence_threshold_m": 100.0,
+    "toa": {
+      "median_m": 0.09512088053570487,
+      "mean_solved_m": 0.10055482598357197,
+      "max_solved_m": 0.2727229726158406,
+      "failed_count": 0,
+      "n_positions": 100
+    },
+    "tdoa": {
+      "median_m": 13.752816843345684,
+      "mean_solved_m": 12.505866298734949,
+      "max_solved_m": 21.135042827029935,
+      "failed_count": 11,
+      "n_positions": 100
+    },
+    "aoa": {
+      "median_m": 0.8820462353792295,
+      "mean_solved_m": 0.5735691105818839,
+      "max_solved_m": 1.5739209317748064,
+      "failed_count": 36,
+      "n_positions": 100
+    }
   },
   "equations": [
     "4.1-4.3",

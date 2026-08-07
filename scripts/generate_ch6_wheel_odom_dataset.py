@@ -42,6 +42,7 @@ def generate_square_trajectory(
     speed: float = 5.0,
     num_laps: int = 2,
     dt: float = 0.01,
+    lever_arm: np.ndarray = None,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Generate square trajectory for vehicle.
@@ -51,6 +52,11 @@ def generate_square_trajectory(
         speed: Forward speed in m/s.
         num_laps: Number of square laps.
         dt: Time step in seconds.
+        lever_arm: Offset from body origin to the wheel encoder [3] m. The
+                   returned wheel_speed carries the resulting omega x l term,
+                   which is what Eq. (6.11) compensation removes. Pass None to
+                   place the encoder at the body origin -- then there is no
+                   lever arm effect and compensating for one only adds error.
 
     Returns:
         Tuple of (t, pos, vel, quat, wheel_speed, gyro):
@@ -142,11 +148,24 @@ def generate_square_trajectory(
         # Update quaternion
         quat[i] = np.array([np.cos(yaw / 2), 0, 0, np.sin(yaw / 2)])
 
-        # Wheel speed in speed frame (forward only)
-        wheel_speed[i] = np.array([v_forward, 0.0, 0.0])
-
         # Gyro (body frame)
         gyro[i] = np.array([0.0, 0.0, omega_z])
+
+        # Wheel speed, measured at the encoder -- which sits at the end of the
+        # lever arm, not at the body origin. Eq. (6.11) says the estimator
+        # recovers body velocity as v^A = v^S - [omega x] l, so the sensor must
+        # carry the +omega x l term for there to be anything to remove.
+        #
+        # Without it the dataset had no lever arm effect at all, so applying
+        # the advertised [1.5, 0, -0.3] compensation *injected* 0.45 m/s of
+        # spurious lateral velocity through every turn: mean error 1.75 m
+        # against 0.41 m for compensating with zero. The README meanwhile
+        # called the compensation ESSENTIAL, and its own example printed
+        # "1.0x worse" because the two final errors happen to coincide to 7 mm.
+        v_sensor = np.array([v_forward, 0.0, 0.0])
+        if lever_arm is not None:
+            v_sensor = v_sensor + np.cross(gyro[i], lever_arm)
+        wheel_speed[i] = v_sensor
 
     return t, pos, vel, quat, wheel_speed, gyro
 
@@ -400,6 +419,7 @@ def generate_dataset(
         speed=speed,
         num_laps=num_laps,
         dt=dt,
+        lever_arm=np.array(lever_arm),
     )
 
     total_distance = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))

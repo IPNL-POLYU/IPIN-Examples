@@ -27,7 +27,7 @@
       "max": 3.6025411120931365
     },
     "tdoa": {
-      "mean": 10.355143542144095,
+      "mean": 10.355143542144097,
       "min": 1.613248582115639,
       "max": 111.01821514685874
     },
@@ -38,9 +38,28 @@
     }
   },
   "performance": {
-    "toa_error_mean_m": 0.27274437733247614,
-    "tdoa_error_mean_m": 6.926330597395595e+16,
-    "aoa_error_mean_m": 5.85304016883121e+18
+    "divergence_threshold_m": 100.0,
+    "toa": {
+      "median_m": 6.769576094101252,
+      "mean_solved_m": NaN,
+      "max_solved_m": NaN,
+      "failed_count": 100,
+      "n_positions": 100
+    },
+    "tdoa": {
+      "median_m": 6.769576094101252,
+      "mean_solved_m": NaN,
+      "max_solved_m": NaN,
+      "failed_count": 100,
+      "n_positions": 100
+    },
+    "aoa": {
+      "median_m": 6.769576094114382,
+      "mean_solved_m": NaN,
+      "max_solved_m": NaN,
+      "failed_count": 100,
+      "n_positions": 100
+    }
   },
   "equations": [
     "4.1-4.3",

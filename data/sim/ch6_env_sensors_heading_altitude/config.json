@@ -24,8 +24,8 @@
   },
   "performance": {
     "magnetometer_heading": {
-      "mean_error_deg": 65.69172546776898,
-      "max_error_deg": 179.29925429570406
+      "mean_error_deg": 2.6646775922259387,
+      "max_error_deg": 14.583185827666036
     },
     "barometric_altitude": {
       "mean_error_m": 1.566487262667991,
