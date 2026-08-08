@@ -54,10 +54,10 @@
       "n_positions": 100
     },
     "aoa": {
-      "median_m": 6.769576094114382,
-      "mean_solved_m": NaN,
-      "max_solved_m": NaN,
-      "failed_count": 100,
+      "median_m": 0.26206407092078676,
+      "mean_solved_m": 0.29749269918624516,
+      "max_solved_m": 1.28516399593298,
+      "failed_count": 8,
       "n_positions": 100
     }
   },

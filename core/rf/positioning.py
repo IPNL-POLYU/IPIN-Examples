@@ -737,6 +737,109 @@ class AOAPositioner:
 
         return predicted, H
 
+    def _compute_angles_and_jacobian_2d(
+        self, position: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Predicted azimuths and their Jacobian, in angle space (2D).
+
+        Same measurement model as Eq. (4.64), inverted without discarding the
+        quadrant: psi_i = atan2(dE, dN) rather than tan(psi_i) = dE / dN.
+
+        The Jacobian is the standard bearing Jacobian. With d^2 = dE^2 + dN^2:
+            d(psi)/d(x_e) = -dN / d^2
+            d(psi)/d(x_n) = +dE / d^2
+
+        It is bounded everywhere except at the anchor itself, where the tan
+        form's 1/dN blows up along the whole line dN = 0.
+        """
+        delta = self.anchors[:, :2] - position[:2]  # (N, 2), anchor - agent
+        delta_e, delta_n = delta[:, 0], delta[:, 1]
+
+        predicted = np.arctan2(delta_e, delta_n)
+
+        d_sq = delta_e**2 + delta_n**2
+        # Only degenerate when the estimate sits exactly on an anchor.
+        d_sq = np.where(d_sq > self._SINGULARITY_THRESHOLD, d_sq, np.inf)
+
+        H = np.column_stack([-delta_n / d_sq, delta_e / d_sq])
+        return predicted, H
+
+    def _compute_angles_and_jacobian_3d(
+        self, position: np.ndarray
+    ) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Predicted [elevation, azimuth] pairs and their Jacobian (3D).
+
+        Angle-space counterpart of Eqs. (4.63)-(4.64):
+            theta_i = atan2(dU, d_h)   (elevation; sin(theta) = dU / d)
+            psi_i   = atan2(dE, dN)    (azimuth)
+
+        with d_h the horizontal range and d the slant range. Interleaved as
+        [theta_1, psi_1, theta_2, psi_2, ...] to match the measurement layout.
+        """
+        delta = self.anchors - position  # (N, 3), anchor - agent
+        delta_e, delta_n, delta_u = delta[:, 0], delta[:, 1], delta[:, 2]
+
+        d_h_sq = delta_e**2 + delta_n**2
+        d_h = np.sqrt(d_h_sq)
+        d_sq = d_h_sq + delta_u**2
+
+        safe_d_sq = np.where(d_sq > self._SINGULARITY_THRESHOLD, d_sq, np.inf)
+        safe_d_h = np.where(d_h > self._SINGULARITY_THRESHOLD, d_h, np.inf)
+
+        theta = np.arctan2(delta_u, d_h)
+        psi = np.arctan2(delta_e, delta_n)
+
+        predicted = np.empty(2 * self.n_anchors)
+        predicted[0::2] = theta
+        predicted[1::2] = psi
+
+        H = np.zeros((2 * self.n_anchors, 3))
+        # Elevation rows
+        H[0::2, 0] = delta_u * delta_e / (safe_d_sq * safe_d_h)
+        H[0::2, 1] = delta_u * delta_n / (safe_d_sq * safe_d_h)
+        H[0::2, 2] = -d_h / safe_d_sq
+        # Azimuth rows: horizontal only, independent of height
+        H[1::2, 0] = -delta_n / np.where(
+            d_h_sq > self._SINGULARITY_THRESHOLD, d_h_sq, np.inf
+        )
+        H[1::2, 1] = delta_e / np.where(
+            d_h_sq > self._SINGULARITY_THRESHOLD, d_h_sq, np.inf
+        )
+        H[1::2, 2] = 0.0
+
+        return predicted, H
+
+    def _compute_angle_weight_matrix(
+        self,
+        sigma_theta: Optional[Union[float, np.ndarray]] = None,
+        sigma_psi: Optional[Union[float, np.ndarray]] = None,
+    ) -> np.ndarray:
+        """
+        Weight matrix for angle-space residuals: W = diag(1 / sigma^2).
+
+        No sec^4 amplification term, because there is no tan transform to
+        propagate variance through. That amplification is precisely what made
+        near-singular anchors dominate the tan-space normal equations.
+        """
+        n_meas = 2 * self.n_anchors if self.is_3d else self.n_anchors
+        variances = np.ones(n_meas)
+
+        def _fill(slot, sigma):
+            if sigma is None:
+                return
+            sigma_arr = np.broadcast_to(np.asarray(sigma, dtype=float), (self.n_anchors,))
+            variances[slot] = np.maximum(sigma_arr**2, 1e-12)
+
+        if self.is_3d:
+            _fill(slice(0, None, 2), sigma_theta)
+            _fill(slice(1, None, 2), sigma_psi)
+        else:
+            _fill(slice(None), sigma_psi)
+
+        return np.diag(1.0 / variances)
+
     def _angles_to_sin_tan(self, aoa_measurements: np.ndarray) -> np.ndarray:
         """
         Convert raw angle measurements to sin/tan measurement vector.
@@ -910,6 +1013,7 @@ class AOAPositioner:
         recompute_weights: bool = True,
         max_iters: int = 20,
         tol: float = 1e-6,
+        residual: str = "angle",
     ) -> Tuple[np.ndarray, Dict]:
         """
         Solve AOA positioning problem using I-WLS.
@@ -954,6 +1058,13 @@ class AOAPositioner:
                               If False, compute W_a once using initial measurements.
             max_iters: Maximum iterations. Defaults to 20.
             tol: Convergence tolerance. Defaults to 1e-6.
+            residual: Space in which residuals are formed.
+                - "angle" (default): psi = atan2(dE, dN), residuals wrapped to
+                  [-pi, pi]. Same measurement model, inverted without losing
+                  the quadrant.
+                - "tan": the book's literal Eq. (4.64) form, z = tan(psi).
+                  Kept so the formulation can still be exercised, but it does
+                  not converge reliably from a cold start -- see Notes.
 
         Returns:
             position: Estimated position, shape (2,) or (3,).
@@ -984,8 +1095,38 @@ class AOAPositioner:
               have heterogeneous noise or when angles are near singularities.
             - For angles near ψ = ±90°, the tan(ψ) variance becomes very large,
               effectively down-weighting those measurements (correct behavior).
+              This applies to residual="tan"; in angle space the variance is
+              just sigma_psi² and needs no such correction.
             - If both `weights` and sigma inputs are provided, `weights` takes
               precedence.
+
+        Why residual="angle" is the default:
+            Eq. (4.64) states the measurement model as tan(ψ) = ΔE / ΔN, and
+            solving on z = tan(ψ) directly has two defects that no initial
+            guess repairs.
+
+            First, tan has period π, so an anchor ahead and an anchor behind
+            produce the same measurement and the residual cannot separate them.
+            Second, and worse, as the estimate runs to infinity every anchor
+            tends to the same bearing, so the tan residuals *shrink*: infinity
+            is a spurious attractor, and Gauss-Newton reaches it reporting
+            success. A traced failure walked (5,5) → (-4,-4.6) → (-23,-27) →
+            (-364,-470) → 1e10 with converged=True.
+
+            Measured over 50 noiseless positions inside a 10 m square of
+            anchors, started from the anchor centroid: tan gives 19 gross
+            failures with 39/50 claiming convergence; angle gives 0 failures
+            with 50/50 converging and a worst-case error of 5e-6 m.
+
+            ψ = atan2(ΔE, ΔN) is the same model inverted without discarding
+            the quadrant. Residuals are wrapped to [-π, π], are bounded, and
+            have no attractor at infinity. The Jacobian, -ΔN/d² and ΔE/d², is
+            well conditioned everywhere except at an anchor itself, where the
+            tan form's 1/ΔN blows up along the whole line ΔN = 0.
+
+            residual="tan" is retained so the book's literal formulation can
+            still be exercised and compared. See
+            tests/ch4_rf_point_positioning/test_aoa_initialisation_basin.py.
         """
         aoa_measurements = np.asarray(aoa_measurements, dtype=float)
         position = np.asarray(initial_guess, dtype=float).copy()
@@ -1010,8 +1151,30 @@ class AOAPositioner:
                 f"got {len(position)}"
             )
 
-        # Convert raw angles to sin/tan measurement vector
-        z_measured = self._angles_to_sin_tan(aoa_measurements)
+        if residual not in ("angle", "tan"):
+            raise ValueError(
+                f"residual must be 'angle' or 'tan', got {residual!r}"
+            )
+        use_angle_residual = residual == "angle"
+
+        # sigma_sin_theta and sigma_tan_psi describe noise in the *transformed*
+        # domain, so they mean nothing against angle-space residuals. Refuse
+        # rather than ignore: silently dropping a weighting argument is how a
+        # caller ends up trusting a number the solver never used.
+        if use_angle_residual and (
+            sigma_sin_theta is not None or sigma_tan_psi is not None
+        ):
+            raise ValueError(
+                "sigma_sin_theta and sigma_tan_psi describe noise on the "
+                "sin/tan transforms and only apply to residual='tan'. For "
+                "residual='angle' give sigma_theta / sigma_psi in radians."
+            )
+
+        # In angle space the measurements are already the residual quantity.
+        if use_angle_residual:
+            z_measured = aoa_measurements.copy()
+        else:
+            z_measured = self._angles_to_sin_tan(aoa_measurements)
 
         # Determine weight matrix source
         n_meas = len(z_measured)
@@ -1031,13 +1194,18 @@ class AOAPositioner:
             use_sigma_weights = False
         elif use_sigma_weights:
             # Compute initial weights from sigma inputs
-            W = self._compute_weight_matrix(
-                aoa_measurements,
-                sigma_theta=sigma_theta,
-                sigma_psi=sigma_psi,
-                sigma_sin_theta=sigma_sin_theta,
-                sigma_tan_psi=sigma_tan_psi,
-            )
+            if use_angle_residual:
+                W = self._compute_angle_weight_matrix(
+                    sigma_theta=sigma_theta, sigma_psi=sigma_psi
+                )
+            else:
+                W = self._compute_weight_matrix(
+                    aoa_measurements,
+                    sigma_theta=sigma_theta,
+                    sigma_psi=sigma_psi,
+                    sigma_sin_theta=sigma_sin_theta,
+                    sigma_tan_psi=sigma_tan_psi,
+                )
         else:
             # Default: identity weights
             W = np.eye(n_meas)
@@ -1049,25 +1217,45 @@ class AOAPositioner:
 
         for iteration in range(max_iters):
             # Compute predicted measurements and Jacobian
-            if self.is_3d:
+            if use_angle_residual:
+                if self.is_3d:
+                    z_predicted, H = self._compute_angles_and_jacobian_3d(position)
+                else:
+                    z_predicted, H = self._compute_angles_and_jacobian_2d(position)
+            elif self.is_3d:
                 z_predicted, H = self._compute_predicted_and_jacobian_3d(position)
             else:
                 z_predicted, H = self._compute_predicted_and_jacobian_2d(position)
 
             # Recompute weights at current estimate (if using sigma-based weights)
             if use_sigma_weights and recompute_weights and iteration > 0:
-                # Compute predicted angles at current position
-                predicted_angles = self._predicted_to_angles(z_predicted)
-                W = self._compute_weight_matrix(
-                    predicted_angles,
-                    sigma_theta=sigma_theta,
-                    sigma_psi=sigma_psi,
-                    sigma_sin_theta=sigma_sin_theta,
-                    sigma_tan_psi=sigma_tan_psi,
-                )
+                if not use_angle_residual:
+                    # Compute predicted angles at current position
+                    predicted_angles = self._predicted_to_angles(z_predicted)
+                    W = self._compute_weight_matrix(
+                        predicted_angles,
+                        sigma_theta=sigma_theta,
+                        sigma_psi=sigma_psi,
+                        sigma_sin_theta=sigma_sin_theta,
+                        sigma_tan_psi=sigma_tan_psi,
+                    )
+                # Angle-space weights are constant in the estimate: 1/sigma^2
+                # has no dependence on the predicted angle, so there is
+                # nothing to recompute.
 
-            # Compute residuals (no angle wrapping needed for sin/tan)
-            residuals = z_measured - z_predicted
+            if use_angle_residual:
+                # Wrap to [-pi, pi]. Without this a measurement near +pi and a
+                # prediction near -pi differ by ~2pi rather than ~0, and the
+                # step is driven hard the wrong way.
+                residuals = np.arctan2(
+                    np.sin(z_measured - z_predicted),
+                    np.cos(z_measured - z_predicted),
+                )
+            else:
+                # No wrapping is possible in tan space, which is the problem:
+                # tan has period pi, so an anchor ahead and one behind produce
+                # the same measurement.
+                residuals = z_measured - z_predicted
 
             # Check convergence
             residual_norm = np.linalg.norm(residuals)

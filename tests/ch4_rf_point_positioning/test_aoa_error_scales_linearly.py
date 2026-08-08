@@ -6,8 +6,14 @@ own numbers then contradicted the physics: 1.74 m at 5 deg and 2.04 m at
 the position error. Single draws, tabulated as if they were a trend.
 
 Averaging fixed the trend and exposed something the single draw had hidden: at
-10 deg a few solves diverge to 1e14 m *while reporting convergence*, enough to
+10 deg a few solves diverged to 1e14 m *while reporting convergence*, enough to
 move an RMS by eight orders of magnitude. Hence a median, plus explicit counts.
+
+Those divergences were the tan parameterisation, not the noise, and the solver
+now forms residuals in wrapped angle space -- see
+`test_aoa_initialisation_basin.py`. The convergence flag is trustworthy again,
+which the last test here pins. The median is still the right summary: it is
+what makes the linear law visible without a handful of tail draws dominating.
 
 Author: Li-Ta Hsu
 References: Chapter 4, Eqs. (4.64), (4.66)-(4.70)
@@ -68,17 +74,24 @@ class TestAoaErrorScalesLinearly(unittest.TestCase):
 
         self.assertGreater(np.percentile(five, 90), np.percentile(ten, 10))
 
-    def test_the_converged_flag_is_not_sufficient_at_high_noise(self):
-        """Some solves report success and land absurdly far away.
+    def test_the_converged_flag_is_trustworthy_at_high_noise(self):
+        """No solve reports success while landing absurdly far away.
 
-        Pinned because it is a trap for anyone using this solver: filtering on
-        info["converged"] alone still admits garbage. If a future fix makes the
-        flag trustworthy, this fails and the example's warning should go.
+        This used to assert the opposite, and warned that a future fix would
+        break it. The fix is the wrapped-angle residual: with no attractor at
+        infinity, a runaway keeps a large residual instead of a shrinking one,
+        so it can no longer converge to nowhere.
         """
         errors, converged = _errors(10.0)
         lying = errors[converged] > 100.0
 
-        self.assertGreater(int(np.sum(lying)), 0)
+        self.assertEqual(int(np.sum(lying)), 0)
+
+    def test_every_solve_converges_at_high_noise(self):
+        """10 deg is severe, but severity should show up as error, not failure."""
+        _, converged = _errors(10.0)
+
+        self.assertTrue(converged.all())
 
 
 if __name__ == "__main__":

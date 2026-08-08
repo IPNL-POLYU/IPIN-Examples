@@ -426,7 +426,11 @@ class TestAOAPositioning:
         assert weights_diag[0] > weights_diag[3]
 
     def test_aoa_weighting_direct_sigma_tan_psi_2d(self):
-        """Test 2D AOA with direct sigma_tan_psi (transformed domain)."""
+        """Test 2D AOA with direct sigma_tan_psi (transformed domain).
+
+        sigma_tan_psi is noise on the tan transform, so it belongs to the
+        book's tan parameterisation and must be requested with residual="tan".
+        """
         anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
         true_pos = np.array([4.0, 6.0])
 
@@ -437,13 +441,25 @@ class TestAOAPositioning:
         # Direct tan(psi) std
         estimated_pos, info = positioner.solve(
             aoa, initial_guess=np.array([5.0, 5.0]),
-            sigma_tan_psi=0.1
+            sigma_tan_psi=0.1,
+            residual="tan",
         )
 
         assert info["converged"]
         # All weights should be 1/0.1^2 = 100
         weights_diag = np.diag(info["final_weights"])
         assert np.allclose(weights_diag, 100.0)
+
+    def test_transformed_domain_sigmas_rejected_for_angle_residual(self):
+        """Silently ignoring a weighting argument would be worse than failing."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        aoa = aoa_angle_vector(anchors, np.array([4.0, 6.0]), include_elevation=False)
+        positioner = AOAPositioner(anchors)
+
+        with pytest.raises(ValueError, match="residual='tan'"):
+            positioner.solve(
+                aoa, initial_guess=np.array([5.0, 5.0]), sigma_tan_psi=0.1
+            )
 
     def test_aoa_weighting_3d_with_sigmas(self):
         """Test 3D AOA with sigma_theta and sigma_psi weighting."""
