@@ -174,17 +174,30 @@ def mag_heading(
     true heading in the horizontal plane.
 
     Args:
-        mag_b: Magnetic field in body frame B.
+        mag_b: Magnetic field in body frame B, with components ordered to
+               match `frame.map_axes`. For the ENU default that is
+               [East, North, Up]; for NED it is [North, East, Down].
                Shape: (3,). Units: μT (microtesla) or normalized.
         roll: Roll angle. Units: radians. From IMU attitude.
         pitch: Pitch angle. Units: radians. From IMU attitude.
         declination: Magnetic declination (magnetic north → true north offset).
                      Units: radians. Default: 0.0 (assume magnetic = true north).
                      Varies by location: -25° to +25° (≈ ±0.44 rad) globally.
-        frame: Frame convention defining heading zero direction.
-               Default: None (creates ENU: 0 = East).
-               For ENU: 0 = East, π/2 = North
-               For NED: 0 = North, π/2 = East
+        frame: Frame convention the reading is expressed in and the heading is
+               reported in. Default: None (ENU: 0 = East, π/2 = North).
+               NED gives 0 = North, π/2 = East.
+
+               **This does not transform mag_b.** Both conventions measure
+               heading from the first map axis toward the second, so Eq. (6.53)
+               is the same expression either way and only the axis order of the
+               input changes. Passing NED to a function handed an ENU-ordered
+               reading returns an answer that is wrong by a reflection, and no
+               check here can catch it -- three unlabelled numbers carry no
+               frame. Order the components yourself to match.
+
+               The angle itself comes from `frame.unit_vector_to_heading`, the
+               inverse of the `frame.heading_to_unit_vector` that PDR walks
+               along, so the two stay consistent by construction.
 
     Returns:
         Heading ψ (yaw angle) in horizontal plane.
@@ -203,13 +216,15 @@ def mag_heading(
     Example:
         >>> import numpy as np
         >>> from core.sensors import FrameConvention
-        >>> # Magnetic field pointing north (horizontal) in level device
-        >>> mag = np.array([20.0, 0.0, -40.0])  # north + downward (typical)
-        >>> roll = 0.0
-        >>> pitch = 0.0
-        >>> frame_enu = FrameConvention.create_enu()
-        >>> heading = mag_heading(mag, roll, pitch, frame=frame_enu)
-        >>> print(f"Heading: {np.rad2deg(heading):.1f}°")
+        >>> frame_enu = FrameConvention.create_enu()  # map_axes = E, N, U
+        >>> # Field along +y, i.e. North in ENU, with the usual downward dip.
+        >>> mag = np.array([0.0, 20.0, -40.0])  # [East, North, Up]
+        >>> heading = mag_heading(mag, 0.0, 0.0, frame=frame_enu)
+        >>> float(np.rad2deg(heading))  # North is a quarter turn from East
+        90.0
+        >>> # The same three numbers read as NED would be [North, East, Down],
+        >>> # a field pointing East and dipping upward -- a different physical
+        >>> # situation. Reordering, not relabelling, is what converts them.
 
     Related Equations:
         - Eq. (6.51): Magnetometer heading definition (with declination)
@@ -226,16 +241,26 @@ def mag_heading(
     # Step 1: Tilt compensation (Eq. 6.52)
     mag_h = mag_tilt_compensate(mag_b, roll, pitch)
 
-    # Step 2: Heading from horizontal components (Eq. 6.53)
-    # The interpretation depends on the frame convention:
-    # For ENU: x=East, y=North → heading 0 = East, increases toward North
-    # For NED: x=North, y=East → heading 0 = North, increases toward East
+    # Step 2: Heading from horizontal components (Eq. 6.53).
     #
-    # In both cases, atan2(y, x) gives the angle from +x axis,
-    # which matches the frame convention by design:
-    # - ENU: atan2(mag_N, mag_E) → 0 when pointing East (+x)
-    # - NED: atan2(mag_E, mag_N) → 0 when pointing North (+x)
-    psi = np.arctan2(mag_h[1], mag_h[0])
+    # Delegated to the frame rather than written as an atan2 here. This used
+    # to be a hard-coded atan2(m_y, m_x) under a comment explaining how the
+    # ENU and NED interpretations differ, which read as though `frame`
+    # selected between them. It did not: the argument was accepted and never
+    # used, so passing create_ned() changed nothing.
+    #
+    # There is genuinely only one expression, because both conventions put
+    # heading zero on the first map axis and increase it toward the second.
+    # But that fact belongs to FrameConvention, which also owns the forward
+    # direction (heading_to_unit_vector, used by pdr_step_update). Keeping
+    # both directions in one class is what stops them drifting apart, and it
+    # makes `frame` load-bearing here: change the convention there and this
+    # follows.
+    #
+    # The contract that remains on the caller is the axis order of the input:
+    # mag_b must already be in frame.map_axes order. Nothing in three
+    # unlabelled numbers could tell this function which order it was handed.
+    psi = frame.unit_vector_to_heading(mag_h)
 
     # Step 3: Apply magnetic declination correction (Eq. 6.51)
     heading = psi + declination
