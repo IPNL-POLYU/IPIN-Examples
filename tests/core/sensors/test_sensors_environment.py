@@ -25,6 +25,7 @@ from core.sensors.environment import (
     smooth_measurement_simple,
     compensate_hard_iron,
 )
+from core.sensors.types import FrameConvention
 
 
 class TestMagTiltCompensate(unittest.TestCase):
@@ -105,23 +106,26 @@ class TestMagTiltCompensate(unittest.TestCase):
 class TestMagHeading(unittest.TestCase):
     """Test suite for magnetometer heading (Eqs. 6.51-6.53)."""
 
-    def test_mag_heading_level_pointing_north(self) -> None:
-        """Test heading for level device pointing north."""
-        # Magnetic field: mostly x-component (north), z-component (down)
-        mag = np.array([20.0, 0.0, -40.0])
+    # The default frame is ENU, so mag_b is ordered [East, North, Up] and
+    # heading is measured from East toward North. These four cases used to be
+    # named for NED (calling [20, 0, -40] "north"), which is the reading the
+    # first component would have under the *other* convention. The assertions
+    # were right throughout; only the labels described the wrong frame.
+
+    def test_mag_heading_level_field_along_east(self) -> None:
+        """Field on the +x axis, which is East in ENU: heading 0."""
+        mag = np.array([20.0, 0.0, -40.0])  # [East, North, Up]
         roll = 0.0
         pitch = 0.0
 
         heading = mag_heading(mag, roll, pitch)
 
-        # Should be near 0 radians (pointing north/east depending on convention)
-        # atan2(0, 20) = 0
+        # atan2(0, 20) = 0, and ENU measures heading from East
         assert np.isclose(heading, 0.0, atol=0.01)
 
-    def test_mag_heading_level_pointing_east(self) -> None:
-        """Test heading for level device pointing east."""
-        # Magnetic field: mostly y-component (east)
-        mag = np.array([0.0, 20.0, -40.0])
+    def test_mag_heading_level_field_along_north(self) -> None:
+        """Field on the +y axis, which is North in ENU: a quarter turn."""
+        mag = np.array([0.0, 20.0, -40.0])  # [East, North, Up]
         roll = 0.0
         pitch = 0.0
 
@@ -130,9 +134,9 @@ class TestMagHeading(unittest.TestCase):
         # atan2(20, 0) = π/2
         assert np.isclose(heading, np.pi / 2, atol=0.01)
 
-    def test_mag_heading_level_pointing_west(self) -> None:
-        """Test heading for level device pointing west."""
-        mag = np.array([0.0, -20.0, -40.0])
+    def test_mag_heading_level_field_along_south(self) -> None:
+        """Field on -y, i.e. South in ENU."""
+        mag = np.array([0.0, -20.0, -40.0])  # [East, North, Up]
         roll = 0.0
         pitch = 0.0
 
@@ -141,9 +145,9 @@ class TestMagHeading(unittest.TestCase):
         # atan2(-20, 0) = -π/2
         assert np.isclose(heading, -np.pi / 2, atol=0.01)
 
-    def test_mag_heading_level_pointing_south(self) -> None:
-        """Test heading for level device pointing south."""
-        mag = np.array([-20.0, 0.0, -40.0])
+    def test_mag_heading_level_field_along_west(self) -> None:
+        """Field on -x, i.e. West in ENU."""
+        mag = np.array([-20.0, 0.0, -40.0])  # [East, North, Up]
         roll = 0.0
         pitch = 0.0
 
@@ -151,6 +155,44 @@ class TestMagHeading(unittest.TestCase):
 
         # atan2(0, -20) = ±π
         assert np.isclose(abs(heading), np.pi, atol=0.01)
+
+    def test_mag_heading_is_the_same_expression_in_ned(self) -> None:
+        """`frame` selects no formula, so equal inputs give equal headings.
+
+        The difference between the conventions lives in how the caller orders
+        mag_b, not in what this function computes. Pinned because the
+        parameter reads as though it transforms the input, and a caller who
+        believes that gets an answer wrong by a reflection with no error.
+        """
+        mag = np.array([3.0, 4.0, -40.0])
+
+        enu = mag_heading(mag, 0.0, 0.0, frame=FrameConvention.create_enu())
+        ned = mag_heading(mag, 0.0, 0.0, frame=FrameConvention.create_ned())
+
+        assert np.isclose(enu, ned)
+
+    def test_mag_heading_inverts_the_frames_own_forward_convention(self) -> None:
+        """Eq. (6.53) must undo exactly what PDR's step update applies.
+
+        `pdr_step_update` walks along `frame.heading_to_unit_vector(psi)`; this
+        function recovers psi from a direction. They are the two halves of one
+        convention, and a heading that does not round-trip through them would
+        put the estimated track at an angle to the true one while every
+        individual component still looked reasonable.
+
+        Pinned as a round trip rather than against hard-coded numbers so that
+        adding a third convention has to satisfy both directions at once.
+        """
+        for frame in (FrameConvention.create_enu(), FrameConvention.create_ned()):
+            for psi in np.linspace(-np.pi, np.pi, 17)[:-1]:  # -pi and pi alias
+                direction = frame.heading_to_unit_vector(psi)
+                mag = np.array([direction[0], direction[1], -40.0])
+
+                recovered = mag_heading(mag, 0.0, 0.0, frame=frame)
+
+                assert np.isclose(recovered, psi, atol=1e-9), (
+                    f"{frame.map_frame}: {psi} -> {direction} -> {recovered}"
+                )
 
     def test_mag_heading_with_declination(self) -> None:
         """Test heading with magnetic declination correction."""

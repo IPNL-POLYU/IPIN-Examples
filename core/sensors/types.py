@@ -249,12 +249,51 @@ class FrameConvention:
             >>> v = frame.heading_to_unit_vector(np.pi/2)  # North
             >>> print(v)  # [0, 1]
         """
-        if self.map_frame == 'ENU':
-            # ENU: heading 0 = East (+x), π/2 = North (+y)
-            return np.array([np.cos(heading_rad), np.sin(heading_rad)])
-        else:  # NED
-            # NED: heading 0 = North (+x), π/2 = East (+y)
-            return np.array([np.cos(heading_rad), np.sin(heading_rad)])
+        # One expression serves both conventions, and the branch that used to
+        # be here returned the same thing twice. That is not an accident to be
+        # tidied away: ENU and NED both put heading zero on the first map axis
+        # and increase it toward the second (ENU 0=East toward North, NED
+        # 0=North toward East). __post_init__ enforces exactly that pairing.
+        # What differs between the frames is which compass direction each axis
+        # names, which is already captured in map_axes.
+        #
+        # A convention that broke the pairing -- clockwise from North on ENU
+        # axes, say -- would need this method and unit_vector_to_heading
+        # changed together, and they are adjacent so that stays visible.
+        return np.array([np.cos(heading_rad), np.sin(heading_rad)])
+
+    def unit_vector_to_heading(self, v: np.ndarray) -> float:
+        """
+        Recover a heading angle from a horizontal direction vector.
+
+        Exact inverse of `heading_to_unit_vector`, and the single place the
+        map-frame heading convention is written down for the reverse
+        direction. Magnetometer heading (Eq. 6.53) delegates here rather than
+        hard-coding an atan2, so that the two directions cannot drift apart.
+
+        Args:
+            v: Direction in the horizontal plane, components [x, y] in map
+               frame order. Need not be normalised. Only the first two
+               components are read, so a full 3-vector may be passed.
+
+        Returns:
+            Heading angle in radians, wrapped to [-π, π].
+            ENU: 0 = East, π/2 = North. NED: 0 = North, π/2 = East.
+
+        Raises:
+            ValueError: If v has fewer than two components.
+
+        Example:
+            >>> frame = FrameConvention.create_enu()
+            >>> float(np.rad2deg(frame.unit_vector_to_heading([0.0, 1.0])))
+            90.0
+        """
+        v = np.asarray(v, dtype=float)
+        if v.shape[0] < 2:
+            raise ValueError(
+                f"v must have at least two components, got shape {v.shape}"
+            )
+        return float(np.arctan2(v[1], v[0]))
 
 
 @dataclass(frozen=True)
