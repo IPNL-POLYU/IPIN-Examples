@@ -42,12 +42,18 @@ This dataset demonstrates **RF (Radio Frequency) positioning using TOA, TDOA, an
 
 ## Dataset Variants
 
-| Variant | Directory | Geometry | Mean GDOP (TOA) | Description |
-|---------|-----------|----------|-----------------|-------------|
-| **Baseline** | `ch4_rf_2d_square` | Square (4 corners) | ~1.0 | Good geometry, low GDOP |
-| **Optimal** | `ch4_rf_2d_optimal` | Circular (evenly spaced) | ~0.8 | Best geometry, minimum GDOP |
-| **Poor** | `ch4_rf_2d_linear` | Linear array | >10 | Bad geometry, very high GDOP |
-| **NLOS** | `ch4_rf_2d_nlos` | Square + NLOS bias | ~1.0 | Good geometry but measurement bias |
+| Variant | Directory | Geometry | Mean GDOP: TOA / TDOA / AOA | Description |
+|---------|-----------|----------|-----------------------------|-------------|
+| **Baseline** | `ch4_rf_2d_square` | Square (4 corners) | 1.02 / 0.87 / 15.04 | Good geometry, low GDOP |
+| **Optimal** | `ch4_rf_2d_optimal` | Diamond (evenly spaced) | 1.02 / 1.09 / 11.54 | Best AOA geometry |
+| **Poor** | `ch4_rf_2d_linear` | Linear array | 1.43 / 10.36 / 9.25 | Poor for TDOA — see its README |
+| **NLOS** | `ch4_rf_2d_nlos` | Square + NLOS bias | 1.02 / 0.87 / 15.04 | Good geometry but measurement bias |
+
+DOP is reported per method because it differs by an order of magnitude between
+them, and the "poor" variant is the case in point: its TOA GDOP of 1.43 is
+almost as good as the square's, while its TDOA GDOP is twelve times worse.
+`data/sim/ch4_rf_2d_linear/README.md` covers that geometry, including why a
+healthy TOA GDOP there is still not enough to make TOA usable.
 
 **Generate variants**:
 ```bash
