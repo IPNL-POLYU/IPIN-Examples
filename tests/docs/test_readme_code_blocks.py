@@ -81,6 +81,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 FRAGMENT_BLOCKS = {
     "ch2_coords_san_francisco": 1,
     "ch3_estimator_nonlinear": 4,
+    "ch4_rf_2d_linear": 1,
     "ch4_rf_2d_square": 1,
     "ch5_wifi_fingerprint_grid": 3,
     "ch6_env_sensors_heading_altitude": 3,
