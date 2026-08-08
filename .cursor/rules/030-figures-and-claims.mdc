@@ -88,6 +88,33 @@ positions; the README reported a mean and called it 0.5 m.
   for AOA, which is exactly why it has to go: it silently converts a fragility
   into an accuracy.
 
+## Check the residual, not just the solver
+
+When an iterative solve misbehaves, suspect the space the residual is formed
+in before blaming the initial guess. Chapter 4's AOA looked like a bad-start
+problem for a long time; it was the parameterisation, and no starting point
+would have fixed it.
+
+Solving on `z = tan(psi)` because Eq. (4.64) is written that way carries two
+defects:
+
+- **A periodic quantity flattened.** `tan` has period pi, so an anchor ahead
+  and an anchor behind give the same measurement. Prefer `atan2(dE, dN)`,
+  which keeps the quadrant, and wrap the residual to [-pi, pi].
+- **A spurious attractor.** As the estimate runs to infinity every anchor
+  tends to the same bearing, so tan residuals *shrink* with distance. The
+  iteration converges to nowhere and reports success — a traced run walked
+  (5,5) -> (-4,-4.6) -> (-23,-27) -> (-364,-470) -> 1e10, `converged=True`.
+
+Two questions catch both: **is the residual bounded?** and **does the cost
+stay large when the estimate is far wrong?** The wrapped-angle form answers
+yes to both and took gross failures from 19/50 to 0/50 from a cold start, with
+no change to what the correct answer is.
+
+An unbounded residual also skews the weighting: `var(tan psi) = sec^4(psi)
+var(psi)` means near-singular anchors dominate the normal equations. In angle
+space the variance is just `sigma_psi^2`, and there is nothing to correct for.
+
 ## One draw is not a measurement
 
 An error computed from a single noise realisation is a sample, not an accuracy.

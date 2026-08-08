@@ -294,15 +294,22 @@ print(f"AOA failed to solve: {np.sum(~good)}/{N}")
 # Do NOT print errors_aoa.mean() -- it is about 1e15 m here.
 ```
 
-**Expected Result**: 0.88m median, 0.57m mean over the 64 that solve, and
-**36 of 100 fail outright**.
+**Expected Result**: 0.40m median, 0.46m mean, **0 of 100 fail**.
 
-That failure rate is the result worth taking away. When AOA solves it is
-accurate — 0.57m, second only to TOA — but on this geometry more than a third
-of positions do not solve at all, and the solver reports `converged: True`
-while sitting on a residual of 2e10. The arithmetic mean of the errors is
-around 1e15 m, so a mean is not a usable summary: report the median and the
-failure count separately, and never a single draw.
+This used to read 36 of 100 failing, with an arithmetic mean around 1e15 m.
+That was the *parameterisation*, not the geometry and not the noise. Writing
+Eq. (4.64) literally and solving on `z = tan(ψ)` has two defects no starting
+point repairs: `tan` has period π, so an anchor ahead and one behind give the
+same measurement; and as the estimate runs to infinity every anchor tends to
+the same bearing, so the residuals *shrink* — infinity is an attractor the
+solver reports as convergence.
+
+`AOAPositioner` now forms residuals as `wrap(ψ − atan2(ΔE, ΔN))`: the same
+measurement model, inverted without discarding the quadrant. The book's form
+is still reachable as `residual="tan"` if you want to see it misbehave.
+
+Report the median and the failure count anyway. Both are cheap, and a mean
+alone would have hidden the old defect completely.
 
 ## Visualization
 
@@ -491,26 +498,29 @@ landed more than 100 m away.
 
 | Metric | TOA | TDOA | AOA | Notes |
 |--------|-----|------|-----|-------|
-| **Median Error** | 0.10m | 13.75m | 0.88m | Robust to the tail |
-| **Mean over solved** | 0.10m | 12.51m | 0.57m | TOA best |
-| **Max over solved** | 0.27m | 21.14m | 1.57m | |
-| **Failed to solve** | **0/100** | **11/100** | **36/100** | TOA is the only reliable one |
+| **Median Error** | 0.10m | 13.75m | 0.40m | Robust to the tail |
+| **Mean over solved** | 0.10m | 12.51m | 0.46m | TOA best |
+| **Max over solved** | 0.27m | 21.14m | 1.30m | |
+| **Failed to solve** | **0/100** | **11/100** | **0/100** | TDOA is the fragile one |
 | **Mean GDOP** | 1.02 | 0.87 | 15.04 | TOA/TDOA similar |
 | **Min GDOP** | 1.00 | 0.81 | 13.84 | Center of area |
 | **Max GDOP** | 1.09 | 1.03 | 16.74 | Near edges |
 
-There is no arithmetic-mean column because for AOA it is about 1e15 m. A single
-solve that "converges" to somewhere absurd makes a mean a property of that
-outlier, so the median and the failure count carry the result instead.
+The median and the failure count are reported rather than a mean, because a
+single solve that "converges" to somewhere absurd makes a mean a property of
+that outlier. AOA used to do exactly that on 36 of 100 positions.
 
 **Key Insights**:
-- TOA: best accuracy and the only method that solves every position; requires clock sync
+- TOA: best accuracy and solves every position; requires clock sync.
 - TDOA: clock-free, but the hyperbolic geometry costs two orders of magnitude
-  here — and it is the geometry, not the initialisation. Seeding from the true
-  position changes the median by under a millimetre.
-- AOA: accurate *when it solves*, at 0.57m, but fails on more than a third of
-  positions and claims convergence while doing so. Judge it on the failure rate,
-  not the accuracy of the survivors.
+  here, and it is the geometry rather than the initialisation — seeding from the
+  true position changes the median by under a millimetre.
+- AOA: 0.40m median with no failures, at the price of needing bearing hardware.
+
+**Geometry matters differently for each.** On the collinear `poor_geometry`
+variant, TOA and TDOA fail on all 100 positions while AOA still solves 92 of
+them to a 0.26m median. Ranges from anchors on a line leave the position
+ambiguous; bearings do not. That contrast is the reason the variant exists.
 
 ## Book Connection
 
