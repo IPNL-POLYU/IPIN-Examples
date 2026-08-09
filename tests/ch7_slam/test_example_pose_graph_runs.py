@@ -16,7 +16,6 @@ Date: December 2025
 """
 
 import unittest
-from pathlib import Path
 
 from tests.ch7_slam.slam_example_runner import (
     WORKSPACE_ROOT,
