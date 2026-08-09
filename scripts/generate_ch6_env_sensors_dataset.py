@@ -232,7 +232,6 @@ def add_env_sensor_noise(
         Tuple of (mag_meas, pressure_meas).
     """
     rng = np.random.default_rng(seed)
-    N = len(mag_true)
 
     # Magnetometer noise
     mag_meas = mag_true + rng.normal(0, mag_noise, mag_true.shape)
@@ -370,7 +369,7 @@ def save_dataset(
         json.dump(config, f, indent=2)
 
     print(f"\n  Saved dataset to: {output_dir}")
-    print(f"    Files: 9 files (time, GT x3, measurements x2, clean x2, config)")
+    print("    Files: 9 files (time, GT x3, measurements x2, clean x2, config)")
     print(f"    Samples: {len(t)}")
 
 

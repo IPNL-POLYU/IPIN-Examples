@@ -10,7 +10,7 @@ All models are validated and tested for correctness.
 """
 
 import numpy as np
-from typing import Callable, Optional, Tuple
+from typing import Optional
 
 
 class ConstantVelocity1D:

@@ -29,8 +29,7 @@ from typing import Optional, Tuple
 import numpy as np
 from scipy.spatial import KDTree
 
-from .se2 import se2_apply, se2_compose, se2_inverse
-from .types import Pose2
+from .se2 import se2_apply, se2_compose
 
 
 def find_correspondences(
@@ -374,8 +373,9 @@ def icp_point_to_point(
     else:
         current_pose = initial_pose.astype(np.float64).copy()
 
-    # ICP main loop
-    converged = False
+    # ICP main loop. Every exit path returns its own convergence literal
+    # -- True from the tolerance check, False after the loop -- so there
+    # is no flag to carry.
     final_residual = np.inf
 
     for iteration in range(max_iterations):
@@ -408,8 +408,8 @@ def icp_point_to_point(
         pose_change = np.linalg.norm(delta_pose)
         
         if pose_change < tolerance:
-            # Converged! Apply final delta and return
-            converged = True
+            # Converged! Apply final delta and return. The success flag
+            # is the literal below; there is no separate state to track.
             current_pose = se2_compose(current_pose, delta_pose)
             return current_pose, iteration + 1, final_residual, True
 

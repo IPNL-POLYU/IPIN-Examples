@@ -24,7 +24,6 @@ Date: December 2024
 import argparse
 import json
 import sys
-import time
 from pathlib import Path
 from typing import Dict, Tuple
 
@@ -47,12 +46,13 @@ def generate_trajectory(
         trajectory_type: Type of trajectory ('linear', 'circular', 'figure8').
         duration: Duration in seconds.
         dt: Time step in seconds.
-        seed: Random seed.
+        seed: Accepted for signature symmetry with the other generators, but
+              unused: every trajectory here is a closed-form curve with no
+              random component. Measurement noise is added separately.
 
     Returns:
         Tuple of (times, states) where states is [N×4] (x, y, vx, vy).
     """
-    rng = np.random.default_rng(seed)
     t = np.arange(0, duration, dt)
     N = len(t)
     states = np.zeros((N, 4))  # [x, y, vx, vy]
@@ -234,7 +234,7 @@ def save_dataset(
         json.dump(config, f, indent=2)
 
     print(f"\n  Saved dataset to: {output_dir}")
-    print(f"    Files: 6 files (time, states, beacons, ranges, bearings, config)")
+    print("    Files: 6 files (time, states, beacons, ranges, bearings, config)")
     print(f"    Duration: {times[-1]:.1f}s")
     print(f"    Samples: {len(times)}")
     print(f"    Beacons: {len(beacons)}")
@@ -348,7 +348,7 @@ def generate_dataset(
     range_errors = ranges - true_ranges
     range_rmse = np.sqrt(np.mean(range_errors**2))
 
-    print(f"\nMeasurement Statistics:")
+    print("\nMeasurement Statistics:")
     print(f"  Range RMSE: {range_rmse:.3f}m")
     print(f"  Range bias: {range_errors.mean():.3f}m")
 

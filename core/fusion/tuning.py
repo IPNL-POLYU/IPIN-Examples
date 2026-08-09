@@ -14,7 +14,6 @@ Author: Li-Ta Hsu
 References: Chapter 8, Section 8.3 (Tuning and Robustness), Equation 8.7
 """
 
-from typing import Callable
 import warnings
 
 import numpy as np

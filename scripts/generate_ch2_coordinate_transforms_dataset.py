@@ -36,7 +36,6 @@ from core.coords import (
     llh_to_ecef,
     ecef_to_llh,
     ecef_to_enu,
-    enu_to_ecef,
     euler_to_quat,
     euler_to_rotation_matrix,
     quat_to_rotation_matrix,
@@ -191,7 +190,7 @@ def save_dataset(
         json.dump(config, f, indent=2)
 
     print(f"\n  Saved dataset to: {output_dir}")
-    print(f"    Files: 8 files (LLH, ECEF, ENU, reference, Euler, quat, matrix, config)")
+    print("    Files: 8 files (LLH, ECEF, ENU, reference, Euler, quat, matrix, config)")
     print(f"    Points: {len(lats)}")
 
 
@@ -258,7 +257,6 @@ def generate_dataset(
 
     # Convert to ENU
     print("\nStep 3: Converting ECEF -> ENU (local frame)...")
-    ref_ecef = llh_to_ecef(lat_center, lon_center, height_ground)
     enu = np.array([ecef_to_enu(pt[0], pt[1], pt[2], 
                                   lat_center, lon_center, height_ground)
                     for pt in ecef])

@@ -248,7 +248,7 @@ def generate_ch6_zupt_dataset(
     np.random.seed(seed)
     
     print(f"\n{'='*70}")
-    print(f"Generating Ch6 Foot-Mounted IMU with ZUPT Dataset")
+    print("Generating Ch6 Foot-Mounted IMU with ZUPT Dataset")
     print(f"{'='*70}")
     
     # Create output directory
@@ -256,7 +256,7 @@ def generate_ch6_zupt_dataset(
     output_path.mkdir(parents=True, exist_ok=True)
     
     # 1. Generate ground truth trajectory
-    print(f"\n1. Generating walking trajectory...")
+    print("\n1. Generating walking trajectory...")
     print(f"   Steps: {num_steps}")
     print(f"   Step length: {step_length} m")
     print(f"   Step duration: {step_duration} s")
@@ -288,10 +288,10 @@ def generate_ch6_zupt_dataset(
         yaw=yaw,
         is_stance=is_stance
     )
-    print(f"   Saved: truth.npz")
+    print("   Saved: truth.npz")
     
     # 2. Generate IMU measurements
-    print(f"\n2. Generating IMU measurements...")
+    print("\n2. Generating IMU measurements...")
     print(f"   Accel noise: {accel_noise_std} m/s²")
     print(f"   Gyro noise: {gyro_noise_std} rad/s")
     print(f"   Accel bias: [{accel_bias_x}, {accel_bias_y}] m/s²")
@@ -313,10 +313,10 @@ def generate_ch6_zupt_dataset(
         gyro_z=gyro_z
     )
     print(f"   Generated {len(t_imu)} IMU samples")
-    print(f"   Saved: imu.npz")
+    print("   Saved: imu.npz")
     
     # 3. Save configuration
-    print(f"\n3. Saving configuration...")
+    print("\n3. Saving configuration...")
     
     swing_duration = step_duration - stance_duration
     config = {
@@ -358,24 +358,24 @@ def generate_ch6_zupt_dataset(
     with open(output_path / "config.json", "w") as f:
         json.dump(config, f, indent=2)
     
-    print(f"   Saved: config.json")
+    print("   Saved: config.json")
     
     # Summary
     print(f"\n{'='*70}")
-    print(f"Dataset generation complete!")
+    print("Dataset generation complete!")
     print(f"{'='*70}")
     print(f"Output directory: {output_path.absolute()}")
-    print(f"\nFiles created:")
-    print(f"  - truth.npz   : Ground truth (t, p_xy, v_xy, yaw, is_stance)")
-    print(f"  - imu.npz     : IMU measurements (t, accel_xy, gyro_z)")
-    print(f"  - config.json : Dataset configuration")
-    print(f"\nDataset statistics:")
+    print("\nFiles created:")
+    print("  - truth.npz   : Ground truth (t, p_xy, v_xy, yaw, is_stance)")
+    print("  - imu.npz     : IMU measurements (t, accel_xy, gyro_z)")
+    print("  - config.json : Dataset configuration")
+    print("\nDataset statistics:")
     print(f"  Duration        : {duration:.1f} s")
     print(f"  Samples         : {len(t)} ({1/dt:.0f} Hz)")
     print(f"  Steps           : {num_steps}")
     print(f"  Total distance  : {total_distance:.1f} m")
     print(f"  Stance phases   : {np.sum(is_stance)} samples ({stance_ratio*100:.1f}%)")
-    print(f"\n")
+    print("\n")
 
 
 # ============================================================================

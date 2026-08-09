@@ -101,7 +101,6 @@ def generate_corridor_walk(
     step_times = []
 
     # Initial state
-    x, y = 0.0, 0.0
     yaw = 0.0  # Start heading East
 
     # Generate walk
@@ -114,7 +113,6 @@ def generate_corridor_walk(
         current_time = t[i]
 
         # Determine if in straight walk or turn
-        leg_end_time = (current_leg + 1) * (leg_duration + TURN_DURATION)
         leg_start_time = current_leg * (leg_duration + TURN_DURATION)
         time_in_leg = current_time - leg_start_time
 
@@ -488,7 +486,7 @@ def save_dataset(
         json.dump(config, f, indent=2)
 
     print(f"\n  Saved dataset to: {output_dir}")
-    print(f"    Files: 10 files (time, GT x2, measurements x3, clean x3, steps, config)")
+    print("    Files: 10 files (time, GT x2, measurements x3, clean x3, steps, config)")
     print(f"    Samples: {len(t)}")
     print(f"    Steps: {len(step_times)}")
 
@@ -623,7 +621,7 @@ def generate_dataset(
     print(f"  Final error: {final_error_mag:.3f} m")
     print(f"  Mean error: {mean_error_mag:.3f} m")
 
-    print(f"\nHeading Source Comparison:")
+    print("\nHeading Source Comparison:")
     print(f"  Gyro: {final_error_gyro:.2f}m error (drifts over time)")
     print(f"  Magnetometer: {final_error_mag:.2f}m error (absolute but noisy)")
     print(f"  Improvement: {final_error_gyro / final_error_mag:.1f}x better with magnetometer")

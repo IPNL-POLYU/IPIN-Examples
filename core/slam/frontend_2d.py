@@ -17,7 +17,7 @@ from typing import Dict, Optional, Tuple
 from dataclasses import dataclass
 
 from .submap_2d import Submap2D
-from .se2 import se2_compose, se2_relative
+from .se2 import se2_compose
 from .scan_matching import icp_point_to_point
 
 
@@ -272,7 +272,7 @@ class SlamFrontend2D:
                 max_iterations=50,
                 tolerance=1e-4,
             )
-        except Exception as e:
+        except Exception:
             # ICP failed (e.g., numerical issues)
             match_quality = MatchQuality(
                 residual=float('inf'),

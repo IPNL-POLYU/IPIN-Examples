@@ -15,7 +15,6 @@ Date: December 2025
 """
 
 import numpy as np
-from typing import Optional
 
 
 def compute_scan_descriptor(

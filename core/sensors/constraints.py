@@ -737,8 +737,9 @@ class NhcMeasurementModel:
         n = x.shape[0]
         H = np.zeros((2, n))
 
-        # Extract velocity and quaternion (Eq. 6.16 ordering)
-        v_map = x[3:6]
+        # Extract quaternion (Eq. 6.16 ordering). The map-frame velocity
+        # at x[3:6] is deliberately not read here: it is needed only for
+        # the d(C_M^B @ v)/dq term below, which this implementation zeroes.
         q = x[6:10]
 
         # Compute C_M^B (rotation from map to body)

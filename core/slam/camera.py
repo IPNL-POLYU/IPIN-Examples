@@ -14,7 +14,7 @@ Date: December 2025
 """
 
 import numpy as np
-from typing import Optional, Tuple
+from typing import Optional
 from core.slam.types import CameraIntrinsics
 
 

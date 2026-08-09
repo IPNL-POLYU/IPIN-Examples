@@ -212,7 +212,7 @@ def generate_ch6_strapdown_dataset(
     np.random.seed(seed)
     
     print(f"\n{'='*70}")
-    print(f"Generating Ch6 IMU Strapdown Dataset")
+    print("Generating Ch6 IMU Strapdown Dataset")
     print(f"{'='*70}")
     
     # Create output directory
@@ -220,7 +220,7 @@ def generate_ch6_strapdown_dataset(
     output_path.mkdir(parents=True, exist_ok=True)
     
     # 1. Generate ground truth trajectory
-    print(f"\n1. Generating circular trajectory...")
+    print("\n1. Generating circular trajectory...")
     print(f"   Radius: {radius} m")
     print(f"   Speed: {speed} m/s")
     print(f"   Duration: {duration} s")
@@ -246,10 +246,10 @@ def generate_ch6_strapdown_dataset(
         v_xy=v_xy,
         yaw=yaw
     )
-    print(f"   Saved: truth.npz")
+    print("   Saved: truth.npz")
     
     # 2. Generate IMU measurements
-    print(f"\n2. Generating IMU measurements...")
+    print("\n2. Generating IMU measurements...")
     print(f"   Accel noise: {accel_noise_std} m/s²")
     print(f"   Gyro noise: {gyro_noise_std} rad/s")
     print(f"   Accel bias: [{accel_bias_x}, {accel_bias_y}] m/s²")
@@ -271,10 +271,10 @@ def generate_ch6_strapdown_dataset(
         gyro_z=gyro_z
     )
     print(f"   Generated {len(t_imu)} IMU samples")
-    print(f"   Saved: imu.npz")
+    print("   Saved: imu.npz")
     
     # 3. Save configuration
-    print(f"\n3. Saving configuration...")
+    print("\n3. Saving configuration...")
     
     config = {
         "dataset_info": {
@@ -306,22 +306,22 @@ def generate_ch6_strapdown_dataset(
     with open(output_path / "config.json", "w") as f:
         json.dump(config, f, indent=2)
     
-    print(f"   Saved: config.json")
+    print("   Saved: config.json")
     
     # Summary
     print(f"\n{'='*70}")
-    print(f"Dataset generation complete!")
+    print("Dataset generation complete!")
     print(f"{'='*70}")
     print(f"Output directory: {output_path.absolute()}")
-    print(f"\nFiles created:")
-    print(f"  - truth.npz   : Ground truth (t, p_xy, v_xy, yaw)")
-    print(f"  - imu.npz     : IMU measurements (t, accel_xy, gyro_z)")
-    print(f"  - config.json : Dataset configuration")
-    print(f"\nDataset statistics:")
+    print("\nFiles created:")
+    print("  - truth.npz   : Ground truth (t, p_xy, v_xy, yaw)")
+    print("  - imu.npz     : IMU measurements (t, accel_xy, gyro_z)")
+    print("  - config.json : Dataset configuration")
+    print("\nDataset statistics:")
     print(f"  Duration    : {duration:.1f} s")
     print(f"  Samples     : {len(t)} ({1/dt:.0f} Hz)")
     print(f"  Laps        : {duration / period:.2f}")
-    print(f"\n")
+    print("\n")
 
 
 # ============================================================================

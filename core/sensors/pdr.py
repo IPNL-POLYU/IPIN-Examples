@@ -245,7 +245,6 @@ def detect_steps_peak_detector(
     if min_peak_distance <= 0:
         raise ValueError(f"min_peak_distance must be positive, got {min_peak_distance}")
     
-    N = len(accel_series)
     
     # Step 1: Compute total acceleration magnitude (Eq. 6.46)
     # a_mag[k] = ||a_k|| = sqrt(ax² + ay² + az²)

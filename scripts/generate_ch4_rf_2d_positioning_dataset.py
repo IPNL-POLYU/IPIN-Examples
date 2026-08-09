@@ -364,7 +364,7 @@ def save_dataset(
         output_dir / "tdoa_diffs.txt",
         tdoa_diffs,
         fmt="%.6f",
-        header=f"TDOA range differences relative to beacon 0 (m)",
+        header="TDOA range differences relative to beacon 0 (m)",
     )
     np.savetxt(
         output_dir / "aoa_angles.txt",
@@ -398,7 +398,7 @@ def save_dataset(
         json.dump(config, f, indent=2)
 
     print(f"\n  Saved dataset to: {output_dir}")
-    print(f"    Files: 8 files (beacons, positions, 3 measurements, 3 GDOP, config)")
+    print("    Files: 8 files (beacons, positions, 3 measurements, 3 GDOP, config)")
     print(f"    Positions: {len(positions)}")
     print(f"    Beacons: {len(beacons)}")
 

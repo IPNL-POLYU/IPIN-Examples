@@ -335,7 +335,7 @@ def test_iekf_convergence():
     print(f"  Final state: {iekf.state}")
     print(f"  [PASS] IEKF converged in {iters} iterations")
 
-    assert iters <= 10, f"IEKF did not converge within max iterations"
+    assert iters <= 10, "IEKF did not converge within max iterations"
 
 
 def test_iekf_vs_ekf_high_nonlinearity():
@@ -448,7 +448,7 @@ def test_iekf_vs_ekf_high_nonlinearity():
 
     # IEKF should be at least as good as EKF (usually better)
     assert mean_iekf_error <= mean_ekf_error * 1.1, (
-        f"IEKF should not be significantly worse than EKF"
+        "IEKF should not be significantly worse than EKF"
     )
     print("  [PASS] IEKF performs at least as well as EKF")
 

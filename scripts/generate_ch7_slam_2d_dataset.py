@@ -23,7 +23,6 @@ Date: December 2024
 import argparse
 import json
 import sys
-import time
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -329,7 +328,7 @@ def save_dataset(
     drift_error = np.linalg.norm(odom_poses_arr[-1, :2] - true_poses_arr[-1, :2])
 
     print(f"\n  Saved dataset to: {output_dir}")
-    print(f"    Files: 6 files (truth, odom, landmarks, scans, loop_closures, config)")
+    print("    Files: 6 files (truth, odom, landmarks, scans, loop_closures, config)")
     print(f"    Poses: {len(true_poses)}")
     print(f"    Landmarks: {len(landmarks)}")
     print(f"    Loop closures: {len(loop_closures)}")

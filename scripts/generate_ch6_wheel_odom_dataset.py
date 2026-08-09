@@ -333,7 +333,7 @@ def save_dataset(
         json.dump(config, f, indent=2)
 
     print(f"\n  Saved dataset to: {output_dir}")
-    print(f"    Files: 9 files (time, GT x4, measurements x2, clean x2, config)")
+    print("    Files: 9 files (time, GT x4, measurements x2, clean x2, config)")
     print(f"    Samples: {len(t)}")
 
 
@@ -487,7 +487,7 @@ def generate_dataset(
     max_error = np.max(error)
 
     print(f"  Execution time: {elapsed:.3f} s")
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Final error: {final_error:.3f} m")
     print(f"  Mean error: {mean_error:.3f} m")
     print(f"  Max error: {max_error:.3f} m")

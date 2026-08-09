@@ -285,10 +285,10 @@ def test_kalman_filter_1d_constant_velocity():
     position_error = abs(final_est[0] - final_true[0])
     velocity_error = abs(final_est[1] - final_true[1])
 
-    print(f"1D Constant Velocity Test:")
+    print("1D Constant Velocity Test:")
     print(f"  Final position error: {position_error:.4f} m")
     print(f"  Final velocity error: {velocity_error:.4f} m/s")
-    print(f"  Expected: < 0.5 m and < 0.2 m/s")
+    print("  Expected: < 0.5 m and < 0.2 m/s")
 
     assert position_error < 0.5, f"Position error {position_error} too large"
     assert velocity_error < 0.2, f"Velocity error {velocity_error} too large"
