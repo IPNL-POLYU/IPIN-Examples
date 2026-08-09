@@ -27,7 +27,7 @@ from typing import Optional, TYPE_CHECKING
 import numpy as np
 
 from ..estimators.factor_graph import Factor
-from .se2 import se2_compose, se2_inverse, se2_relative, wrap_angle
+from .se2 import se2_relative, wrap_angle
 
 if TYPE_CHECKING:
     from .types import CameraIntrinsics

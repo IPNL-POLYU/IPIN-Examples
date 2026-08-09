@@ -10,7 +10,7 @@ All models include proper singularity handling and input validation.
 """
 
 import numpy as np
-from typing import Tuple, List, Optional
+from typing import Tuple, Optional
 import warnings
 
 from core.utils import normalize_jacobian_singularities, angle_diff

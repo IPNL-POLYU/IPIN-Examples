@@ -16,7 +16,7 @@ Book Reference:
     - Table 3.1: Robust estimator error functions (L2, Cauchy, Huber, G-M)
 """
 
-from typing import Callable, Literal, Optional, Tuple, Union
+from typing import Callable, Literal, Optional, Tuple
 
 import numpy as np
 

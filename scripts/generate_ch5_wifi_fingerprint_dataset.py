@@ -97,7 +97,7 @@ def generate_wifi_fingerprint_database(
     y_coords = np.arange(0, height + grid_spacing / 2, grid_spacing)
     
     print(f"\n{'='*60}")
-    print(f"Generating Wi-Fi Fingerprint Database")
+    print("Generating Wi-Fi Fingerprint Database")
     print(f"{'='*60}")
     print(f"Area size: {width}m × {height}m")
     print(f"Grid spacing: {grid_spacing}m")
@@ -122,7 +122,7 @@ def generate_wifi_fingerprint_database(
     
     ap_ids = [f"AP{i+1}" for i in range(n_aps)]
     
-    print(f"\nAP Positions:")
+    print("\nAP Positions:")
     for i, pos in enumerate(ap_positions):
         print(f"  {ap_ids[i]}: ({pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f})m")
     
@@ -131,7 +131,7 @@ def generate_wifi_fingerprint_database(
     features_list = []
     floor_ids_list = []
     
-    print(f"\nGenerating fingerprints...")
+    print("\nGenerating fingerprints...")
     
     for floor_id in range(n_floors):
         floor_z = floor_id * floor_height + 1.5  # Height of device (1.5m from floor)
@@ -194,7 +194,7 @@ def generate_wifi_fingerprint_database(
     floor_ids = np.array(floor_ids_list, dtype=int)
     
     print(f"\n{'='*60}")
-    print(f"Database Summary:")
+    print("Database Summary:")
     print(f"  Total reference points: {len(locations)}")
     print(f"  Location dimension: {locations.shape[1]}D")
     if n_samples_per_rp == 1:
@@ -391,7 +391,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     output_path.mkdir(parents=True, exist_ok=True)
     
     print(f"\n{'='*60}")
-    print(f"Saving database...")
+    print("Saving database...")
     save_fingerprint_database(db, output_path)
     print(f"OK Saved to: {output_path}")
     
@@ -399,20 +399,20 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     from core.fingerprinting import load_fingerprint_database, validate_database
     
     print(f"\n{'='*60}")
-    print(f"Validating database...")
+    print("Validating database...")
     db_loaded = load_fingerprint_database(output_path)
     stats = validate_database(db_loaded)
     
-    print(f"\nValidation Results:")
-    print(f"  OK Database loaded successfully")
-    print(f"  OK All validation checks passed")
+    print("\nValidation Results:")
+    print("  OK Database loaded successfully")
+    print("  OK All validation checks passed")
     if 'floor_coverage' in stats:
         print(f"  Floor coverage: {stats['floor_coverage']}")
     if 'feature_variance_min' in stats and 'feature_variance_max' in stats:
         print(f"  Feature variance: min={stats['feature_variance_min']:.2f}, max={stats['feature_variance_max']:.2f}")
     
     # Per-floor statistics
-    print(f"\nPer-Floor Statistics:")
+    print("\nPer-Floor Statistics:")
     for floor_id in sorted(np.unique(db.floor_ids)):
         mask = db.floor_ids == floor_id
         n_rps = np.sum(mask)
@@ -421,7 +421,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         print(f"  Floor {floor_id}: {n_rps} RPs, RSS mean={rss_mean:.1f} dBm, std={rss_std:.1f} dBm")
     
     print(f"\n{'='*60}")
-    print(f"SUCCESS: Dataset generation complete!")
+    print("SUCCESS: Dataset generation complete!")
     print(f"{'='*60}\n")
 
 

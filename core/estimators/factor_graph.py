@@ -15,7 +15,7 @@ Implements:
     - Eq. (3.56): Gain ratio for LM damping adjustment
 """
 
-from typing import Callable, Dict, List, Optional, Tuple
+from typing import Callable, Dict, List, Tuple
 
 import numpy as np
 
@@ -722,7 +722,7 @@ def test_fgo_levenberg_marquardt():
     position_error = np.linalg.norm(estimated_pos - true_pos)
 
     print(f"  True position: {true_pos}")
-    print(f"  Initial guess: [8.0, 1.0]")
+    print("  Initial guess: [8.0, 1.0]")
     print(f"  Estimated position: {estimated_pos}")
     print(f"  Position error: {position_error:.6f} m")
     print(f"  Initial error: {error_history[0]:.6f}")

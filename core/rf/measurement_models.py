@@ -10,7 +10,7 @@ This module implements measurement models for various RF positioning techniques:
 All functions implement equations from Chapter 4 of the IPIN book.
 """
 
-from typing import Optional, Tuple
+from typing import Tuple
 
 import numpy as np
 

@@ -154,7 +154,6 @@ class LinearRegressionLocalizer:
 
         M = X.shape[0]  # Number of training samples
         N = Z.shape[1]  # Number of features
-        d = X.shape[1]  # Location dimension
 
         if M < N:
             raise ValueError(

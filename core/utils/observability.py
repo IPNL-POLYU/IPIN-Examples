@@ -14,7 +14,7 @@ References:
 """
 
 import numpy as np
-from typing import Tuple, Optional, Callable
+from typing import Tuple, Optional
 import warnings
 
 

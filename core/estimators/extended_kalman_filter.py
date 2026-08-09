@@ -310,10 +310,10 @@ def test_ekf_range_only_tracking():
     position_error = np.linalg.norm(final_est[:2] - final_true[:2])
     velocity_error = np.linalg.norm(final_est[2:] - final_true[2:])
 
-    print(f"2D Range-Only Tracking Test:")
+    print("2D Range-Only Tracking Test:")
     print(f"  Final position error: {position_error:.4f} m")
     print(f"  Final velocity error: {velocity_error:.4f} m/s")
-    print(f"  Expected: < 2.0 m and < 1.0 m/s")
+    print("  Expected: < 2.0 m and < 1.0 m/s")
 
     assert position_error < 2.0, f"Position error {position_error} too large"
     assert velocity_error < 1.0, f"Velocity error {velocity_error} too large"

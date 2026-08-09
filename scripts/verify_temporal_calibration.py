@@ -41,7 +41,7 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     time_offset = config['temporal_calibration']['time_offset_sec']
     clock_drift = config['temporal_calibration']['clock_drift']
     
-    print(f"\nConfig parameters:")
+    print("\nConfig parameters:")
     print(f"  Time offset: {time_offset*1000:.1f} ms")
     print(f"  Clock drift: {clock_drift*1e6:.1f} ppm")
     
@@ -54,7 +54,7 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     t_imu = imu['t']
     t_uwb_sensor = uwb['t']
     
-    print(f"\nTimestamp ranges:")
+    print("\nTimestamp ranges:")
     print(f"  Truth: [{t_truth[0]:.3f}, {t_truth[-1]:.3f}] s")
     print(f"  IMU:   [{t_imu[0]:.3f}, {t_imu[-1]:.3f}] s")
     print(f"  UWB:   [{t_uwb_sensor[0]:.3f}, {t_uwb_sensor[-1]:.3f}] s")
@@ -82,12 +82,12 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     idx_uwb_10 = np.argmin(np.abs(t_uwb_sensor - t_sensor_expected_10))
     t_sensor_actual_10 = t_uwb_sensor[idx_uwb_10]
     
-    print(f"\nAt fusion time t=0.0s:")
+    print("\nAt fusion time t=0.0s:")
     print(f"  Expected sensor time: {t_sensor_expected_0:.6f} s")
     print(f"  Actual sensor time:   {t_sensor_actual_0:.6f} s")
     print(f"  Difference:           {abs(t_sensor_actual_0 - t_sensor_expected_0)*1000:.3f} ms")
     
-    print(f"\nAt fusion time t~10.0s:")
+    print("\nAt fusion time t~10.0s:")
     print(f"  Expected sensor time: {t_sensor_expected_10:.6f} s")
     print(f"  Actual sensor time:   {t_sensor_actual_10:.6f} s")
     print(f"  Difference:           {abs(t_sensor_actual_10 - t_sensor_expected_10)*1000:.3f} ms")
@@ -104,9 +104,9 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     test1_pass = abs(offset_at_start*1000 - (-time_offset*1000)) < 1.0  # Within 1ms
     
     if test1_pass:
-        print(f"[PASS] TEST 1 PASSED: UWB timestamps are in sensor time")
+        print("[PASS] TEST 1 PASSED: UWB timestamps are in sensor time")
     else:
-        print(f"[FAIL] TEST 1 FAILED: UWB timestamps appear to be in fusion time (cosmetic offset)")
+        print("[FAIL] TEST 1 FAILED: UWB timestamps appear to be in fusion time (cosmetic offset)")
     
     # ========================================================================
     # TEST 2: Verify that drift accumulates over time
@@ -119,7 +119,7 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     test_fusion_times = [0.0, 20.0, 40.0, 60.0]
     drift_errors = []
     
-    print(f"\nDrift accumulation:")
+    print("\nDrift accumulation:")
     for t_fus in test_fusion_times:
         if t_fus > t_truth[-1]:
             continue
@@ -175,7 +175,7 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     # So first UWB measurement is at fusion time t=0.0
     t_fusion_grid = np.arange(0.0, 0.5, dt_uwb)
     
-    print(f"\nFirst 5 UWB measurements:")
+    print("\nFirst 5 UWB measurements:")
     print(f"{'Sensor Time':>12} {'Recovered Fusion':>18} {'Expected Fusion':>18} {'Error (ms)':>12}")
     print(f"{'-'*70}")
     
@@ -206,17 +206,17 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     all_pass = test1_pass and test2_pass and test3_pass
     
     if all_pass:
-        print(f"[PASS] ALL TESTS PASSED")
-        print(f"\nTemporal calibration is REAL (not cosmetic):")
-        print(f"  - UWB timestamps are in sensor time")
-        print(f"  - Clock drift accumulates correctly")
-        print(f"  - TimeSyncModel recovers fusion time")
-        print(f"\nThe dataset correctly implements time offset and drift!")
+        print("[PASS] ALL TESTS PASSED")
+        print("\nTemporal calibration is REAL (not cosmetic):")
+        print("  - UWB timestamps are in sensor time")
+        print("  - Clock drift accumulates correctly")
+        print("  - TimeSyncModel recovers fusion time")
+        print("\nThe dataset correctly implements time offset and drift!")
         return 0
     else:
-        print(f"[FAIL] SOME TESTS FAILED")
-        print(f"\nTemporal calibration may be cosmetic (config-only).")
-        print(f"Please check the dataset generation script.")
+        print("[FAIL] SOME TESTS FAILED")
+        print("\nTemporal calibration may be cosmetic (config-only).")
+        print("Please check the dataset generation script.")
         return 1
 
 

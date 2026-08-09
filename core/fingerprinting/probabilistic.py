@@ -159,7 +159,6 @@ def fit_gaussian_naive_bayes(
         Chapter 5, Section 5.1.3: Probabilistic fingerprinting with statistics.
     """
     M = db.n_reference_points
-    N = db.n_features
 
     # Compute mean and std from database
     # These methods handle both single-sample and multi-sample formats
@@ -239,7 +238,6 @@ def log_likelihood(
         )
 
     M = model.n_reference_points
-    N = model.n_features
 
     # Compute Gaussian log-likelihood for all RPs
     # log N(z_j; μ_ij, σ_ij²) = -0.5 * log(2π σ_ij²) - 0.5 * (z_j - μ_ij)² / σ_ij²

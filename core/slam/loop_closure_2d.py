@@ -18,7 +18,6 @@ from typing import List, Tuple, Optional
 from dataclasses import dataclass
 
 from .scan_descriptor_2d import (
-    compute_scan_descriptor,
     compute_descriptor_similarity,
     batch_compute_descriptors,
 )
