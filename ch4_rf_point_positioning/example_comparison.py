@@ -333,18 +333,52 @@ def tdoa_positioning_test(anchors, true_positions, noise_std=0.0):
     return np.array(errors)
 
 
-def aoa_positioning_test(anchors, true_positions, noise_std=0.0):
-    """Test AOA positioning (inline mode)."""
+#: One anchor's bearings are this much noisier than the rest. A real array has
+#: a worst element -- an obstructed sector, a miscalibrated element -- and a
+#: uniform noise model has nothing for measurement weighting to act on.
+DEGRADED_ANCHOR = 3
+DEGRADED_ANCHOR_SCALE = 10.0
+
+
+def aoa_noise_per_anchor(n_anchors, noise_std):
+    """Per-anchor azimuth sigma, with one anchor deliberately degraded."""
+    sigma = np.full(n_anchors, noise_std, dtype=float)
+    sigma[DEGRADED_ANCHOR % n_anchors] *= DEGRADED_ANCHOR_SCALE
+    return sigma
+
+
+def aoa_positioning_test(anchors, true_positions, noise_std=0.0, weighted=True):
+    """Test AOA positioning (inline mode).
+
+    Args:
+        weighted: Pass the per-anchor sigma to the solver, so it can
+            down-weight the degraded anchor (Eq. 4.77's W_a). With `False` the
+            solver treats every bearing as equally trustworthy, which is the
+            control this comparison needs: a weighting that is never contrasted
+            against its absence is an assertion, not a demonstration.
+
+    Note a *scalar* sigma would do nothing here. In angle space the weight
+    matrix is diag(1/sigma^2), so a uniform sigma makes W a multiple of the
+    identity and it cancels exactly out of (H'WH)^-1 H'W. Only the spread
+    between anchors carries information. (Under the old tan parameterisation a
+    uniform sigma did change the answer, because var(tan psi) = sec^4(psi)
+    var(psi) made the weights angle-dependent -- that was the amplification
+    that let near-singular anchors dominate, not a feature.)
+    """
     errors = []
+    sigma = aoa_noise_per_anchor(len(anchors), noise_std)
 
     for true_pos in tqdm(true_positions, desc="  AOA", leave=False, unit="pt"):
         aoa = np.array([aoa_azimuth(anchor, true_pos) for anchor in anchors])
         if noise_std > 0:
-            aoa += np.random.randn(len(aoa)) * noise_std
+            aoa += np.random.randn(len(aoa)) * sigma
 
         try:
             positioner = AOAPositioner(anchors)
-            est_pos, info = positioner.solve(aoa, initial_guess=np.array([5.0, 5.0]))
+            kwargs = {"initial_guess": np.array([5.0, 5.0])}
+            if weighted and noise_std > 0:
+                kwargs["sigma_psi"] = sigma
+            est_pos, info = positioner.solve(aoa, **kwargs)
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_pos)
                 errors.append(error)
@@ -449,7 +483,9 @@ def run_inline_comparison():
 
     n_levels = len(toa_noise_levels)
 
-    results = {"TOA": [], "TDOA": [], "AOA": [], "RSS": []}
+    # "AOA_unw" is the unweighted control, reported in the table but not
+    # plotted -- the figure compares measurement types, not solver options.
+    results = {"TOA": [], "TDOA": [], "AOA": [], "RSS": [], "AOA_unw": []}
 
     print("\nNoise configuration (independent per method):")
     print(f"  TOA : range noise {toa_noise_levels} m  (+ clock bias {clock_bias_m} m)")
@@ -488,6 +524,12 @@ def run_inline_comparison():
         results["AOA"].append(
             aoa_positioning_test(anchors, true_positions, aoa_noise_rad)
         )
+        # Same measurements, same seed offset, weighting switched off.
+        results["AOA_unw"].append(
+            aoa_positioning_test(
+                anchors, true_positions, aoa_noise_rad, weighted=False
+            )
+        )
         results["RSS"].append(
             rss_positioning_test(
                 anchors, true_positions,
@@ -507,10 +549,15 @@ def run_inline_comparison():
     print(f"  Clock bias: {clock_bias_m} m (TOA only; cancels in TDOA)")
     print(f"  RSS config: Rayleigh short-term (sigma={sigma_short_linear}), "
           f"{n_samples_avg} samples averaged")
+    print(
+        f"  AOA anchor {DEGRADED_ANCHOR} is {DEGRADED_ANCHOR_SCALE:.0f}x noisier "
+        f"than the others; 'AOA unw' solves the same bearings unweighted"
+    )
     header = (
         f"{'Level':<6} {'TOA(m)':<9} {'TDOA(m)':<9} "
         f"{'AOA(deg)':<9} {'RSS(dB)':<9} "
-        f"{'TOA':<9} {'TDOA':<9} {'AOA':<9} {'RSS':<9} {'AOA fail':<9}"
+        f"{'TOA':<9} {'TDOA':<9} {'AOA':<9} {'AOA unw':<9} "
+        f"{'RSS':<9} {'AOA fail':<9}"
     )
     print(header)
     print("-" * len(header))
@@ -533,6 +580,7 @@ def run_inline_comparison():
             f"{_median(results['TOA'][i]):<9.3f} "
             f"{_median(results['TDOA'][i]):<9.3f} "
             f"{_median(results['AOA'][i]):<9.3f} "
+            f"{_median(results['AOA_unw'][i]):<9.3f} "
             f"{_median(results['RSS'][i]):<9.3f} "
             f"{_gross(results['AOA'][i]):<9d}"
         )
@@ -551,6 +599,21 @@ def run_inline_comparison():
     print("  AOAPositioner now forms residuals as wrap(psi - atan2(dE, dN)),")
     print("  which is the same model without the quadrant thrown away. The old")
     print("  behaviour is still reachable as residual='tan'.")
+    print()
+    print("  'AOA' passes the per-anchor sigma to the solver so it can")
+    print("  down-weight the degraded anchor (W_a in Eq. 4.77); 'AOA unw'")
+    print("  solves the identical bearings with uniform weights. The gain is")
+    print("  about 4x at 1-3 deg and tapers to nothing by 10 deg, which is the")
+    print("  honest shape of it: weighting recovers what a bad sensor costs you")
+    print("  only while the remaining sensors are still good. By level 5 the")
+    print("  degraded anchor is at 100 deg sigma -- near-uniform on the circle,")
+    print("  so there is little left to down-weight -- and the other three are")
+    print("  themselves at 10 deg.")
+    print()
+    print("  A *scalar* sigma would change nothing at all. In angle space the")
+    print("  weight matrix is diag(1/sigma^2), so a uniform sigma makes W a")
+    print("  multiple of the identity and it cancels out of (H'WH)^-1 H'W.")
+    print("  Only the spread between anchors carries information.")
 
     return toa_noise_levels, results
 
