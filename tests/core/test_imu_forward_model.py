@@ -43,7 +43,7 @@ class TestIMUForwardModel:
         # Expected: upward reaction force
         expected = np.array([0.0, 0.0, +9.81])
 
-        print(f"\nStationary ENU:")
+        print("\nStationary ENU:")
         print(f"  True accel:     {a_M}")
         print(f"  Specific force: {f_b}")
         print(f"  Expected:       {expected}")
@@ -72,7 +72,7 @@ class TestIMUForwardModel:
         # Expected: upward reaction (negative z in NED)
         expected = np.array([0.0, 0.0, -9.81])
 
-        print(f"\nStationary NED:")
+        print("\nStationary NED:")
         print(f"  True accel:     {a_M}")
         print(f"  Specific force: {f_b}")
         print(f"  Expected:       {expected}")
@@ -101,7 +101,7 @@ class TestIMUForwardModel:
         # Expected: horizontal accel + vertical reaction
         expected = np.array([1.0, 0.0, +9.81])
 
-        print(f"\nHorizontal accel ENU:")
+        print("\nHorizontal accel ENU:")
         print(f"  True accel:     {a_M}")
         print(f"  Specific force: {f_b}")
         print(f"  Expected:       {expected}")
@@ -130,7 +130,7 @@ class TestIMUForwardModel:
         # Expected: zero (weightless)
         expected = np.zeros(3)
 
-        print(f"\nFree fall ENU:")
+        print("\nFree fall ENU:")
         print(f"  True accel:     {a_M}")
         print(f"  Specific force: {f_b}")
         print(f"  Expected:       {expected}")
@@ -180,7 +180,7 @@ class TestIMUForwardModel:
         vel_error = np.linalg.norm(v - vel_map[-1])
         pos_error = np.linalg.norm(p - pos_map[-1])
 
-        print(f"\nRound-trip test:")
+        print("\nRound-trip test:")
         print(f"  Final velocity error: {vel_error:.6e} m/s")
         print(f"  Final position error: {pos_error:.6e} m")
         print(f"  True final pos:       {pos_map[-1]}")
@@ -223,13 +223,13 @@ class TestIMUForwardModel:
         omega_z_mean = np.mean(omega_b[10:, 2])  # skip first few samples
         omega_xy_mean = np.mean(np.abs(omega_b[10:, :2]))
 
-        print(f"\nConstant yaw rate:")
+        print("\nConstant yaw rate:")
         print(f"  Expected omega_z: {yaw_rate:.6f} rad/s")
         print(f"  Computed omega_z: {omega_z_mean:.6f} rad/s")
         print(f"  Mean |omega_xy|:  {omega_xy_mean:.6e} rad/s")
 
         # Should match expected yaw rate
-        assert np.abs(omega_z_mean - yaw_rate) < 0.01, f"Yaw rate error too large"
+        assert np.abs(omega_z_mean - yaw_rate) < 0.01, "Yaw rate error too large"
         assert omega_xy_mean < 1e-3, f"Spurious x/y rates: {omega_xy_mean:.2e}"
 
     def test_time_series_specific_force(self) -> None:
@@ -259,7 +259,7 @@ class TestIMUForwardModel:
         expected = accel_map.copy()
         expected[:, 2] = 9.81  # add vertical reaction
 
-        print(f"\nTime series:")
+        print("\nTime series:")
         print(f"  First sample accel: {accel_map[0]}")
         print(f"  First sample f_b:   {f_b[0]}")
         print(f"  Expected:           {expected[0]}")
@@ -303,10 +303,10 @@ class TestIMUForwardModel:
         accel_z_mean = np.mean(accel_b[:, 2])
         accel_z_std = np.std(accel_b[:, 2])
 
-        print(f"\nPlanar motion (acceptance test):")
+        print("\nPlanar motion (acceptance test):")
         print(f"  Vertical accel mean: {accel_z_mean:.3f} m/s²")
         print(f"  Vertical accel std:  {accel_z_std:.3f} m/s²")
-        print(f"  Expected:            ~9.81 m/s² (no free fall)")
+        print("  Expected:            ~9.81 m/s² (no free fall)")
 
         # Should be close to g (not zero!)
         assert (

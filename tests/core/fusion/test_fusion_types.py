@@ -238,7 +238,7 @@ class TestTimeSyncModel(unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             
-            sync = TimeSyncModel(offset=0.0, drift=0.02)  # 20,000 ppm
+            TimeSyncModel(offset=0.0, drift=0.02)  # 20,000 ppm
             
             # Check that a warning was issued
             self.assertEqual(len(w), 1)
@@ -250,7 +250,7 @@ class TestTimeSyncModel(unittest.TestCase):
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
             
-            sync = TimeSyncModel(offset=0.1, drift=0.00005)  # 50 ppm
+            TimeSyncModel(offset=0.1, drift=0.00005)  # 50 ppm
             
             # No warning should be issued
             self.assertEqual(len(w), 0)

@@ -236,34 +236,36 @@ class TestVelUpdate(unittest.TestCase):
         np.testing.assert_array_almost_equal(v1, expected, decimal=6)
 
     def test_vel_update_stationary_on_ground(self) -> None:
-        """Test velocity update for sensor on ground (f = -g)."""
+        """A sensor at rest on the ground must integrate to no velocity change.
+
+        This test used to end in `pass  # Will fix in next version`, below a
+        run of comments reasoning aloud towards the sign of f_b. It asserted
+        nothing and so could not fail, which is worse than not existing: it
+        appeared in the count and covered the case in name only.
+
+        The reasoning it was working towards was right. An accelerometer
+        measures specific force, not acceleration; a stationary sensor is held
+        up by a normal force of +g, so f_b = [0, 0, +9.81] in a level body
+        frame. Eq. (6.7) then gives a_map = C @ f_b + g = 0, and the velocity
+        does not move. Feeding it [0, 0, -9.81] -- the value the old body used
+        -- doubles gravity instead of cancelling it, which is what prompted
+        the "this is wrong physics!" note.
+        """
         v0 = np.zeros(3)
         q = np.array([1.0, 0.0, 0.0, 0.0])  # level
-        f_b = np.array([0.0, 0.0, -9.81])  # accel measures -g upward
+        f_b = np.array([0.0, 0.0, 9.81])  # specific force: normal force, up
         dt = 0.01
 
         v1 = vel_update(v0, q, f_b, dt)
 
-        # Accel = C @ f + g = [0,0,-9.81] + [0,0,-9.81] = [0,0,-19.62]
-        # This is wrong physics! The issue is that f_b should be specific force,
-        # which for stationary sensor is [0,0,+9.81] (upward normal force)
-        # Let me reconsider...
+        np.testing.assert_array_almost_equal(v1, np.zeros(3), decimal=6)
 
-        # Actually, for stationary sensor:
-        # f_b (specific force) = 0 (no acceleration)
-        # Accel measures gravity: a_measured = [0, 0, -9.81]
-        # But specific force f = a_measured - gravity_body = [0,0,-9.81] - [0,0,-9.81] = 0
-
-        # Wait, let me think more carefully. Accelerometer measures:
-        # a_meas = f - g_body (in body frame), where f is specific force
-        # For stationary sensor: f = g_body, so a_meas = 0? No...
-
-        # Actually: accelerometer measures specific force = f
-        # For stationary: specific force = normal force = +g upward (in body frame)
-        # So f_b = [0, 0, +9.81] for stationary sensor on ground
-
-        # Let me rewrite this test correctly:
-        pass  # Will fix in next version
+        # And the sign matters: the value the abandoned test passed in gives
+        # 2g of downward acceleration rather than none.
+        v_wrong = vel_update(v0, q, -f_b, dt)
+        np.testing.assert_array_almost_equal(
+            v_wrong, np.array([0.0, 0.0, -2 * 9.81 * dt]), decimal=6
+        )
 
     def test_vel_update_constant_forward_accel(self) -> None:
         """Test velocity update with constant forward acceleration."""

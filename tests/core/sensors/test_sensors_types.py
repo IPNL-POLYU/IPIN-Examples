@@ -252,7 +252,7 @@ class TestNavStateQPVP(unittest.TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            state = NavStateQPVP(q=q_bad, v=np.zeros(3), p=np.zeros(3))
+            NavStateQPVP(q=q_bad, v=np.zeros(3), p=np.zeros(3))
 
             assert len(w) == 1
             assert "non-unit quaternion" in str(w[0].message).lower()
@@ -319,7 +319,7 @@ class TestNavStateQPVPBias(unittest.TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            state = NavStateQPVPBias(
+            NavStateQPVPBias(
                 q=q_bad, v=np.zeros(3), p=np.zeros(3), b_g=np.zeros(3), b_a=np.zeros(3)
             )
 

@@ -10,7 +10,6 @@ References: Chapter 8, Section 8.3 (Tuning and Robustness)
 import unittest
 
 import numpy as np
-from scipy import stats
 
 from core.fusion.gating import (
     chi_square_bounds,

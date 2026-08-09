@@ -13,7 +13,6 @@ Book Reference: Chapter 3, Section 3.2.3 (Iterated Extended Kalman Filter)
 import unittest
 
 import numpy as np
-from numpy.testing import assert_allclose
 
 from core.estimators import IteratedExtendedKalmanFilter, ExtendedKalmanFilter
 

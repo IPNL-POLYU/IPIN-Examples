@@ -131,7 +131,6 @@ class TestNaiveBayesFingerprintModel:
 
     def test_model_priors_not_normalized_error(self, simple_database):
         """Test that prior probabilities must sum to 1."""
-        M = 4
 
         with pytest.raises(ValueError, match="Prior probabilities must sum to 1"):
             NaiveBayesFingerprintModel(
@@ -386,11 +385,9 @@ class TestPosteriorMeanLocalize:
         assert 0 <= x_hat[0] <= 10
         assert 0 <= x_hat[1] <= 10
 
-        # Result should not exactly match any single RP (it's averaged)
-        rp_locations = model.locations
-        exact_matches = [np.allclose(x_hat, loc) for loc in rp_locations]
-        # It's possible (but unlikely) to match exactly if posterior is very peaked
-        # Just check result is valid
+        # Deliberately not asserting that the result differs from every RP: a
+        # sharply peaked posterior can legitimately land on one, so the convex
+        # hull bounds above are the whole check.
 
     def test_posterior_mean_multifloor_constraint(self, multifloor_database):
         """Test posterior mean with floor constraint."""

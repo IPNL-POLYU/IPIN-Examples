@@ -278,24 +278,44 @@ class TestPreprocessQuery:
         assert info["normalization"]["method"] == "none"
 
     def test_preprocess_multiple_scans_with_zscore(self):
-        """Test preprocessing with averaging + z-score normalization."""
+        """Test preprocessing with averaging + z-score normalization.
+
+        The scans are deliberately not parallel. With the ramps this test used
+        to carry -- [-50,-60,-70], [-52,-58,-72], [-48,-62,-68] -- the z-score
+        of the average and the z-score of the first scan are both exactly
+        [1, 0, -1], because z-scoring divides out the scale and offset that
+        were the only things separating them. Any assertion on the output
+        would have passed whether or not the averaging step ran at all.
+        """
         scans = np.array([
             [-50, -60, -70],
-            [-52, -58, -72],
-            [-48, -62, -68],
+            [-52, -55, -80],
+            [-45, -70, -60],
         ])
-        
+
         z_prep, info = preprocess_query(
             scans,
             averaging_method="mean",
             normalization_method="zscore"
         )
-        
-        # Should first average, then normalize
-        z_avg = np.mean(scans, axis=0)
+
         # Z-score should have mean ~0, std ~1
         assert abs(np.mean(z_prep)) < 1e-10
         assert abs(np.std(z_prep, ddof=1) - 1.0) < 1e-10
+
+        # Should first average, then normalize, and that ordering is the claim
+        # this test exists to make -- so check it directly.
+        z_avg = np.mean(scans, axis=0)
+        expected = (z_avg - np.mean(z_avg)) / np.std(z_avg, ddof=1)
+        np.testing.assert_allclose(z_prep, expected, atol=1e-10)
+
+        # And confirm the check discriminates: normalising any single scan
+        # instead of the average gives a different answer for this data.
+        for scan in scans:
+            single = (scan - np.mean(scan)) / np.std(scan, ddof=1)
+            assert not np.allclose(z_prep, single), (
+                "test data cannot distinguish averaging from not averaging"
+            )
 
     def test_preprocess_single_scan_with_norm(self):
         """Test preprocessing with single scan (just normalization)."""

@@ -14,7 +14,7 @@ Date: December 2025
 import unittest
 import numpy as np
 
-from core.slam.frontend_2d import SlamFrontend2D, MatchQuality
+from core.slam.frontend_2d import SlamFrontend2D
 
 
 class TestSlamFrontend2DInitialization(unittest.TestCase):
@@ -224,7 +224,7 @@ class TestSlamFrontend2DMapUpdate(unittest.TestCase):
         
         # Second step
         odom_delta = np.array([1.0, 0.0, 0.0])
-        result = frontend.step(1, odom_delta, scan)
+        frontend.step(1, odom_delta, scan)
         
         # Submap should have 2 points now
         self.assertEqual(len(frontend.submap), 2)

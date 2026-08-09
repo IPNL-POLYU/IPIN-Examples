@@ -20,8 +20,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from core.fingerprinting import (
     FingerprintDatabase,
-    save_fingerprint_database,
-    load_fingerprint_database,
     fit_gaussian_naive_bayes,
     map_localize,
     posterior_mean_localize,
@@ -59,7 +57,7 @@ def test_single_sample_db():
     # Fit model
     model = fit_gaussian_naive_bayes(db, min_std=2.0)
     
-    print(f"\n[OK] Fitted Gaussian Naive Bayes model")
+    print("\n[OK] Fitted Gaussian Naive Bayes model")
     print(f"  Model means shape: {model.means.shape}")
     print(f"  Model stds shape: {model.stds.shape}")
     print(f"  All stds = min_std? {np.all(model.stds == 2.0)}")
@@ -69,7 +67,7 @@ def test_single_sample_db():
     pos_map = map_localize(query, model, floor_id=0)
     pos_mean = posterior_mean_localize(query, model, floor_id=0)
     
-    print(f"\n[OK] Localization works")
+    print("\n[OK] Localization works")
     print(f"  Query: {query}")
     print(f"  MAP estimate: {pos_map}")
     print(f"  Posterior mean: {pos_mean}")
@@ -121,17 +119,17 @@ def test_multi_sample_db():
     mean_features = db.get_mean_features()
     std_features = db.get_std_features(min_std=0.5)
     
-    print(f"\n[OK] Computed statistics from samples")
+    print("\n[OK] Computed statistics from samples")
     print(f"  Mean features shape: {mean_features.shape}")
     print(f"  Std features shape: {std_features.shape}")
-    print(f"\n  Per-RP statistics:")
+    print("\n  Per-RP statistics:")
     for i in range(3):
         print(f"    RP{i}: mu = {mean_features[i]}, sigma = {std_features[i]}")
     
     # Fit model
     model = fit_gaussian_naive_bayes(db, min_std=0.5)
     
-    print(f"\n[OK] Fitted Gaussian Naive Bayes model")
+    print("\n[OK] Fitted Gaussian Naive Bayes model")
     print(f"  Model uses actual variance from samples: {not np.all(model.stds == 0.5)}")
     print(f"  Std range: [{model.stds.min():.2f}, {model.stds.max():.2f}] dBm")
     
@@ -140,7 +138,7 @@ def test_multi_sample_db():
     rp1_std = model.stds[1].mean()
     rp2_std = model.stds[2].mean()
     
-    print(f"\n  Average std per RP:")
+    print("\n  Average std per RP:")
     print(f"    RP0 (low var):    {rp0_std:.2f} dBm")
     print(f"    RP1 (medium var): {rp1_std:.2f} dBm")
     print(f"    RP2 (high var):   {rp2_std:.2f} dBm")
@@ -150,7 +148,7 @@ def test_multi_sample_db():
     pos_map = map_localize(query, model, floor_id=0)
     pos_mean = posterior_mean_localize(query, model, floor_id=0)
     
-    print(f"\n[OK] Localization works with varying sigma")
+    print("\n[OK] Localization works with varying sigma")
     print(f"  Query: {query}")
     print(f"  MAP estimate: {pos_map}")
     print(f"  Posterior mean: {pos_mean}")
@@ -198,11 +196,11 @@ def test_behavior_with_varying_sigma():
     model1 = fit_gaussian_naive_bayes(db1, min_std=0.5)
     model2 = fit_gaussian_naive_bayes(db2, min_std=0.5)
     
-    print(f"[OK] Created two models with different variance patterns")
-    print(f"\n  Model 1 (uniform variance):")
+    print("[OK] Created two models with different variance patterns")
+    print("\n  Model 1 (uniform variance):")
     print(f"    RP0 std: {model1.stds[0].mean():.2f} dBm")
     print(f"    RP1 std: {model1.stds[1].mean():.2f} dBm")
-    print(f"\n  Model 2 (non-uniform variance):")
+    print("\n  Model 2 (non-uniform variance):")
     print(f"    RP0 std: {model2.stds[0].mean():.2f} dBm")
     print(f"    RP1 std: {model2.stds[1].mean():.2f} dBm (high!)")
     
@@ -215,12 +213,12 @@ def test_behavior_with_varying_sigma():
     pos1_mean = posterior_mean_localize(query, model1, floor_id=0)
     pos2_mean = posterior_mean_localize(query, model2, floor_id=0)
     
-    print(f"\n[OK] Localization results differ due to variance")
+    print("\n[OK] Localization results differ due to variance")
     print(f"  Query: {query} (closer to RP1)")
-    print(f"\n  Model 1 (uniform sigma):")
+    print("\n  Model 1 (uniform sigma):")
     print(f"    MAP: {pos1_map}")
     print(f"    Posterior mean: {pos1_mean}")
-    print(f"\n  Model 2 (RP1 has high sigma):")
+    print("\n  Model 2 (RP1 has high sigma):")
     print(f"    MAP: {pos2_map}")
     print(f"    Posterior mean: {pos2_mean}")
     
@@ -229,13 +227,13 @@ def test_behavior_with_varying_sigma():
     dist_to_rp0_model1 = np.linalg.norm(pos1_mean - locations[0])
     dist_to_rp0_model2 = np.linalg.norm(pos2_mean - locations[0])
     
-    print(f"\n  Analysis:")
+    print("\n  Analysis:")
     print(f"    Model 1 distance to RP0: {dist_to_rp0_model1:.2f} m")
     print(f"    Model 2 distance to RP0: {dist_to_rp0_model2:.2f} m")
     
     if dist_to_rp0_model2 < dist_to_rp0_model1:
-        print(f"    OK Model 2 shifts toward RP0 (lower variance)")
-        print(f"      This demonstrates that high sigma at RP1 reduces its influence!")
+        print("    OK Model 2 shifts toward RP0 (lower variance)")
+        print("      This demonstrates that high sigma at RP1 reduces its influence!")
     
     return True
 

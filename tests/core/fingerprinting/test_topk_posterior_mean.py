@@ -173,7 +173,7 @@ def test_topk_speedup():
         print(f"    Speedup: {speedup:.2f}x")
     
     # Verify accuracy with k=10
-    print(f"\n  Accuracy check (k=10 vs full)...")
+    print("\n  Accuracy check (k=10 vs full)...")
     errors = []
     for query in queries[:20]:  # Check first 20 queries
         pos_full = posterior_mean_localize(query, model, floor_id=0, top_k=None)
@@ -187,9 +187,9 @@ def test_topk_speedup():
     print(f"    Max error:  {max_error:.4f} m")
     
     if mean_error < 0.5:  # Less than 50cm mean error
-        print(f"    [OK] Top-k (k=10) yields nearly identical results")
+        print("    [OK] Top-k (k=10) yields nearly identical results")
     else:
-        print(f"    [WARNING] Top-k (k=10) has noticeable error")
+        print("    [WARNING] Top-k (k=10) has noticeable error")
     
     return True
 
@@ -220,14 +220,14 @@ def test_topk_edge_cases():
     query = np.array([-55, -65])
     
     # Test top_k=1 (should pick single best candidate)
-    print(f"\n  Test top_k=1...")
+    print("\n  Test top_k=1...")
     pos_k1 = posterior_mean_localize(query, model, floor_id=0, top_k=1)
     print(f"    Result: {pos_k1}")
     # Should match one of the RP locations
     distances = [np.linalg.norm(pos_k1 - loc) for loc in locations]
     min_dist = min(distances)
     if min_dist < 1e-6:
-        print(f"    [OK] Result matches an RP location (as expected for k=1)")
+        print("    [OK] Result matches an RP location (as expected for k=1)")
     
     # Test top_k=M (should match full)
     print(f"\n  Test top_k={len(locations)} (equal to M)...")
@@ -238,20 +238,20 @@ def test_topk_edge_cases():
     print(f"    k=M:  {pos_kM}")
     print(f"    Error: {error:.6f} m")
     if error < 1e-6:
-        print(f"    [OK] top_k=M matches full posterior mean")
+        print("    [OK] top_k=M matches full posterior mean")
     
     # Test invalid top_k
-    print(f"\n  Test invalid top_k values...")
+    print("\n  Test invalid top_k values...")
     try:
         _ = posterior_mean_localize(query, model, floor_id=0, top_k=0)
-        print(f"    [FAIL] top_k=0 should raise ValueError")
+        print("    [FAIL] top_k=0 should raise ValueError")
         return False
     except ValueError as e:
         print(f"    [OK] top_k=0 raises ValueError: {e}")
     
     try:
         _ = posterior_mean_localize(query, model, floor_id=0, top_k=100)
-        print(f"    [FAIL] top_k > M should raise ValueError")
+        print("    [FAIL] top_k > M should raise ValueError")
         return False
     except ValueError as e:
         print(f"    [OK] top_k > M raises ValueError: {e}")

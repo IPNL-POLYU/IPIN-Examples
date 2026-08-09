@@ -618,7 +618,6 @@ class TestStepLengthWeinberg(unittest.TestCase):
 
     def test_weinberg_invalid_inputs(self) -> None:
         """Test that invalid inputs raise errors."""
-        f_valid = np.array([0.0, 1.0, 2.0, 1.0, 0.0])
         
         # 2D array
         with pytest.raises(ValueError, match="must be 1D"):

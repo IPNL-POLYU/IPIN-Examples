@@ -123,7 +123,6 @@ class TestIMUInterpolation(unittest.TestCase):
         """Test interpolation with realistic IMU rate (100 Hz)."""
         # 1 second of 100 Hz IMU data
         t_imu = np.arange(0, 1.0, 0.01)
-        N = len(t_imu)
         
         # Sinusoidal accelerometer data
         accel = np.column_stack([
@@ -203,7 +202,6 @@ class TestAsynchronousTimestampShift(unittest.TestCase):
         duration = 2.0
         
         t_imu = np.arange(0, duration, dt_imu)
-        N_imu = len(t_imu)
         
         # Varying accelerometer data
         accel = np.column_stack([

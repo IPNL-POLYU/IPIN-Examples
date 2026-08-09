@@ -21,7 +21,6 @@ from core.sensors.units import (
     mps_per_sqrt_hour_to_mps_per_sqrt_sec,
     # Reverse conversions
     rad_per_sec_to_deg_per_hour,
-    rad_per_sec_to_deg_per_sec,
     rad_per_sqrt_sec_to_deg_per_sqrt_hour,
     mps2_to_mg,
     mps_per_sqrt_sec_to_mps_per_sqrt_hour,
