@@ -23,7 +23,6 @@ Author: Li-Ta Hsu
 References: Chapter 7, Section 7.3 (scan matching), Section 7.5 (pose graph)
 """
 
-import json
 import unittest
 
 import matplotlib

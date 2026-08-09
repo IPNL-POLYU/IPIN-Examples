@@ -137,7 +137,7 @@ class TestInlineModeHardGates(unittest.TestCase):
         )
 
         # Print success summary
-        print(f"\n=== ALL HARD GATES PASSED ===")
+        print("\n=== ALL HARD GATES PASSED ===")
         print(f"  frontend_used: {summary['frontend_used']}")
         print(f"  n_scans: {summary['n_scans']}")
         print(f"  n_frontend_steps: {summary['n_frontend_steps']}")
