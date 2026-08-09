@@ -102,6 +102,14 @@ class TestEKFJacobianEvaluationPoint(unittest.TestCase):
         self.assertFalse(np.allclose(F_correct, F_wrong),
                          "Jacobians at different states should differ")
 
+        # ...and so must the covariances they produce. Without this the check
+        # below is not discriminating: if P_correct and P_wrong happened to
+        # coincide, asserting the filter matches P_correct would pass whichever
+        # evaluation point it had used.
+        self.assertFalse(np.allclose(P_correct, P_wrong),
+                         "Covariances from the two Jacobians should differ, "
+                         "otherwise this test cannot tell them apart")
+
         # EKF must use CORRECT (pre-state) Jacobian
         assert_allclose(ekf.covariance, P_correct, atol=1e-10,
                         err_msg="EKF used wrong Jacobian evaluation point!")

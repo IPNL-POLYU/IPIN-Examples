@@ -11,7 +11,6 @@ innovation nu = z - z_pred must be wrapped for angle measurements.
 import unittest
 
 import numpy as np
-from numpy.testing import assert_allclose
 
 from core.estimators import (
     ExtendedKalmanFilter,
@@ -175,7 +174,7 @@ class TestEKFAngleWrapping(unittest.TestCase):
         self.assertGreater(abs(innovation_no_wrap), 5.0,
                            "Unwrapped innovation should be large (~2*pi)")
 
-        print(f"\nPi Crossing Test:")
+        print("\nPi Crossing Test:")
         print(f"  z_pred (predicted bearing): {np.rad2deg(z_pred):.1f} deg (+179.4 deg)")
         print(f"  z (true bearing):           {np.rad2deg(z):.1f} deg (-177.1 deg)")
         print(f"  Innovation WITHOUT wrap:    {np.rad2deg(innovation_no_wrap):.1f} deg (WRONG!)")

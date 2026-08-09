@@ -7,16 +7,16 @@ Author: Li-Ta Hsu
 Date: December 2024
 """
 
+import importlib.util
+
 import numpy as np
 import pytest
 
-# Check if sklearn is available
-try:
-    import sklearn
-    
-    SKLEARN_AVAILABLE = True
-except ImportError:
-    SKLEARN_AVAILABLE = False
+# Check if sklearn is available. find_spec rather than a try/except around a
+# bare `import sklearn`: the module is never used here, only gated on, and an
+# import bound to nothing reads as dead to every linter. A `# noqa` would not
+# help -- pyflakes has no such directive.
+SKLEARN_AVAILABLE = importlib.util.find_spec("sklearn") is not None
 
 from core.fingerprinting import (
     FingerprintDatabase,

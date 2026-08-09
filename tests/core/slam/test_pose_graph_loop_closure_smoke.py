@@ -188,12 +188,12 @@ class TestPoseGraphSLAMPipeline:
         
         # If loop closures were found, SLAM should improve
         if len(loop_closures) > 0:
-            print(f"  Loop closures found - expecting improvement")
+            print("  Loop closures found - expecting improvement")
             assert slam_rmse <= odom_rmse, "SLAM with loop closure should reduce error"
             improvement = (odom_rmse - slam_rmse) / odom_rmse if odom_rmse > 0 else 0
             assert improvement >= 0, "SLAM should not worsen accuracy"
         else:
-            print(f"  No loop closures - SLAM may not improve much")
+            print("  No loop closures - SLAM may not improve much")
             # Without loop closures, just check it doesn't break
             assert slam_rmse < 1.0, f"SLAM RMSE {slam_rmse:.3f}m unexpectedly high even without loop closures"
 
@@ -276,7 +276,7 @@ class TestPoseGraphSLAMPipeline:
         errors_with_lc = compute_position_errors(true_poses[:, :2], poses_with_lc[:, :2])
         rmse_with_lc = compute_rmse(errors_with_lc)
         
-        print(f"\n[COMPARISON]")
+        print("\n[COMPARISON]")
         print(f"  Without loop closure: {rmse_no_lc:.4f} m")
         print(f"  With loop closure: {rmse_with_lc:.4f} m")
         print(f"  Loop closure benefit: {(rmse_no_lc - rmse_with_lc):.4f} m")

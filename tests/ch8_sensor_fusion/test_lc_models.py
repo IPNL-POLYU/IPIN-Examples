@@ -210,10 +210,16 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
         # (for good geometry, Cov ≈ (H^T H)^{-1} σ²)
         ratio = np.trace(cov_high) / np.trace(cov_low)
         expected_ratio = (0.2 / 0.05) ** 2  # 16
-        
-        # Allow some tolerance due to nonlinearity and floor
-        self.assertGreater(ratio, 10, "Covariance scaling too weak")
-        self.assertLess(ratio, 20, "Covariance scaling too strong")
+
+        # Allow some tolerance due to nonlinearity and floor. The bounds are
+        # named against expected_ratio rather than left as bare literals, so
+        # the 10 and 20 read as a window around 16 instead of magic numbers.
+        self.assertGreater(
+            ratio, 10, f"Covariance scaling too weak (expected ~{expected_ratio:.0f})"
+        )
+        self.assertLess(
+            ratio, 20, f"Covariance scaling too strong (expected ~{expected_ratio:.0f})"
+        )
 
 
 class TestWLSIntegrationWithGating(unittest.TestCase):

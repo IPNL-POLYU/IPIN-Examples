@@ -317,7 +317,7 @@ class TestBundleAdjustmentSmoke:
                                      compute_rmse(initial_landmarks, true_landmarks))
         error_reduction = 1 - final_error / initial_error
         
-        print(f"\n[BA EXTENDED]")
+        print("\n[BA EXTENDED]")
         print(f"  Reprojection error reduction: {error_reduction*100:.1f}%")
         print(f"  Pose RMSE improvement: {pose_improvement*100:.1f}%")
         print(f"  Landmark RMSE improvement: {landmark_improvement*100:.1f}%")

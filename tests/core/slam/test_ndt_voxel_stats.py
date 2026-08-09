@@ -109,7 +109,6 @@ class TestNDTBasicFunctionality:
         target = scan.copy()
         
         # Compute score at identity transformation (should be good)
-        from core.slam import ndt_score
         score = ndt_score(scan, target, np.array([0, 0, 0]), voxel_size=0.5)  # Smaller voxels
         
         # Basic sanity checks

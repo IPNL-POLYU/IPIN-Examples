@@ -13,7 +13,7 @@ Book Reference: Chapter 3, Section 3.1 (Table 3.1 for robust estimators)
 import unittest
 
 import numpy as np
-from numpy.testing import assert_allclose, assert_array_less
+from numpy.testing import assert_allclose
 
 from core.estimators.least_squares import (
     iterative_least_squares,

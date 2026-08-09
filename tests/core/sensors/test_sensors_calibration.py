@@ -232,7 +232,7 @@ class TestIdentifyRandomWalk(unittest.TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            arw = identify_random_walk(taus, adev, tau_target=1.0)
+            identify_random_walk(taus, adev, tau_target=1.0)
 
             # Should issue warning about slope
             assert len(w) > 0
@@ -272,7 +272,7 @@ class TestIdentifyRateRandomWalk(unittest.TestCase):
 
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            rrw = identify_rate_random_walk(taus, adev, tau_target=100.0)
+            identify_rate_random_walk(taus, adev, tau_target=100.0)
 
             # Should issue warning
             assert len(w) > 0

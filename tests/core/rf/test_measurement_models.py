@@ -159,7 +159,7 @@ class TestClockBiasConversion:
 
         # 0.3 m -> 1 ns (approximately)
         bias_s = clock_bias_meters_to_seconds(0.299792458)
-        assert np.isclose(bias_s * 1e9, 1.0, rtol=1e-6), f"0.3 m should be ~1 ns"
+        assert np.isclose(bias_s * 1e9, 1.0, rtol=1e-6), "0.3 m should be ~1 ns"
 
 
 class TestRTTModel:
@@ -579,8 +579,6 @@ class TestRSSFading:
 
     def test_rss_fading_to_distance_error_eq413(self):
         """Test fading to distance error conversion (Eq. 4.13)."""
-        from core.rf.measurement_models import rss_fading_to_distance_error
-
         # Eq. 4.13: d̃/d = 10^(-omega / (10*eta))
         path_loss_exp = 2.5
 
@@ -899,6 +897,11 @@ class TestAOA:
             # d = sqrt(100 + 100 + 25) = 15
             expected_sin = 5.0 / 15.0
             assert np.isclose(sin_theta, expected_sin, atol=1e-6)
+            # tan(ψ) = ΔE/ΔN, and every anchor sits on a diagonal at |ΔE| =
+            # |ΔN| = 10, so each is ±1. Checking only the even indices left
+            # half of the interleaving untested -- the odd slots could have
+            # held anything.
+            assert np.isclose(abs(tan_psi), 1.0, atol=1e-6)
 
     def test_aoa_angle_vector_2d(self):
         """Test raw angle vector (not sin/tan)."""

@@ -8,7 +8,6 @@ Date: 2024
 """
 
 import numpy as np
-import pytest
 
 from core.estimators.factor_graph import FactorGraph
 from core.slam import (
@@ -17,7 +16,6 @@ from core.slam import (
     create_odometry_factor,
     create_pose_graph,
     create_prior_factor,
-    se2_apply,
     se2_compose,
     se2_inverse,
     se2_relative,

@@ -326,7 +326,7 @@ class TestStateOrderingConsistency(unittest.TestCase):
         print(f"  Quaternion (q):    indices {expected_ordering['quaternion']}")
         print(f"  Gyro bias (b_g):   indices {expected_ordering['gyro_bias']}")
         print(f"  Accel bias (b_a):  indices {expected_ordering['accel_bias']}")
-        print(f"Total dimension: 16 elements")
+        print("Total dimension: 16 elements")
         print("=" * 70)
 
 
