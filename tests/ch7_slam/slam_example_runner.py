@@ -14,15 +14,24 @@ same investigation.
 Three changes, all here rather than in the tests:
 
   - Memoise on the argument tuple, so each distinct invocation runs once per
-    pytest session and the assertions share the result. Three distinct
-    invocations remain (inline, square dataset, high-drift dataset) because
-    they exercise genuinely different paths.
+    pytest session and the assertions share the result. Five distinct
+    invocations remain, because they exercise genuinely different paths: the
+    pose graph inline, on the square dataset and on the high-drift dataset,
+    plus the front-end and the scan-matching visualisation.
   - Raise the timeout well clear of the runtime. The timeout is a deadlock
     guard, not a performance budget; a tight one buys nothing and costs false
     failures. If the example ever gets slow enough to trip this, that is worth
     a real investigation rather than a flaky red.
   - Point ``IPIN_FIGS_DIR`` at scratch, so a run cannot rewrite the committed
     figures. Assert against ``ExampleRun.figs_dir``, not the in-repo path.
+
+Every Chapter 7 test that shells out to an example goes through here. The
+scan-matching visualisation was the last holdout, and it is worth saying why
+it was folded in even though it was already correct: it had its own copy of
+the env setup, the timeout and the figure diversion, and duplicated policy
+only has to be forgotten once. Its ``TemporaryDirectory`` also died with the
+class that owned it, where this scratch root lives for the session, so another
+file can assert on the same run without provoking a second one.
 
 Author: Li-Ta Hsu
 """
@@ -44,8 +53,11 @@ WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent
 
 POSE_GRAPH_MODULE = "ch7_slam.example_pose_graph_slam"
 FRONTEND_MODULE = "ch7_slam.example_slam_frontend"
+SCAN_MATCHING_MODULE = "ch7_slam.example_scan_matching_visualization"
 
-# Generous on purpose: see the module docstring. ~4x the observed 135 s.
+# Generous on purpose: see the module docstring. The slowest example here is
+# the scan-matching visualisation at ~166 s standalone, so this is ~3.6x its
+# observed runtime and ~4.4x the pose graph's 135 s. Still a deadlock guard.
 EXAMPLE_TIMEOUT_S = 600
 
 
@@ -130,6 +142,11 @@ def run_pose_graph_example(*args: str) -> ExampleRun:
 def run_frontend_example(*args: str) -> ExampleRun:
     """Run the SLAM front-end example; shared across tests and files."""
     return run_example(FRONTEND_MODULE, *args)
+
+
+def run_scan_matching_example(*args: str) -> ExampleRun:
+    """Run the scan-matching visualisation example; shared across tests."""
+    return run_example(SCAN_MATCHING_MODULE, *args)
 
 
 def parse_slam_summary(stdout: str) -> Optional[Dict[str, Any]]:

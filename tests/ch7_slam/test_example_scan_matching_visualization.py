@@ -9,16 +9,11 @@ Author: Li-Ta Hsu
 References: Chapter 7, Sections 7.3.1-7.3.2, Eqs. (7.10)-(7.16)
 """
 
-import os
-import subprocess
-import sys
-import tempfile
 import unittest
-from pathlib import Path
 
 import numpy as np
 
-WORKSPACE_ROOT = Path(__file__).resolve().parents[2]
+from tests.ch7_slam.slam_example_runner import run_scan_matching_example
 
 EXPECTED_FIGURES = (
     "ch7_icp_correspondences",
@@ -33,38 +28,20 @@ class TestScanMatchingVisualizationExample(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        # Divert the example's output: writing into ch7_slam/figs/ would rewrite
-        # the committed figures, so a plain test run left the working tree dirty
-        # and every run manufactured a diff.
-        cls._figs_root = tempfile.TemporaryDirectory()
-
-        env = os.environ.copy()
-        env.update(
-            {
-                "MPLBACKEND": "Agg",
-                "PYTHONPATH": str(WORKSPACE_ROOT),
-                "IPIN_FIGS_DIR": cls._figs_root.name,
-            }
-        )
-
-        cls.result = subprocess.run(
-            [
-                sys.executable,
-                "-m",
-                "ch7_slam.example_scan_matching_visualization",
-                "--no-show",
-            ],
-            cwd=WORKSPACE_ROOT,
-            capture_output=True,
-            text=True,
-            timeout=900,
-            env=env,
-        )
-        cls.figs_dir = Path(cls._figs_root.name) / "ch7_slam" / "figs"
-
-    @classmethod
-    def tearDownClass(cls):
-        cls._figs_root.cleanup()
+        # Through the shared runner, which owns the subprocess policy for every
+        # Chapter 7 example: Agg backend, PYTHONPATH, a timeout sized as a
+        # deadlock guard rather than a performance budget, and IPIN_FIGS_DIR
+        # pointed at scratch so a run cannot rewrite the committed figures.
+        #
+        # This file used to carry its own copy of all of that. It was correct,
+        # but it was a second copy -- and the figure diversion in particular is
+        # the kind of thing that only has to be forgotten once. The runner also
+        # holds its scratch root for the whole session, where the local
+        # TemporaryDirectory was torn down with this class, so the output is
+        # still there if another file ever asserts on the same run.
+        run = run_scan_matching_example("--no-show")
+        cls.result = run.process
+        cls.figs_dir = run.figs_dir
 
     def test_example_runs_successfully(self):
         """Exit code 0 with no traceback."""
@@ -90,7 +67,7 @@ class TestScanMatchingVisualizationExample(unittest.TestCase):
         went. Globbing the real ch7_slam/ would pass no matter what the example
         did, and quietly stop testing anything.
         """
-        chapter_root = Path(self._figs_root.name) / "ch7_slam"
+        chapter_root = self.figs_dir.parent
         stray = list(chapter_root.glob("*.png"))
 
         self.assertEqual(stray, [], f"figures written beside the source: {stray}")
