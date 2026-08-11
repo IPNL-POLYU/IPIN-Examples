@@ -106,14 +106,26 @@ def generate_building_walk(duration=180.0, dt=0.1, rng=None):
         att_true[k, 1] = 0.05 * np.sin(2*np.pi*t[k]/15)  # Pitch oscillation
         att_true[k, 2] = heading_rate * t[k]  # Continuous rotation
         
-        # Magnetometer (north vector in body frame)
+        # Magnetometer, in the convention core.sensors.mag_heading inverts:
+        # the horizontal field in the *level* frame points along the current
+        # heading, so atan2(m_y, m_x) recovers yaw directly. This is the same
+        # fix generate_ch6_env_sensors_dataset.py carries.
+        #
+        # Building it as R_body_to_map.T @ [1, 0, 0] instead returns exactly
+        # minus the heading: the plotted error then sawtoothed between 0 and
+        # 180 deg across the whole run, swamping the disturbance zones the
+        # figure exists to show and leaving a 10 deg threshold line the trace
+        # crossed on the way past.
         roll, pitch, yaw = att_true[k]
-        R_roll = np.array([[1, 0, 0], [0, np.cos(roll), -np.sin(roll)], [0, np.sin(roll), np.cos(roll)]])
-        R_pitch = np.array([[np.cos(pitch), 0, np.sin(pitch)], [0, 1, 0], [-np.sin(pitch), 0, np.cos(pitch)]])
-        R_yaw = np.array([[np.cos(yaw), -np.sin(yaw), 0], [np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]])
-        R_body_to_map = R_yaw @ R_pitch @ R_roll
-        mag_north_map = np.array([1.0, 0.0, 0.0])  # North in map frame
-        mag_true[k] = R_body_to_map.T @ mag_north_map
+        mag_level = np.array([np.cos(yaw), np.sin(yaw), 0.0])
+
+        # Tilt the level-frame field into the body frame -- the forward
+        # rotation that mag_tilt_compensate (Eq. 6.52) undoes.
+        c_r, s_r = np.cos(-roll), np.sin(-roll)
+        c_p, s_p = np.cos(-pitch), np.sin(-pitch)
+        R_x = np.array([[1, 0, 0], [0, c_r, -s_r], [0, s_r, c_r]])
+        R_y = np.array([[c_p, 0, s_p], [0, 1, 0], [-s_p, 0, c_p]])
+        mag_true[k] = R_y @ R_x @ mag_level
         
         # Barometric pressure from altitude
         h = pos_true[k, 2]
@@ -202,7 +214,14 @@ def plot_results(t, att_true, mag_meas, heading_est, pressure_meas, alt_est,
     # Figure 1: Magnetometer heading
     fig1, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
     
-    ax1.plot(t, np.rad2deg(heading_true), 'k-', linewidth=2, label='True Heading')
+    # Wrap the truth for display. A magnetometer reports a wrapped angle, so
+    # plotting it against an unwrapped truth that climbs to 3600 deg puts the
+    # two traces in different parts of the axes and makes the comparison the
+    # panel invites impossible -- they never overlap even when they agree.
+    # The error below still uses the unwrapped truth via wrap_angle_diff.
+    heading_true_wrapped = np.arctan2(np.sin(heading_true), np.cos(heading_true))
+    ax1.plot(t, np.rad2deg(heading_true_wrapped), 'k-', linewidth=2,
+             label='True Heading (wrapped)')
     ax1.plot(t, np.rad2deg(heading_est), 'b-', linewidth=2, alpha=0.7, label='Mag Heading')
     ax1.set_ylabel('Heading [deg]', fontsize=12)
     ax1.set_title('Magnetometer Example: Heading with Disturbances', fontsize=14, fontweight='bold')
