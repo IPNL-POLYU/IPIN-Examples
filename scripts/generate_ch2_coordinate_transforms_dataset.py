@@ -113,6 +113,7 @@ def save_dataset(
     output_dir: Path,
     lat_center: float,
     lon_center: float,
+    height_ground: float,
     lats: np.ndarray,
     lons: np.ndarray,
     heights: np.ndarray,
@@ -151,8 +152,13 @@ def save_dataset(
         header="East (m), North (m), Up (m) relative to reference",
     )
 
-    # Save reference point
-    ref_llh = np.array([lat_center, lon_center, heights[0]])
+    # Save reference point. The height must be the one the ENU transform was
+    # built with (height_ground), not heights[0] -- that is just the first
+    # sampled point, and it drew floor 5, so the file advertised a reference
+    # 15 m above the origin the East/North/Up axes were actually computed
+    # about. A reader loading reference_llh.txt and calling ecef_to_enu got Up
+    # wrong by exactly that 15 m on every point, while East and North matched.
+    ref_llh = np.array([lat_center, lon_center, height_ground])
     np.savetxt(
         output_dir / "reference_llh.txt",
         ref_llh.reshape(1, -1),
@@ -323,6 +329,7 @@ def generate_dataset(
         Path(output_dir),
         lat_center,
         lon_center,
+        height_ground,
         lats,
         lons,
         heights,
