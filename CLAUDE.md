@@ -121,12 +121,21 @@ Neither was caught because the READMEs' round-trip experiments **recompute both
 sides from the same source file** and compare those, which passes whatever the
 shipped bytes contain. If you add such a check, read the shipped file.
 
-Twelve more datasets were audited the same way and came back internally
-consistent: both ch3 variants, all four ch4 (including every GDOP file), ch6
-env-sensors, ch6 PDR, ch6 wheel odometry, and all three ch8 fusion variants.
-**Not yet audited: ch5 fingerprinting (×3), ch6 foot-ZUPT, ch6 strapdown, and
-both ch7 SLAM datasets** — the `.npz` ones mostly, which is why. So expect a
-red here to be real, but confirm the tolerance first:
+Every dataset has now been audited this way. Eighteen came back consistent;
+the three defects were ch2's two above and one in ch6 strapdown, where
+`imu.npz/accel_xy` was map-frame acceleration while the README's Eq. (6.19)
+integrates it as `v += C(theta) f dt` and so rotates it a second time. On the
+circular trajectory the accelerometer carried no centripetal term at all:
+integrating it drew a 16.9 m radius against a true 10.0 m. See
+`tests/ch6_dead_reckoning/test_imu_is_body_frame.py`.
+
+**A wrong frame hides as clean noise.** The residual against map-frame
+acceleration was 0.1002 m/s² against a declared 0.1 — a perfect match, and
+wrong. Checking a vector quantity against only one candidate frame will
+confirm whichever you picked, so compare against both and let the systematic
+mean pick the winner.
+
+So expect a red here to be real, but confirm the tolerance first:
 
 **Data files are written at `%.3f` or `%.6f`, so quantisation is the floor.**
 Coordinates quantise at 1 mm, DOP at 5e-7, and a finite difference divides that
@@ -153,6 +162,14 @@ That is how the ch2 rotation drift was separated from a lint sweep that merely
 surfaced it. Pass the preset `config.json` records — running a generator with
 no arguments can use different defaults than the shipped data was built with,
 which manufactures a diff that looks like drift.
+
+**`.npz` files are not byte-reproducible.** They are zip archives carrying
+member timestamps, so every regeneration rewrites the bytes whether or not a
+single number changed. `git status` is therefore no evidence about `.npz`
+content — load both versions and compare the arrays. Regenerating the two ch6
+IMU datasets touched four files and changed exactly one array. (Figures are
+the opposite: `core.eval.save_figure` is byte-reproducible, so there a diff
+does mean the picture changed.)
 
 ## Auditing a chapter's numbers
 

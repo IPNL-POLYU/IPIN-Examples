@@ -185,8 +185,22 @@ def generate_imu_measurements(
     N = len(t)
     dt = np.diff(t, prepend=t[0] - (t[1] - t[0]))
     
-    # Compute true accelerations (derivative of velocity)
-    accel_xy_true = np.gradient(v_xy, axis=0) / dt[:, None]
+    # Compute true accelerations (derivative of velocity) in the MAP frame,
+    # then rotate into the BODY frame -- an accelerometer measures specific
+    # force along its own axes, and the README's Eq. (6.19) integrates it as
+    # v += C(theta) f_body, so handing it a map-frame vector double-rotates.
+    #
+    # Omitting this shipped a circular trajectory whose accelerometer carried
+    # no centripetal term at all: integrating it per Eq. (6.19) drew a 16.9 m
+    # radius against the true 10.0 m and ended 69 m out after 60 s. The
+    # residual against map-frame accel was 0.1002 m/s^2 -- exactly the declared
+    # noise -- which is how the frame was identified.
+    accel_map_true = np.gradient(v_xy, axis=0) / dt[:, None]
+    cos_y, sin_y = np.cos(yaw), np.sin(yaw)
+    accel_xy_true = np.column_stack([
+        cos_y * accel_map_true[:, 0] + sin_y * accel_map_true[:, 1],
+        -sin_y * accel_map_true[:, 0] + cos_y * accel_map_true[:, 1],
+    ])
     
     # Compute true yaw rate (derivative of yaw)
     yaw_unwrapped = np.unwrap(yaw)
