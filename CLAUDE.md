@@ -228,6 +228,26 @@ the width attribute before looking for a real cause.
 Regenerate the figures for any code you change, and **open the PNGs** — this
 repo has repeatedly shipped figure defects that no test caught.
 
+Every chapter's figures have now been regenerated and looked at. All of them
+reproduce byte-identically from current code, so a diff here is a real signal.
+Two were wrong, and both were the same shape — a direction convention applied
+backwards, in an example that builds its own data inline and so was untouched
+by the dataset fixes:
+
+- Chapter 6's `environment_mag_heading` built its field as
+  `R_body_to_map.T @ [1,0,0]`, for which `atan2(m_y, m_x)` is minus the
+  heading. The error sawtoothed 0-180° across the whole run while the figure
+  claimed bounded heading, and the shaded disturbance windows it exists to
+  highlight were indistinguishable from the baseline.
+- Chapter 4's `ch4_aoa_geometry` drew each bearing ray from the anchor along
+  `(sin psi, cos psi)`, but `aoa_azimuth` measures psi *from the agent toward
+  the anchor*. All four rays pointed away, and none passed through the fix
+  they are drawn to intersect at.
+
+Both survived because every test on those examples checks that files were
+written. **A dataset audit will not find these** — the examples do not read
+`data/sim`. Only opening the picture does.
+
 `tests/test_repo_conventions.py` enforces the mechanical parts (no raw
 `savefig`, no unseeded global RNG, nothing at the repo root) as a ratchet:
 pre-existing violations are listed and skipped, new ones fail. Those lists are
