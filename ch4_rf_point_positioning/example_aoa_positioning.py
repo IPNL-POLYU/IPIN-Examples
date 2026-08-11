@@ -360,14 +360,23 @@ def visualize_aoa_geometry():
         label="Estimated Position",
     )
 
-    # Plot bearing lines from anchors toward agent
-    # psi = atan2(dE, dN) is angle from North, so we convert to x-y plot
+    # Plot bearing lines from anchors toward agent.
+    #
+    # psi = atan2(dE, dN) is the angle from North, but aoa_azimuth defines it
+    # with dE = anchor - agent: it is the bearing *from the agent toward the
+    # anchor*. Drawing (sin psi, cos psi) outward from the anchor therefore
+    # points directly away from the agent, which is what this figure did --
+    # all four rays left the plot on the far side, and none passed through the
+    # position they are supposed to intersect at.
+    #
+    # Negating gives the anchor-to-agent direction, so the rays now meet at
+    # the target the way an AOA geometry figure is meant to show.
     for i, (anchor, psi) in enumerate(zip(anchors, aoa_noisy)):
-        # In ENU: psi is from North (+y), so direction is:
-        # E-component = sin(psi), N-component = cos(psi)
+        # In ENU: psi is from North (+y), so the agent lies from the anchor at
+        # E-component = -sin(psi), N-component = -cos(psi)
         line_length = 15
-        end_e = anchor[0] + line_length * np.sin(psi)
-        end_n = anchor[1] + line_length * np.cos(psi)
+        end_e = anchor[0] - line_length * np.sin(psi)
+        end_n = anchor[1] - line_length * np.cos(psi)
         ax.plot(
             [anchor[0], end_e],
             [anchor[1], end_n],
@@ -376,10 +385,10 @@ def visualize_aoa_geometry():
             alpha=0.6,
             linewidth=1,
         )
-        # Label angle
+        # Label angle, placed along the ray it belongs to
         ax.text(
-            anchor[0] + 2 * np.sin(psi),
-            anchor[1] + 2 * np.cos(psi),
+            anchor[0] - 2 * np.sin(psi),
+            anchor[1] - 2 * np.cos(psi),
             f"psi={np.rad2deg(psi):.0f} deg",
             fontsize=8,
             color="gray",
