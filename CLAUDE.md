@@ -56,9 +56,15 @@ was running: identical content gave 2 failed / 1351 passed in 954 s under
 load, then 1353 passed / 0 failed in 647 s when quieter.
 
 Fixed by `tests/ch7_slam/slam_example_runner.py`, which memoises each distinct
-invocation so it runs once per session (5 runs down to 3) and sets a timeout
-generous enough to be a deadlock guard rather than a performance budget. **If
-you add a test that shells out to an example, go through that runner.**
+invocation so it runs once per session (5 pose-graph runs down to 3) and sets a
+timeout generous enough to be a deadlock guard rather than a performance
+budget. **If you add a test that shells out to an example, go through that
+runner.** It now owns every Chapter 7 example subprocess — five distinct
+invocations: the pose graph inline, on the square dataset and on the high-drift
+dataset, plus the front-end and the scan-matching visualisation. The
+scan-matching test was the last holdout and kept its own correct copy of the
+env setup for a while, which is the failure mode worth avoiding: duplicated
+policy only has to be forgotten once.
 
 Those tests still run the example with `cwd` at the repo root, because the
 example resolves `data/sim` relative to the working directory. The figures are
@@ -70,6 +76,83 @@ your run wrote anything.
 
 If `slam_with_maps.png` shows up in `git status` after a test run now, that is
 a real change and not the churn this note used to describe.
+
+## Editing a dataset README
+
+`tests/docs/test_readme_code_blocks.py` executes every ` ```python ` block in
+`data/sim/*/README.md` into one shared namespace, as a reader reads them top to
+bottom, with the working directory at the repo root. All of them run today, so
+a block you add must too.
+
+Fences carry meaning here:
+
+- ` ```python ` — a reader is expected to run this, and the guard executes it.
+- ` ```py ` — an illustrative fragment (`quat = quat / np.linalg.norm(quat)`,
+  or a block opening `# In tc_uwb_imu_ekf.py, add parameter:`). Not executed.
+  Both fences still highlight as Python in GitHub, VS Code and mkdocs.
+
+`FRAGMENT_BLOCKS` in that file pins the ` ```py ` count per README, because the
+fence is otherwise an unreviewed escape hatch: demoting a genuinely broken
+example to ` ```py ` would silence the guard in a one-word diff.
+
+When a block does fail, **the exception type tells you which kind you have.** A
+`NameError` on an undefined placeholder means it was never meant to run alone.
+A `TypeError`, `ValueError`, `ImportError` or `AttributeError` means every name
+resolved and the *call* is wrong — that is API drift, and it is always real.
+That one rule separated eight genuine drifts from twenty-one fragments in a
+register that had counted all twenty-nine as "broken".
+
+## Dataset files have to agree with each other
+
+Several datasets ship the same information in more than one form, and those
+forms are checked against each other now — see
+`tests/ch2_coords/test_rotation_files_agree.py` and
+`test_coordinate_files_agree.py`. Both tests exist because ch2 shipped two
+defects of this shape:
+
+- `quaternions.txt` was `euler_to_quat(pitch, roll, yaw)` and
+  `rotation_matrices.txt` was the same swap transposed, so the quaternion and
+  the matrix for a point described rotations up to 169° apart.
+- `reference_llh.txt` carried `heights[0]` — the first sampled point, which
+  drew floor 5 — while the ENU was built about `height_ground = 0.0`, putting
+  Up out by exactly 15 m everywhere.
+
+Neither was caught because the READMEs' round-trip experiments **recompute both
+sides from the same source file** and compare those, which passes whatever the
+shipped bytes contain. If you add such a check, read the shipped file.
+
+Twelve more datasets were audited the same way and came back internally
+consistent: both ch3 variants, all four ch4 (including every GDOP file), ch6
+env-sensors, ch6 PDR, ch6 wheel odometry, and all three ch8 fusion variants.
+**Not yet audited: ch5 fingerprinting (×3), ch6 foot-ZUPT, ch6 strapdown, and
+both ch7 SLAM datasets** — the `.npz` ones mostly, which is why. So expect a
+red here to be real, but confirm the tolerance first:
+
+**Data files are written at `%.3f` or `%.6f`, so quantisation is the floor.**
+Coordinates quantise at 1 mm, DOP at 5e-7, and a finite difference divides that
+by `dt` — heading stored at 1e-6 rad becomes 1e-4 rad/s of apparent gyro error
+at 100 Hz. Four apparent findings in that audit were tolerances set below the
+storage precision, against one real defect. An exact-looking residual is the
+tell that it is yours: 0.7854 rad/s turned out to be π/4 from an off-by-one in
+the check, while the genuine bug was a dull, perfectly uniform 15 m.
+
+## Attributing a dataset diff
+
+If regenerating a dataset produces a diff, find out whether your change caused
+it before believing either answer. Stash the edits, regenerate from a clean
+tree, and compare:
+
+```bash
+git checkout -- data/ && git stash push -- core/ scripts/
+python scripts/generate_chX_....py --preset <the one in config.json>
+git status --short data/          # same files? then the drift is pre-existing
+git checkout -- data/ && git stash pop
+```
+
+That is how the ch2 rotation drift was separated from a lint sweep that merely
+surfaced it. Pass the preset `config.json` records — running a generator with
+no arguments can use different defaults than the shipped data was built with,
+which manufactures a diff that looks like drift.
 
 ## Auditing a chapter's numbers
 
@@ -91,6 +174,23 @@ Two things made these survive, and both are worth expecting:
   prediction against Monte-Carlo and reports the 3.5% disagreement. When
   something looks wrong, look for the sibling that does it right before
   inventing an approach.
+
+A later sweep across every dataset README turned up the same kind of thing in
+five of the thirteen datasets it checked, plus two further shapes worth
+recognising on sight, both now written up in
+`.cursor/rules/030-figures-and-claims.mdc`: an example arguing that some
+correction matters while its own output prints a ratio of 1.0, and a solver
+whose reported accuracy is really the accuracy of the solves that happened to
+converge. Read that file before trusting a printed comparison.
+
+The most reusable habit from both sweeps is duller than any of the rules:
+**check that the check can fail.** A new assertion, a new tolerance, a new
+consistency test — run it against the broken input before believing the green.
+It matters in both directions and both were hit: a Chapter 6 strapdown test
+shipped ending in `pass  # Will fix in next version`, asserting nothing while
+still appearing in the count, and a replacement assertion written during the
+sweep to remove exactly that antipattern turned out to hold whether or not the
+code under test did its job.
 
 If a ch7 test does fail, re-run it in isolation before believing it.
 
