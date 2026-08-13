@@ -30,8 +30,6 @@ from core.fingerprinting import (
     hierarchical_localize,
     knn_localize,
     load_fingerprint_database,
-    map_localize,
-    fit_gaussian_naive_bayes,
 )
 
 
@@ -40,77 +38,53 @@ from core.fingerprinting import (
 # committed figures and reported accuracies can be regenerated exactly.
 DEFAULT_SEED = 42
 
-def create_multifloor_test_database(rng=None) -> FingerprintDatabase:
-    """Create a synthetic multi-floor database for testing.
+def load_multifloor_database() -> FingerprintDatabase:
+    """Load the shipped three-floor Wi-Fi database, as the other ch5 examples do.
 
-    Args:
-        rng: Generator for the synthetic RSS draws. Pass the run's shared
-            generator so the database and the queries below come from one
-            seeded stream; defaults to a fresh seeded one.
+    This example used to build its own database inline, and that database
+    could not support either of the things the example measures on it:
+
+    - **No relation between location and RSS.** The features were
+      ``base_rss - rng.random((n_rps, n_aps)) * 40``, drawn independently of
+      the RP's coordinates. k-NN assumes nearby locations have similar
+      fingerprints, so averaging the 5 nearest neighbours in RSS space
+      returned 5 spatially unrelated points. Every k-NN number the example
+      printed was measuring that, not the method.
+    - **Floors 87.5% overlapping.** ``base_rss = -50 - floor * 5`` separates
+      the floor means by 5 dB while the uniform spread within a floor is
+      40 dB wide (std 11.5 dB), a Fisher ratio of 0.43 -- despite the comment
+      claiming the offsets "enable floor classification".
+
+    The shipped database is built from a propagation model, so it has both:
+    floor means 15.25 dB apart against a 7.38 dB within-floor std (ratio
+    2.07), and fingerprints that vary smoothly with position.
     """
-    if rng is None:
-        rng = np.random.default_rng(DEFAULT_SEED)
-    print("\n--- Creating synthetic multi-floor database ---")
-    
-    # Parameters
-    n_rps_per_floor = 16  # 4x4 grid per floor
-    n_floors = 3
-    grid_size = 4
-    spacing = 5.0  # meters
-    n_aps = 6
-    
-    locations_list = []
-    features_list = []
-    floor_ids_list = []
-    
-    for floor in range(n_floors):
-        # Grid layout
-        x = np.tile(np.arange(grid_size) * spacing, grid_size)
-        y = np.repeat(np.arange(grid_size) * spacing, grid_size)
-        locs = np.column_stack([x, y])
-        
-        # RSS features (different per floor to enable floor classification)
-        # Floor 0: -50 to -90 dBm range
-        # Floor 1: -55 to -95 dBm range (offset)
-        # Floor 2: -60 to -100 dBm range (offset)
-        base_rss = -50 - floor * 5
-        feats = base_rss - rng.random((n_rps_per_floor, n_aps)) * 40
-        
-        floors = np.full(n_rps_per_floor, floor, dtype=int)
-        
-        locations_list.append(locs)
-        features_list.append(feats)
-        floor_ids_list.append(floors)
-    
-    locations = np.vstack(locations_list)
-    features = np.vstack(features_list)
-    floor_ids = np.hstack(floor_ids_list)
-    
-    db = FingerprintDatabase(
-        locations=locations,
-        features=features,
-        floor_ids=floor_ids,
-        meta={
-            "ap_ids": [f"AP{i+1}" for i in range(n_aps)],
-            "unit": "dBm",
-            "environment": "synthetic_multifloor"
-        }
-    )
-    
-    print(f"  Created database:")
+    db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
+    print("\n--- Loading multi-floor fingerprint database ---")
+    db = load_fingerprint_database(db_path)
+
+    print(f"  Loaded database: {db_path}")
     print(f"    - {db.n_reference_points} RPs across {db.n_floors} floors")
     print(f"    - {db.n_features} APs")
-    print(f"    - {n_rps_per_floor} RPs per floor")
-    
+    print(f"    - {db.n_reference_points // db.n_floors} RPs per floor")
+
     return db
 
 
-def test_classification_accuracy(db: FingerprintDatabase):
-    """Test classification accuracy on database RPs."""
+def test_classification_accuracy(db: FingerprintDatabase, rng=None):
+    """Measure classifier accuracy on held-out queries, not on training data.
+
+    Args:
+        db: Fingerprint database under test.
+        rng: Generator for the held-out query draws; defaults to a fresh
+            seeded one.
+    """
+    if rng is None:
+        rng = np.random.default_rng(DEFAULT_SEED)
     print("\n" + "=" * 70)
     print("Test 1: Classification Accuracy")
     print("=" * 70)
-    
+
     # Fit classifiers
     print("\n--- Training classifiers ---")
     print("  1. Random Forest (n_estimators=100)")
@@ -130,33 +104,53 @@ def test_classification_accuracy(db: FingerprintDatabase):
         C=1.0
     )
     
-    # Test on database RPs (perfect recall test)
-    print("\n--- Testing on database RPs (perfect recall) ---")
+    # Two measurements, because only the second one is an accuracy.
+    #
+    # `zone_type="rp"` makes every RP its own class, and the database holds one
+    # fingerprint per RP, so the classifiers are trained on exactly one sample
+    # of each of their N classes. Feeding the training vectors back in then
+    # asks whether the model can memorise N points, and the answer is 100.0%
+    # by construction for any classifier that fits its training set. This
+    # example used to print that number under the heading "Classification
+    # Accuracy" with no held-out comparison beside it.
     features = db.get_mean_features()
-    
-    rf_correct = 0
-    svm_correct = 0
-    
-    for i in range(db.n_reference_points):
-        query = features[i]
-        true_loc = db.locations[i]
-        
-        # RF prediction
-        pred_rf, _ = rf_classifier.predict(query)
-        if np.allclose(pred_rf, true_loc, atol=0.1):
-            rf_correct += 1
-        
-        # SVM prediction
-        pred_svm, _ = svm_classifier.predict(query)
-        if np.allclose(pred_svm, true_loc, atol=0.1):
-            svm_correct += 1
-    
-    rf_accuracy = 100 * rf_correct / db.n_reference_points
-    svm_accuracy = 100 * svm_correct / db.n_reference_points
-    
-    print(f"\n  Random Forest accuracy: {rf_accuracy:.1f}% ({rf_correct}/{db.n_reference_points})")
-    print(f"  SVM accuracy:          {svm_accuracy:.1f}% ({svm_correct}/{db.n_reference_points})")
-    
+
+    print("\n--- Recall on the training vectors (memorisation check) ---")
+    rf_correct = sum(
+        np.allclose(rf_classifier.predict(features[i])[0], db.locations[i], atol=0.1)
+        for i in range(db.n_reference_points)
+    )
+    svm_correct = sum(
+        np.allclose(svm_classifier.predict(features[i])[0], db.locations[i], atol=0.1)
+        for i in range(db.n_reference_points)
+    )
+    rf_recall = 100 * rf_correct / db.n_reference_points
+    svm_recall = 100 * svm_correct / db.n_reference_points
+
+    print(f"  Random Forest: {rf_recall:.1f}% ({rf_correct}/{db.n_reference_points})")
+    print(f"  SVM:           {svm_recall:.1f}% ({svm_correct}/{db.n_reference_points})")
+    print("  Expected to be 100% -- these are the training vectors themselves,")
+    print("  one per class. This says the models fit; it says nothing about")
+    print("  how they generalise, and is not a positioning result.")
+
+    # The real measurement: unseen queries, drawn by perturbing an RP's
+    # fingerprint the way a live measurement would differ from the survey.
+    noise_std = 2.0
+    n_queries = 200
+    print(f"\n--- Held-out queries (sigma = {noise_std:.1f} dBm, n = {n_queries}) ---")
+    rf_hit = svm_hit = 0
+    for _ in range(n_queries):
+        idx = rng.integers(0, db.n_reference_points)
+        query = features[idx] + rng.standard_normal(db.n_features) * noise_std
+        rf_hit += np.allclose(rf_classifier.predict(query)[0], db.locations[idx], atol=0.1)
+        svm_hit += np.allclose(svm_classifier.predict(query)[0], db.locations[idx], atol=0.1)
+
+    rf_accuracy = 100 * rf_hit / n_queries
+    svm_accuracy = 100 * svm_hit / n_queries
+    print(f"  Random Forest: {rf_accuracy:.1f}% ({rf_hit}/{n_queries}) exact RP")
+    print(f"  SVM:           {svm_accuracy:.1f}% ({svm_hit}/{n_queries}) exact RP")
+    print("  This is the number to compare against other methods.")
+
     return rf_classifier, svm_classifier
 
 
@@ -196,24 +190,29 @@ def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier,
             rp_idx = rng.integers(0, db.n_reference_points)
             true_loc = db.locations[rp_idx]
             query = db.get_mean_features()[rp_idx] + rng.standard_normal(db.n_features) * noise_std
-            floor_id = db.floor_ids[rp_idx]
-            
+
             # RF classification
             pred_rf, _ = rf_classifier.predict(query)
             rf_errs.append(np.linalg.norm(pred_rf - true_loc))
-            
+
             # SVM classification
             pred_svm, _ = svm_classifier.predict(query)
             svm_errs.append(np.linalg.norm(pred_svm - true_loc))
-            
-            # k-NN for comparison
-            pred_knn = knn_localize(query, db, k=5, floor_id=floor_id)
+
+            # k-NN for comparison. floor_id=None on purpose: this line used to
+            # pass the query's *true* floor, so the baseline was handed a fact
+            # the classifiers had to infer. Searching all three floors is the
+            # comparison the header claims to be making.
+            pred_knn = knn_localize(query, db, k=5, floor_id=None)
             knn_errs.append(np.linalg.norm(pred_knn - true_loc))
-        
-        rf_errors.append(np.mean(rf_errs))
-        svm_errors.append(np.mean(svm_errs))
-        knn_errors.append(np.mean(knn_errs))
-        
+
+        # RMSE, as printed. These three lines used to take np.mean of the
+        # errors and label the result RMSE, which understates every entry.
+        rmse = lambda e: float(np.sqrt(np.mean(np.square(e))))
+        rf_errors.append(rmse(rf_errs))
+        svm_errors.append(rmse(svm_errs))
+        knn_errors.append(rmse(knn_errs))
+
         print(f"\n  Noise sigma = {noise_std} dBm:")
         print(f"    Random Forest RMSE: {rf_errors[-1]:.2f} m")
         print(f"    SVM RMSE:          {svm_errors[-1]:.2f} m")
@@ -225,7 +224,7 @@ def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier,
     ax.plot(noise_levels, svm_errors, 's-', label='SVM', linewidth=2)
     ax.plot(noise_levels, knn_errors, '^-', label='k-NN (k=5)', linewidth=2)
     ax.set_xlabel('Noise Standard Deviation (dBm)', fontsize=12)
-    ax.set_ylabel('Mean Positioning Error (m)', fontsize=12)
+    ax.set_ylabel('Positioning Error RMSE (m)', fontsize=12)
     ax.set_title('Classification vs k-NN: Robustness to Noise', fontsize=14)
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
@@ -281,7 +280,7 @@ def test_hierarchical_localization(db: FingerprintDatabase, rng=None):
     # Method 2: Hierarchical (floor -> k-NN)
     print("\n--- Method 2: Hierarchical (Floor -> k-NN) ---")
     hier_errors = []
-    floor_correct = 0
+    floor_hit = []
     for i, query in enumerate(queries):
         pred, info = hierarchical_localize(
             query,
@@ -291,13 +290,31 @@ def test_hierarchical_localization(db: FingerprintDatabase, rng=None):
             k=5
         )
         hier_errors.append(np.linalg.norm(pred - true_locs[i]))
-        if info["coarse_floor"] == true_floors[i]:
-            floor_correct += 1
-    
+        floor_hit.append(info["coarse_floor"] == true_floors[i])
+
+    floor_hit = np.array(floor_hit)
+    floor_correct = int(floor_hit.sum())
     hier_rmse = np.sqrt(np.mean(np.array(hier_errors) ** 2))
     floor_accuracy = 100 * floor_correct / n_queries
-    print(f"  Floor classification accuracy: {floor_accuracy:.1f}%")
-    print(f"  RMSE (given correct floor): {hier_rmse:.2f} m")
+    print(f"  Floor classification accuracy: {floor_accuracy:.1f}% "
+          f"({floor_correct}/{n_queries}, chance = {100 / db.n_floors:.1f}%)")
+
+    # Both numbers, because the second one is conditional and the difference
+    # matters. The single line here used to read "RMSE (given correct floor)"
+    # while reporting `hier_rmse`, which is over *all* queries -- including
+    # every one the coarse step sent to the wrong floor. When floor accuracy
+    # was 29%, that label was describing a subset of 29 queries and printing
+    # the number for 100.
+    print(f"  RMSE, all queries:             {hier_rmse:.2f} m")
+    if floor_correct:
+        subset = np.array(hier_errors)[floor_hit]
+        subset_rmse = float(np.sqrt(np.mean(subset ** 2)))
+        print(f"  RMSE, correct-floor subset:    {subset_rmse:.2f} m "
+              f"(n = {floor_correct})")
+        if floor_correct < n_queries:
+            print("  The subset figure is the accuracy of the queries the coarse")
+            print("  step got right, so it flatters the method whenever that step")
+            print("  fails. Quote the all-queries number as the method's error.")
     
     # Method 3: Hierarchical (RF -> MAP)
     print("\n--- Method 3: Hierarchical (RF -> MAP) ---")
@@ -328,12 +345,55 @@ def test_hierarchical_localization(db: FingerprintDatabase, rng=None):
     hier_pm_rmse = np.sqrt(np.mean(np.array(hier_pm_errors) ** 2))
     print(f"  RMSE: {hier_pm_rmse:.2f} m")
     
-    # Summary
+    # Summary. The verdict below is computed from the numbers rather than
+    # written next to them, so it cannot drift out of agreement with the run.
+    #
+    # The exact-hit column is why RMSE alone would mislead here. Queries are
+    # built by perturbing an RP's fingerprint, so the answer always sits
+    # exactly on a reference point. A method that returns one RP can therefore
+    # score a true zero, while a method that interpolates between neighbours
+    # never can, however close it lands. That is a property of the evaluation,
+    # not of the methods, and it is worth several metres of apparent RMSE.
+    runs = {
+        "Direct k-NN (baseline)": direct_errors,
+        "Floor -> kNN": hier_errors,
+        "RF -> MAP": hier_rf_errors,
+        "Floor -> PM": hier_pm_errors,
+    }
     print("\n--- Summary ---")
-    print(f"  Direct k-NN:               {direct_rmse:.2f} m")
-    print(f"  Hierarchical (Floor -> kNN): {hier_rmse:.2f} m")
-    print(f"  Hierarchical (RF -> MAP):    {hier_rf_rmse:.2f} m")
-    print(f"  Hierarchical (Floor -> PM):  {hier_pm_rmse:.2f} m")
+    print(f"  {'Method':<24}{'RMSE':>8}{'median':>9}{'exact hit':>12}")
+    for name, errs in runs.items():
+        e = np.asarray(errs)
+        print(f"  {name:<24}{np.sqrt(np.mean(e ** 2)):>7.2f}m{np.median(e):>8.2f}m"
+              f"{100 * np.mean(e < 1e-9):>11.1f}%")
+
+    candidates = {k: float(np.sqrt(np.mean(np.asarray(v) ** 2)))
+                  for k, v in runs.items() if k != "Direct k-NN (baseline)"}
+    beat = {k: v for k, v in candidates.items() if v < direct_rmse - 1e-9}
+    tied = {k: v for k, v in candidates.items() if abs(v - direct_rmse) <= 1e-9}
+
+    print()
+    if beat:
+        best = min(beat, key=beat.get)
+        gain = 100 * (direct_rmse - beat[best]) / direct_rmse
+        print(f"  Best: hierarchical ({best}) at {beat[best]:.2f} m, "
+              f"{gain:.1f}% below the baseline.")
+        exact = 100 * np.mean(np.asarray(runs[best]) < 1e-9)
+        if exact > 20:
+            print(f"  Read that with the exact-hit column: {exact:.0f}% of its")
+            print("  queries land on the right RP for zero error, which only")
+            print("  happens because every query was generated at an RP. Off the")
+            print("  survey grid that margin should shrink, and the interpolating")
+            print("  methods are the ones with somewhere to move.")
+    else:
+        print("  No hierarchical variant beats the direct baseline here, so this")
+        print("  run does not demonstrate that the hierarchy helps.")
+    if tied:
+        print(f"  {', '.join(tied)} matches the baseline exactly. That is the")
+        print("  expected result once floor classification is reliable: k-NN")
+        print("  already draws its neighbours from the right floor, so adding")
+        print("  the constraint removes nothing. The hierarchy buys accuracy")
+        print("  only where it changes which RPs the fine step can see.")
     
     # Plot error distributions
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
@@ -425,14 +485,13 @@ def main():
     print("  2. Classification accuracy vs deterministic/probabilistic methods")
     print("  3. Hierarchical coarse-to-fine localization")
     
-    # Create test database
-    # One generator for the whole run: the database and both query sets are
-    # then consecutive draws from a single seeded stream.
+    # One generator for the whole run, so every query set below is a
+    # consecutive draw from a single seeded stream.
     rng = np.random.default_rng(DEFAULT_SEED)
-    db = create_multifloor_test_database(rng=rng)
-    
+    db = load_multifloor_database()
+
     # Test 1: Classification accuracy
-    rf_classifier, svm_classifier = test_classification_accuracy(db)
+    rf_classifier, svm_classifier = test_classification_accuracy(db, rng=rng)
     
     # Test 2: Robustness to noise
     test_noisy_queries(db, rf_classifier, svm_classifier, rng=rng)
