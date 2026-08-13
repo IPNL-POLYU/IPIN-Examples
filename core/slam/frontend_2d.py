@@ -54,7 +54,10 @@ class SlamFrontend2D:
         initialized: Whether front-end has been initialized.
         voxel_size: Voxel grid size for submap downsampling (meters).
         min_map_points: Minimum map points required for ICP.
-        max_icp_residual: Maximum ICP residual to accept match.
+        max_icp_residual: Maximum alignment error to accept, as RMS distance
+            per correspondence in meters.
+        max_correspondence_distance: ICP correspondence gate in meters
+            (d_threshold in Eq. 7.11), or None to disable gating.
     
     Example:
         >>> frontend = SlamFrontend2D(submap_voxel_size=0.1)
@@ -80,30 +83,42 @@ class SlamFrontend2D:
         min_map_points: int = 10,
         max_icp_residual: float = 1.0,
         initial_pose: Optional[np.ndarray] = None,
+        max_correspondence_distance: Optional[float] = 1.0,
     ):
         """Initialize SLAM front-end.
-        
+
         Args:
             submap_voxel_size: Voxel grid size for submap downsampling (meters).
                               Smaller values preserve more detail but increase
                               computation. Typical: 0.05 - 0.2m.
             min_map_points: Minimum number of map points required to run ICP.
                            If submap has fewer points, use prediction only.
-            max_icp_residual: Maximum ICP residual to accept as valid match.
-                             Higher residuals are rejected and prediction is used.
+            max_icp_residual: Maximum alignment error to accept, as RMS distance
+                             per correspondence in meters. Higher residuals are
+                             rejected and prediction is used.
             initial_pose: Initial pose [x, y, yaw] for first step. If None, uses
                          origin [0, 0, 0]. Set this to odometry's starting pose
                          for trajectories that don't start at origin.
+            max_correspondence_distance: Correspondence gate for ICP in meters
+                             (d_threshold in Eq. 7.11). Scan points with no map
+                             point within this radius are dropped rather than
+                             paired with a distant one. None disables gating,
+                             which is what this class used to do implicitly: on
+                             the ch7 square loop that let ICP diverge, reaching
+                             residuals of 3.9e3 and 2.1e13 on individual steps.
+                             Should exceed the odometry drift ICP is being asked
+                             to correct, or true correspondences get cut.
         """
         self.submap = Submap2D()
         self.pose_est: Optional[np.ndarray] = None
         self.initialized: bool = False
-        
+
         # Parameters
         self.voxel_size = submap_voxel_size
         self.min_map_points = min_map_points
         self.max_icp_residual = max_icp_residual
         self._initial_pose = initial_pose
+        self.max_correspondence_distance = max_correspondence_distance
     
     def step(
         self,
@@ -271,6 +286,7 @@ class SlamFrontend2D:
                 initial_pose=pose_pred,
                 max_iterations=50,
                 tolerance=1e-4,
+                max_correspondence_distance=self.max_correspondence_distance,
             )
         except Exception:
             # ICP failed (e.g., numerical issues)

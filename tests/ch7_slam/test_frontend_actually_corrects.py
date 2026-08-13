@@ -1,23 +1,37 @@
-"""The SLAM front-end is a no-op, and the pipeline's gates do not notice.
+"""The SLAM front-end corrects odometry, and the pipeline's gates check that.
 
-example_pose_graph_slam runs SlamFrontend2D.step() for every scan -- 145 of
-145 -- and the poses it returns are bit-identical to the odometry it was given.
-The example knows: it computes max|frontend - odom|, gets 0.0000 m, and prints
-"[WARNING] Frontend poses identical to odometry - ICP not working!". Its module
-docstring states the requirement outright: "frontend_poses MUST differ from
-odom_poses (ICP must be working)".
+This file used to assert the opposite. `example_pose_graph_slam` ran
+`SlamFrontend2D.step()` for all 145 scans and returned poses bit-identical to
+the odometry it was given; the example printed "[WARNING] Frontend poses
+identical to odometry - ICP not working!" and nothing acted on it. The hard gate
+asserted `rmse.frontend <= rmse.odom`, which a no-op satisfies exactly, so a
+stage that did nothing passed a gate designed to prove it did something -- the
+same shape as Chapter 6's frozen ZUPT detector, which scored well by never
+moving. The tests were written to fail when the ICP was repaired, and they did.
 
-Nothing acts on any of that. The hard gate in test_example_pose_graph_inline
-asserts rmse.frontend <= rmse.odom, which a no-op satisfies exactly, and the
-printed summary reports "Frontend improvement: -0.00%" without treating it as a
-failure. So a stage that does nothing passes a gate designed to prove it does
-something -- the same shape as Chapter 6's frozen ZUPT detector, which scored
-well by never moving.
+Two bugs were behind it, both in units rather than in the algorithm:
 
-These tests assert the front-end is STILL a no-op, so that repairing the ICP
-turns them red and forces the gate to be promoted rather than leaving a silent
-allowance behind. See tests/ch6_dead_reckoning/test_methods_actually_move.py
-for the same construction.
+  - `icp_point_to_point` returned Eq. (7.10)'s objective, a *sum* of squared
+    errors, while every caller gated it with a threshold named and documented
+    in metres. The sum grows with the correspondence count, so matching a
+    360-point scan against a submap voxelised at 0.2 m cost ~1.2 from
+    quantisation alone, and the front-end's `max_icp_residual=1.5` was
+    demanding 0.065 m RMS against a 0.058 m floor. It rejected every alignment
+    it was ever handed and fell back to the odometry prediction each time. The
+    function now reports RMS per correspondence, in metres.
+  - `_scan_to_map_alignment` never passed `max_correspondence_distance`, so
+    correspondence gating (Eq. 7.11) was off. Scan points with no nearby map
+    point were paired with distant ones, and ICP diverged on individual steps
+    to residuals of 3.9e3 and 2.1e13.
+
+Fixing the units also changed what the loop-closure threshold meant, and that
+had to be retuned in the same breath: at the old 0.30 it admitted nine
+geometrically wrong closures and the back-end optimised to 1.26 m, worse than
+the 0.85 m odometry baseline it started from. The two populations separate
+cleanly -- correct closures top out at 0.054 m RMS, wrong ones start at
+0.150 m -- so 0.10 takes all 147 correct closures and no wrong ones.
+
+  odometry 0.8488 m -> front-end 0.5344 m (+37.0%) -> optimised 0.3045 m (+64.1%)
 
 Author: Li-Ta Hsu
 References: Chapter 7, Section 7.3 (scan matching), Section 7.5 (pose graph)
@@ -34,10 +48,6 @@ from tests.ch7_slam.slam_example_runner import (
     run_pose_graph_example,
 )
 
-# The front-end is known to return odometry unchanged. Remove this once the
-# ICP is fixed; the tests below are written to fail at that moment.
-FRONTEND_IS_KNOWN_NO_OP = True
-
 
 class TestFrontendActuallyCorrects(unittest.TestCase):
     """What the pipeline claims its middle stage does."""
@@ -49,56 +59,51 @@ class TestFrontendActuallyCorrects(unittest.TestCase):
         cls.stdout = run.process.stdout
 
     def test_the_frontend_runs_on_every_scan(self):
-        """It is called; that part of the claim is true."""
+        """It is called; that part of the claim was always true."""
         self.assertEqual(self.summary["n_frontend_steps"], self.summary["n_scans"])
 
     def test_the_frontend_correction_is_reported(self):
         """The summary must expose the quantity a gate can test.
 
         frontend_used only says step() was called. Whether it changed anything
-        is a different question, and it now has its own field.
+        is a different question, and it has its own field.
         """
         self.assertIn("frontend_correction_m", self.summary)
 
-    def test_the_frontend_still_changes_nothing(self):
-        """Pinned as broken, so a fix flips this test rather than passing quietly.
+    def test_the_frontend_changes_the_poses(self):
+        """The assertion this file exists for, now the right way round."""
+        self.assertGreater(self.summary["frontend_correction_m"], 0.0)
 
-        When the ICP starts correcting, this fails with the correction it
-        achieved; set FRONTEND_IS_KNOWN_NO_OP to False and turn the assertion
-        around, and promote the hard gate from rmse.frontend <= rmse.odom to a
-        strict improvement.
-        """
-        correction = self.summary["frontend_correction_m"]
+    def test_the_example_no_longer_warns(self):
+        """The warning was the example telling us; it must be gone, not muted."""
+        self.assertNotIn("ICP not working", self.stdout)
 
-        if FRONTEND_IS_KNOWN_NO_OP:
-            self.assertEqual(
-                correction,
-                0.0,
-                f"The front-end now corrects {correction} m. Flip "
-                f"FRONTEND_IS_KNOWN_NO_OP and tighten the hard gate.",
-            )
-        else:
-            self.assertGreater(correction, 0.0)
+    def test_the_frontend_strictly_improves_on_odometry(self):
+        """Promoted from `<=`, which a no-op satisfied exactly.
 
-    def test_the_example_says_so_out_loud(self):
-        """The warning is printed; this pins that it is not quietly dropped.
-
-        If the front-end is fixed, this fails too -- both halves of the story
-        move together.
-        """
-        if FRONTEND_IS_KNOWN_NO_OP:
-            self.assertIn("ICP not working", self.stdout)
-
-    def test_the_backend_is_what_earns_the_improvement(self):
-        """The pipeline result is real, and it comes from the pose graph.
-
-        Worth separating: the chapter's headline is not wrong, it is just
-        attributable to one stage rather than three.
+        The margin is deliberately loose: the point is that scan-to-map
+        alignment earns something, not that it earns 37% on this seed.
         """
         rmse = self.summary["rmse"]
 
-        self.assertEqual(rmse["frontend"], rmse["odom"])
+        self.assertLess(rmse["frontend"], 0.9 * rmse["odom"])
+
+    def test_the_backend_improves_on_the_frontend(self):
+        """Each stage has to pay for itself, not ride on the one before it."""
+        rmse = self.summary["rmse"]
+
+        self.assertLess(rmse["optimized"], rmse["frontend"])
         self.assertLess(rmse["optimized"], 0.6 * rmse["odom"])
+
+    def test_loop_closures_are_not_admitted_by_the_hundred(self):
+        """A guard on the threshold that retuning could quietly loosen.
+
+        Accepting every candidate is not free: at the old gate the back-end
+        took nine wrong closures and finished worse than odometry. Detection
+        finds ~147 correct ones here, so a large excess means the residual
+        threshold has drifted back above the 0.054/0.150 m separation.
+        """
+        self.assertLessEqual(self.summary["n_loop_closures"], 155)
 
 
 if __name__ == "__main__":

@@ -47,6 +47,7 @@ import json
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.transforms import blended_transform_factory
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 
@@ -143,7 +144,9 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     frontend = SlamFrontend2D(
         submap_voxel_size=0.15,
         min_map_points=10,
-        max_icp_residual=1.0,  # Slightly more tolerant for dataset mode
+        # RMS per correspondence in metres, as in the inline path below.
+        max_icp_residual=0.3,
+        max_correspondence_distance=1.0,
         initial_pose=odom_poses[0].copy(),  # Start from odometry's first pose
     )
     
@@ -863,7 +866,14 @@ def detect_loop_closures(
             # of the cost; the library default is 5.
             max_candidates=8,
             max_distance=distance_threshold,  # Optional secondary filter
-            max_icp_residual=0.3,  # More lenient for noisy scans (was 0.1)
+            # RMS alignment error per correspondence, in metres. On this data
+            # the two populations separate cleanly: closures that are
+            # geometrically correct top out at 0.054 m, wrong ones start at
+            # 0.150 m, so anything in that gap scores 147 correct and 0 wrong.
+            # 0.30 admits nine false closures, which the back-end cannot
+            # recover from -- it optimised to 1.26 m against a 0.85 m odometry
+            # baseline while the front-end alone reached 0.53 m.
+            max_icp_residual=0.10,
             icp_max_iterations=50,
             icp_tolerance=1e-4,
         )
@@ -919,7 +929,10 @@ def detect_loop_closures(
                             tolerance=1e-4,
                         )
                         
-                        if converged and residual < 1.0:
+                        # RMS per correspondence in metres, as in the
+                        # observation-based path above. This read 1.0 when
+                        # icp_point_to_point returned a sum of squared errors.
+                        if converged and residual < 0.10:
                             # Compute covariance (simplified)
                             cov = np.diag([0.05, 0.05, 0.01])
                             
@@ -1464,9 +1477,19 @@ def plot_slam_results(
         timesteps, opt_errors, "b-", linewidth=2, label="Optimized Error", alpha=0.8
     )
 
-    # Mark loop closures
-    for i, j, _, _ in loop_closures:
-        ax_error.axvline(j, color="magenta", linestyle=":", alpha=0.5, linewidth=1)
+    # Mark loop closures as a rug along the bottom axis rather than full-height
+    # lines. There are ~147 of them, and one axvline each at alpha=0.5 painted
+    # the second half of the panel solid magenta, hiding the three error curves
+    # this plot exists to compare.
+    if loop_closures:
+        closure_at = [j for _, j, _, _ in loop_closures]
+        rug = blended_transform_factory(ax_error.transData, ax_error.transAxes)
+        ax_error.vlines(
+            closure_at, 0.0, 0.04, transform=rug,
+            color="magenta", alpha=0.7, linewidth=1,
+        )
+        ax_error.plot([], [], color="magenta", linewidth=1,
+                      label=f"Loop closure ({len(closure_at)})")
 
     ax_error.set_xlabel("Pose Index", fontsize=12)
     ax_error.set_ylabel("Position Error [m]", fontsize=12)
@@ -1652,7 +1675,15 @@ def run_with_inline_data(
     frontend = SlamFrontend2D(
         submap_voxel_size=0.2,   # Voxel size for map downsampling
         min_map_points=5,        # Minimum points needed for ICP
-        max_icp_residual=1.5,    # Accept ICP results with reasonable residual
+        # RMS alignment error per correspondence, in metres. Matches here land
+        # at 0.06-0.12 m, roughly the 0.2 m voxel quantisation floor, so this
+        # rejects genuinely bad alignments without cutting into good ones.
+        # It read 1.5 while icp_point_to_point returned a *sum* of squared
+        # errors, which for a 360-point scan demanded 0.065 m RMS against a
+        # 0.058 m floor -- so every match was rejected and the front-end
+        # silently degenerated into a copy of odometry.
+        max_icp_residual=0.3,
+        max_correspondence_distance=1.0,  # Eq. (7.11) gate; see below
         initial_pose=odom_poses[0].copy(),  # Start from odometry's first pose
     )
     

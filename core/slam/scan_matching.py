@@ -321,7 +321,11 @@ def icp_point_to_point(
         Tuple of (final_pose, num_iterations, final_residual, converged):
             - final_pose: Estimated pose [x, y, yaw], shape (3,).
             - num_iterations: Number of iterations executed.
-            - final_residual: Final ICP residual (sum of squared errors from Eq. 7.10).
+            - final_residual: Final alignment error as RMS distance per
+              correspondence, in metres. This is Eq. (7.10)'s objective
+              normalised by the correspondence count, so that it is comparable
+              across scans of different sizes and can be gated with a threshold
+              in metres. Use `compute_icp_residual` directly for the raw sum.
             - converged: True if convergence criteria met, False if max_iterations reached.
 
     Raises:
@@ -394,11 +398,19 @@ def icp_point_to_point(
             # Not enough correspondences → return current pose as failure
             return current_pose, iteration + 1, final_residual, False
 
-        # Step 3: Compute residual
+        # Step 3: Compute residual, reported as RMS per correspondence in
+        # metres. compute_icp_residual returns the book's Eq. (7.10) objective,
+        # which is a *sum* of squared errors and so grows with the number of
+        # matched points. Every caller compares this value against a threshold
+        # named and documented in metres, and a sum cannot be one: matching a
+        # 360-point scan against a submap voxelised at 0.2 m costs about
+        # 360 * 0.058^2 = 1.2 from quantisation alone, so the front-end's
+        # max_icp_residual=1.5 was demanding 0.065 m RMS against a 0.058 m
+        # floor. It rejected every alignment it was ever handed.
         current_residual = compute_icp_residual(matched_source, matched_target)
-        
+
         # Update final_residual (CRITICAL: do this before convergence check)
-        final_residual = current_residual
+        final_residual = float(np.sqrt(current_residual / matched_source.shape[0]))
 
         # Step 4: Compute incremental pose using SVD
         delta_pose = align_svd(matched_source, matched_target)
