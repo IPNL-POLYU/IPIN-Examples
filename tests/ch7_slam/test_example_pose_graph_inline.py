@@ -114,12 +114,17 @@ class TestInlineModeHardGates(unittest.TestCase):
         self.assertIn(
             "frontend", rmse, "HARD GATE 4 FAILED: Missing 'rmse.frontend' in summary"
         )
-        self.assertLessEqual(
+        # Strict, not <=. A front-end that returns odometry unchanged satisfies
+        # <= exactly, and for a long time one did: the residual gate was
+        # comparing a sum of squared errors against a metre threshold and
+        # rejected every alignment. See test_frontend_actually_corrects.py.
+        self.assertLess(
             rmse["frontend"],
-            rmse["odom"],
+            0.9 * rmse["odom"],
             f"HARD GATE 4 FAILED: Frontend RMSE ({rmse['frontend']:.4f}) "
-            f"must be <= Odometry RMSE ({rmse['odom']:.4f}). "
-            "If frontend makes things worse, scan-to-map ICP is not working.",
+            f"must improve on Odometry RMSE ({rmse['odom']:.4f}). "
+            "If the frontend merely matches odometry, scan-to-map ICP is "
+            "running but its results are being discarded.",
         )
 
         # === HARD GATE 5: Optimization achieves >= 5% improvement ===

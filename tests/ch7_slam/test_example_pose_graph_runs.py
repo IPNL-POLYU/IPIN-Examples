@@ -88,13 +88,16 @@ class TestExamplePoseGraphSLAMRuns(unittest.TestCase):
             f"got {summary['n_loop_closures']}",
         )
 
-        # Gate 2: Frontend must not worsen trajectory
+        # Gate 2: Frontend must improve the trajectory, not merely avoid
+        # worsening it. A no-op passes "<=" exactly, which is how a front-end
+        # that discarded every ICP result went unnoticed; see
+        # test_frontend_actually_corrects.py.
         rmse = summary["rmse"]
-        self.assertLessEqual(
+        self.assertLess(
             rmse["frontend"],
-            rmse["odom"],
-            f"HARD GATE FAILED: Frontend RMSE ({rmse['frontend']}) must be "
-            f"<= Odometry RMSE ({rmse['odom']})",
+            0.9 * rmse["odom"],
+            f"HARD GATE FAILED: Frontend RMSE ({rmse['frontend']}) must "
+            f"improve on Odometry RMSE ({rmse['odom']})",
         )
 
         # Gate 3: Optimization must achieve >= 5% improvement

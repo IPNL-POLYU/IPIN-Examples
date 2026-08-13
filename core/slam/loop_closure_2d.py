@@ -102,7 +102,7 @@ class LoopClosureDetector2D:
         min_descriptor_similarity: float = 0.7,
         max_candidates: int = 5,
         max_distance: Optional[float] = None,
-        max_icp_residual: float = 0.2,
+        max_icp_residual: float = 0.1,
         icp_max_iterations: int = 50,
         icp_tolerance: float = 1e-4,
     ):
@@ -118,7 +118,11 @@ class LoopClosureDetector2D:
             max_candidates: Maximum number of candidates to verify per query.
             max_distance: Optional maximum position distance between candidates
                          (secondary filter). Set to None to disable distance gating.
-            max_icp_residual: Maximum ICP residual to accept loop closure.
+            max_icp_residual: Maximum alignment error to accept a loop
+                closure, as RMS distance per correspondence in metres.
+                icp_point_to_point reports RMS; this was 0.2 when it
+                still returned a sum of squared errors, which is a
+                different quantity and scales with the scan size.
             icp_max_iterations: Maximum ICP iterations for verification.
             icp_tolerance: ICP convergence tolerance.
         """
