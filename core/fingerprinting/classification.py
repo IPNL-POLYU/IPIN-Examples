@@ -346,11 +346,17 @@ def hierarchical_localize(
             floor_id = db.floor_ids[0]
             info["coarse_floor"] = int(floor_id)
         else:
-            from .deterministic import nn_localize
-
-            pos_nn = nn_localize(z, db, floor_id=None)
-            distances = np.linalg.norm(db.locations - pos_nn, axis=1)
-            closest_rp_idx = np.argmin(distances)
+            # Match in *fingerprint* space and read the floor off the winning
+            # RP. This used to call nn_localize, which returns an (x, y)
+            # location with the floor already discarded, then pick the RP
+            # nearest that location in x-y. A multi-floor grid stacks its RPs
+            # at the same coordinates -- the shipped ch5 database has 363 RPs
+            # on 121 distinct (x, y) -- so the argmin was a tie between one RP
+            # per floor and always resolved to the lowest index. It returned
+            # floor 0 for every query, scoring that floor's base rate (~33% on
+            # three floors) and reading as a hard problem rather than a bug.
+            distances = np.linalg.norm(db.get_mean_features() - z, axis=1)
+            closest_rp_idx = int(np.argmin(distances))
             floor_id = db.floor_ids[closest_rp_idx]
             info["coarse_floor"] = int(floor_id)
 
