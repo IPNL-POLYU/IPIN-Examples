@@ -293,10 +293,68 @@ def example_iekf_vs_ekf_comparison():
     print(f"{'Mean velocity error (m/s)':<30} {np.mean(ekf_vel_errors[5:]):<15.4f} "
           f"{np.mean(iekf_vel_errors[5:]):<15.4f}")
 
-    improvement = (np.mean(ekf_pos_errors[5:]) - np.mean(iekf_pos_errors[5:])) / \
-                  np.mean(ekf_pos_errors[5:]) * 100
-    print(f"\nIEKF improvement: {improvement:.1f}%")
+    # Report the improvement where it exists, and say where it does not.
+    #
+    # This line used to average over [5:] alone and print the result as "IEKF
+    # improvement: 0.6%". That window is the one place the effect cannot
+    # appear: by step 5 both filters have converged, the innovation is small,
+    # and the linearisation error IEKF exists to remove is negligible. Over 200
+    # seeds of this exact scenario the median there is +0.16% with IEKF worse
+    # on 46% of them -- a coin flip, reported from a single seed.
+    #
+    # The first update is the window where the effect can appear, since the
+    # estimate starts 2.83 m from the truth. Index 0 is x0_est before any
+    # update, identical for both filters by construction, so that is index 1;
+    # slicing [:1] prints a guaranteed 0.0%.
+    #
+    # Measuring there is honest but does not rescue the example's thesis. Over
+    # the same 200 seeds the median is only +3.7%, and IEKF is worse on 42%.
+    # This scenario is named "high nonlinearity", but its measurement noise
+    # (0.30 m range, 0.08 rad bearing) is large enough to swamp the
+    # linearisation error, so iterating mostly re-fits noise.
+    #
+    # What IEKF actually responds to is the ratio of linearisation error to
+    # measurement noise. Median first-update gain over 200 seeds, geometry
+    # fixed, sweeping one axis at a time (worse-than-EKF rate in brackets):
+    #
+    #   noise, at the example's 2.83 m initial error
+    #     0.30 m / 0.08 rad   +3.7%   [42%]   <- this example
+    #     0.10 m / 0.02 rad  +20.9%   [32%]
+    #     0.05 m / 0.01 rad  +39.5%   [23%]
+    #   initial error, at the example's 0.30/0.08 noise
+    #     5.66 m              +4.8%   [44%]
+    #     8.49 m             +48.1%   [11%]
+    #   both: 0.05/0.01 at 8.49 m    +90.4%   [ 0%]
+    #
+    # So the effect is real and large -- just not at the operating point this
+    # example chose. Note the initial-error sweep is not monotonic in any
+    # useful sense at fixed noise: 5.66 m barely moves, because what matters
+    # is whether the linearisation error is large *relative to* the noise
+    # floor, and one doubling is not enough to clear 0.30 m / 0.08 rad.
+    early = (np.mean(ekf_pos_errors[1:2]) - np.mean(iekf_pos_errors[1:2])) / \
+            np.mean(ekf_pos_errors[1:2]) * 100
+    steady = (np.mean(ekf_pos_errors[5:]) - np.mean(iekf_pos_errors[5:])) / \
+             np.mean(ekf_pos_errors[5:]) * 100
+    print(f"\nIEKF improvement, first update:  {early:+.1f}%")
+    print(f"IEKF improvement, steps 5+:      {steady:+.1f}%")
     print(f"Mean IEKF iterations per update: {np.mean(iekf_iterations):.1f}")
+    print()
+    print("  Both are one seed. Over 200 seeds of this scenario the medians")
+    print("  are +3.7% on the first update (IEKF worse on 42%) and +0.16%")
+    print("  from step 5 on (worse on 46%). This seed prints -19.6% for the")
+    print("  first update: a single draw can carry the wrong sign, not merely")
+    print("  the wrong magnitude, which is why a median is quoted at all.")
+    print()
+    print("  Read honestly, IEKF buys little here, for 4.6x the update cost.")
+    print("  Iterating pays only while linearisation error dominates")
+    print("  measurement noise, and at 0.30 m / 0.08 rad it does not. Holding")
+    print("  the geometry fixed and tightening the noise to 0.05 m / 0.01 rad")
+    print("  lifts the first-update median to +39.5%; keeping the noise and")
+    print("  starting 8.49 m out gives +48.1%; doing both gives +90.4%, where")
+    print("  IEKF never loses to EKF on any of the 200 seeds.")
+    print()
+    print("  Averaging over [5:], as this example used to, measures only the")
+    print("  window where no method could help.")
 
     # Visualization
     print(f"\nCreating visualization...")

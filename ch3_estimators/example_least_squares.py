@@ -227,7 +227,24 @@ def example_2_weighted_ls():
     print(f"LS estimate:        {position_ls} (error: {error_ls:.4f} m)")
     print(f"\nWLS covariance trace: {np.trace(P_wls):.6f}")
     print(f"LS covariance trace:  {np.trace(P_ls):.6f}")
-    print(f"\nImprovement: {((error_ls - error_wls) / error_ls * 100):.1f}%")
+    # One draw, so labelled as one. This line used to print the same quantity
+    # as "Improvement: 36.7%", which reads as a property of weighting and is
+    # not one: over 5000 draws the RMS improvement is about 14%, the per-draw
+    # median about 9%, the 5th-95th percentile spans roughly -37% to +73%, and
+    # WLS is *worse* than unweighted LS on nearly 30% of draws. (Figures are
+    # rounded because they move a few tenths between noise streams; two
+    # independent 5000-draw runs gave 14.4/9.0/27% and 14.3/8.5/29%.)
+    #
+    # That last number is the lesson rather than a caveat. With four ranges
+    # and two unknowns there is almost no redundancy, and W puts 36x more
+    # weight on anchor 0 than on any other. When anchor 0 draws an unlucky
+    # error, WLS follows it. Weighting buys accuracy on average by trusting
+    # the good sensor, and pays for it by depending on that sensor.
+    print(f"\nThis draw: WLS is {((error_ls - error_wls) / error_ls * 100):.1f}% "
+          f"better than LS")
+    print("  Over 5000 draws: ~14% better in RMS, ~9% in the per-draw median,")
+    print("  and worse than plain LS on ~28% of them. A single draw cannot tell")
+    print("  you which of those you are looking at.")
 
     return position_wls, P_wls
 
