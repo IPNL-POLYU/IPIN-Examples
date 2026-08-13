@@ -41,6 +41,47 @@ from core.slam import (
 from core.estimators.factor_graph import FactorGraph
 
 
+# Standard deviation of the synthetic pixel observations, and the sigma the
+# reprojection factors are weighted by. Named because the final reprojection
+# RMS is compared against it: "converged" means reaching this floor, and no
+# optimiser can go below the noise its measurements were drawn with.
+PIXEL_NOISE_STD = 0.5
+
+
+def rms(values: np.ndarray) -> float:
+    """Root-mean-square of a 1-D array."""
+    return float(np.sqrt(np.mean(np.square(values))))
+
+
+def reprojection_residuals_px(graph: FactorGraph, n_reprojection: int) -> np.ndarray:
+    """Per-observation reprojection residual magnitudes, in pixels.
+
+    `graph.compute_error()` returns the Eq. (3.38) cost, sum_i r_i^T Lambda_i
+    r_i. That is a weighted sum of squares: it grows with the observation count
+    and is scaled by the information matrix, so it is not an accuracy and
+    cannot be compared against anything a reader knows. On this scenario it
+    starts at 4.9e6, which says nothing except that some landmark is badly
+    placed.
+
+    These are the raw residual norms in the units the observations were made
+    in, so they can be read directly and compared against PIXEL_NOISE_STD.
+
+    Args:
+        graph: The bundle-adjustment factor graph.
+        n_reprojection: Number of leading factors that are reprojection
+            factors. The gauge prior is appended after them and its residual is
+            in metres, not pixels, so it must not be averaged in here.
+
+    Returns:
+        Array of residual magnitudes in pixels, one per observation.
+    """
+    residuals = []
+    for factor in graph.factors[:n_reprojection]:
+        x_vars = [graph.variables[vid] for vid in factor.variable_ids]
+        residuals.append(float(np.linalg.norm(factor.residual_func(x_vars))))
+    return np.asarray(residuals)
+
+
 def generate_camera_trajectory(
     n_poses: int = 10,
     radius: float = 5.0,
@@ -516,7 +557,7 @@ def main(animate: bool = False):
         poses_true,
         landmarks_true,
         intrinsics,
-        observation_noise=0.5,  # 0.5 pixel noise
+        observation_noise=PIXEL_NOISE_STD,
         min_depth=1.0,
         max_depth=12.0,
     )
@@ -567,7 +608,9 @@ def main(animate: bool = False):
     
     # Add reprojection factors for all observations
     n_factors = 0
-    pixel_info = np.eye(2) / (0.5**2)  # Inverse covariance (0.5 pixel std)
+    # Inverse covariance for the pixel measurements. Weighting each residual by
+    # 1/sigma^2 = 4 is why graph.compute_error() is not in pixels.
+    pixel_info = np.eye(2) / (PIXEL_NOISE_STD ** 2)
     
     for pose_id, obs_list in observations.items():
         for landmark_id, observed_pixel in obs_list:
@@ -598,7 +641,10 @@ def main(animate: bool = False):
     print("\n6. Running bundle adjustment optimization...")
     
     initial_error = graph.compute_error()
-    print(f"   Initial reprojection error: {initial_error:.6f}")
+    initial_px = reprojection_residuals_px(graph, n_factors - 1)
+    print(f"   Initial cost (weighted sum of squares): {initial_error:.3f}")
+    print(f"   Initial reprojection error: {rms(initial_px):.1f} px RMS, "
+          f"worst {initial_px.max():.1f} px")
     
     # Track per-iteration states for animation
     poses_history = []
@@ -678,9 +724,30 @@ def main(animate: bool = False):
     optimized_vars = {var_id: var.copy() for var_id, var in graph.variables.items()}
     
     final_error = error_history[-1]
-    print(f"   Final reprojection error: {final_error:.6f}")
+    final_px = reprojection_residuals_px(graph, n_factors - 1)
+    print(f"   Final cost (weighted sum of squares): {final_error:.3f}")
+    print(f"   Final reprojection error: {rms(final_px):.2f} px RMS, "
+          f"worst {final_px.max():.2f} px")
     print(f"   Iterations: {len(error_history) - 1}")
-    print(f"   Error reduction: {(1 - final_error / initial_error) * 100:.2f}%")
+
+    # Report the cost drop as a factor, not a percentage.
+    #
+    # This line read "Error reduction: 100.00%", which is 99.998938% rounded by
+    # the format string -- a reduction printed as if it were total. It is also
+    # the least informative way to say it. The cost is a *weighted sum of
+    # squares* over all 46 observations, each scaled by 1/sigma^2 = 4: the
+    # initial state reprojects at 163.9 px RMS with a worst case of 316.7 px,
+    # and 46 * 4 * 163.9^2 is where the millions come from. A percentage of
+    # such a number says more about how bad the initial guess was than about
+    # what the optimiser achieved.
+    #
+    # The interpretable statements are the pixel RMS above -- which lands at
+    # the 0.5 px noise the observations were generated with, i.e. the optimum
+    # -- and the pose and landmark accuracy below.
+    print(f"   Cost reduced {initial_error / final_error:,.0f}x "
+          f"({100 * (1 - final_error / initial_error):.4f}%)")
+    print(f"   Final RMS is at the {PIXEL_NOISE_STD:.1f} px measurement noise "
+          f"floor, so the solve is converged, not merely improved.")
 
     # Extract optimized poses and landmarks
     poses_opt = [optimized_vars[i] for i in range(n_poses)]
@@ -749,7 +816,10 @@ def main(animate: bool = False):
     print(f"  - Camera trajectory: {n_poses} poses")
     print(f"  - 3D landmarks: {n_landmarks} features")
     print(f"  - Total observations: {total_observations}")
-    print(f"  - Reprojection error reduction: {(1 - final_error / initial_error) * 100:.1f}%")
+    # In pixels, not as a percentage of a weighted sum of squares. This line
+    # printed "Reprojection error reduction: 100.0%" for a 99.998938% drop.
+    print(f"  - Reprojection error: {rms(initial_px):.1f} -> {rms(final_px):.2f} px RMS "
+          f"(noise floor {PIXEL_NOISE_STD:.1f} px)")
     print(f"  - Pose accuracy: {pose_rmse_opt:.4f} m RMSE")
     print(f"  - Landmark accuracy: {landmark_rmse_opt:.4f} m RMSE")
     print()

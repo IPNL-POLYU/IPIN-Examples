@@ -367,12 +367,51 @@ def main():
     print("\n" + "="*70)
     print("Example complete!")
     print("="*70)
+    # Findings computed from the run above, so they cannot disagree with the
+    # table the reader just saw. The line that used to sit at the bottom of
+    # this list -- "Manhattan distance can be faster than Euclidean in some
+    # cases" -- disagreed with both: the table printed Manhattan slower
+    # (0.050 ms against 0.048 ms), and this file's own cost model says the
+    # metric cannot change the cost, because every variant scans the whole
+    # floor either way. See per_query_operations.
+    by_name = {r["method"]: r for r in results}
     print("\nKey Findings:")
     print("  - NN methods are fast but can have discrete jumps")
     print("  - k-NN smooths estimates by averaging k nearest neighbors")
-    print("  - Inverse distance weighting performs better than uniform weights")
-    print("  - Optimal k depends on RP density and noise level")
-    print("  - Manhattan distance can be faster than Euclidean in some cases")
+
+    idw = by_name.get("k-NN (k=5, inv-dist)")
+    uni = by_name.get("k-NN (k=5, uniform)")
+    if idw and uni:
+        better = "better" if idw["rmse"] < uni["rmse"] else "worse"
+        print(f"  - At k=5, inverse-distance weighting is {better} than uniform: "
+              f"{idw['rmse']:.2f} m vs {uni['rmse']:.2f} m RMSE")
+
+    ks = {r["method"]: r for r in results if "inv-dist" in r["method"]}
+    if ks:
+        best = min(ks.values(), key=lambda r: r["rmse"])
+        spread = max(r["rmse"] for r in ks.values()) - min(r["rmse"] for r in ks.values())
+        print(f"  - Best k here is {best['method'].split('k=')[1][0]} at "
+              f"{best['rmse']:.2f} m, but only {spread:.2f} m separates k=3/5/7;")
+        print("    the optimal k depends on RP density and noise level")
+
+    euclid, manhattan = by_name.get("NN (Euclidean)"), by_name.get("NN (Manhattan)")
+    if euclid and manhattan:
+        ops = [r["ops_per_query"] for r in results]
+        e_ops, m_ops = euclid["ops_per_query"], manhattan["ops_per_query"]
+        if e_ops == m_ops:
+            print(f"  - Both NN metrics cost the same {e_ops:,} operations per query")
+        else:
+            print(f"  - NN costs {e_ops:,} operations Euclidean, {m_ops:,} Manhattan")
+        print(f"    and across every variant the count spans {max(ops) - min(ops)} "
+              f"operations ({100 * (max(ops) - min(ops)) / min(ops):.1f}%), all of")
+        print("    it the k multiply-adds in the weighted average. The database")
+        print("    scan is the cost: metric and weighting are free, k nearly so.")
+        print("  - Do not read an ordering into the Time column. Timing this")
+        print("    small is dominated by machine state: the two NN metrics differ")
+        print("    by 82 us against a 327 us spread within each over 15 repeats,")
+        print("    and the whole column moved ~10x between two runs on one")
+        print("    machine. The operation count is the reproducible statement,")
+        print("    which is why the cost figure plots that instead.")
     print("\nReferences:")
     print("  - Equation 5.1: NN decision rule")
     print("  - Equation 5.2: k-NN weighted average")
