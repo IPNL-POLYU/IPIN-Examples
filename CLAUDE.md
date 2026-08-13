@@ -200,7 +200,50 @@ correction matters while its own output prints a ratio of 1.0, and a solver
 whose reported accuracy is really the accuracy of the solves that happened to
 converge. Read that file before trusting a printed comparison.
 
-The most reusable habit from both sweeps is duller than any of the rules:
+Every chapter's console output has now been swept this way. Chapters 2 and 6
+came back clean; 3, 5 and 7 did not, and the two expectations that sweep
+overturned are the useful part.
+
+**The deepest defects were in `core/`, not in the examples.** Earlier rounds
+had trained the habit of reading the example and trusting the library beneath
+it. Two of the three were library bugs, and each had been quietly wrong for
+every caller:
+
+- `hierarchical_localize(coarse_method="floor")` inferred the floor by running
+  `nn_localize`, which returns an `(x, y)` location with the floor already
+  discarded, then taking the floor of the RP nearest that point *in x-y*. A
+  multi-floor survey stacks its RPs at the same coordinates — the shipped ch5
+  grid has 363 RPs on 121 distinct `(x, y)` — so the argmin was a three-way tie
+  that always resolved to the lowest index. It returned floor 0 for every query
+  and scored that floor's base rate, 32.7% against a 33.3% chance level, which
+  reads as a hard problem rather than a broken one.
+- `icp_point_to_point` returned a sum of squared errors where every caller
+  gated it in metres, so the SLAM front-end rejected all 145 of its own good
+  alignments and returned odometry unchanged. Written up with the
+  bundle-adjustment instance of the same shape under "A sum of squares is not a
+  distance" in `.cursor/rules/030-figures-and-claims.mdc`.
+
+**A number at chance, or exactly equal to its baseline, is a bug signature.**
+Both library defects printed a plausible-looking result — 29.0% floor accuracy,
+"Frontend improvement: -0.00%" — and both numbers were the arithmetic signature
+of a stage doing nothing. When a classifier lands on its base rate or a stage
+matches its input exactly, check that its output *varies at all* before tuning
+anything. That check is one line and it is cheaper than any of the
+investigations it replaces:
+
+```python
+predicted = {classify(q) for q in queries}
+assert len(predicted) > 1        # a constant predictor scores the base rate
+```
+
+Note that an accuracy threshold set anywhere near chance would have passed the
+ch5 bug, which is why the test asserts variety rather than quality. The ch7
+equivalent already existed: a previous session had left
+`tests/ch7_slam/test_frontend_actually_corrects.py` asserting the front-end was
+*still* a no-op, written to fail the moment it was repaired. It did, and that
+is the pattern to copy when you find something broken you are not fixing now.
+
+The most reusable habit from these sweeps is duller than any of the rules:
 **check that the check can fail.** A new assertion, a new tolerance, a new
 consistency test — run it against the broken input before believing the green.
 It matters in both directions and both were hit: a Chapter 6 strapdown test

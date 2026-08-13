@@ -49,11 +49,17 @@ class TestResidualIsAnRmsDistance(unittest.TestCase):
         self.assertLess(residual, 1e-6)
 
     def test_residual_does_not_grow_with_the_number_of_points(self):
-        """The discriminating test: a sum would scale with N, a distance will not.
+        """The discriminating test: a sum scales with N, a distance does not.
 
-        Both clouds carry the same per-point noise, so the achievable alignment
-        quality is identical and only the point count differs. Under the old
-        sum-of-squares return these two differed by roughly 4x.
+        Both clouds carry the same per-point noise, so only the point count
+        differs. Under the old sum-of-squares return these read 0.4268 and
+        1.1346 -- a factor of 2.66, against 0.0653 and 0.0533 for the RMS.
+
+        The tolerance is deliberately loose. Quadrupling the points does not
+        quadruple the sum, because ICP aligns slightly better with more points
+        to fit, and by the same token the RMS drifts down ~18% rather than
+        holding exactly. The failure being looked for is a factor, not a few
+        percent, and a tight bound here would fail on that drift instead.
         """
         sigma = 0.05
         residuals = {}
@@ -63,7 +69,7 @@ class TestResidualIsAnRmsDistance(unittest.TestCase):
             _, _, residual, _ = icp_point_to_point(scan, target, max_iterations=50)
             residuals[n] = residual
 
-        self.assertAlmostEqual(residuals[100], residuals[400], delta=0.2 * residuals[100])
+        self.assertAlmostEqual(residuals[100], residuals[400], delta=0.3 * residuals[100])
 
     def test_residual_tracks_the_noise_it_is_measuring(self):
         """It is in metres, so it should read like the displacement it sees."""

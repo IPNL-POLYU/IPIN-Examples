@@ -115,6 +115,63 @@ An unbounded residual also skews the weighting: `var(tan psi) = sec^4(psi)
 var(psi)` means near-singular anchors dominate the normal equations. In angle
 space the variance is just `sigma_psi^2`, and there is nothing to correct for.
 
+## A sum of squares is not a distance
+
+The most expensive defect of the Chapter 7 sweep, and it appeared twice in
+`core/slam` alone. A scalar whose name carries no unit -- `residual`, `error`,
+`cost` -- gets compared against a threshold, or turned into a percentage, as
+though it were a measurement in the units of the thing it came from. It is not,
+if it sums over the data: it then grows with the number of points and with
+whatever information matrix weights them.
+
+- `icp_point_to_point` returned Eq. (7.10)'s objective, a sum of squared
+  errors, while every caller gated it with `max_icp_residual`, documented in
+  metres. Matching a 360-point scan against a submap voxelised at 0.2 m costs
+  ~1.2 from quantisation alone, so the SLAM front-end's threshold of 1.5 was
+  demanding 0.065 m RMS against a 0.058 m floor. It rejected every alignment it
+  was ever handed, fell back to odometry for 145 consecutive steps, and the
+  "3.2633 m residual" it reported was in fact a *good* match at 0.095 m RMS.
+- `graph.compute_error()` returns the Eq. (3.38) cost, and the bundle-adjustment
+  example divided two of them to print "Error reduction: 100.00%". Neither
+  number was a reprojection error, and 4.9e6 said only that a landmark was
+  badly initialised. In pixels the same solve reads 163.9 -> 0.53 px RMS
+  against a 0.5 px noise floor -- which is the statement worth making, and one
+  no percentage of a cost can express.
+
+Keep the book's objective as the book writes it, and normalise what you
+*report*: divide by the number of terms and take the square root, so the number
+is in the units its threshold is named in. Then a threshold can be chosen from
+physics -- the sensor noise, the voxel size -- rather than by tuning until the
+gate stops firing.
+
+**The check:** feed the same *quality* of input at two different sizes and
+require the number not to move.
+
+```python
+for n in (100, 400):
+    scan = ring(n)
+    target = scan + rng.normal(0, 0.05, scan.shape)
+    residuals[n] = icp_point_to_point(scan, target)[2]
+
+# An RMS holds still; the old sum went 0.43 -> 1.13 on the same two inputs.
+assert residuals[100] == approx(residuals[400], rel=0.3)
+```
+
+Quadrupling the points does not quite quadruple the sum — it grew 2.7x here,
+because ICP also aligns slightly better with more points to fit (RMS 0.065 ->
+0.053). Leave the tolerance loose enough to absorb that; the failure you are
+looking for is a factor, not a few percent.
+
+One size tells you nothing about units: every value looks plausible on its own,
+which is exactly why both of these survived. The same shape catches a cost
+that quadruples when the observation count quadruples while the RMS holds
+still. See `tests/core/slam/test_icp_residual_units.py` and
+`tests/ch7_slam/test_bundle_adjustment_reports_pixels.py`.
+
+The tell to grep for: a threshold named in units (`max_icp_residual`,
+`max_error_m`) whose value was arrived at by trying numbers until the behaviour
+looked right. That is usually a unit mismatch wearing a tuned constant.
+
 ## One draw is not a measurement
 
 An error computed from a single noise realisation is a sample, not an accuracy.
