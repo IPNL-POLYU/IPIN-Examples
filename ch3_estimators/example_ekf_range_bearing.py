@@ -113,21 +113,21 @@ def run_with_dataset(data_dir: str) -> None:
     n_steps = len(t) - 1
     
     # Check observability and geometry
-    print(f"\nGeometry Check:")
+    print("\nGeometry Check:")
     initial_pos = true_states[0, :2]
     is_valid, msg = check_anchor_geometry(landmarks, position=initial_pos)
     if not is_valid:
         print(f"  WARNING: {msg}")
     else:
-        print(f"  [OK] Landmark geometry is valid")
+        print("  [OK] Landmark geometry is valid")
     
     is_obs, obs_msg = check_range_only_observability_2d(landmarks, initial_pos, warn=False)
     if is_obs:
-        print(f"  [OK] Position is observable from range measurements")
+        print("  [OK] Position is observable from range measurements")
     else:
         print(f"  WARNING: {obs_msg}")
     
-    print(f"\nDataset Info:")
+    print("\nDataset Info:")
     print(f"  Duration: {t[-1]:.1f} s ({n_steps} steps)")
     print(f"  Time step: {dt:.2f} s")
     print(f"  Landmarks: {len(landmarks)}")
@@ -209,8 +209,8 @@ def run_with_dataset(data_dir: str) -> None:
     innovation_func = create_range_bearing_innovation_func(len(landmarks))
 
     # Run EKF
-    print(f"\nRunning Extended Kalman Filter...")
-    print(f"  (Using angle wrapping for bearing innovations)")
+    print("\nRunning Extended Kalman Filter...")
+    print("  (Using angle wrapping for bearing innovations)")
     ekf = ExtendedKalmanFilter(
         process_model, process_jacobian,
         measurement_model, measurement_jacobian,
@@ -240,14 +240,14 @@ def run_with_dataset(data_dir: str) -> None:
     position_errors = np.linalg.norm(estimates[:, :2] - true_states[:, :2], axis=1)
     velocity_errors = np.linalg.norm(estimates[:, 2:] - true_states[:, 2:], axis=1)
     
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Final position error: {position_errors[-1]:.4f} m")
     print(f"  Mean position error: {np.mean(position_errors[5:]):.4f} m")
     print(f"  RMSE position: {np.sqrt(np.mean(position_errors**2)):.4f} m")
     print(f"  Final velocity error: {velocity_errors[-1]:.4f} m/s")
     
     # Visualization
-    print(f"\nCreating visualization...")
+    print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle('EKF Range-Bearing Positioning (Dataset)', fontsize=14, fontweight='bold')
     
@@ -332,7 +332,7 @@ def example_2d_range_bearing_positioning():
         [0.0, 20.0],
     ])
 
-    print(f"\nSimulation Parameters:")
+    print("\nSimulation Parameters:")
     print(f"  Time step: {dt} s")
     print(f"  Duration: {t_max} s ({n_steps} steps)")
     print(f"  Number of landmarks: {len(landmarks)}")
@@ -341,16 +341,16 @@ def example_2d_range_bearing_positioning():
     true_x0 = np.array([5.0, 5.0, 1.0, 0.5])
 
     # Check observability and geometry
-    print(f"\nGeometry Check:")
+    print("\nGeometry Check:")
     is_valid, msg = check_anchor_geometry(landmarks, position=true_x0[:2])
     if not is_valid:
         print(f"  WARNING: {msg}")
     else:
-        print(f"  [OK] Landmark geometry is valid")
+        print("  [OK] Landmark geometry is valid")
     
     is_obs, obs_msg = check_range_only_observability_2d(landmarks, true_x0[:2], warn=False)
     if is_obs:
-        print(f"  [OK] Position is observable from range measurements")
+        print("  [OK] Position is observable from range measurements")
     else:
         print(f"  WARNING: {obs_msg}")
 
@@ -435,7 +435,7 @@ def example_2d_range_bearing_positioning():
     P0 = np.diag([2.0, 2.0, 2.0, 2.0])
 
     # Generate true trajectory
-    print(f"\nGenerating true trajectory...")
+    print("\nGenerating true trajectory...")
     true_states = [true_x0.copy()]
     true_state = true_x0.copy()
 
@@ -446,7 +446,7 @@ def example_2d_range_bearing_positioning():
         true_states.append(true_state.copy())
 
     # Generate measurements
-    print(f"Generating measurements...")
+    print("Generating measurements...")
     measurements = []
     for state in true_states[1:]:
         true_meas = measurement_model(state)
@@ -457,8 +457,8 @@ def example_2d_range_bearing_positioning():
     innovation_func = create_range_bearing_innovation_func(len(landmarks))
 
     # Run EKF
-    print(f"\nRunning Extended Kalman Filter...")
-    print(f"  (Using angle wrapping for bearing innovations)")
+    print("\nRunning Extended Kalman Filter...")
+    print("  (Using angle wrapping for bearing innovations)")
     ekf = ExtendedKalmanFilter(
         process_model, process_jacobian,
         measurement_model, measurement_jacobian,
@@ -485,7 +485,7 @@ def example_2d_range_bearing_positioning():
     position_errors = np.linalg.norm(estimates[:, :2] - true_states[:, :2], axis=1)
     velocity_errors = np.linalg.norm(estimates[:, 2:] - true_states[:, 2:], axis=1)
 
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Final true position: ({true_states[-1, 0]:.2f}, {true_states[-1, 1]:.2f}) m")
     print(f"  Final estimated position: ({estimates[-1, 0]:.2f}, {estimates[-1, 1]:.2f}) m")
     print(f"  Final position error: {position_errors[-1]:.4f} m")
@@ -493,7 +493,7 @@ def example_2d_range_bearing_positioning():
     print(f"  Final velocity error: {velocity_errors[-1]:.4f} m/s")
 
     # Visualization
-    print(f"\nCreating visualization...")
+    print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
     ax = axes[0, 0]

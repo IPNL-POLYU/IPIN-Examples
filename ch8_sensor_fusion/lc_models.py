@@ -92,10 +92,7 @@ def solve_uwb_position_wls(
     else:
         noise_std_valid = np.full(n_anchors, range_noise_std)
     
-    # Measurement covariance R = diag(σ_i²)
-    R = np.diag(noise_std_valid**2)
-    
-    # Weight matrix W = R^{-1}
+    # Weight matrix W = R^{-1}, for R = diag(σ_i²)
     W = np.diag(1.0 / (noise_std_valid**2))
     
     # Initial guess: centroid of valid anchors

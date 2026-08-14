@@ -391,7 +391,6 @@ def plot_extrinsic_calibration(
     ax = axes[1, 0]
     ax.axis('off')
     
-    R_true = data['true_R']
     t_true = data['true_t']
     angle_true = data['true_rotation_angle'] * 180/np.pi
     angle_est = np.arctan2(R_est[1, 0], R_est[0, 0]) * 180/np.pi

@@ -19,7 +19,6 @@ References: Chapter 8, Section 8.1.1 (Loosely Coupled)
 """
 
 import argparse
-import json
 from pathlib import Path
 from typing import Dict, List
 
@@ -32,7 +31,6 @@ from core.eval import (
     save_figure,
 )
 from core.fusion import (
-    AdaptiveGatingManager,
     StampedMeasurement,
     chi_square_gate,
     create_adaptive_manager_for_lc,
@@ -90,7 +88,6 @@ def run_lc_fusion(
     imu = dataset['imu']
     uwb = dataset['uwb']
     anchors = dataset['uwb_anchors']
-    config = dataset['config']
     
     # Initialize EKF at true starting position
     x0 = np.array([
@@ -111,7 +108,7 @@ def run_lc_fusion(
     )
     
     if verbose:
-        print(f"\nInitialization:")
+        print("\nInitialization:")
         print(f"  State: {x0}")
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
         if use_gating:
@@ -147,7 +144,7 @@ def run_lc_fusion(
     measurements.sort(key=lambda m: m.t)
     
     if verbose:
-        print(f"\nMeasurements:")
+        print("\nMeasurements:")
         print(f"  IMU samples: {len(imu['t'])}")
         print(f"  UWB epochs: {len([m for m in measurements if m.sensor == 'uwb'])}")
         print(f"  Total: {len(measurements)}")
@@ -281,7 +278,7 @@ def run_lc_fusion(
     history['n_uwb_failed'] = n_uwb_failed
     
     if verbose:
-        print(f"\nFusion complete:")
+        print("\nFusion complete:")
         print(f"  UWB position fixes solved: {n_uwb_accepted + n_uwb_rejected}")
         print(f"  UWB fixes accepted: {n_uwb_accepted}")
         print(f"  UWB fixes rejected: {n_uwb_rejected}")
@@ -292,7 +289,7 @@ def run_lc_fusion(
         # Print adaptive gating stats if enabled
         if adaptive_mgr is not None:
             stats = adaptive_mgr.get_stats()
-            print(f"\nAdaptive Gating Stats:")
+            print("\nAdaptive Gating Stats:")
             print(f"  Mean NIS: {stats['mean_nis']:.2f} (expected: {stats['expected_nis']:.0f})")
             print(f"  Final R scale: {stats['current_R_scale']:.2f}x")
             print(f"  Covariance inflations: {stats['total_adaptations']}")

@@ -415,7 +415,7 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
         graph.add_factor(meas_factor)
 
     # Optimize
-    print(f"  Optimizing factor graph (up to 10 Gauss-Newton iterations)...")
+    print("  Optimizing factor graph (up to 10 Gauss-Newton iterations)...")
     start_time = time.time()
     optimized_vars, costs = graph.optimize(
         method="gauss_newton", max_iterations=10
@@ -489,7 +489,7 @@ def main():
     # Set up scenario
     dt, n_steps, anchors, true_states, measurements, Q, range_std = setup_scenario()
 
-    print(f"\nParameters:")
+    print("\nParameters:")
     print(f"  Time step: {dt} s")
     print(f"  Duration: {n_steps * dt} s ({n_steps} steps)")
     print(f"  Number of anchors: {len(anchors)}")

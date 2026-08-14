@@ -200,10 +200,10 @@ def example_toa_with_clock_bias():
     bias_error_m = abs(bias_m - true_clock_bias_m)
     bias_error_ns = abs(bias_s - true_clock_bias_s) * 1e9
 
-    print(f"\n--- Results ---")
+    print("\n--- Results ---")
     print(f"Estimated position: {pos}")
     print(f"Position error: {pos_error:.6f} m")
-    print(f"\nEstimated clock bias:")
+    print("\nEstimated clock bias:")
     print(f"  In meters:  {bias_m:.6f} m (error: {bias_error_m:.6f} m)")
     print(f"  In seconds: {bias_s*1e9:.3f} ns (error: {bias_error_ns:.3f} ns)")
     print(f"Iterations: {info['iterations']}, Converged: {info['converged']}")

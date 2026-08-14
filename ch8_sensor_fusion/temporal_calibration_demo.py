@@ -43,7 +43,6 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 
 from core.eval import (
-    compute_position_errors,
     compute_position_rmse,
     compute_rmse,
     save_figure,
@@ -88,7 +87,7 @@ def run_fusion_with_time_sync(
         Results dictionary
     """
     if verbose:
-        print(f"\nRunning fusion:")
+        print("\nRunning fusion:")
         print(f"  Temporal correction: {'ENABLED' if apply_correction else 'DISABLED'}")
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
     
@@ -228,7 +227,6 @@ def run_fusion_with_time_sync(
                 continue
         
         # UWB range update
-        anchor_id = uwb_meas.meta['anchor_id']
         anchor_pos = uwb_meas.meta['anchor_pos']
         
         # Predict range
@@ -586,7 +584,7 @@ def main():
     speed = float(np.mean(np.linalg.norm(dataset['truth']['v_xy'], axis=1)))
     expected = speed * abs(time_offset_ms) / 1000.0
 
-    print(f"\nKey Findings:")
+    print("\nKey Findings:")
     print(f"  * Uncorrected: {rmse_no_corr:.3f} m RMSE; corrected: "
           f"{rmse_with_corr:.3f} m")
     print(f"  * So a {time_offset_ms:.1f} ms offset costs "
@@ -595,10 +593,10 @@ def main():
     print(f"  * That is the order the kinematics predict: {speed:.2f} m/s for "
           f"{abs(time_offset_ms):.0f} ms displaces the platform "
           f"{expected:.3f} m")
-    print(f"  * Small here because the platform is slow. The cost scales with "
-          f"speed, so the same clock error on a vehicle at 15 m/s is metres,")
-    print(f"    not centimetres -- that is why temporal alignment matters, "
-          f"rather than any large number printed by this demo.")
+    print("  * Small here because the platform is slow. The cost scales with "
+          "speed, so the same clock error on a vehicle at 15 m/s is metres,")
+    print("    not centimetres -- that is why temporal alignment matters, "
+          "rather than any large number printed by this demo.")
     print("")
     
     # Plot

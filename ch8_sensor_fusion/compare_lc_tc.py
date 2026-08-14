@@ -195,7 +195,7 @@ def print_comparison_table(metrics: Dict) -> None:
     better_rmse = "LC" if lc['rmse_2d'] < tc['rmse_2d'] else "TC"
     better_accept = "LC" if lc['acceptance_rate'] > tc['acceptance_rate'] else "TC"
     
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  • {better_rmse} has lower RMSE ({abs(lc['rmse_2d'] - tc['rmse_2d']):.3f}m difference)")
     print(f"  • {better_accept} has higher acceptance rate "
           f"({abs(lc['acceptance_rate'] - tc['acceptance_rate']):.1f}% difference)")
@@ -214,9 +214,9 @@ def print_comparison_table(metrics: Dict) -> None:
         print(f"    smaller of the two ({tc['mean_error']:.2f} m against "
               f"{lc['mean_error']:.2f} m). Fusing raw ranges gives TC more "
               f"updates and no")
-        print(f"    solver failures, and exposes it directly to a bad range; "
-              f"LC's least-squares step needs three anchors but absorbs part "
-              f"of the outlier.")
+        print("    solver failures, and exposes it directly to a bad range; "
+              "LC's least-squares step needs three anchors but absorbs part "
+              "of the outlier.")
     print()
 
 

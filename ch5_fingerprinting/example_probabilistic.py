@@ -128,8 +128,6 @@ def visualize_posterior(model, query, true_loc, floor_id, ax, title):
     posteriors = np.exp(log_post[mask])
     
     # Create grid for visualization
-    x_min, x_max = rp_locs[:, 0].min(), rp_locs[:, 0].max()
-    y_min, y_max = rp_locs[:, 1].min(), rp_locs[:, 1].max()
     
     # Scatter plot with posterior as color
     scatter = ax.scatter(rp_locs[:, 0], rp_locs[:, 1], 

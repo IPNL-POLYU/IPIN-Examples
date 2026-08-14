@@ -212,14 +212,14 @@ def demo_measurement_vector():
     true_position_3d = np.array([10.0, 8.0, 0.0])  # Agent at ground level
 
     print(f"\nTrue agent position (E, N, U): {true_position_3d}")
-    print(f"Anchor positions:")
+    print("Anchor positions:")
     for i, anchor in enumerate(anchors_3d):
         print(f"  Anchor {i}: {anchor}")
 
     # Generate measurement vector per Eq. 4.65: [sin(theta_i), tan(psi_i), ...]
     z = aoa_measurement_vector(anchors_3d, true_position_3d, include_elevation=True)
 
-    print(f"\nMeasurement vector z (Eq. 4.65):")
+    print("\nMeasurement vector z (Eq. 4.65):")
     print(f"  Shape: {z.shape}")
     for i in range(len(anchors_3d)):
         sin_theta = z[2 * i]
@@ -451,7 +451,7 @@ def demo_closed_form_algorithms():
     pos_ple, info_ple = aoa_ple_solve_2d(anchors_2d, azimuths)
     err_ple = np.linalg.norm(pos_ple - true_pos_2d)
 
-    print(f"\nResults (perfect measurements):")
+    print("\nResults (perfect measurements):")
     print(f"  I-WLS: pos={pos_iwls}, error={err_iwls:.6f} m, iters={info_iwls['iterations']}")
     print(f"  PLE:   pos={pos_ple}, error={err_ple:.6f} m (closed-form)")
 
@@ -485,7 +485,7 @@ def demo_closed_form_algorithms():
     pos_ple_3d, info_ple_3d = aoa_ple_solve_3d(anchors_3d, elevations, azimuths_3d)
     err_ple_3d = np.linalg.norm(pos_ple_3d - true_pos_3d)
 
-    print(f"\nResults (perfect measurements):")
+    print("\nResults (perfect measurements):")
     print(
         f"  I-WLS: pos={pos_iwls_3d}, error={err_iwls_3d:.6f} m, "
         f"iters={info_iwls_3d['iterations']}"
@@ -629,7 +629,7 @@ def demo_ove_vs_ple_3d():
     azimuths = np.array([aoa_azimuth(a, true_pos) for a in anchors_3d])
 
     print(f"\nTrue position (E, N, U): {true_pos}")
-    print(f"Anchors at height 5m above agent")
+    print("Anchors at height 5m above agent")
 
     noise_levels = [0.0, 1.0, 2.0, 5.0, 10.0]
     n_trials = 50

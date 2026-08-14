@@ -376,11 +376,11 @@ def main() -> None:
               f"{scenario['t_tc'][worst]:.1f} s: estimate "
               f"({est[0]:.1f}, {est[1]:.1f}) against truth "
               f"({truth_xy[0]:.1f}, {truth_xy[1]:.1f}),")
-        print(f"    reflected across the y = 0 baseline joining the two "
-              f"surviving anchors. It lasts under a second, and it is what "
-              f"puts TC's")
-        print(f"    whole-run RMSE above LC's at this window. Other outage "
-              f"windows do not trigger it -- see the module docstring.")
+        print("    reflected across the y = 0 baseline joining the two "
+              "surviving anchors. It lasts under a second, and it is what "
+              "puts TC's")
+        print("    whole-run RMSE above LC's at this window. Other outage "
+              "windows do not trigger it -- see the module docstring.")
     print()
 
     paths = save_figure(plot_outage_summary(scenario), args.out_dir,

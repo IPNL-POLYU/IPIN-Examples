@@ -83,7 +83,6 @@ def generate_odometry_measurements(
     """
     p_xy = trajectory['p_xy']
     t = trajectory['t']
-    n = len(t)
     
     # Compute increments (odometry measures displacement between steps)
     delta_p = np.diff(p_xy, axis=0)
@@ -600,7 +599,6 @@ def run_odometry_with_fixes_fusion(
     measurements.sort(key=lambda m: m.t)
     
     # Run fusion
-    dt = trajectory['t'][1] - trajectory['t'][0]
     history = {
         't': [],
         'x_est': [],
@@ -706,7 +704,7 @@ def plot_observability_demo(
             color=color_truth, linewidth=2, label='Ground Truth', zorder=3)
     ax1.plot(odom_only_1['x_est'][:, 0], odom_only_1['x_est'][:, 1],
             color=color_odom1, linewidth=1.5, alpha=0.7,
-            label=f'Odom-only (offset=[0,0])', zorder=2)
+            label='Odom-only (offset=[0,0])', zorder=2)
     ax1.plot(odom_only_2['x_est'][:, 0], odom_only_2['x_est'][:, 1],
             color=color_odom2, linewidth=1.5, alpha=0.7,
             label=f'Odom-only (offset={translation_offset})', zorder=1)
@@ -872,7 +870,7 @@ def main():
     # Run fusions
     translation_offset = np.array([3.0, 2.0])
     
-    print(f"[4/6] Running odometry-only fusion (offset [0, 0])...")
+    print("[4/6] Running odometry-only fusion (offset [0, 0])...")
     odom_only_1 = run_odometry_only_fusion(
         trajectory, odometry, translation_offset=np.array([0.0, 0.0])
     )
@@ -882,7 +880,7 @@ def main():
         trajectory, odometry, translation_offset=translation_offset
     )
     
-    print(f"[6/6] Running odometry + absolute fixes fusion...")
+    print("[6/6] Running odometry + absolute fixes fusion...")
     odom_with_fixes = run_odometry_with_fixes_fusion(
         trajectory, odometry, absolute_fixes, translation_offset=translation_offset
     )
@@ -917,7 +915,7 @@ def main():
     print(f"  Rank: {rank_odom} / {obs_analysis_odom['n_states']}")
     
     if obs_analysis_odom['n_unobservable'] > 0:
-        print(f"\n  Unobservable modes (null space basis):")
+        print("\n  Unobservable modes (null space basis):")
         for i in range(obs_analysis_odom['n_unobservable']):
             mode = obs_analysis_odom['unobservable_modes'][:, i]
             print(f"    Mode {i+1}: {dict(zip(state_names, mode))}")
@@ -950,12 +948,12 @@ def main():
     print(f"  Rank: {rank_fixes} / {obs_analysis_fixes['n_states']}")
     
     if obs_analysis_fixes['n_unobservable'] > 0:
-        print(f"\n  Unobservable modes:")
+        print("\n  Unobservable modes:")
         for i in range(obs_analysis_fixes['n_unobservable']):
             mode = obs_analysis_fixes['unobservable_modes'][:, i]
             print(f"    Mode {i+1}: {dict(zip(state_names, mode))}")
     else:
-        print(f"\n  System is FULLY OBSERVABLE!")
+        print("\n  System is FULLY OBSERVABLE!")
     
     print(f"\n  Singular values (first 5): {s_fixes[:5]}")
     
@@ -964,8 +962,8 @@ def main():
     if obs_analysis_odom['n_unobservable'] > obs_analysis_fixes['n_unobservable']:
         print(f"  * Odometry-only has {obs_analysis_odom['n_unobservable']} unobservable directions")
         print(f"  * Adding absolute fixes reduces this to {obs_analysis_fixes['n_unobservable']}")
-        print(f"  * The unobservable directions correspond to constant translation")
-        print(f"  * This matches the book's observability analysis (Section 8.2)")
+        print("  * The unobservable directions correspond to constant translation")
+        print("  * This matches the book's observability analysis (Section 8.2)")
     
     # Compute final errors
     def final_error(history):
@@ -994,13 +992,13 @@ def main():
     fix_noise = absolute_fixes['noise_std']
 
     print("\nInterpretation:")
-    print(f"  * Translation is unobservable from odometry, so the initial "
-          f"offset should survive to the end untouched.")
+    print("  * Translation is unobservable from odometry, so the initial "
+          "offset should survive to the end untouched.")
     print(f"    Predicted final error {predicted:.2f} m (the offset "
           f"magnitude); measured {error_odom2:.2f} m. They agree to within the "
           f"{error_odom1:.2f} m")
-    print(f"    of drift that odometry accumulates anyway, which is the "
-          f"offset-free run above.")
+    print("    of drift that odometry accumulates anyway, which is the "
+          "offset-free run above.")
     print(f"  * Adding absolute fixes: {error_fixes:.2f} m. The offset is gone "
           f"-- that is what observability buys.")
     print(f"  * Note what it does NOT buy. The offset-free odometry run scores "
@@ -1009,8 +1007,8 @@ def main():
     print(f"    because each fix carries {fix_noise:.1f} m of noise. Absolute "
           f"measurements make the state observable; over a run this short they "
           f"do not make it")
-    print(f"    more precise. Observability is about which errors can be "
-          f"corrected at all, not about how small they end up.")
+    print("    more precise. Observability is about which errors can be "
+          "corrected at all, not about how small they end up.")
     print("")
     
     # Plot

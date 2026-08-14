@@ -25,7 +25,6 @@ Reference: Chapter 2 - IPIN Fundamentals
 import argparse
 import json
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
@@ -83,7 +82,7 @@ def run_with_dataset(data_dir: str) -> None:
     data = load_dataset(data_dir)
     config = data['config']
     
-    print(f"\nDataset Info:")
+    print("\nDataset Info:")
     print(f"  Location: {config.get('location', 'Unknown')}")
     print(f"  Points: {len(data['llh'])}")
     
@@ -121,7 +120,7 @@ def run_with_dataset(data_dir: str) -> None:
         errors_lon.append(np.abs(llh_recovered[1] - llh_orig[1]))
         errors_h.append(np.abs(llh_recovered[2] - llh_orig[2]))
     
-    print(f"Round-trip errors (10 samples):")
+    print("Round-trip errors (10 samples):")
     print(f"  Latitude:  {np.max(errors_lat):.2e} rad = {np.rad2deg(np.max(errors_lat)) * 3600:.2e} arcsec")
     print(f"  Longitude: {np.max(errors_lon):.2e} rad = {np.rad2deg(np.max(errors_lon)) * 3600:.2e} arcsec")
     print(f"  Height:    {np.max(errors_h):.2e} m")
@@ -132,14 +131,14 @@ def run_with_dataset(data_dir: str) -> None:
     
     ref_llh = data['reference_llh']
     if ref_llh.ndim == 1:
-        lat_ref, lon_ref, h_ref = ref_llh[0], ref_llh[1], ref_llh[2]
+        lat_ref, lon_ref, _ = ref_llh[0], ref_llh[1], ref_llh[2]
     else:
-        lat_ref, lon_ref, h_ref = ref_llh[0, 0], ref_llh[0, 1], ref_llh[0, 2]
+        lat_ref, lon_ref, _ = ref_llh[0, 0], ref_llh[0, 1], ref_llh[0, 2]
     
     print(f"Reference point: lat={np.rad2deg(lat_ref):.6f}°, lon={np.rad2deg(lon_ref):.6f}°")
     
     # Show first few ENU coordinates
-    print(f"\nSample ENU coordinates (from dataset):")
+    print("\nSample ENU coordinates (from dataset):")
     for i in range(min(5, len(data['enu']))):
         enu = data['enu'][i]
         print(f"  Point {i}: E={enu[0]:.2f}m, N={enu[1]:.2f}m, U={enu[2]:.2f}m")
@@ -202,14 +201,14 @@ def run_with_inline_data() -> None:
     lon_sf = np.deg2rad(-122.4194)
     height_sf = 0.0  # Sea level
 
-    print(f"Location: San Francisco")
+    print("Location: San Francisco")
     print(f"  Latitude:  {np.rad2deg(lat_sf):.4f}°")
     print(f"  Longitude: {np.rad2deg(lon_sf):.4f}°")
     print(f"  Height:    {height_sf:.1f} m")
 
     # Convert to ECEF
     xyz_sf = llh_to_ecef(lat_sf, lon_sf, height_sf)
-    print(f"\nECEF Coordinates:")
+    print("\nECEF Coordinates:")
     print(f"  X: {xyz_sf[0]:,.2f} m")
     print(f"  Y: {xyz_sf[1]:,.2f} m")
     print(f"  Z: {xyz_sf[2]:,.2f} m")
@@ -219,7 +218,7 @@ def run_with_inline_data() -> None:
     print("-" * 70)
 
     llh_result = ecef_to_llh(*xyz_sf)
-    print(f"Recovered LLH:")
+    print("Recovered LLH:")
     print(f"  Latitude:  {np.rad2deg(llh_result[0]):.4f}°")
     print(f"  Longitude: {np.rad2deg(llh_result[1]):.4f}°")
     print(f"  Height:    {llh_result[2]:.2f} m")
@@ -264,20 +263,20 @@ def run_with_inline_data() -> None:
     pitch = np.deg2rad(20.0)  # 20° pitch
     yaw = np.deg2rad(30.0)  # 30° yaw
 
-    print(f"Euler Angles:")
+    print("Euler Angles:")
     print(f"  Roll:  {np.rad2deg(roll):.1f}°")
     print(f"  Pitch: {np.rad2deg(pitch):.1f}°")
     print(f"  Yaw:   {np.rad2deg(yaw):.1f}°")
 
     # Convert to rotation matrix
     R = euler_to_rotation_matrix(roll, pitch, yaw)
-    print(f"\nRotation Matrix:")
+    print("\nRotation Matrix:")
     print(f"{R}")
     print(f"  Determinant: {np.linalg.det(R):.6f} (should be 1.0)")
 
     # Convert to quaternion
     q = euler_to_quat(roll, pitch, yaw)
-    print(f"\nQuaternion [qw, qx, qy, qz]:")
+    print("\nQuaternion [qw, qx, qy, qz]:")
     print(f"  {q}")
     print(f"  Norm: {np.linalg.norm(q):.6f} (should be 1.0)")
 

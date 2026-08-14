@@ -16,7 +16,7 @@ Author: Li-Ta Hsu
 References: Chapter 8, Section 8.1.2 (Tightly Coupled)
 """
 
-from typing import Callable, Tuple, Optional
+from typing import Callable, Tuple
 from dataclasses import dataclass
 
 import numpy as np
@@ -393,7 +393,6 @@ def tc_uwb_measurement_jacobian(x: np.ndarray, anchors: np.ndarray) -> np.ndarra
         H: Measurement Jacobian (n_anchors, 5)
     """
     px, py = x[StateIndex.PX], x[StateIndex.PY]
-    position = np.array([px, py])
     
     n_anchors = anchors.shape[0]
     H = np.zeros((n_anchors, StateIndex.state_dim()))
