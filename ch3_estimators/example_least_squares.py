@@ -157,13 +157,13 @@ def example_1_linear_ls():
     # Results
     error = np.linalg.norm(position_estimate - true_position)
 
-    print(f"\nMeasurement model: h_i(x) = ||x - a_i|| (range to anchor)")
-    print(f"Residual: r_i = y_i - h_i(x)  (book convention)")
+    print("\nMeasurement model: h_i(x) = ||x - a_i|| (range to anchor)")
+    print("Residual: r_i = y_i - h_i(x)  (book convention)")
     print(f"\nTrue position:      {true_position}")
     print(f"Initial guess:      {x0}")
     print(f"LS estimate:        {position_estimate}")
     print(f"Position error:     {error:.4f} m")
-    print(f"\nCovariance matrix (Eq. 3.3):")
+    print("\nCovariance matrix (Eq. 3.3):")
     print(P)
     print(f"Position std dev:   {np.sqrt(np.diag(P))}")
 
@@ -191,7 +191,7 @@ def example_2_weighted_ls():
     # Others are UWB with higher noise
     measurement_stds = np.array([0.05, 0.3, 0.3, 0.3])
 
-    print(f"\nMeasurement standard deviations (sigma_i):")
+    print("\nMeasurement standard deviations (sigma_i):")
     for i, std in enumerate(measurement_stds):
         print(f"  Anchor {i}: sigma = {std:.2f} m -> w = 1/sigma^2 = {1/std**2:.1f}")
 
@@ -274,11 +274,11 @@ def example_3_gauss_newton():
     # Initial guess
     x0 = np.array([5.0, 5.0])
 
-    print(f"\nMeasurement model: h_i(x) = ||x - a_i||")
-    print(f"Residual:          r_i = y_i - h_i(x)")
-    print(f"Jacobian:          J_i = (x - a_i) / ||x - a_i||")
-    print(f"\nGauss-Newton update (Eq. 3.52):")
-    print(f"  (J'J) dx = J'r  ->  x <- x + dx")
+    print("\nMeasurement model: h_i(x) = ||x - a_i||")
+    print("Residual:          r_i = y_i - h_i(x)")
+    print("Jacobian:          J_i = (x - a_i) / ||x - a_i||")
+    print("\nGauss-Newton update (Eq. 3.52):")
+    print("  (J'J) dx = J'r  ->  x <- x + dx")
     print(f"\nInitial guess: {x0}")
     print(f"True position: {true_position}")
 
@@ -290,7 +290,7 @@ def example_3_gauss_newton():
     print(f"Position error:  {np.linalg.norm(result.x - true_position):.6f} m")
     print(f"Final residuals: {result.residuals}")
     print(f"Final cost:      {result.cost:.6e}")
-    print(f"\nCovariance:")
+    print("\nCovariance:")
     print(result.covariance)
 
     return result
@@ -320,9 +320,9 @@ def example_4_levenberg_marquardt():
     # Poor initial guess (far from true position)
     x0_poor = np.array([0.0, 0.0])
 
-    print(f"\nLM update (Eq. 3.53): (J'J + mu*I) dx = J'r")
-    print(f"  mu large -> gradient descent behavior (global convergence)")
-    print(f"  mu small -> Gauss-Newton behavior (fast local convergence)")
+    print("\nLM update (Eq. 3.53): (J'J + mu*I) dx = J'r")
+    print("  mu large -> gradient descent behavior (global convergence)")
+    print("  mu small -> Gauss-Newton behavior (fast local convergence)")
     print(f"\nPoor initial guess: {x0_poor} (far from true position)")
     print(f"True position:      {true_position}")
 
@@ -340,9 +340,9 @@ def example_4_levenberg_marquardt():
           f"iters: {result_lm.iterations}, converged: {result_lm.converged}")
 
     if error_lm < error_gn:
-        print(f"\n[OK] LM converged better than GN from poor initial guess")
+        print("\n[OK] LM converged better than GN from poor initial guess")
     else:
-        print(f"\n(Both methods converged similarly)")
+        print("\n(Both methods converged similarly)")
 
     return result_lm
 
@@ -379,14 +379,14 @@ def example_5_robust_ls():
     y = compute_ranges(true_position, anchors, noise_std=0.1)
     y[2] += 5.0  # 5m NLOS error on anchor 2
 
-    print(f"\nScenario: 2D positioning from 8 anchors")
-    print(f"Added 5.0 m NLOS outlier to anchor 2")
-    print(f"(8 anchors provide redundancy for outlier rejection)")
-    print(f"\nTable 3.1 Robust Estimators:")
-    print(f"  L2:     e(x) = 0.5*||r||^2        (standard, sensitive to outliers)")
-    print(f"  Cauchy: e(x) = 0.5*ln(1+||r||^2) (soft downweighting)")
-    print(f"  Huber:  e(x) = quadratic/linear  (threshold at delta)")
-    print(f"  G-M:    e(x) = 0.5*||r||^2/(1+||r||^2) (strong outlier rejection)")
+    print("\nScenario: 2D positioning from 8 anchors")
+    print("Added 5.0 m NLOS outlier to anchor 2")
+    print("(8 anchors provide redundancy for outlier rejection)")
+    print("\nTable 3.1 Robust Estimators:")
+    print("  L2:     e(x) = 0.5*||r||^2        (standard, sensitive to outliers)")
+    print("  Cauchy: e(x) = 0.5*ln(1+||r||^2) (soft downweighting)")
+    print("  Huber:  e(x) = quadratic/linear  (threshold at delta)")
+    print("  G-M:    e(x) = 0.5*||r||^2/(1+||r||^2) (strong outlier rejection)")
 
     x0 = np.array([5.0, 5.0])
 
@@ -426,11 +426,11 @@ def example_5_robust_ls():
         pos_str = f"[{res['position'][0]:.3f}, {res['position'][1]:.3f}]"
         print(f"{label:<20} {pos_str:<25} {res['error']:<10.4f} {res['outlier_weight']:<10.4f}")
 
-    print(f"\nKey insight from Table 3.1:")
-    print(f"  - L2 is corrupted by the outlier (no downweighting)")
-    print(f"  - Cauchy provides soft downweighting")
-    print(f"  - Huber transitions from quadratic to linear")
-    print(f"  - G-M provides strongest outlier rejection")
+    print("\nKey insight from Table 3.1:")
+    print("  - L2 is corrupted by the outlier (no downweighting)")
+    print("  - Cauchy provides soft downweighting")
+    print("  - Huber transitions from quadratic to linear")
+    print("  - G-M provides strongest outlier rejection")
 
     return results, anchors, true_position, y
 

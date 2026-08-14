@@ -167,7 +167,7 @@ def example_iekf_vs_ekf_comparison():
     t_max = 25.0
     n_steps = int(t_max / dt)
 
-    print(f"\nScenario: High Nonlinearity (close to landmarks)")
+    print("\nScenario: High Nonlinearity (close to landmarks)")
     print(f"  Duration: {t_max} s ({n_steps} steps)")
     print(f"  Time step: {dt} s")
     print(f"  Landmarks: {len(landmarks)}")
@@ -224,7 +224,7 @@ def example_iekf_vs_ekf_comparison():
     )
 
     # Generate true trajectory
-    print(f"\nGenerating true trajectory...")
+    print("\nGenerating true trajectory...")
     true_states = [true_x0.copy()]
     true_state = true_x0.copy()
     np.random.seed(42)
@@ -235,7 +235,7 @@ def example_iekf_vs_ekf_comparison():
         true_states.append(true_state.copy())
 
     # Generate measurements
-    print(f"Generating measurements...")
+    print("Generating measurements...")
     measurements = []
     for state in true_states[1:]:
         true_meas = measurement_model(state)
@@ -243,7 +243,7 @@ def example_iekf_vs_ekf_comparison():
         measurements.append(true_meas + noise)
 
     # Run both filters
-    print(f"\nRunning EKF and IEKF...")
+    print("\nRunning EKF and IEKF...")
 
     ekf_estimates = [x0_est.copy()]
     iekf_estimates = [x0_est.copy()]
@@ -277,9 +277,9 @@ def example_iekf_vs_ekf_comparison():
     iekf_vel_errors = np.linalg.norm(iekf_estimates[:, 2:] - true_states[:, 2:], axis=1)
 
     # Results
-    print(f"\n" + "=" * 50)
-    print(f"RESULTS COMPARISON")
-    print(f"=" * 50)
+    print("\n" + "=" * 50)
+    print("RESULTS COMPARISON")
+    print("=" * 50)
     print(f"\n{'Metric':<30} {'EKF':<15} {'IEKF':<15}")
     print("-" * 60)
     print(f"{'Mean position error (m)':<30} {np.mean(ekf_pos_errors[5:]):<15.4f} "
@@ -357,7 +357,7 @@ def example_iekf_vs_ekf_comparison():
     print("  window where no method could help.")
 
     # Visualization
-    print(f"\nCreating visualization...")
+    print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle('IEKF vs EKF: High Nonlinearity Comparison (Section 3.2.3)',
                  fontsize=14, fontweight='bold')
@@ -486,7 +486,7 @@ def example_iekf_convergence_demo():
 
     # Manual IEKF iteration to show convergence
     x_iter = x_pred.copy()
-    print(f"\nIEKF Iteration Progress:")
+    print("\nIEKF Iteration Progress:")
     print(f"{'Iter':<6} {'x':<8} {'y':<8} {'||delta_x||':<12} {'||residual||':<12}")
     print("-" * 50)
 

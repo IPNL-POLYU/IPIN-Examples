@@ -33,13 +33,11 @@ from core.eval import resolve_figs_dir, save_figure
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
-    total_accel_magnitude,
     detect_steps_peak_detector,
     step_length,
     step_length_book_eq6_49,
     step_length_weinberg,
     pdr_step_update,
-    detect_step_simple,
     integrate_gyro_heading,
     wrap_heading,
     mag_heading,
@@ -267,7 +265,6 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     # Load dataset
     print("\nLoading dataset...")
     data = load_pdr_dataset(data_dir)
-    config = data.get('config', {})
     
     t = data['t']
     pos_true = data['pos_true']
@@ -276,7 +273,7 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     
     total_dist = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
     
-    print(f"\nDataset Info:")
+    print("\nDataset Info:")
     print(f"  Duration: {t[-1]:.1f} s")
     print(f"  Total distance: {total_dist:.1f} m")
     print(f"  True steps: {len(step_times)}")
@@ -302,11 +299,11 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     print("\n" + "="*70)
     print("RESULTS")
     print("="*70)
-    print(f"PDR (Gyro Heading - drifts unbounded):")
+    print("PDR (Gyro Heading - drifts unbounded):")
     print(f"  Final error:  {error_gyro[-1]:.1f} m ({error_gyro[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_gyro:.1f} m")
     print()
-    print(f"PDR (Magnetometer Heading - absolute but noisy):")
+    print("PDR (Magnetometer Heading - absolute but noisy):")
     print(f"  Final error:  {error_mag[-1]:.1f} m ({error_mag[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_mag:.1f} m")
     
@@ -827,10 +824,10 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
         grade='consumer (high gyro drift)'
     )
     
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  User Height:     {height} m")
-    print(f"  Trajectory:      40m x 20m rectangular corridor")
+    print("  Trajectory:      40m x 20m rectangular corridor")
     print(f"  Frame:           {frame.map_frame}\n")
     
     # Print IMU specifications
@@ -874,11 +871,11 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print("\n" + "="*70)
     print("RESULTS")
     print("="*70)
-    print(f"PDR (Gyro Heading - drifts unbounded):")
+    print("PDR (Gyro Heading - drifts unbounded):")
     print(f"  Final error:  {error_gyro[-1]:.1f} m ({error_gyro[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_gyro:.1f} m")
     print()
-    print(f"PDR (Magnetometer Heading - absolute but noisy):")
+    print("PDR (Magnetometer Heading - absolute but noisy):")
     print(f"  Final error:  {error_mag[-1]:.1f} m ({error_mag[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_mag:.1f} m")
     print()
@@ -924,19 +921,19 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print(f"       per step for a {height:.2f} m walker at this cadence while "
           f"the simulated gait is {true_step_len:.3f} m. Step length is the "
           f"parameter PDR is")
-    print(f"       most sensitive to, and it is the one a real deployment has "
-          f"to calibrate per user.")
+    print("       most sensitive to, and it is the one a real deployment has "
+          "to calibrate per user.")
     print(f"    2. Heading. The gyro ends {heading_drift_deg:.1f} deg from "
           f"truth, which is its realised bias integrated over {t[-1]:.0f} s "
           f"and nothing else.")
-    print(f"       That is what drift at this grade actually looks like. It "
-          f"used to read 163 deg and none of it was drift: this generator "
-          f"turned each")
-    print(f"       corner 90 deg inside one 0.01 s sample -- 9000 deg/s -- "
-          f"which the gyro forward model cannot represent, so the *true* gyro")
-    print(f"       integrated to 162 deg over a lap whose heading comes round "
-          f"to 360. The estimator was faithfully reporting a rotation the "
-          f"data never")
+    print("       That is what drift at this grade actually looks like. It "
+          "used to read 163 deg and none of it was drift: this generator "
+          "turned each")
+    print("       corner 90 deg inside one 0.01 s sample -- 9000 deg/s -- "
+          "which the gyro forward model cannot represent, so the *true* gyro")
+    print("       integrated to 162 deg over a lap whose heading comes round "
+          "to 360. The estimator was faithfully reporting a rotation the "
+          "data never")
     print(f"       contained. Chapter 8 had the identical defect at the "
           f"identical 9000 deg/s. The corners are rounded now "
           f"({CORNER_RADIUS_M:.0f} m, {np.degrees(1.4 / CORNER_RADIUS_M):.0f} deg/s),")

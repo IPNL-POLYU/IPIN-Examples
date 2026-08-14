@@ -28,7 +28,6 @@ from core.eval import (
     save_figure,
 )
 from core.fusion import (
-    AdaptiveGatingManager,
     StampedMeasurement,
     chi_square_gate,
     create_adaptive_manager_for_tc,
@@ -38,7 +37,6 @@ from core.fusion import (
 )
 
 from ch8_sensor_fusion.tc_models import (
-    create_process_model,
     create_uwb_range_measurement_model,
     create_tc_fusion_ekf,
 )
@@ -147,7 +145,7 @@ def run_tc_fusion(
     ekf = create_tc_fusion_ekf(initial_state=x0, initial_cov=P0)
 
     if verbose:
-        print(f"\nInitialization:")
+        print("\nInitialization:")
         print(f"  State: {x0}")
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
         if use_gating:
@@ -219,18 +217,18 @@ def run_tc_fusion(
     measurements.sort(key=lambda m: m.t)
 
     if verbose:
-        print(f"\nMeasurements:")
+        print("\nMeasurements:")
         print(f"  IMU samples: {len(imu['t'])}")
         if batch_update:
             print(
                 f"  UWB epochs: {len([m for m in measurements if m.sensor == 'uwb_batch'])}"
             )
-            print(f"  Update mode: Batch (all ranges at once)")
+            print("  Update mode: Batch (all ranges at once)")
         else:
             print(
                 f"  UWB samples: {len([m for m in measurements if m.sensor == 'uwb'])}"
             )
-            print(f"  Update mode: Sequential (per-anchor)")
+            print("  Update mode: Sequential (per-anchor)")
         print(f"  Total: {len(measurements)}")
 
     # Create adaptive gating manager (if gating enabled)
@@ -412,7 +410,7 @@ def run_tc_fusion(
     history["n_uwb_rejected"] = n_uwb_rejected
 
     if verbose:
-        print(f"\nFusion complete:")
+        print("\nFusion complete:")
         print(f"  UWB accepted: {n_uwb_accepted}")
         print(f"  UWB rejected: {n_uwb_rejected}")
         if n_uwb_accepted + n_uwb_rejected > 0:
@@ -423,7 +421,7 @@ def run_tc_fusion(
         # Print adaptive gating stats if enabled
         if adaptive_mgr is not None:
             stats = adaptive_mgr.get_stats()
-            print(f"\nAdaptive Gating Stats:")
+            print("\nAdaptive Gating Stats:")
             print(
                 f"  Mean NIS: {stats['mean_nis']:.2f} (expected: {stats['expected_nis']:.0f})"
             )

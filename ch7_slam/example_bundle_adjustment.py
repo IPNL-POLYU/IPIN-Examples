@@ -34,7 +34,6 @@ from typing import List, Tuple, Dict
 from core.eval import save_figure
 from core.slam import (
     CameraIntrinsics,
-    se2_compose,
     project_point,
     create_reprojection_factor,
 )
@@ -274,7 +273,6 @@ def create_ba_animation(
         fps: Frames per second
     """
     n_frames = len(poses_history)
-    n_landmarks = len(landmarks_true)
     
     # Create figure with 2 panels
     fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 6))
@@ -459,11 +457,8 @@ def plot_bundle_adjustment_results(
         for i in range(len(poses_true))
     ])
     
-    landmark_errors_init = np.linalg.norm(landmarks_init - landmarks_true, axis=1)
-    landmark_errors_opt = np.linalg.norm(landmarks_opt - landmarks_true, axis=1)
     
     pose_indices = np.arange(len(poses_true))
-    landmark_indices = np.arange(len(landmarks_true))
     
     ax2.plot(pose_indices, pose_errors_init, 'r--', linewidth=2, label='Pose Error (init)', alpha=0.7)
     ax2.plot(pose_indices, pose_errors_opt, 'b-', linewidth=2, label='Pose Error (opt)', alpha=0.8)

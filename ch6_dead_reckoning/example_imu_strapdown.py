@@ -27,8 +27,6 @@ from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
     strapdown_update,
-    correct_gyro,
-    correct_accel,
     NavStateQPVP,
     units,
 )
@@ -62,7 +60,6 @@ def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None, lat_deg=45.
     lat_rad = np.deg2rad(lat_deg)
     
     t = np.arange(0, duration, dt)
-    N = len(t)
     
     # Figure-8 parametric curve
     # x(t) = A*sin(ωt), y(t) = B*sin(2ωt)
@@ -351,11 +348,11 @@ def main():
     lat_rad = np.deg2rad(lat_deg)
     print(f"Using latitude: {lat_deg}° N for Eq. (6.8) gravity model")
     
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  IMU Rate:        {1/dt:.0f} Hz")
     print(f"  IMU Grade:       {imu_params.grade}")
-    print(f"  Trajectory:      Figure-8 pattern")
+    print("  Trajectory:      Figure-8 pattern")
     print(f"  Frame:           {frame.map_frame}\n")
     
     # Print IMU specifications with explicit units
@@ -419,7 +416,7 @@ def main():
     print("="*60)
     print(f"  Final Position Error:  {final_pos_error:.1f} m ({drift_percent:.1f}% of distance)")
     print(f"  Max Velocity Error:    {max_vel_error:.2f} m/s")
-    print(f"  Max Attitude Error:")
+    print("  Max Attitude Error:")
     print(f"    Roll:   {max_att_error[0]:.1f}°")
     print(f"    Pitch:  {max_att_error[1]:.1f}°")
     print(f"    Yaw:    {max_att_error[2]:.1f}°")

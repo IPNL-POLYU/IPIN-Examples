@@ -44,7 +44,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from core.eval import compute_position_errors, compute_rmse, save_figure
+from core.eval import compute_rmse, save_figure
 from core.fusion import (
     chi_square_gate,
     huber_R_scale,
@@ -185,7 +185,6 @@ def run_fusion_with_strategy(
         
         elif meas.sensor == 'uwb':
             # UWB range update
-            anchor_id = meas.meta['anchor_id']
             anchor_pos = meas.meta['anchor_pos']
             
             # Predict range to this anchor
@@ -641,27 +640,27 @@ def main():
     gate_rate = 100.0 * gating['n_uwb_accepted'] / (
         gating['n_uwb_accepted'] + gating['n_uwb_rejected'])
 
-    print(f"\nKey Findings:")
+    print("\nKey Findings:")
     print(f"  * Best method: {best_method}")
     print(f"  * Improvement over baseline: {improvement:.1f}%")
-    print(f"  * Robust losses inflate R for outliers (soft rejection via Eq. 8.7)")
-    print(f"  * Huber: linear inflation, Cauchy: quadratic inflation")
+    print("  * Robust losses inflate R for outliers (soft rejection via Eq. 8.7)")
+    print("  * Huber: linear inflation, Cauchy: quadratic inflation")
     print("")
     print(f"  Why chi-square gating collapses here (RMSE {rmse_gating:.2f} m):")
     print(f"    - The filter is over-confident. Ungated NIS has median "
           f"{nis_median:.1f}, against {0.45:.2f} for a consistent 1-DOF filter,")
     print(f"      and only {frac_inside:.0f}% of samples fall inside the 3.84 "
           f"gate. R is set from the line-of-sight noise, while roughly half")
-    print(f"      this dataset's ranges carry an NLOS bias an order of "
-          f"magnitude larger.")
+    print("      this dataset's ranges carry an NLOS bias an order of "
+          "magnitude larger.")
     print(f"    - So the gate is not discarding outliers, it is discarding "
           f"most measurements: {gate_rate:.0f}% accepted.")
-    print(f"    - Starved of updates the state drifts, drift inflates the next "
-          f"innovation, and the rejection feeds itself.")
-    print(f"    - The lesson is not that gating is inferior. A hard gate is "
-          f"only as good as the covariance it tests against; the robust")
-    print(f"      losses survive the same mis-specified R because they scale "
-          f"an outlier's influence down instead of removing it.")
+    print("    - Starved of updates the state drifts, drift inflates the next "
+          "innovation, and the rejection feeds itself.")
+    print("    - The lesson is not that gating is inferior. A hard gate is "
+          "only as good as the covariance it tests against; the robust")
+    print("      losses survive the same mis-specified R because they scale "
+          "an outlier's influence down instead of removing it.")
     print("")
     
     # Plot

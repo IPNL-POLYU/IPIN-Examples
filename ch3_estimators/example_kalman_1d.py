@@ -70,7 +70,7 @@ def example_1d_constant_velocity():
     x0_est = np.array([0.0, 0.0])  # Start with poor velocity estimate
     P0 = np.diag([1.0, 5.0])  # High uncertainty in velocity
 
-    print(f"\nSimulation Parameters:")
+    print("\nSimulation Parameters:")
     print(f"  Time step: {dt} s")
     print(f"  Duration: {t_max} s ({n_steps} steps)")
     print(f"  True initial state: position={true_x0[0]:.1f} m, velocity={true_x0[1]:.1f} m/s")
@@ -78,7 +78,7 @@ def example_1d_constant_velocity():
     print(f"  Process noise intensity: {q:.2f}")
 
     # Generate true trajectory
-    print(f"\nGenerating true trajectory...")
+    print("\nGenerating true trajectory...")
     true_states = [true_x0.copy()]
     true_state = true_x0.copy()
 
@@ -90,7 +90,7 @@ def example_1d_constant_velocity():
         true_states.append(true_state.copy())
 
     # Generate noisy measurements
-    print(f"Generating noisy measurements...")
+    print("Generating noisy measurements...")
     measurements = []
     for state in true_states[1:]:  # Skip initial state
         true_measurement = H @ state
@@ -98,7 +98,7 @@ def example_1d_constant_velocity():
         measurements.append(true_measurement[0] + noise)
 
     # Run Kalman Filter
-    print(f"\nRunning Kalman Filter...")
+    print("\nRunning Kalman Filter...")
     kf = KalmanFilter(F, Q, H, R, x0_est, P0)
 
     estimates = [x0_est.copy()]
@@ -126,7 +126,7 @@ def example_1d_constant_velocity():
     velocity_errors = np.abs(estimates[:, 1] - true_states[:, 1])
 
     # Statistics
-    print(f"\nResults:")
+    print("\nResults:")
     print(f"  Final true position: {true_states[-1, 0]:.2f} m")
     print(f"  Final estimated position: {estimates[-1, 0]:.2f} m")
     print(f"  Final position error: {position_errors[-1]:.4f} m")
@@ -135,7 +135,7 @@ def example_1d_constant_velocity():
     print(f"  Mean velocity error: {np.mean(velocity_errors[10:]):.4f} m/s")
 
     # Visualization
-    print(f"\nCreating visualization...")
+    print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
     # Plot 1: Position vs Time

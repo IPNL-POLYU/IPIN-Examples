@@ -53,7 +53,6 @@ from typing import List, Tuple, Dict, Optional
 
 from core.eval import save_figure
 from core.slam import (
-    se2_apply,
     se2_compose,
     se2_relative,
     icp_point_to_point,
@@ -63,7 +62,6 @@ from core.slam import (
 )
 from core.slam.scan_generation import (
     generate_scan_with_occlusion,
-    generate_dense_wall_scan,  # Legacy function (has occlusion bug)
 )
 
 
@@ -121,7 +119,7 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     
     n_poses = len(true_poses)
     
-    print(f"Dataset Info:")
+    print("Dataset Info:")
     print(f"  Trajectory: {config.get('trajectory', {}).get('type', 'unknown')}")
     print(f"  Poses: {n_poses}")
     print(f"  Landmarks: {len(landmarks)}")
@@ -234,7 +232,7 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     # CRITICAL: Initialize graph from front-end poses (NOT odometry, NOT ground truth)
     # This ensures the front-end's scan-to-map corrections are preserved
     initial_poses = frontend_poses  # Must be frontend_poses, not odom_poses!
-    print(f"  Graph initial: frontend_poses (scan-to-map corrected trajectory)")
+    print("  Graph initial: frontend_poses (scan-to-map corrected trajectory)")
     
     # Prepare odometry measurements from front-end estimates
     odometry_measurements = []
@@ -292,7 +290,7 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     if initial_error > 1e-9:
         print(f"  Error reduction: {(1 - final_error / initial_error) * 100:.2f}%")
     else:
-        print(f"  Error reduction: N/A (initial error near zero)")
+        print("  Error reduction: N/A (initial error near zero)")
     
     optimized_poses = [optimized_vars[i] for i in range(n_poses)]
     
@@ -332,7 +330,7 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     print("\n" + "=" * 70)
     print("SLAM PIPELINE COMPLETE!")
     print("=" * 70)
-    print(f"\nSummary:")
+    print("\nSummary:")
     print(f"  - Trajectory: {n_poses} poses")
     print(f"  - Front-end: {n_converged}/{n_poses} converged ({100*n_converged/n_poses:.1f}%)")
     print(f"  - Loop closures: {len(loop_closures)} (observation-based detection)")
@@ -1063,9 +1061,9 @@ def create_slam_animation(
     odom_line, = ax1.plot([], [], 'r--', linewidth=1, alpha=0.7, label='Odometry')
     frontend_line, = ax1.plot([], [], 'b-', linewidth=2, label='Frontend')
     current_pose_marker, = ax1.plot([], [], 'ko', markersize=8, markerfacecolor='yellow')
-    correction_arrow = ax1.annotate('', xy=(0, 0), xytext=(0, 0),
-                                    arrowprops=dict(arrowstyle='->', color='purple', lw=2),
-                                    visible=False)
+    ax1.annotate('', xy=(0, 0), xytext=(0, 0),
+                 arrowprops=dict(arrowstyle='->', color='purple', lw=2),
+                 visible=False)
     
     ax1.set_xlim(xlim)
     ax1.set_ylim(ylim)
@@ -1109,7 +1107,6 @@ def create_slam_animation(
     
     # Storage for accumulated map points
     accumulated_map = []
-    odom_edges = []
     loop_edges = []
     
     # Phase 1: Front-end frames (one per pose)
@@ -1569,7 +1566,7 @@ def run_with_inline_data(
     # 1. Generate Ground Truth Trajectory
     # ------------------------------------------------------------------------
     if trajectory_type == "square":
-        print(f"1. Generating square loop trajectory...")
+        print("1. Generating square loop trajectory...")
         print(f"   Trajectory: square, laps: {n_laps}")
         true_poses = generate_square_loop_trajectory(
             side_length=side_length,
@@ -1600,8 +1597,8 @@ def run_with_inline_data(
         print(f"   Landmarks: {len(landmarks)} points (derived from wall endpoints)")
         
     else:  # corridor
-        print(f"1. Generating corridor loop trajectory...")
-        print(f"   Trajectory: corridor (out-and-back)")
+        print("1. Generating corridor loop trajectory...")
+        print("   Trajectory: corridor (out-and-back)")
         true_poses = generate_corridor_loop_trajectory(
             corridor_length=15.0, n_poses_out=30, n_poses_back=30
         )
@@ -1660,8 +1657,8 @@ def run_with_inline_data(
         scans.append(scan)
     avg_points = np.mean([len(s) for s in scans])
     print(f"   Generated {n_poses} scans (avg {avg_points:.0f} points/scan)")
-    print(f"   Note: Scans from TRUE poses (sensor reality), NOT from odometry!")
-    print(f"   Note: Occlusion-aware - pillars block walls behind them")
+    print("   Note: Scans from TRUE poses (sensor reality), NOT from odometry!")
+    print("   Note: Occlusion-aware - pillars block walls behind them")
 
     # ------------------------------------------------------------------------
     # 5. SLAM Front-End: init -> predict -> scan-to-map -> update map
@@ -1776,7 +1773,7 @@ def run_with_inline_data(
     # CRITICAL: Initialize graph from front-end poses (NOT odometry, NOT ground truth)
     # This ensures the front-end's scan-to-map corrections are preserved
     initial_poses = frontend_poses  # Must be frontend_poses, not odom_poses!
-    print(f"   Graph initial: frontend_poses (scan-to-map corrected trajectory)")
+    print("   Graph initial: frontend_poses (scan-to-map corrected trajectory)")
 
     # Prepare loop closure measurements
     loop_measurements = []
@@ -1823,7 +1820,7 @@ def run_with_inline_data(
     if initial_error > 1e-9:
         print(f"   Error reduction: {(1 - final_error / initial_error) * 100:.2f}%")
     else:
-        print(f"   Error reduction: N/A (initial error near zero)")
+        print("   Error reduction: N/A (initial error near zero)")
 
     # Extract optimized poses
     optimized_poses = [optimized_vars[i] for i in range(n_poses)]

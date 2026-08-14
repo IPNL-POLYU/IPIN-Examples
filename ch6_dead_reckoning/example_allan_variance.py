@@ -424,11 +424,11 @@ def main():
     fs = 100.0  # Hz
     grade = 'consumer'
     
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Duration:        {duration/3600:.1f} hours")
     print(f"  Sampling Rate:   {fs} Hz")
     print(f"  IMU Grade:       {grade}")
-    print(f"  (Note: Real calibration requires 1-24 hours of stationary data)\n")
+    print("  (Note: Real calibration requires 1-24 hours of stationary data)\n")
     
     # Generate synthetic IMU data
     print("Generating synthetic stationary IMU data...")

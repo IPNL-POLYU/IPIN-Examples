@@ -28,11 +28,9 @@ from core.sensors import (
     IMUNoiseParams,
     strapdown_update,
     detect_zupt_windowed,
-    zupt_test_statistic,
     NavStateQPVP,
-    units,
 )
-from core.sensors.ins_ekf import ZUPT_EKF, INSState
+from core.sensors.ins_ekf import ZUPT_EKF
 from core.sim import generate_imu_from_trajectory
 
 
@@ -560,10 +558,10 @@ def main(animate: bool = False):
     frame = FrameConvention.create_enu()  # Use ENU frame
     imu_params = IMUNoiseParams.consumer_grade()  # Consumer-grade IMU
     
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  IMU Rate:        {1/dt:.0f} Hz")
-    print(f"  Walking Pattern: 5s walk + 2s stop (repeated)")
+    print("  Walking Pattern: 5s walk + 2s stop (repeated)")
     print(f"  Step Rate:       {step_freq} Hz")
     print(f"  Step Length:     {step_length} m")
     print(f"  Frame:           {frame.map_frame}\n")
@@ -612,7 +610,7 @@ def main(animate: bool = False):
     detection_rate = np.sum(zupt_detections) / len(zupt_detections) * 100
     print(f"  Computation time: {elapsed_zupt:.3f} s")
     print(f"  ZUPT detections:  {detection_rate:.1f}% of samples")
-    print(f"  Method:           EKF measurement update (not hard-coded v=0)")
+    print("  Method:           EKF measurement update (not hard-coded v=0)")
     
     # Create output directory
     figs_dir = Path(__file__).parent / 'figs'
@@ -636,11 +634,11 @@ def main(animate: bool = False):
     print("\n" + "="*70)
     print("RESULTS")
     print("="*70)
-    print(f"IMU-only (no ZUPT):")
+    print("IMU-only (no ZUPT):")
     print(f"  Final error:  {final_error_imu:.2f} m ({final_error_imu/total_distance*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_imu:.2f} m")
     print()
-    print(f"IMU + ZUPT:")
+    print("IMU + ZUPT:")
     print(f"  Final error:  {final_error_zupt:.2f} m ({final_error_zupt/total_distance*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_zupt:.2f} m")
     print()

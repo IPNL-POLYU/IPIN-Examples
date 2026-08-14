@@ -199,7 +199,7 @@ def demo_correlated_covariance():
     # Per-anchor range noise standard deviations (meters)
     # Reference anchor (idx=0) has larger noise to emphasize correlation effect
     sigmas = np.array([0.5, 0.1, 0.15, 0.12, 0.08])
-    print(f"\nPer-anchor range noise (sigma, meters):")
+    print("\nPer-anchor range noise (sigma, meters):")
     print(f"  Reference (anchor 0): {sigmas[0]:.2f} m (higher noise)")
     print(f"  Other anchors: {sigmas[1:]}")
 
@@ -218,7 +218,7 @@ def demo_correlated_covariance():
     cov_correlated = build_tdoa_covariance(sigmas, ref_idx=0)
     print("\nCorrelated covariance matrix (Eq. 4.42):")
     print(cov_correlated)
-    print(f"\nDiagonal (var): sigma_k^2 + sigma_ref^2")
+    print("\nDiagonal (var): sigma_k^2 + sigma_ref^2")
     print(f"Off-diagonal (cov): sigma_ref^2 = {sigmas[0]**2:.4f}")
 
     # Build identity covariance (ignoring correlation)
@@ -331,7 +331,7 @@ def demo_covariance_sensitivity():
     true_position = np.array([8.0, 12.0])
 
     print(f"\nTrue position: {true_position}")
-    print(f"Other anchor noise (fixed): sigma = 0.1 m")
+    print("Other anchor noise (fixed): sigma = 0.1 m")
 
     # Test different reference anchor noise levels
     ref_noise_levels = [0.05, 0.1, 0.2, 0.5, 1.0]
@@ -479,8 +479,8 @@ def demo_visualize_covariance():
         # Add annotations
         for i in range(len(cov)):
             for j in range(len(cov)):
-                text = ax.text(j, i, f'{cov[i, j]:.3f}',
-                              ha='center', va='center', color='black', fontsize=9)
+                ax.text(j, i, f'{cov[i, j]:.3f}',
+                        ha='center', va='center', color='black', fontsize=9)
 
         plt.tight_layout()
         paths = save_figure(fig, Path(__file__).parent / "figs",
@@ -827,9 +827,6 @@ def demo_closed_form_comparison():
 
     # Compute true measurements
     ranges_true = np.linalg.norm(anchors - true_position, axis=1)
-    d_ref = ranges_true[ref_idx]
-    tdoa_true = np.array([ranges_true[i] - d_ref
-                          for i in range(len(anchors)) if i != ref_idx])
 
     # Test parameters
     noise_std = 0.3

@@ -255,10 +255,10 @@ def main():
     duration = 80.0
     dt = 0.01
     
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Duration:        {duration} s")
-    print(f"  Trajectory:      20m square with turns")
-    print(f"  Lever Arm:       [1.5, 0, -0.3] m\n")
+    print("  Trajectory:      20m square with turns")
+    print("  Lever Arm:       [1.5, 0, -0.3] m\n")
     
     print("Generating trajectory...")
     t, pos_true, vel_true, quat_true, wheel_true, gyro_true = generate_vehicle_trajectory('square', duration, dt)
@@ -308,11 +308,11 @@ def main():
     print("\n" + "="*70)
     print("RESULTS")
     print("="*70)
-    print(f"Wheel Odometry (no slip):")
+    print("Wheel Odometry (no slip):")
     print(f"  Final error:  {error_odom[-1]:.2f} m ({error_odom[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_odom:.2f} m")
     print()
-    print(f"Wheel Odometry (with 30% slip on four 2 s straights):")
+    print("Wheel Odometry (with 30% slip on four 2 s straights):")
     print(f"  Final error:  {error_slip[-1]:.2f} m ({error_slip[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_slip:.2f} m")
     print()
@@ -321,7 +321,7 @@ def main():
     # decimals while the tracks separate by metres in between -- the same
     # degenerate metric that let two Chapter 6 methods look good by never
     # moving. The peak separation is what slip actually costs you.
-    print(f"  Slip cost, read properly:")
+    print("  Slip cost, read properly:")
     print(f"    RMSE {rmse_odom:.2f} m -> {rmse_slip:.2f} m")
     print(f"    peak track separation {np.abs(error_slip - error_odom).max():.2f} m")
     print(f"    (4 windows x 2 s x {SLIP_SPEED_HINT:.1f} m/s x 30% = "

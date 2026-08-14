@@ -23,7 +23,7 @@ import argparse
 import json
 import time
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -35,7 +35,6 @@ from core.rf import (
     TDOAPositioner,
     TOAPositioner,
     aoa_azimuth,
-    rss_pathloss,
     rss_to_distance,
     toa_range,
 )
@@ -94,7 +93,7 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
     n_points = len(positions)
     
     if verbose:
-        print(f"\nDataset Info:")
+        print("\nDataset Info:")
         print(f"  Geometry: {config.get('geometry', {}).get('type', 'unknown')}")
         print(f"  Beacons: {len(beacons)}")
         print(f"  Test points: {n_points}")
@@ -467,10 +466,10 @@ def run_inline_comparison():
 
     print("\n--- Setting up test scenario ---")
     anchors, true_positions = generate_scenario(seed=42)
-    print(f"Test scenario created:")
+    print("Test scenario created:")
     print(f"  Anchors: {len(anchors)}")
     print(f"  Test points: {len(true_positions)}")
-    print(f"  Area: 10m x 10m")
+    print("  Area: 10m x 10m")
 
     # ---- Independent noise schedules per method ----
     toa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]       # metres

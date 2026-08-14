@@ -19,7 +19,6 @@ import time
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from tqdm import tqdm
 
 from core.eval import plot_error_cdf, save_figure
 from core.fingerprinting import (

@@ -25,7 +25,6 @@ from pathlib import Path
 from core.eval import save_figure
 from core.sensors import (
     mag_heading,
-    mag_tilt_compensate,
     wrap_angle_diff,
     pressure_to_altitude,
     detect_floor_change,
@@ -287,10 +286,10 @@ def main():
     duration = 180.0
     dt = 0.1
     
-    print(f"Configuration:")
+    print("Configuration:")
     print(f"  Duration:        {duration} s")
-    print(f"  Scenario:        Multi-floor building walk")
-    print(f"  Floor Height:    3.5 m\n")
+    print("  Scenario:        Multi-floor building walk")
+    print("  Floor Height:    3.5 m\n")
     
     print("Generating trajectory...")
     # One generator for the whole run, so the walk jitter and the sensor noise
@@ -346,12 +345,12 @@ def main():
     print("\n" + "="*70)
     print("RESULTS")
     print("="*70)
-    print(f"Magnetometer Heading:")
+    print("Magnetometer Heading:")
     print(f"  RMSE:             {heading_rmse:.1f}°")
     print(f"  Max error:        {np.max(heading_error):.1f}°")
-    print(f"  (Note: Large errors during disturbances at 30-50s, 100-120s)")
+    print("  (Note: Large errors during disturbances at 30-50s, 100-120s)")
     print()
-    print(f"Barometric Altitude:")
+    print("Barometric Altitude:")
     print(f"  RMSE:             {alt_rmse:.2f} m")
     print(f"  Floor Accuracy:   {floor_accuracy:.1f}%")
     print()
