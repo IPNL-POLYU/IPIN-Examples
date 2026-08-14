@@ -49,6 +49,10 @@ dev = [
     "pytest-cov>=3.0.0",
     "black>=22.0.0",
     "flake8>=4.0.0",
+    # Declared explicitly rather than left to arrive as flake8's transitive
+    # dependency: tests/test_repo_conventions.py imports it, and a test whose
+    # tool is present only by accident is one that silently skips.
+    "pyflakes>=3.0.0",
     "mypy>=0.950",
     "ruff>=0.1.0",
     "pydocstyle>=6.0.0",
