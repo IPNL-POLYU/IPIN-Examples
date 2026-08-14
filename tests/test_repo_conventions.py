@@ -15,6 +15,7 @@ Author: Li-Ta Hsu
 
 import ast
 import importlib
+import io
 import re
 from pathlib import Path
 
@@ -266,4 +267,94 @@ def test_examples_seed_the_generators_they_create(script):
         f"regenerated. Pass a seed -- a module-level DEFAULT_SEED threaded "
         f"through the generating function is the pattern used elsewhere in "
         f"Chapter 6."
+    )
+
+
+# Files whose pyflakes warnings are tolerated, predating this check.
+#
+# Same ratchet as the others: entries come out, never in. It starts empty and
+# should stay that way, because it was emptied the hard way -- the sweep that
+# made this check possible cleared 214 warnings across the 30 chapter examples
+# (185 redundant f prefixes, 27 unused imports, 22 dead assignments), after
+# earlier passes had done core/, scripts/ and tests/.
+#
+# An entry here is a claim that a warning is wrong. Pyflakes reports only
+# things that are true statements about the code -- a name that is not defined,
+# an import that is not used, a variable assigned and discarded -- so that
+# claim is a strong one. Prefer restructuring the code.
+KNOWN_PYFLAKES: set = set()
+
+# Where Python lives in this repo. Chapter directories are globbed rather than
+# listed so a new chapter is covered the day it is added.
+PYFLAKES_AREAS = {
+    "core": ["core/**/*.py"],
+    "scripts": ["scripts/**/*.py"],
+    "tests": ["tests/**/*.py"],
+    "chapters": [CHAPTER_GLOB],
+}
+
+
+def _area_files(area: str):
+    """Every Python file in one area, as repo-relative paths."""
+    found = set()
+    for pattern in PYFLAKES_AREAS[area]:
+        found.update(REPO_ROOT.glob(pattern))
+    return sorted(path for path in found if path.is_file())
+
+
+def _pyflakes_warnings(paths):
+    """Run pyflakes over `paths`, returning its report lines.
+
+    Uses the API rather than a subprocess per file: this covers 259 files and
+    spawning an interpreter for each would dominate the suite's runtime.
+    Syntax errors are reported on the error stream and count too -- a file that
+    cannot be parsed is a worse failure than an unused import, not an exempt
+    one.
+    """
+    from pyflakes.api import check
+    from pyflakes.reporter import Reporter
+
+    warnings_out, errors_out = io.StringIO(), io.StringIO()
+    reporter = Reporter(warnings_out, errors_out)
+
+    for path in paths:
+        if _relative(path) in KNOWN_PYFLAKES:
+            continue
+        check(path.read_text(encoding="utf-8"), _relative(path), reporter)
+
+    lines = warnings_out.getvalue().splitlines() + errors_out.getvalue().splitlines()
+    return [line for line in lines if line.strip()]
+
+
+@pytest.mark.parametrize("area", sorted(PYFLAKES_AREAS))
+def test_no_pyflakes_warnings(area):
+    """Pyflakes must stay silent, everywhere.
+
+    This is the cheapest of the ratchets and the one with the widest reach: it
+    is the check that would have caught the mistake made while writing the
+    sweep it enforces. A two-line replace() with count=1 deleted a `d_ref`
+    definition in a function where the name was still live, because the same
+    two lines appeared in an earlier function too. `python -m compileall`
+    accepted the file happily -- an undefined name is a runtime error, not a
+    syntax one, and that branch of the example is not covered by a test.
+    Pyflakes named it immediately.
+
+    That is the general shape: pyflakes finds the class of defect that survives
+    both the compiler and a test suite, because it is about names rather than
+    behaviour. Unused imports and dead assignments are the tidy half; undefined
+    names are the half that bites.
+    """
+    pytest.importorskip(
+        "pyflakes",
+        reason="pyflakes is declared in the dev extra; install with pip install -e '.[dev]'",
+    )
+
+    reported = _pyflakes_warnings(_area_files(area))
+
+    assert not reported, (
+        f"pyflakes reports {len(reported)} warning(s) under {area}/:\n  "
+        + "\n  ".join(reported[:40])
+        + ("\n  ..." if len(reported) > 40 else "")
+        + "\n\nThe repo is pyflakes-clean; keep it that way. If a warning is "
+        "genuinely wrong, add the file to KNOWN_PYFLAKES with the reason."
     )
