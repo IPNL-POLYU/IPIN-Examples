@@ -294,7 +294,40 @@ written. **A dataset audit will not find these** — the examples do not read
 `tests/test_repo_conventions.py` enforces the mechanical parts (no raw
 `savefig`, no unseeded global RNG, nothing at the repo root) as a ratchet:
 pre-existing violations are listed and skipped, new ones fail. Those lists are
-the current debt register and should only shrink.
+the current debt register and should only shrink. Every one of them is empty
+today, as is `KNOWN_PYFLAKES` — see below.
+
+## Lint
+
+pyflakes is clean across the whole repo and `test_no_pyflakes_warnings` in
+`tests/test_repo_conventions.py` keeps it that way, over `core/`, `scripts/`,
+`tests/` and the chapter directories — 259 files, about 5 seconds, via the
+pyflakes API rather than a subprocess each. Syntax errors count as failures
+too. `pyflakes` is declared in the `dev` extra rather than inherited from
+flake8, because a tool present by accident makes a test skip in silence.
+
+**The half of that check that earns it is undefined names, not tidiness.** An
+undefined name is a runtime error, so `python -m compileall` accepts the file,
+and if the branch has no test nothing else notices either. That is not
+hypothetical: the sweep that made the repo clean introduced one. A two-line
+`replace(..., count=1)` deleted a `d_ref` definition that was still live in an
+*earlier* function, because the same two lines appeared twice in the file.
+compileall was happy; pyflakes named it immediately.
+
+So **a lint sweep is not safe by construction**, and the bigger it is the less
+that argument is worth. When a mechanical edit touches many files, verify by
+running the examples before and after and diffing their output — the 30-file
+sweep was checked that way, and only incidental differences survived (figure
+paths, wall-clock durations, and warning line numbers shifted by deleted
+lines). Two traps found doing it:
+
+- `f"{{}}"` has no placeholders but renders `{}`, so dropping the prefix
+  changes the output. Nothing in this repo hit it, which is only knowable
+  because it was checked for.
+- **Bytecode equality is the wrong equivalence test.** `f"\n" + "=" * 50`
+  cannot constant-fold across the JoinedStr while `"\n" + "=" * 50` folds to a
+  single constant, so one file compiled differently while printing exactly the
+  same thing. Compare output, not code objects.
 
 ## Parallel sessions
 
