@@ -22,7 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_animation, save_figure
+from core.eval import resolve_figs_dir, save_animation, save_figure
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -655,7 +655,7 @@ def main(animate: bool = False):
         size_mb = path.stat().st_size / (1024 * 1024)
         print(f"  [OK] Saved: {path} ({n_frames} frames, {size_mb:.2f} MB)")
 
-    print(f"Figures saved to: {figs_dir}/")
+    print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
     print("="*70)
     print("KEY INSIGHT: ZUPT-EKF corrects velocity drift using Kalman updates!")

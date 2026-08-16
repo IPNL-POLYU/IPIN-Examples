@@ -569,8 +569,8 @@ def plot_results(dataset: Dict, history: Dict, save_path: str = None) -> None:
         # save_figure takes a directory and a stem, and writes svg/pdf/png
         # together; callers still pass a single path, so split it here.
         save_path = Path(save_path)
-        save_figure(fig, save_path.parent, save_path.stem)
-        print(f"\nSaved figure: {save_path}")
+        written = save_figure(fig, save_path.parent, save_path.stem)
+        print(f"\nSaved figure: {written[0]}")
 
     plt.show()
 

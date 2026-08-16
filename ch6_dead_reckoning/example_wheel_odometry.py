@@ -23,7 +23,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import resolve_figs_dir, save_figure
 from core.sensors import wheel_odom_update, NavStateQPVP
 
 
@@ -327,7 +327,7 @@ def main():
     print(f"    (4 windows x 2 s x {SLIP_SPEED_HINT:.1f} m/s x 30% = "
           f"{4 * 2 * SLIP_SPEED_HINT * 0.3:.1f} m of phantom travel, as injected)")
     print()
-    print(f"Figures saved to: {figs_dir}/")
+    print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
     print("="*70)
     print("KEY INSIGHT: Wheel odometry drift is BOUNDED!")

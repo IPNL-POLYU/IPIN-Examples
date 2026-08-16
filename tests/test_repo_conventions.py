@@ -46,6 +46,22 @@ CHAPTER_GLOB = "ch*_*/*.py"
 # genuinely warranted, record why next to it.
 KNOWN_RAW_SAVEFIG: set = set()
 
+# Files known to build their own matplotlib animation, predating this test.
+#
+# Same ratchet: only shrink it. The savefig check above guards static figures
+# but says nothing about animations, and two Chapter 7 examples used that gap
+# for as long as it existed -- they hand-rolled FuncAnimation + PillowWriter
+# and passed `anim.save()` a literal `ch7_slam/figs/*.gif`. A path that never
+# reaches core.eval cannot be redirected, so IPIN_FIGS_DIR did not apply to
+# them: running either with --animate wrote into the tracked figs/ directory,
+# which is precisely the failure the variable was introduced to stop. The
+# clean-tree check in CI did not catch it because animations sit behind
+# --animate and no test passes it.
+#
+# Empty. Both now call core.eval.save_animation, which resolves the directory,
+# warns on oversized GIFs, and builds the identical FuncAnimation.
+KNOWN_RAW_ANIMATION: set = set()
+
 # Files known to draw from the unseeded global RNG, predating this test.
 # Same ratchet: only shrink it. Each entry was an example whose committed
 # figures could not be regenerated, so a figure diff there meant nothing.
@@ -108,6 +124,61 @@ def test_chapter_figures_go_through_save_figure(script):
         f"figure is written in every format and reproducibly. If this is "
         f"genuinely not a book figure, say so in a comment and add the file "
         f"to KNOWN_RAW_SAVEFIG with the reason."
+    )
+
+
+def _raw_animation_lines(source: str):
+    """Line numbers where chapter code builds its own matplotlib animation.
+
+    Two signals, either of which means the write bypasses save_animation:
+    importing anything from ``matplotlib.animation``, and calling ``.save()``
+    with a ``writer=`` argument (which catches the case where the module is
+    imported wholesale rather than by name).
+
+    AST rather than a text scan, for the same reason the savefig check uses
+    one: the two Chapter 7 files carry a comment naming ``FuncAnimation`` and
+    ``PillowWriter`` to explain why they no longer use them, and a regex would
+    report that comment as the violation it describes.
+    """
+    tree = ast.parse(source)
+    hits = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom) and node.module == "matplotlib.animation":
+            hits.append(node.lineno)
+        elif isinstance(node, ast.Import):
+            if any(a.name.startswith("matplotlib.animation") for a in node.names):
+                hits.append(node.lineno)
+        elif (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "save"
+            and any(kw.arg == "writer" for kw in node.keywords)
+        ):
+            hits.append(node.lineno)
+    return sorted(set(hits))
+
+
+@pytest.mark.parametrize("script", _chapter_scripts(), ids=_relative)
+def test_chapter_animations_go_through_save_animation(script):
+    """No new hand-rolled animation in chapter code.
+
+    core.eval.save_animation is the single output path for GIFs, and the only
+    one that resolves IPIN_FIGS_DIR. A hand-rolled FuncAnimation writing to a
+    literal chX_*/figs path cannot be redirected, so a test run that reaches it
+    rewrites a committed binary.
+    """
+    relative = _relative(script)
+    hits = _raw_animation_lines(script.read_text(encoding="utf-8"))
+
+    if relative in KNOWN_RAW_ANIMATION:
+        pytest.skip(f"known pre-existing raw animation ({relative})")
+
+    assert not hits, (
+        f"{relative} builds its own matplotlib animation at line(s) "
+        f"{', '.join(str(n) for n in hits)}. Use core.eval.save_animation so "
+        f"the GIF honours IPIN_FIGS_DIR and is size-checked. If this is "
+        f"genuinely not a book figure, say so in a comment and add the file "
+        f"to KNOWN_RAW_ANIMATION with the reason."
     )
 
 

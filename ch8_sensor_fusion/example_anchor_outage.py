@@ -70,7 +70,7 @@ import numpy as np
 
 from ch8_sensor_fusion.lc_uwb_imu_ekf import load_fusion_dataset, run_lc_fusion
 from ch8_sensor_fusion.tc_uwb_imu_ekf import run_tc_fusion
-from core.eval import save_animation, save_figure
+from core.eval import resolve_figs_dir, save_animation, save_figure
 
 FIGS_DIR = Path(__file__).parent / "figs"
 DEFAULT_DATA = "data/sim/ch8_fusion_2d_imu_uwb"
@@ -397,7 +397,7 @@ def main() -> None:
         print(f"  saved {path.name}: {n_frames} frames, {size_mb:.2f} MB")
 
     plt.close("all")
-    print(f"\nFigures written to {args.out_dir}")
+    print(f"\nFigures written to {resolve_figs_dir(args.out_dir)}")
 
 
 if __name__ == "__main__":

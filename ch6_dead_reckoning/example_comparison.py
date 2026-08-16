@@ -25,6 +25,7 @@ from core.eval import (
     plot_error_cdf,
     plot_error_magnitude_time,
     plot_trajectory_2d,
+    resolve_figs_dir,
     save_figure,
 )
 from core.sensors import (
@@ -826,7 +827,7 @@ def main() -> None:
         print(f"{name:<20} {m['rmse']:>10.2f} {m['final']:>10.2f} "
               f"{m['median']:>10.2f} {m['p90']:>10.2f} {m['path']:>10.1f}")
 
-    print(f"\nFigures saved to: {figs_dir}/")
+    print(f"\nFigures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
     print("="*75)
     print("KEY INSIGHTS:")
