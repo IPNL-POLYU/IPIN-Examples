@@ -23,7 +23,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import resolve_figs_dir, save_figure
 from core.sensors import (
     allan_variance,
     characterize_imu_noise,
@@ -562,7 +562,7 @@ def main():
     print("  Tactical   | 0.01 - 0.1         | 1 - 10       | $100-1k")
     print("  Navigation | < 0.01             | < 1          | $10k-100k")
     
-    print(f"\nFigures saved to: {figs_dir}/")
+    print(f"\nFigures saved to: {resolve_figs_dir(figs_dir)}/")
     if debug_mode:
         print("\n[DEBUG MODE] Component-wise plots show expected slopes:")
         print("  ARW (white):       -1/2 slope (short tau)")

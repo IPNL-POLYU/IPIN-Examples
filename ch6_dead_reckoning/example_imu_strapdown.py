@@ -22,7 +22,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Import Chapter 6 sensor algorithms
-from core.eval import save_figure
+from core.eval import resolve_figs_dir, save_figure
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -422,7 +422,7 @@ def main():
     print(f"    Yaw:    {max_att_error[2]:.1f}°")
     print(f"  Drift Rate:            {drift_rate:.3f} m/s (UNBOUNDED!)")
     print()
-    print(f"Figures saved to: {figs_dir}/")
+    print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
     print("="*60)
     print("KEY INSIGHT: IMU drift is UNBOUNDED without corrections!")

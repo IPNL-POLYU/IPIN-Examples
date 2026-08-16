@@ -27,11 +27,10 @@ Date: December 2025
 import argparse
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.animation import FuncAnimation, PillowWriter
 from pathlib import Path
 from typing import List, Tuple, Dict
 
-from core.eval import save_figure
+from core.eval import save_animation, save_figure
 from core.slam import (
     CameraIntrinsics,
     project_point,
@@ -371,21 +370,20 @@ def create_ba_animation(
         
         return artists
     
-    # Create animation
+    # Save as GIF. This went through a hand-rolled FuncAnimation + PillowWriter
+    # and wrote to `output_path` verbatim, which meant it ignored IPIN_FIGS_DIR
+    # and could only ever write inside the repository -- the one thing the
+    # variable exists to prevent. core.eval.save_animation builds the identical
+    # animation and resolves the directory, so use it.
     print(f"   Creating animation with {n_frames} frames...")
-    anim = FuncAnimation(fig, update, frames=n_frames, init_func=init,
-                        interval=1000//fps, blit=False)
-    
-    # Save as GIF
-    output_dir = Path(output_path).parent
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    print(f"   Saving GIF to {output_path}...")
-    writer = PillowWriter(fps=fps)
-    anim.save(output_path, writer=writer)
-    
+    output_path = Path(output_path)
+    written = save_animation(
+        fig, update, n_frames, output_path.parent, output_path.stem,
+        fps=fps, init=init,
+    )
+
     plt.close(fig)
-    print(f"[OK] Saved animation: {output_path}")
+    print(f"[OK] Saved animation: {written}")
 
 
 def plot_bundle_adjustment_results(

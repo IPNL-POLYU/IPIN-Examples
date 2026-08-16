@@ -22,7 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import resolve_figs_dir, save_figure
 from core.sensors import (
     mag_heading,
     wrap_angle_diff,
@@ -354,7 +354,7 @@ def main():
     print(f"  RMSE:             {alt_rmse:.2f} m")
     print(f"  Floor Accuracy:   {floor_accuracy:.1f}%")
     print()
-    print(f"Figures saved to: {figs_dir}/")
+    print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
     print("="*70)
     print("KEY INSIGHT: Environmental sensors provide absolute references!")

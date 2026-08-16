@@ -43,7 +43,11 @@ def kalman_update(...):
 
 **Find implementations:** Search codebase for `Eq. (X.Y)` to locate specific equation implementations.
 
-**Mapping documents:** See `docs/ch{N}_equation_mapping.md` and chapter READMEs for equation-to-code tables.
+**Mapping documents:** `docs/equation_index.yml` is the complete index and the
+one `tools/check_equation_index.py` validates; chapter READMEs carry the
+per-chapter tables. A prose mapping document exists only for Chapter 2
+(`docs/ch2_equation_mapping.md`) — there is no `docs/ch{N}_equation_mapping.md`
+for the other chapters.
 
 ---
 
@@ -240,14 +244,19 @@ ekf.update(measurement=z)
 
 **Innovation monitoring (Eq. 8.5-8.9):**
 ```python
-from core.fusion.tuning import innovation, mahalanobis_distance_squared
-from core.fusion.gating import chi_square_gate
+from core.fusion.tuning import innovation
+from core.fusion.gating import chi_square_gate, mahalanobis_distance_squared
 
-y = innovation(z, h(x))  # Eq. (8.5)
+y = innovation(z, z_pred)  # Eq. (8.5)
 d_sq = mahalanobis_distance_squared(y, S)  # Eq. (8.8)
-if chi_square_gate(d_sq, dof=len(z), alpha=0.05):  # Eq. (8.9)
+if chi_square_gate(y, S, confidence=0.95):  # Eq. (8.9)
     ekf.update(z)
 ```
+
+`mahalanobis_distance_squared` lives in `core.fusion.gating`, not `tuning`.
+`chi_square_gate` takes the innovation and its covariance and derives the
+degrees of freedom itself — it does not take a precomputed `d_sq`. Pass
+`confidence`, not `alpha`; `alpha` is deprecated and means `1 - confidence`.
 
 ### IMU/PDR Conventions (`ch6_dead_reckoning/`, `docs/ch6_*.md`)
 **Frame conventions:**
@@ -303,16 +312,21 @@ ground_truth = np.loadtxt(data_path / "ground_truth_states.txt")
 
 ### Coordinate Transformations (`core/coords/`)
 ```python
-from core.coords.frames import llh_to_enu, enu_to_llh, ecef_to_enu
-from core.coords.rotations import euler_to_quaternion, quaternion_to_dcm
+from core.coords.transforms import llh_to_ecef, ecef_to_enu
+from core.coords.rotations import euler_to_quat, quat_to_rotation_matrix
 
-# Eq. (2.1)-(2.5): LLH ↔ ECEF ↔ ENU conversions
-pos_enu = llh_to_enu(lat, lon, h, lat_ref, lon_ref, h_ref)
+# LLH -> ECEF -> ENU. There is no single llh_to_enu; compose the two.
+x, y, z = llh_to_ecef(lat, lon, h)
+pos_enu = ecef_to_enu(x, y, z, lat_ref, lon_ref, h_ref)
 
-# Eq. (2.6)-(2.10): Euler angles ↔ Quaternion ↔ DCM
-q = euler_to_quaternion(roll, pitch, yaw)
-R = quaternion_to_dcm(q)
+# Euler angles -> quaternion -> rotation matrix
+q = euler_to_quat(roll, pitch, yaw)
+R = quat_to_rotation_matrix(q)
 ```
+
+The transforms live in `core.coords.transforms`. `core.coords.frames` holds
+only the `Frame`/`FrameType` metadata types, and has no conversion functions.
+The inverses are `ecef_to_llh` and `enu_to_ecef`; there is no `enu_to_llh`.
 
 ---
 

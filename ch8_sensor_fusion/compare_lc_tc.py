@@ -22,6 +22,7 @@ from matplotlib.gridspec import GridSpec
 from core.eval import (
     compute_position_errors,
     compute_position_rmse,
+    resolve_figs_dir,
     save_figure,
 )
 from ch8_sensor_fusion.lc_uwb_imu_ekf import load_fusion_dataset, run_lc_fusion
@@ -448,8 +449,8 @@ def plot_comparison(
         # save_figure takes a directory and a stem, and writes svg/pdf/png
         # together; callers still pass a single path, so split it here.
         save_path = Path(save_path)
-        save_figure(fig, save_path.parent, save_path.stem)
-        print(f"\nSaved comparison figure: {save_path}")
+        written = save_figure(fig, save_path.parent, save_path.stem)
+        print(f"\nSaved comparison figure: {written[0]}")
     
     plt.show()
 
@@ -468,7 +469,8 @@ def save_comparison_report(
         lc_results: LC fusion results
         tc_results: TC fusion results
         metrics: Comparison metrics
-        output_path: Path to save JSON report
+        output_path: Path to save JSON report. Diverted when IPIN_FIGS_DIR is
+            set, so that a run's report and figure land together.
     """
     report = {
         'dataset': {
@@ -488,9 +490,14 @@ def save_comparison_report(
         }
     }
     
+    # The figure written by --save goes through save_figure and so honours
+    # IPIN_FIGS_DIR; this JSON went out with a bare open() and did not, so the
+    # same run could scatter its two outputs across two directories. Resolve
+    # the parent the same way.
+    output_path = resolve_figs_dir(Path(output_path).parent) / Path(output_path).name
     with open(output_path, 'w') as f:
         json.dump(report, f, indent=2)
-    
+
     print(f"Saved comparison report: {output_path}")
 
 

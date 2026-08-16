@@ -43,7 +43,12 @@ from core.coords import (
     euler_to_rotation_matrix,
     rotation_matrix_to_euler,
 )
-from core.eval import plot_frame_3d, save_figure, set_axes_equal_3d
+from core.eval import (
+    plot_frame_3d,
+    resolve_figs_dir,
+    save_figure,
+    set_axes_equal_3d,
+)
 
 FIGS_DIR = Path(__file__).parent / "figs"
 
@@ -338,7 +343,7 @@ def main() -> None:
         print(f"  saved {name}: {', '.join(p.suffix.lstrip('.') for p in paths)}")
 
     print()
-    print(f"Figures written to {args.out_dir}")
+    print(f"Figures written to {resolve_figs_dir(args.out_dir)}")
 
     if not args.no_show:
         plt.show()
