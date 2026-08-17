@@ -14,7 +14,7 @@ drift had reached the point of teaching the opposite of the truth:
   angular noise, which is the whole lesson of that table.
 - ``ch5``'s comparison table was roughly half the real error, and missing a
   method the example has since grown.
-- ``ch7`` showed 5 loop closures and +35.10%; the run produces 1 and +26.93%.
+- ``ch7`` showed 5 loop closures and +35.10%; the run produces 1 and +33.44%.
 - ``ch8`` carried *three* mutually inconsistent sets of LC/TC numbers in one
   file, none of which matched the code.
 
@@ -60,6 +60,7 @@ diff rather than an omission nobody sees. **It must only shrink.**
 Author: Li-Ta Hsu
 """
 
+import math
 import re
 from pathlib import Path
 
@@ -115,6 +116,29 @@ MARKER = re.compile(
 ELISION = "..."
 WILDCARD = "~"
 
+#: Tolerance on numbers, because a printed float is a measurement and two
+#: machines do not always agree on its last digits.
+#:
+#: This was exact until CI disagreed with a developer machine on exactly one
+#: cell of Chapter 4's comparison table: the unweighted AOA median at noise
+#: level 4, 1.026 on Windows against 1.052 on Ubuntu. Every other number in
+#: that table, and in the other seventeen blocks, matched bit for bit. The
+#: cause is an iterative Gauss-Newton solve -- a different LAPACK takes a
+#: fractionally different path, converges a draw or two elsewhere, and the
+#: median over the sample shifts.
+#:
+#: 5% is chosen against the two numbers that matter. Platform noise here is
+#: 2.5%. The staleness this suite exists to catch was never subtle: the drift
+#: the audit found ran from 20% to a factor of six, and the ch6 strapdown block
+#: was out by 2.5x. So this absorbs the noise with a margin and still fails on
+#: anything worth reporting.
+#:
+#: It is a real weakening -- a block may now sit 4% wrong and pass -- which is
+#: why it is a tolerance on numbers only. Text still has to match exactly, and
+#: that is what keeps a marked block a transcript rather than a summary.
+NUMERIC_REL_TOL = 0.05
+NUMERIC_ABS_TOL = 0.005
+
 # A transcript looks like console output rather than prose or a directory tree.
 TRANSCRIPT_SIGNALS = ("====", "RMSE", "Results", "results", "Error", "error")
 
@@ -126,15 +150,37 @@ def _normalise(line: str) -> str:
     return re.sub(r"\s+", " ", line).strip()
 
 
+def _as_float(token: str):
+    """The token as a float, or None if it is not purely numeric."""
+    try:
+        return float(token.rstrip(",;:").lstrip("("))
+    except ValueError:
+        return None
+
+
+def _token_matches(want: str, got: str) -> bool:
+    """One token, allowing the wildcard and a tolerance on numbers."""
+    if want == WILDCARD or want == got:
+        return True
+    a, b = _as_float(want), _as_float(got)
+    if a is None or b is None:
+        return False
+    return math.isclose(a, b, rel_tol=NUMERIC_REL_TOL, abs_tol=NUMERIC_ABS_TOL)
+
+
 def _matches(expected: str, actual: str) -> bool:
-    """Whitespace-insensitive equality, with ``~`` matching one token."""
-    if WILDCARD not in expected:
-        return expected == actual
+    """Whitespace-insensitive equality, token by token.
+
+    Text must match exactly -- that is what keeps the block a transcript rather
+    than a summary. Numbers get NUMERIC_REL_TOL, for the reason recorded there.
+    """
+    if expected == actual:
+        return True
     want = expected.split(" ")
     got = actual.split(" ")
     if len(want) != len(got):
         return False
-    return all(w == WILDCARD or w == g for w, g in zip(want, got))
+    return all(_token_matches(w, g) for w, g in zip(want, got))
 
 
 def _find_from(live, expected, start):
