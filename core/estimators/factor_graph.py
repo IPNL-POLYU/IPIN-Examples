@@ -19,7 +19,7 @@ from typing import Callable, Dict, List, Tuple
 
 import numpy as np
 
-from core.utils.angles import angle_diff
+from core.utils import angle_diff
 
 
 class Factor:

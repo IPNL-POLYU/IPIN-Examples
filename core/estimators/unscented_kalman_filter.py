@@ -21,6 +21,8 @@ from typing import Callable, Optional, Tuple
 
 import numpy as np
 
+from core.utils import angle_diff
+
 from core.estimators.base import StateEstimator
 
 
@@ -396,9 +398,12 @@ def test_ukf_bearing_only_tracking():
     x0 = np.array([10.0, 5.0, 0.5, 0.3])
     P0 = np.diag([2.0, 2.0, 1.0, 1.0])
 
+    # Bearing-only: wrap the innovation, or the branch cut reports 358 deg
+    # of error where the truth is 2. Same gap as the EKF demo next door.
     ukf = UnscentedKalmanFilter(
         process_model, measurement_model,
-        Q_func, R_func, x0, P0
+        Q_func, R_func, x0, P0,
+        innovation_func=lambda z, z_pred: angle_diff(z, z_pred),
     )
 
     true_state = x0.copy()

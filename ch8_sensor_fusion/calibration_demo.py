@@ -39,6 +39,7 @@ def wrap_angle_deg(angle_deg: float) -> float:
         np.sin(np.radians(angle_deg)), np.cos(np.radians(angle_deg))
     )))
 
+
 def estimate_imu_bias_stationary(
     accel_samples: np.ndarray,
     gyro_samples: np.ndarray,

@@ -18,6 +18,8 @@ from typing import Callable, Optional, Tuple
 
 import numpy as np
 
+from core.utils import angle_diff
+
 from core.estimators.base import StateEstimator
 
 
@@ -376,10 +378,16 @@ def test_ekf_bearing_only_tracking():
     x0 = np.array([10.0, 5.0, 0.5, 0.3])
     P0 = np.diag([2.0, 2.0, 1.0, 1.0])
 
+    # A bearing-only filter must wrap its innovation: both the measurement and
+    # the prediction come from atan2 and lie in (-pi, pi], so near the branch
+    # cut a raw subtraction reports 358 deg where the truth is 2. The class
+    # takes `innovation_func` for exactly this and the docstring says so; this
+    # demo simply never passed one.
     ekf = ExtendedKalmanFilter(
         process_model, process_jacobian,
         measurement_model, measurement_jacobian,
-        Q_func, R_func, x0, P0
+        Q_func, R_func, x0, P0,
+        innovation_func=lambda z, z_pred: angle_diff(z, z_pred),
     )
 
     # Generate data
