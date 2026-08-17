@@ -45,37 +45,41 @@ python -m ch8_sensor_fusion.calibration_demo  # Section 8.4: Intrinsic & extrins
 | Figure | Built by | Shows |
 |--------|----------|-------|
 | `ch8_anchor_outage.{svg,pdf,png}` | `example_anchor_outage.py` | Anchor visibility and both error curves over the whole run |
-| `ch8_anchor_outage.gif` (0.69 MB) | `example_anchor_outage.py --animate` | The same, unfolding: anchors going hollow, LC's error ramping, TC holding |
+| `ch8_anchor_outage.gif` (0.69 MB) | `example_anchor_outage.py --animate` | The same, unfolding: anchors going hollow, LC's error ramping, TC's branch flip |
 
-On the shipped dataset LC and TC look close — RMSE 0.95 m against 0.74 m — and
-that is misleading. The dataset's natural dropouts are **single isolated
-epochs**, so LC coasts for a fraction of a second and nothing visible happens:
-its error during those epochs is 0.573 m against 0.555 m elsewhere, a ratio of
-**1.03×**. Measured, not assumed — the first version of this example assumed
-otherwise and was wrong.
+On the shipped dataset LC and TC look close, and that is misleading. The
+dataset's natural dropouts are **single isolated epochs**, so LC coasts for a
+fraction of a second and nothing visible happens. The difference needs an
+outage that *persists*, so this example constructs one: 8 seconds with at most
+two of four anchors visible.
 
-The difference needs an outage that *persists*, so this example constructs one:
-8 seconds with at most two of four anchors visible.
+<!-- example-output: ch8_sensor_fusion.example_anchor_outage -->
+```
+Constructed outage: at most 2 of 4 anchors between t = 20 s and 28 s
+(the shipped dataset's own dropouts are single isolated epochs and do not stress the difference)
+  LC position fixes that failed outright: 93
+  RMSE over the run:      LC 1.566 m   TC 2.338 m
+  Peak error in outage:   LC 5.86 m   TC 43.92 m (0x)
+```
 
-| | LC | TC |
-|---|---|---|
-| Peak error during the outage | **4.52 m** | **0.30 m** (15×) |
-| UWB position fixes that failed | 93 | — (TC has no fix step) |
-| RMSE over the run | 1.292 m | 0.762 m |
+**Read that table before assuming tight coupling wins.** Two ranges do not
+determine a 2-D position, so LC's front end returns nothing at all — 93 fixes
+fail outright and LC dead-reckons, its error ramping linearly and snapping back
+the instant a third anchor returns. TC keeps updating on the two ranges it
+still has, which is the advantage it is usually sold on.
 
-LC's error ramps *linearly* through the outage — the signature of pure dead
-reckoning — then snaps back the instant a third anchor returns. Two ranges do
-not determine a 2-D position, so LC's front end returns nothing at all; TC just
-treats them as two measurement updates.
+But two ranges leave a **two-fold ambiguity**: the true position and its
+reflection across the baseline joining the surviving anchors. TC takes the
+wrong branch at t = 25.8 s, estimating (30.1, -35.5) against a truth of
+(20.0, 7.2) — a 43.92 m peak. It lasts under a second, and it is enough to put
+TC's whole-run RMSE (2.338 m) *above* LC's (1.566 m).
 
-**But tight coupling is a trade, not a free win.** At the two outlier events in
-this dataset TC peaks *higher* than LC — 4.42 m against 3.42 m near t = 37 s,
-and 5.24 m against 3.37 m near t = 57 s. A corrupted range goes straight into
-the filter, whereas LC's front end solves a position from all ranges at once and
-can absorb the bad one. That is precisely what the chi-square gating of
-Section 8.3.2 is for. And with only a *single* anchor visible, TC's geometry is
-degenerate and its RMSE degrades to 1.8 m, worse than LC — one range constrains
-a circle, not a point.
+So the honest summary is that tight coupling degrades more gracefully right up
+until the geometry becomes ambiguous, at which point it can fail in a way loose
+coupling structurally cannot: LC's front end refuses to answer, while TC
+answers confidently and wrongly. Which you prefer is an engineering judgement,
+not a ranking. Other outage windows do not trigger the flip — see the module
+docstring.
 
 ## Equation Reference
 
@@ -191,41 +195,43 @@ python -m ch8_sensor_fusion.compare_lc_tc --save comparison.svg
 
 ### TC Fusion Demo
 
-Running `python -m ch8_sensor_fusion.tc_uwb_imu_ekf --batch-update` produces:
+Running `python -m ch8_sensor_fusion.tc_uwb_imu_ekf` produces:
 
+<!-- example-output: ch8_sensor_fusion.tc_uwb_imu_ekf -->
 ```
-======================================================================
 Tightly Coupled IMU + UWB EKF Fusion
 ======================================================================
-
 Initialization:
-  State: [0. 0. 1. 0. 0.]
+  State: [1. 0. 1. 0. 0.]
   Gating: Enabled
   Confidence: 0.95 (95% confidence)
-
 Measurements:
   IMU samples: 6000
-
+  UWB samples: 2271
+  Update mode: Sequential (per-anchor)
+...
 Fusion complete:
-  UWB accepted: 535
-  UWB rejected: 65
-  Acceptance rate: 89.2%
-
+  UWB accepted: 2023
+  UWB rejected: 248
+  Acceptance rate: 89.1%
 Adaptive Gating Stats:
-  Mean NIS: 0.9898 (expected: 1.00)
-  Current R scale: 1.00
-  Total adaptations: 0
-
-======================================================================
+  Mean NIS: 1.93 (expected: 1)
+  Final R scale: 1.00x
+  Covariance inflations: 21
+...
 Evaluation Metrics
 ======================================================================
-  RMSE (2D)    : 0.281 m
-  RMSE (X)     : 0.249 m
-  RMSE (Y)     : 0.310 m
-  Max Error    : 2.256 m
-
-Saved figure: ch8_sensor_fusion/figs/tc_uwb_imu_results.svg
+  RMSE (2D)    : 0.167 m
+  RMSE (X)     : 0.096 m
+  RMSE (Y)     : 0.136 m
+  Max Error    : 1.021 m
+  Final Error  : 0.064 m
+  Median Error : 0.030 m  <- typical tracking
 ```
+
+TC takes one update per anchor per epoch, so it accepts 2023 range updates
+where LC accepts 565 position fixes below — that ratio is most of why the two
+differ.
 
 **Visual Output:**
 
@@ -241,60 +247,71 @@ Saved figure: ch8_sensor_fusion/figs/tc_uwb_imu_results.svg
 
 Running `python -m ch8_sensor_fusion.lc_uwb_imu_ekf` produces:
 
+<!-- example-output: ch8_sensor_fusion.lc_uwb_imu_ekf -->
 ```
-======================================================================
 Loosely Coupled IMU + UWB EKF Fusion
 ======================================================================
-
 Initialization:
-  State: [0. 0. 1. 0. 0.]
+  State: [1. 0. 1. 0. 0.]
   Gating: Enabled
   Confidence: 0.95 (95% confidence)
-
 Measurements:
   IMU samples: 6000
   UWB epochs: 600
-
+  Total: 6600
+...
 Fusion complete:
-  Acceptance rate: 95.9%
-
+  UWB position fixes solved: 587
+  UWB fixes accepted: 565
+  UWB fixes rejected: 22
+  UWB solver failures: 13
+  Acceptance rate: 96.3%
 Adaptive Gating Stats:
-  Mean NIS: 1.8865 (expected: 2.00)
-  Current R scale: 1.00
-  Total adaptations: 0
-
-======================================================================
+  Mean NIS: 2.82 (expected: 2)
+  Final R scale: 5.00x
+  Covariance inflations: 10
+...
 Evaluation Metrics
 ======================================================================
-  RMSE (2D)    : 0.671 m
-  RMSE (X)     : 0.706 m
-  RMSE (Y)     : 0.635 m
-  Max Error    : 3.441 m
-
-Saved figure: ch8_sensor_fusion/figs/lc_uwb_imu_results.svg
+  RMSE (2D)    : 1.013 m
+  RMSE (X)     : 0.708 m
+  RMSE (Y)     : 0.724 m
+  Max Error    : 3.562 m
+  Final Error  : 1.963 m
 ```
+
+`UWB solver failures: 13` is worth noticing: LC has to solve a position fix
+from the ranges before the filter sees anything, and on 13 epochs that solve
+did not converge at all. TC has no equivalent failure mode, because it feeds
+the filter the ranges themselves.
 
 ### LC vs TC Comparison
 
 Running `python -m ch8_sensor_fusion.compare_lc_tc` produces:
 
+<!-- example-output: ch8_sensor_fusion.compare_lc_tc -->
 ```
-======================================================================
 LC vs TC Performance Comparison
 ======================================================================
 Metric                          LC Fusion       TC Fusion   Difference
 ----------------------------------------------------------------------
-RMSE 2D (m)                         0.671           0.522      +0.149
-RMSE X (m)                          0.706           0.586      +0.120
-RMSE Y (m)                          0.635           0.449      +0.185
+RMSE 2D (m)                         1.013           0.167      +0.846
+RMSE X (m)                          0.708           0.096      +0.612
+RMSE Y (m)                          0.724           0.136      +0.588
+Max Error (m)                       3.562           1.021      +2.541
+Mean Error (m)                      0.621           0.083      +0.538
+Final Error (m)                     1.963           0.064      +1.899
 ----------------------------------------------------------------------
-Acceptance Rate (%)                  95.9            89.4        +6.5
-======================================================================
-  * TC has lower RMSE (0.149m difference)
-  * LC has higher acceptance rate (6.5% difference)
-
-Saved comparison report: ch8_sensor_fusion/figs/lc_tc_comparison.svg
+UWB Updates Accepted                  565            2023       -1458
+UWB Updates Rejected                   22             248        -226
+LC Solver Failures                     13             N/A
+Acceptance Rate (%)                  96.3            89.1        +7.2
 ```
+
+TC is 6x better on this dataset, not the narrow margin this section used to
+claim. LC's higher acceptance rate is not a point in its favour: it accepts a
+larger share of far fewer updates, and separately fails to produce a fix at
+all on 13 epochs.
 
 **Visual Output:**
 
@@ -442,16 +459,26 @@ print(f"Lever-arm: {t} m")
 ```
 
 **Demo Output:**
+
+<!-- example-output: ch8_sensor_fusion.calibration_demo -->
 ```
-Extrinsic Calibration Results:
+Extrinsic Calibration Results
+======================================================================
 Parameter                            Estimated            True      Error
 ----------------------------------------------------------------------
 Rotation Angle [deg]                    30.06           30.00     0.0620
 Lever-arm X [m]                        0.4989          0.5000    0.00111
 Lever-arm Y [m]                        0.2978          0.3000    0.00221
-
+======================================================================
 Alignment RMSE after calibration: 0.1021 m
+(Expected 0.1000 m = 2 x the 0.05 m per-axis sensor noise: sqrt(2) for differencing two noisy sensors,
+ and sqrt(2) again because this is a 2-D magnitude rather than one axis. Measured/expected = 1.02.)
 ```
+
+The residual is checked against a predicted value rather than eyeballed: two
+sensors each carrying 0.05 m of per-axis noise, differenced and taken as a 2-D
+magnitude, give 0.10 m. Measuring 0.1021 m against that says the calibration
+has removed everything systematic and left only the noise.
 
 **Key Takeaways:**
 1. **Intrinsic calibration** corrects sensor-specific errors (biases, scale factors)

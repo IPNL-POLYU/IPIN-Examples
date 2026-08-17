@@ -136,7 +136,7 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 
 ### Path D: SLAM (Chapter 7)
 1. **Start**: `ch7_slam_2d_square/` - Pose graph basics with loop closure
-2. **Challenge**: `ch7_slam_2d_high_drift/` - When SLAM really matters (20× improvement!)
+2. **Challenge**: `ch7_slam_2d_high_drift/` - When SLAM really matters (+13.1% RMSE)
 
 ---
 
@@ -239,8 +239,8 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 
 | Dataset | Purpose | Odometry Drift | Loop Closures | Key Learning | Documentation |
 |---------|---------|----------------|---------------|--------------|---------------|
-| `ch7_slam_2d_square/` | Pose graph SLAM baseline | ~0.5m | 1 | **10× improvement with loop closure** | [README](ch7_slam_2d_square/README.md) |
-| `ch7_slam_2d_high_drift/` | High drift stress test | ~2.0m | 1 | **20× improvement (SLAM essential!)** | [README](ch7_slam_2d_high_drift/README.md) |
+| `ch7_slam_2d_square/` | Pose graph SLAM baseline | ~0.5m | 1 | **+33.4% RMSE with loop closure** | [README](ch7_slam_2d_square/README.md) |
+| `ch7_slam_2d_high_drift/` | High drift stress test | ~1.1m | 1 | **+13.1% RMSE** | [README](ch7_slam_2d_high_drift/README.md) |
 
 **Key Equations**:
 - Eqs. (7.10)-(7.11): ICP scan matching

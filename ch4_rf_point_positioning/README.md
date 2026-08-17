@@ -624,25 +624,37 @@ estimated_pos, info = positioner.solve(tdoa, initial_guess=np.array([6.0, 6.0]))
 
 Running `python ch4_rf_point_positioning/example_toa_positioning.py` produces:
 
+<!-- example-output: ch4_rf_point_positioning.example_toa_positioning -->
 ```
+Example 1: TOA Positioning with Perfect Measurements
 ======================================================================
-Chapter 4: TOA Positioning Example
+...
+True position: [5. 5.]
+...
+Estimated position: [5.00000012 5.00000012]
+Position error: 0.000000 m
+Converged: True
+Iterations: 3
+...
+Example 2: TOA Positioning with Measurement Noise
 ======================================================================
-
---- Setting up test scenario ---
-  Anchors: 4 anchors in square configuration (10m x 10m)
-  True position: [5.0, 5.0] m
-
---- TOA Positioning (Perfect Measurements) ---
-  Estimated position: [5.00, 5.00] m
-  Position error: 0.000 m
-  Converged in 3 iterations
-
---- TOA Positioning (With 10cm Noise) ---
-  Estimated position: [4.92, 5.08] m
-  Position error: 0.116 m
-  HDOP: 1.41
+True position: [3. 7.]
+Range noise std: 0.1 m
+...
+Position error: 0.055 m   <- ONE noise draw, not an accuracy
+...
+Over 2000 noise draws, against Eq. (4.107):
+  HDOP for this geometry : 1.010
+  predicted HDOP x sigma : 0.1010 m
+  measured RMS error     : 0.1012 m  (1.00x predicted)
+  a single draw lands anywhere in [0.032, 0.154] m (10th-90th percentile)
 ```
+
+Note what the example does with that single draw: it prints it, labels it as
+one draw rather than an accuracy, and then reports the Monte-Carlo RMS beside
+the DOP prediction it should match. 0.1012 m measured against 0.1010 m
+predicted is the actual claim; the 0.055 m above it is a sample that happens to
+land low, and the percentile range says how little that means.
 
 **Visual Output:**
 
@@ -654,22 +666,33 @@ Chapter 4: TOA Positioning Example
 
 Running `python ch4_rf_point_positioning/example_comparison.py` generates a comprehensive comparison:
 
-```
-======================================================================
-RF Positioning Methods Comparison
-======================================================================
+The left four columns are the noise injected at each level; the right columns
+are the resulting median position error over repeated draws. One draw is not a
+measurement, so this table reports medians rather than the single realisation
+it used to — see `.cursor/rules/030-figures-and-claims.mdc`.
 
---- Performance Summary (Noise = 0.10m) ---
-  TOA:  RMSE = 0.12m, Success Rate = 100%
-  TDOA: RMSE = 0.10m, Success Rate = 100%
-  AOA:  RMSE = 0.15m, Success Rate = 100%
-  RSS:  RMSE = 1.73m, Success Rate = 58%
-
---- Key Observations ---
-  - TOA and TDOA provide similar accuracy with good geometry
-  - AOA accuracy depends on distance to anchors
-  - RSS is most sensitive to noise (path-loss model uncertainty)
+<!-- example-output: ch4_rf_point_positioning.example_comparison -->
 ```
+Results Summary (median error in metres)
+======================================================================
+  Clock bias: 1.5 m (TOA only; cancels in TDOA)
+  RSS config: Rayleigh short-term (sigma=0.5), 5 samples averaged
+  AOA anchor 3 is 10x noisier than the others; 'AOA unw' solves the same bearings unweighted
+Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       TDOA      AOA       AOA unw   RSS       AOA fail
+----------------------------------------------------------------------------------------------------------
+1      0.00      0.00      0.0       0.0       0.153     0.000     0.000     0.000     1.131     0
+2      0.05      0.05      1.0       2.0       0.177     0.033     0.126     0.495     1.627     0
+3      0.10      0.10      3.0       4.0       0.074     0.065     0.340     1.389     3.912     0
+4      0.20      0.20      5.0       6.0       0.211     0.136     0.630     1.026     5.611     0
+5      0.50      0.50      10.0      8.0       0.406     0.279     1.506     1.525     5.853     0
+```
+
+`AOA fail` counts solves landing over 100 m from truth, and reads 0 at every
+level. It did not always: solving on `z = tan(psi)` as Eq. (4.64) is written
+literally made infinity an attractor the solver reported as convergence, so
+8 of 39 converged solves were wrong — at zero angular noise. `AOAPositioner`
+now forms its residuals as `wrap(psi - atan2(dE, dN))`. The example prints the
+full explanation.
 
 **Visual Output:**
 

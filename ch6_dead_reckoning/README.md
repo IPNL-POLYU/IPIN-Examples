@@ -286,22 +286,27 @@ python ch6_dead_reckoning/example_pdr.py --step-model power_law
 
 Running `python -m ch6_dead_reckoning.example_imu_strapdown` demonstrates pure IMU integration without any corrections.
 
+<!-- example-output: ch6_dead_reckoning.example_imu_strapdown -->
 ```
-=== Chapter 6: IMU Strapdown Integration ===
-Scenario: Figure-8 trajectory (100 seconds, 100 Hz IMU)
-
 Configuration:
-  IMU Grade:       Consumer (ARW=0.1 deg/sqrt(hr), BI=10 deg/hr)
-  Frame:           ENU (East-North-Up)
-  Trajectory:      267.9 m total distance
-
-Results (IMU-only, no corrections):
-  Final Position Error:  252.0 m (94.1% of distance)
-  Max Velocity Error:    5.04 m/s
-  Max Attitude Error (Yaw): 359.7 deg
-  Drift Rate:            2.520 m/s (UNBOUNDED!)
-
-Key Insight: IMU drift is UNBOUNDED without corrections!
+  Duration:        100.0 s
+  IMU Rate:        100 Hz
+  IMU Grade:       consumer
+  Trajectory:      Figure-8 pattern
+  Frame:           ENU
+...
+Generating trajectory...
+  Total distance:  267.9 m
+...
+RESULTS (IMU-only, no corrections)
+============================================================
+  Final Position Error:  645.6 m (241.0% of distance)
+  Max Velocity Error:    12.92 m/s
+  Max Attitude Error:
+    Roll:   0.1°
+    Pitch:  0.1°
+    Yaw:    359.6°
+  Drift Rate:            6.456 m/s (UNBOUNDED!)
 ```
 
 #### IMU Strapdown Figures
@@ -321,25 +326,32 @@ Key Insight: IMU drift is UNBOUNDED without corrections!
 
 Running `python -m ch6_dead_reckoning.example_zupt` demonstrates ZUPT-EKF for foot-mounted navigation.
 
+<!-- example-output: ch6_dead_reckoning.example_zupt -->
 ```
-=== Chapter 6: Zero-Velocity Update (ZUPT) ===
-Scenario: Walking with stops (60 seconds, 61.6m total distance)
-Walking Pattern: 5s walk + 2s stop (repeated)
-Stance time: 26.7% of trajectory
-
-Results:
-  IMU-only RMSE:     110.49 m (179% of distance)
-  IMU + ZUPT RMSE:     9.22 m (15% of distance)
-  
-  Improvement:       91.7% reduction in RMSE
-
-Method: ZUPT-EKF with proper Kalman filter measurement update
-        (Eqs. 6.40-6.43 for Kalman filter + Eq. 6.45 for ZUPT)
-        Detection: Windowed test statistic (Eq. 6.44)
-
-Key Insight: ZUPT-EKF corrects velocity drift during stance phases!
-             Essential for foot-mounted IMU navigation.
-             Achieves >90% error reduction.
+Configuration:
+  Duration:        60.0 s
+  IMU Rate:        100 Hz
+  Walking Pattern: 5s walk + 2s stop (repeated)
+  Step Rate:       2.0 Hz
+  Step Length:     0.7 m
+  Frame:           ENU
+...
+Generating walking trajectory with stance phases...
+  Total distance:  61.6 m
+  Stance time:     26.7% of trajectory
+...
+  ZUPT detections:  97.0% of samples
+  Method:           EKF measurement update (not hard-coded v=0)
+...
+RESULTS
+======================================================================
+IMU-only (no ZUPT):
+  Final error:  237.28 m (385.3% of distance)
+  RMSE:         110.49 m
+IMU + ZUPT:
+  Final error:  12.46 m (20.2% of distance)
+  RMSE:         9.22 m
+Improvement:    91.7% reduction in RMSE
 ```
 
 **Implementation Notes:**
@@ -372,7 +384,7 @@ Running `python -m ch6_dead_reckoning.example_wheel_odometry` demonstrates vehic
 | ![Wheel Odometry Trajectory](figs/wheel_odom_trajectory.svg) | **Vehicle trajectory** showing ground truth vs. wheel odometry estimate. Includes lever arm compensation (Eq. 6.11). |
 | ![Wheel Odometry Error](figs/wheel_odom_error.svg) | **Position error over time** for wheel odometry. Error is bounded but grows due to heading drift. |
 
-**Key Insight:** Wheel odometry provides **bounded drift** (~30% of distance traveled) but suffers from heading drift over long distances. Best combined with absolute heading sensors.
+**Key Insight:** Wheel odometry drift is **bounded** — it follows distance travelled rather than time. On the 270 m square the standalone example ends 2.32 m out (0.9% of distance); in `example_comparison` it is 0.42 m RMSE over 100 m, set by the 2% encoder scale error. Contrast the IMU, which is unbounded in *time*. Heading error still accumulates, so it is best combined with an absolute heading reference.
 
 **Speed Frame Convention:** Following the book, the speed frame uses:
 - x-axis: right
@@ -430,90 +442,65 @@ Running `python -m ch6_dead_reckoning.example_pdr` demonstrates step-and-heading
 | ![PDR Heading](figs/pdr_heading.svg) | **Heading comparison over time** showing gyro-integrated heading (drifts) vs. magnetometer heading (noisy but bounded) vs. ground truth. |
 | ![PDR Error](figs/pdr_error.svg) | **Position error over time** for both PDR methods. Magnetometer-based PDR typically has bounded error; gyro-based drifts over long walks. |
 
-**Key Insight:** PDR provides **~20% of distance** error with good step detection. Heading source is critical: magnetometer bounds drift but is noisy; gyro is smooth but drifts.
+**Key Insight:** PDR is **bounded and heading-limited**. On this 117 m walk it closes to 1.2 m with magnetometer heading (1.0% of distance) and 2.2 m with gyro heading (1.9%). Step length, not heading, is the dominant residual — see below.
 
 **Step Detection:** Uses peak detection (Eqs. 6.46-6.47) with:
 - Gravity subtraction: `a_tot = ||a|| - g`
 - Low-pass filtering (5 Hz cutoff)
 - Peak detection with minimum step interval (0.3s)
 
-#### Understanding PDR Path Size Differences
+#### Where PDR's Error Actually Comes From
 
-**Observation:** In the trajectory figure, the magnetometer-based PDR estimate (blue) often appears larger than the ground truth path (black), with the rectangular path "stretched outward."
+<!-- example-output: ch6_dead_reckoning.example_pdr -->
+```
+  Expected steps:  167 (at 2.0 Hz step frequency)
+...
+  Detected 166 steps using peak detection
+...
+PDR (Gyro Heading - drifts unbounded):
+  Final error:  2.2 m (1.9% of distance)
+  RMSE:         1.8 m
+...
+PDR (Magnetometer Heading - absolute but noisy):
+  Final error:  1.2 m (1.0% of distance)
+  RMSE:         1.6 m
+```
 
-**Physical Explanation:**
+**Step length is essentially the whole residual.** PDR believes it walked
+124.1 m against a true 116.6 m, +6%. Detection is sound — 166 steps found
+against 168 taken — so the gap is the model: Eq. (6.49) returns 0.748 m per
+step for a 1.75 m walker at this cadence, while the simulated gait is 0.694 m.
+Step length is the parameter PDR is most sensitive to, and the one a real
+deployment has to calibrate per user.
 
-This behavior demonstrates the **critical importance of calibration** in PDR systems. Three factors contribute to path over-estimation:
+Heading contributes far less than it looks like it should. The gyro ends 1.2°
+from truth over 120 s, which is its realised bias and nothing else.
 
-1. **Step Length Calibration** (Book Eq. 6.49):
-   ```
-   L = 0.7 + c · (h/1.75)^0.371 · (SF/1.79)^0.227
-   ```
-   - The example uses **hardcoded parameters**: `height = 1.75 m` and `c = 1.0`
-   - Book Eq. (6.49) includes an offset (0.7 m) and reference normalization
-   - If the synthetic walker has a different height or stride pattern, each step is over-scaled
-   - **Impact**: Every step moves the estimate farther than actual motion
-   - **Real-world analogy**: Using average shoe size to estimate foot length for everyone
-   - **Note**: The actual Weinberg model uses per-step acceleration ptp, not just height/frequency
+> **This section used to say something quite different**, and the story is
+> worth keeping because the shape recurs. It described paths "stretched
+> outward", step over-counting of ~40% (239 detected against 171 expected), and
+> a 50–100% error in uncalibrated scenarios. All of that was real, and none of
+> it was PDR's fault: the trajectory generator turned each 90° corner inside a
+> single 0.01 s sample — 9000°/s — which no gyro forward model can represent,
+> so the *true* gyro integrated to 162° over a lap whose heading comes round to
+> 360°. The estimator was faithfully reporting a rotation the data never
+> contained. The gait oscillation also ran through 36 s of standing still,
+> worth 73 phantom steps. With the corners rounded (2 m radius, 40°/s) and the
+> gait signal stopped while stationary, the final error went from 80.7 m to
+> 2.2 m. Chapter 8 had the identical defect at the identical 9000°/s.
+>
+> The lesson the example now leads with: **check that a simulated ground truth
+> describes an achievable motion before reading an estimator's error as the
+> estimator's.** `tests/test_simulated_truth_is_physical.py` is the runnable
+> form of that check.
 
-2. **Step Over-Counting** (Peak Detection):
-   - Peak detector uses `min_peak_distance = 0.3 s` to prevent double-counting
-   - At 100 Hz sampling, synthetic accelerations can have **two strong peaks per stride** (e.g., heel strike + toe-off)
-   - The 0.3 s window (~30 samples) may not fully suppress both peaks for certain gait patterns
-   - **Impact**: Can detect **~40% more steps** than actually occurred (e.g., 239 detected vs 171 expected)
-   - **Real-world analogy**: Counting both footfalls of a single step as two separate steps
+**Calibrating step length** is therefore the highest-value thing to do:
 
-3. **Heading Disturbances** (Magnetometer Noise):
-   - Magnetometer measurements include intentional noise (σ = 0.05) and disturbances (σ = 0.3 during intervals)
-   - See `add_sensor_noise()` in `example_pdr.py:439-464`
-   - Small yaw biases on each leg segment cause the rectangular path to "flare outward"
-   - **Impact**: Cumulative heading errors expand the path boundary
-   - **Real-world analogy**: Slight compass errors making your route zigzag wider than intended
+- Walk a known distance and solve for `c` in Eq. (6.49), or measure height.
+- Validate step detection against a manual count — here it is already within 2.
+- For higher accuracy the Weinberg model uses per-step acceleration windows and
+  a calibrated gain `G_w`; see "Step-Length Models" below.
 
-**Combined Effect:**
-
-- Over-scaled step length (factor ×1.2 typical with book Eq. 6.49)
-- More detected steps (factor ×1.4 typical, e.g., 239 vs 171 expected)
-- Heading spread (adds ~5-10% boundary expansion)
-- **Result**: PDR estimate can be significantly larger than actual path (50-100% error in uncalibrated scenarios)
-- **Note**: Matching the simulated gait to the step-length model removes almost
-  all of it. `example_comparison.py` walks at 1.2 m/s with a 1.75 Hz step rate,
-  which is the pair Eq. (6.49) is self-consistent with at h = 1.75 m, and its
-  PDR track comes out 2.3% long (0.51 m RMSE over 100 m)
-
-**Pedagogical Value:**
-
-- This is **NOT a bug** but a demonstration of PDR's **sensitivity to parameters**
-- Shows why **personal calibration** is essential for accurate PDR:
-  - Walk a known distance to calibrate parameter `c` (book Eq. 6.49 model)
-  - Validate step detection against manual counts
-  - Calibrate magnetometer for local distortions
-- Illustrates the difference between **algorithmic correctness** and **parameter accuracy**
-- In production PDR systems, calibration routines are mandatory!
-
-**How to Improve Path Accuracy** (if desired for testing):
-
-1. **Calibrate step length**: 
-   - Measure actual step length for your gait
-   - Adjust `c` parameter or use measured height
-   - Typical: `c ∈ [0.4, 0.5]` for many users (not 1.0)
-
-2. **Tune peak detection**:
-   - Increase `min_peak_distance` to 0.45-0.5 s to avoid double-counting
-   - Adjust `min_peak_height` threshold based on accelerometer calibration
-   - Validate against known step counts
-
-3. **Magnetometer calibration**:
-   - Apply hard-iron and soft-iron corrections
-   - Filter out transient disturbances
-   - Consider complementary filtering with gyro heading
-
-**Note on Step-Length Models:**
-- The examples use **book Eq. (6.49)** with parameter `c` (default: `--step-model book`)
-- For higher accuracy, the **actual Weinberg model** requires per-step acceleration windows and calibrated gain `G_w`
-- See the "Step-Length Models" section below for detailed comparison and usage examples
-
-**Recommended Action:** Keep this behavior as-is. It provides valuable insight into why PDR systems require careful calibration and why "off-the-shelf" parameters rarely work in practice!
 
 ---
 
@@ -521,24 +508,25 @@ This behavior demonstrates the **critical importance of calibration** in PDR sys
 
 Running `python -m ch6_dead_reckoning.example_environment` demonstrates magnetometer and barometer usage.
 
+<!-- example-output: ch6_dead_reckoning.example_environment -->
 ```
-=== Chapter 6: Environmental Sensors ===
-Scenario: Multi-floor building walk (180 seconds, 3 floors)
-
+RESULTS
+======================================================================
 Magnetometer Heading:
-  RMSE:             103.2 deg
-  Max error:        180.0 deg
-  Note: Large errors during magnetic disturbances (30-50s, 100-120s)
-
+  RMSE:             20.6°
+  Max error:        179.1°
+  (Note: Large errors during disturbances at 30-50s, 100-120s)
 Barometric Altitude:
-  RMSE:             3.04 m
+  RMSE:             3.03 m
   Floor Accuracy:   44.4%
-
-Key Insight: Environmental sensors provide absolute references!
-             Magnetometer bounds heading drift (when clean).
-             Barometer provides floor-level positioning.
-             BUT sensitive to indoor disturbances (steel, weather).
 ```
+
+The 20.6° heading RMSE is dominated by the two injected disturbance windows,
+not by the clean segments — the max error of 179° is a near-reversal inside
+one of them. Floor accuracy of 44.4% is the barometer's, on 3.5 m floors with
+3.03 m of altitude RMSE: the error is comparable to the floor spacing, so the
+classifier is barely better than a coin toss. Both numbers are the point of
+the example rather than a defect in it.
 
 #### Environmental Sensor Figures
 
@@ -633,11 +621,10 @@ sigma_gyro = arw_to_noise_std(arw=0.0088, dt=0.01)  # 100 Hz → rad/s per sampl
 
 Running `python -m ch6_dead_reckoning.example_comparison` compares all methods.
 
+<!-- example-output: ch6_dead_reckoning.example_comparison -->
 ```
-===========================================================================
 RESULTS - Performance Comparison (horizontal error)
 ===========================================================================
-
 Method                 RMSE [m]  Final [m] Median [m]    90% [m]   Path [m]
 ---------------------------------------------------------------------------
 (ground truth)                -          -          -          -      100.0
@@ -646,20 +633,12 @@ IMU + ZUPT                 8.82       9.48       9.48      10.64       85.1
 Wheel Odom                 0.42       0.12       0.32       0.66      104.3
 PDR (Mag)                  0.51       0.49       0.49       0.66      102.3
 
+...
 KEY INSIGHTS:
   1. IMU-only: UNBOUNDED. 100 m off after 120 s, tracing 169 m for a 100 m walk.
      Unusable without corrections.
   2. IMU+ZUPT: 84% RMSE reduction (54 m -> 8.8 m), detector active on 25% of samples.
-     Velocity is reset while standing but attitude is never corrected, so error
-     still grows -- far more slowly.
-  3. Wheel Odom: BOUNDED. Error follows distance, not time: RMSE 0.42 m over
-     100 m, set by the 2% encoder scale error.
-     'Final' is near zero only because the loop closes on its own start point;
-     read 'Path' instead.
-  4. PDR: BOUNDED, heading-limited. 149 detected steps cover 102.3 m against
-     100.0 m (+2.3%), RMSE 0.51 m.
-
-Conclusion: Dead reckoning REQUIRES corrections or fusion!
+  4. PDR: BOUNDED, heading-limited. 149 detected steps cover 102.3 m against 100.0 m (+2.3%), RMSE 0.51 m.
 ```
 
 **Read the `Path` column first.** Every method here is scored against a ground
