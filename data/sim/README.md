@@ -120,7 +120,7 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 
 ### Path A: RF Positioning Fundamentals (Chapter 4)
 1. **Start**: `ch4_rf_2d_square/` - Understand TOA/TDOA/AOA with good geometry
-2. **Compare**: `ch4_rf_2d_optimal/` vs `ch4_rf_2d_linear/` - Learn GDOP impact (10× difference!)
+2. **Compare**: `ch4_rf_2d_optimal/` vs `ch4_rf_2d_linear/` - GDOP impact, but read the per-type table: 12x for TDOA, 1.4x for TOA
 3. **Challenge**: `ch4_rf_2d_nlos/` - Handle NLOS bias in real environments
 
 ### Path B: Dead Reckoning (Chapter 6)
@@ -173,12 +173,18 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 
 ### Chapter 4: RF Point Positioning
 
-| Dataset | Purpose | Geometry | Mean GDOP | Key Learning | Documentation |
-|---------|---------|----------|-----------|--------------|---------------|
-| `ch4_rf_2d_square/` | Baseline TOA/TDOA/AOA | Square (4 corners) | ~1.0 | Good geometry fundamentals | [README](ch4_rf_2d_square/README.md) |
-| `ch4_rf_2d_optimal/` | Best-case geometry | Circular (evenly spaced) | ~0.8 | Optimal beacon placement | [README](ch4_rf_2d_optimal/README.md) |
-| `ch4_rf_2d_linear/` | Worst-case geometry | Linear array | >10 | **GDOP degradation (10×!)** | [README](ch4_rf_2d_linear/README.md) |
-| `ch4_rf_2d_nlos/` | NLOS robustness | Square + NLOS bias | ~1.0 | Systematic measurement bias | [README](ch4_rf_2d_nlos/README.md) |
+| Dataset | Geometry | GDOP TOA | GDOP TDOA | GDOP AOA | Key Learning | Documentation |
+|---------|----------|----------|-----------|----------|--------------|---------------|
+| `ch4_rf_2d_square/` | Square, 4 corners | 1.022 | 0.873 | 15.041 | Good geometry fundamentals | [README](ch4_rf_2d_square/README.md) |
+| `ch4_rf_2d_optimal/` | Circle, radius 10 m | 1.019 | 1.089 | 11.535 | **Barely differs from the square for TOA, and is worse for TDOA** | [README](ch4_rf_2d_optimal/README.md) |
+| `ch4_rf_2d_linear/` | Collinear array | 1.426 | 10.355 | 9.253 | **TDOA degrades 12x; TOA barely moves** | [README](ch4_rf_2d_linear/README.md) |
+| `ch4_rf_2d_nlos/` | Square + 0.8 m bias on 2 of 4 | 1.022 | 0.873 | 15.041 | GDOP is blind to bias | [README](ch4_rf_2d_nlos/README.md) |
+
+Mean over the 100 shipped query points, measured from the `gdop_*.txt` files.
+A single "mean GDOP" column used to sit here, which cannot be right: the three
+measurement types disagree about which geometry is best. `optimal` is not
+measurably better than `square` for TOA, and `linear` is only catastrophic for
+TDOA.
 
 **Key Equations**:
 - Eqs. (4.1)-(4.3): TOA range measurements
@@ -196,7 +202,7 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 |---------|---------|--------------|-----------|--------------|---------------|
 | `ch5_wifi_fingerprint_grid/` | Baseline Wi-Fi fingerprinting | 5m | 121 (11×11) | NN, k-NN, MAP, Posterior Mean | [README](ch5_wifi_fingerprint_grid/README.md) |
 | `ch5_wifi_fingerprint_dense/` | High-accuracy variant | 2m | 676 (26×26) | Dense grids = better accuracy | [README](ch5_wifi_fingerprint_dense/README.md) |
-| `ch5_wifi_fingerprint_sparse/` | Quick deployment variant | 10m | 25 (5×5) | Accuracy vs. effort trade-off | [README](ch5_wifi_fingerprint_sparse/README.md) |
+| `ch5_wifi_fingerprint_sparse/` | Quick deployment variant | 10m | 36 (6×6) | Accuracy vs. effort trade-off | [README](ch5_wifi_fingerprint_sparse/README.md) |
 
 **Key Equations**:
 - Eq. (5.1): Nearest-Neighbor (NN)
