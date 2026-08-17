@@ -518,6 +518,33 @@ Examples:
     # Print summary
     print_summary(results_list)
     
+    # --strict is a "show me everything" mode, so the register does not apply.
+    #
+    # It promotes the recommended-section warnings to errors, which fails eight
+    # datasets that are complete by the required-section standard the register
+    # tracks. Running them through the register logic reported those eight as
+    # "New documentation gaps" and advised adding them to KNOWN_INCOMPLETE,
+    # which would have been wrong: they are not incomplete, they simply lack
+    # optional sections.
+    if args.strict:
+        failing = sorted(
+            results['dataset'] for is_valid, results in results_list if not is_valid
+        )
+        if failing:
+            print(f"\n{Colors.YELLOW}{Colors.BOLD}Strict mode: recommended "
+                  f"sections missing{Colors.END}")
+            for name in failing:
+                print(f"  - {name}")
+            print(
+                "\nStrict mode treats the RECOMMENDED_SECTIONS as required. "
+                "These are not KNOWN_INCOMPLETE candidates -- that register is "
+                "for the required set. Run without --strict for the answer CI "
+                "uses."
+            )
+            return 1
+        print(f"\n{Colors.GREEN}{Colors.BOLD}[PASSED]{Colors.END} strict")
+        return 0
+
     # Exit code: a registered failure is debt, not a regression.
     #
     # An unregistered failure fails the build. A *registered* dataset that has
