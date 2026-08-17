@@ -535,7 +535,7 @@ def main():
     # Plot 4: Box plot comparison (Baseline)
     ax4 = plt.subplot(3, 3, 4)
     error_data = [r['errors'] for r in all_results["Baseline"]]
-    bp = ax4.boxplot(error_data, labels=methods, patch_artist=True)
+    bp = ax4.boxplot(error_data, tick_labels=methods, patch_artist=True)
     colors_box = ['lightblue', 'lightcyan', 'lightcoral', 'lightsalmon', 'lightgreen']
     for patch, color in zip(bp['boxes'], colors_box):
         patch.set_facecolor(color)
@@ -590,7 +590,7 @@ def main():
         cat_rmses[cat] = [r['rmse'] for r in cat_methods]
     
     positions = [1, 2, 3]
-    bp = ax7.boxplot(cat_rmses.values(), positions=positions, labels=cat_rmses.keys(),
+    bp = ax7.boxplot(cat_rmses.values(), positions=positions, tick_labels=cat_rmses.keys(),
                     patch_artist=True)
     for patch in bp['boxes']:
         patch.set_facecolor('lightyellow')

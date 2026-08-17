@@ -658,7 +658,7 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     # 3. GDOP distribution
     ax3 = axes[1, 0]
     gdop_data = [results['gdop']['TOA'], results['gdop']['TDOA'], results['gdop']['AOA']]
-    bp = ax3.boxplot(gdop_data, labels=['TOA', 'TDOA', 'AOA'], patch_artist=True)
+    bp = ax3.boxplot(gdop_data, tick_labels=['TOA', 'TDOA', 'AOA'], patch_artist=True)
     for patch, color in zip(bp['boxes'], ['blue', 'red', 'green']):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
@@ -729,7 +729,7 @@ def plot_inline_comparison(noise_levels, results):
     ax3 = axes[1, 0]
     data = [results[m][noise_idx] for m in methods if len(results[m][noise_idx]) > 0]
     labels = [m for m in methods if len(results[m][noise_idx]) > 0]
-    bp = ax3.boxplot(data, labels=labels, patch_artist=True, showfliers=False)
+    bp = ax3.boxplot(data, tick_labels=labels, patch_artist=True, showfliers=False)
     for patch, color in zip(bp["boxes"], colors[:len(data)]):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)

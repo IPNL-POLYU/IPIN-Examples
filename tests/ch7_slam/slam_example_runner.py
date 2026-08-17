@@ -36,102 +36,37 @@ file can assert on the same run without provoking a second one.
 Author: Li-Ta Hsu
 """
 
-import atexit
-import functools
 import json
-import os
 import re
-import shutil
-import subprocess
-import sys
-import tempfile
-import time
-from pathlib import Path
-from typing import Any, Dict, NamedTuple, Optional
+from typing import Any, Dict, Optional
 
-WORKSPACE_ROOT = Path(__file__).resolve().parent.parent.parent
+# The generic half of this module now lives in tests/example_runner.py, because
+# a second caller outside Chapter 7 needed it (tests/docs, which checks the
+# README transcripts against what the examples actually print). Re-exported
+# rather than reimplemented: run_example carries the lru_cache, so both callers
+# must share this one function object or the same invocation runs twice.
+from tests.example_runner import WORKSPACE_ROOT, ExampleRun, run_example
+
+# WORKSPACE_ROOT is re-exported: two Chapter 7 test modules import it from here
+# and predate the split. __all__ rather than a noqa, because the pyflakes
+# ratchet in test_repo_conventions runs pyflakes directly and does not read
+# ruff's suppressions -- which is how the first attempt at this import failed.
+__all__ = [
+    "ExampleRun",
+    "run_example",
+    "WORKSPACE_ROOT",
+    "POSE_GRAPH_MODULE",
+    "FRONTEND_MODULE",
+    "SCAN_MATCHING_MODULE",
+    "run_pose_graph_example",
+    "run_frontend_example",
+    "run_scan_matching_example",
+    "parse_slam_summary",
+]
 
 POSE_GRAPH_MODULE = "ch7_slam.example_pose_graph_slam"
 FRONTEND_MODULE = "ch7_slam.example_slam_frontend"
 SCAN_MATCHING_MODULE = "ch7_slam.example_scan_matching_visualization"
-
-# Generous on purpose: see the module docstring. The slowest example here is
-# the scan-matching visualisation at ~166 s standalone, so this is ~3.6x its
-# observed runtime and ~4.4x the pose graph's 135 s. Still a deadlock guard.
-EXAMPLE_TIMEOUT_S = 600
-
-
-@functools.lru_cache(maxsize=1)
-def _figs_root() -> Path:
-    """Scratch directory that IPIN_FIGS_DIR points the examples at.
-
-    One per pytest session, matching the lifetime of the memoised runs whose
-    output tests read back. Removed at interpreter exit.
-    """
-    root = Path(tempfile.mkdtemp(prefix="ipin-slam-figs-"))
-    atexit.register(shutil.rmtree, root, ignore_errors=True)
-    return root
-
-
-class ExampleRun(NamedTuple):
-    """One completed example run, shared between tests.
-
-    Attributes:
-        process: The finished subprocess. Treat as read-only -- every test
-            asserting on this invocation sees the same object.
-        started_at: Wall-clock epoch seconds from just before launch. Lets a
-            test tell a file this run wrote from a stale committed one.
-        figs_dir: Where this run's ``chX/figs`` output actually landed. Assert
-            against this, never against the in-repo path.
-    """
-
-    process: subprocess.CompletedProcess
-    started_at: float
-    figs_dir: Path
-
-
-@functools.lru_cache(maxsize=None)
-def run_example(module: str, *args: str) -> ExampleRun:
-    """Run a chapter example as a subprocess, once per argument tuple.
-
-    Args:
-        module: Importable module path, e.g. "ch7_slam.example_pose_graph_slam".
-        *args: Command-line arguments passed to the module.
-
-    Returns:
-        The shared ExampleRun for this invocation.
-    """
-    figs_root = _figs_root()
-
-    env = os.environ.copy()
-    env.update({
-        "MPLBACKEND": "Agg",
-        "PYTHONPATH": str(WORKSPACE_ROOT),
-        # Send the figures to scratch. Without this these tests rewrite the
-        # tracked ch7_slam/figs/*, so every run manufactured a diff -- which is
-        # why slam_with_maps.png kept turning up in git status. The examples
-        # still name their own chX/figs; core.eval mirrors in-repo writes under
-        # this root, preserving the repo-relative path.
-        "IPIN_FIGS_DIR": str(figs_root),
-    })
-
-    started_at = time.time()
-    process = subprocess.run(
-        [sys.executable, "-m", module, *args],
-        # Still the repo root: the examples resolve "data/sim" relative to the
-        # working directory, so a tmpdir here would break dataset loading. Only
-        # the figure output is diverted, and by IPIN_FIGS_DIR above.
-        cwd=WORKSPACE_ROOT,
-        capture_output=True,
-        text=True,
-        timeout=EXAMPLE_TIMEOUT_S,
-        env=env,
-    )
-    return ExampleRun(
-        process=process,
-        started_at=started_at,
-        figs_dir=figs_root / module.split(".")[0] / "figs",
-    )
 
 
 def run_pose_graph_example(*args: str) -> ExampleRun:

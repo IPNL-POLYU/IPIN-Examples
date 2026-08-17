@@ -417,7 +417,7 @@ def test_hierarchical_localization(db: FingerprintDatabase, rng=None):
     ax = axes[0, 1]
     ax.boxplot(
         [direct_errors, hier_errors, hier_rf_errors, hier_pm_errors],
-        labels=['Direct\nk-NN', 'Hier\nFloor->kNN', 'Hier\nRF->MAP', 'Hier\nFloor->PM'],
+        tick_labels=['Direct\nk-NN', 'Hier\nFloor->kNN', 'Hier\nRF->MAP', 'Hier\nFloor->PM'],
         showfliers=False
     )
     ax.set_ylabel('Positioning Error (m)', fontsize=11)

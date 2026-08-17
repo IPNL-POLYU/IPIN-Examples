@@ -224,21 +224,21 @@ pos_hier_rf, info = hierarchical_localize(
 
 Running `python ch5_fingerprinting/example_deterministic.py` produces:
 
+The `Time (ms)` column is shown as `~`: it is whatever the machine that last
+ran this happened to manage, not a property of the method.
+
+<!-- example-output: ch5_fingerprinting.example_deterministic -->
 ```
+RESULTS SUMMARY
 ======================================================================
-Chapter 5: Deterministic Fingerprinting
-======================================================================
-
-Database loaded: 363 RPs, 8 APs, 3 floors
-
---- NN Positioning (Eq. 5.1) ---
-  RMSE: 5.93 m
-  Median error: 3.31 m
-
---- k-NN Positioning (Eq. 5.2) ---
-  k=3, RMSE: 4.74 m
-  k=5, RMSE: 4.69 m
-  k=7, RMSE: 4.84 m
+Method                    RMSE (m)     Median (m)   90th % (m)   Time (ms)
+----------------------------------------------------------------------
+NN (Euclidean)            5.90         3.28         9.74         ~
+NN (Manhattan)            6.46         3.46         10.27        ~
+k-NN (k=3, inv-dist)      4.73         3.24         7.23         ~
+k-NN (k=5, inv-dist)      4.70         3.57         7.24         ~
+k-NN (k=7, inv-dist)      4.83         3.84         7.06         ~
+k-NN (k=5, uniform)       5.08         3.80         7.92         ~
 ```
 
 **Visual Output:**
@@ -257,26 +257,24 @@ Database loaded: 363 RPs, 8 APs, 3 floors
 
 Running `python ch5_fingerprinting/example_comparison.py` generates:
 
+The example runs three noise scenarios; this is the baseline one.
+
+<!-- example-output: ch5_fingerprinting.example_comparison -->
 ```
-======================================================================
-Chapter 5: Fingerprinting Methods Comparison
-======================================================================
-
-COMPREHENSIVE RESULTS SUMMARY (Baseline: sigma=1dBm)
-
-Method               Category             RMSE (m)  Median (m)  P90 (m)   Time (ms)
+Baseline:
+Method               Category             RMSE (m)     Median (m)   P90 (m)      Time (ms)
 ------------------------------------------------------------------------------------------
-NN (Euclidean)       Deterministic        5.20      2.75        8.64      0.455
-k-NN (k=3)           Deterministic        4.17      2.85        6.55      0.479
-MAP                  Probabilistic        5.20      2.75        8.64      1.124
-Posterior Mean       Probabilistic        4.29      2.29        7.39      1.062
-Linear Regression    Pattern Recognition  4.96      4.26        7.37      0.036
-
-Key Insights:
-  1. Speed: Linear Regression >> NN > k-NN
-  2. Accuracy (low noise): k-NN and Posterior Mean best
-  3. Robustness: k-NN and Posterior Mean most stable with noise
+NN (Euclidean)       Deterministic        10.05        8.22         16.18        ~
+k-NN (k=3)           Deterministic        7.55         6.01         12.05        ~
+MAP                  Probabilistic        10.05        8.22         16.18        ~
+Posterior Mean       Probabilistic        9.22         7.56         15.21        ~
+Post.Mean (k=10)     Probabilistic        9.22         7.56         15.21        ~
+Linear Regression    Pattern Recognition  7.74         6.66         11.83        ~
 ```
+
+`MAP` and `NN (Euclidean)` agree exactly, and `Post.Mean (k=10)` agrees with
+the full posterior mean, because both pairs select the same reference points on
+this database — the example prints the reasoning under Key Insights.
 
 **Visual Output:**
 
@@ -297,26 +295,30 @@ Key Insights:
 
 Running `python ch5_fingerprinting/example_classification.py` produces:
 
+<!-- example-output: ch5_fingerprinting.example_classification -->
 ```
+Test 1: Classification Accuracy
 ======================================================================
-Chapter 5: Classification-Based Fingerprinting
-======================================================================
+--- Training classifiers ---
+  1. Random Forest (n_estimators=100)
+  2. SVM (RBF kernel)
+--- Recall on the training vectors (memorisation check) ---
+  Random Forest: 100.0% (363/363)
+  SVM:           100.0% (363/363)
+  Expected to be 100% -- these are the training vectors themselves,
+  one per class. This says the models fit; it says nothing about
+  how they generalise, and is not a positioning result.
+--- Held-out queries (sigma = 2.0 dBm, n = 200) ---
+  Random Forest: 83.0% (166/200) exact RP
+  SVM:           97.0% (194/200) exact RP
+  This is the number to compare against other methods.
+```
 
-Test 1: Basic Classification Accuracy
-  Random Forest: RMSE = 4.85 m
-  SVM:           RMSE = 5.12 m
-  
-Test 2: Noise Robustness Comparison
-  Noise sigma = 1 dBm:  RF 4.85 m, SVM 5.12 m, k-NN 4.17 m
-  Noise sigma = 3 dBm:  RF 5.23 m, SVM 5.67 m, k-NN 4.89 m
-  Noise sigma = 5 dBm:  RF 5.78 m, SVM 6.34 m, k-NN 5.45 m
-  
-Test 3: Hierarchical Localization (Coarse -> Fine)
-  Direct k-NN:               4.17 m
-  Hierarchical (Floor -> kNN): 4.12 m
-  Hierarchical (RF -> MAP):    4.45 m
-  Hierarchical (Floor -> PM):  3.98 m
-```
+Classification reports **exact-RP accuracy**, not RMSE in metres, so these
+numbers are not directly comparable with the tables above — a classifier that
+picks a neighbouring reference point scores 0 here and under a metre there.
+Note also that the 100% training recall is a memorisation check, printed
+precisely so it is not mistaken for a positioning result.
 
 **Visual Output 1 - Noise Robustness:**
 

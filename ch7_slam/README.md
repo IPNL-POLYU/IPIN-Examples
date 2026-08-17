@@ -135,7 +135,7 @@ scale, tracked figures are already ~19 MB of a 36 MB repository.
 | Example Script | Dataset | Description |
 |----------------|---------|-------------|
 | `example_pose_graph_slam.py` | `data/sim/ch7_slam_2d_square/` | Square trajectory with loop closure |
-| `example_pose_graph_slam.py` | `data/sim/ch7_slam_2d_high_drift/` | High drift scenario (20x improvement with SLAM!) |
+| `example_pose_graph_slam.py` | `data/sim/ch7_slam_2d_high_drift/` | High drift scenario (+13.1% RMSE with SLAM) |
 
 **Load dataset manually:**
 ```python
@@ -396,71 +396,58 @@ map_after = build_map(optimized_poses, scans) # From optimization
 
 Running `python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square` produces:
 
+<!-- example-output: ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square -->
 ```
-======================================================================
-CHAPTER 7: 2D POSE GRAPH SLAM EXAMPLE
-Using dataset: data/sim/ch7_slam_2d_square
-======================================================================
-
 Dataset Info:
   Trajectory: square
   Poses: 41
-  Landmarks: 100
-
+  Landmarks: 50
+  Loop closures: 2
+...
+Front-end: init -> predict -> scan-to-map -> update map
 ----------------------------------------------------------------------
-Loop Closure Detection (observation-based)...
-  Loop closure: 0 <-> 40, desc_sim=0.973, icp_residual=0.1532, iters=4
-  Loop closure: 2 <-> 40, desc_sim=0.824, icp_residual=0.1546, iters=4
-  Loop closure: 4 <-> 40, desc_sim=0.796, icp_residual=0.1915, iters=4
-  Loop closure: 1 <-> 40, desc_sim=0.765, icp_residual=0.1449, iters=5
-  Loop closure: 3 <-> 40, desc_sim=0.764, icp_residual=0.1609, iters=4
-
-  Detected 5 loop closures (observation-based)
-
-----------------------------------------------------------------------
+...
+  Frontend converged ratio: 26.8%
+  Frontend avg residual: 0.0725 m
+...
+  Detected 1 loop closures (observation-based)
+...
 Building pose graph...
-  Pose graph: 41 variables, 46 factors
-  Factors: 1 prior + 40 odometry + 5 loop closures
-
-----------------------------------------------------------------------
+  Graph initial: frontend_poses (scan-to-map corrected trajectory)
+  Pose graph: 41 variables, 42 factors
+  Factors: 1 prior + 40 odometry + 1 loop closures
+...
 Optimizing pose graph...
-  Initial error: 1535.447086
-  Final error: 0.755672
-  Iterations: 50
-  Error reduction: 99.95%
-
-----------------------------------------------------------------------
+  Initial error: 8.350582
+  Final error: 0.003522
+  Iterations: 3
+  Error reduction: 99.96%
+...
 Results:
   Odometry RMSE: 0.3281 m (baseline)
-  Optimized RMSE: 0.2130 m (with 5 loop closures)
-  Improvement: +35.10% ✅
-  Final loop closure error: 0.0679 m
-
-----------------------------------------------------------------------
-Generating plots...
+  Frontend RMSE: 0.3404 m (scan-to-map corrected)
+  Optimized RMSE: 0.2184 m (backend with 1 loop closures)
+  Frontend improvement: -3.74%
+  Full pipeline improvement: +33.44%
+  Final loop closure error: 0.0360 m
+...
    Building map point clouds...
-   Map before: 593 points
-   Map after:  547 points (8% tightening)
-
-[OK] Saved figure: ch7_slam\figs\slam_with_maps.png
-
-======================================================================
-SLAM PIPELINE COMPLETE!
-======================================================================
-
-Summary:
-  - Trajectory: 41 poses
-  - Loop closures: 5 (observation-based detection)
-  - Odometry drift: 0.546 m
-  - Odometry RMSE: 0.3281 m (baseline)
-  - Optimized RMSE: 0.2130 m
-  - Improvement: +35.10%
-
-Note:
-  - Odometry factors from sensor data (not ground truth)
-  - Loop closures detected via scan descriptor similarity
-  - Backend optimizes pose graph with loop closure constraints
+   Map before (front-end): 537 points
+   Map after (backend):    481 points
 ```
+
+Read the front-end line: **it is negative.** Scan-to-map ICP leaves this
+trajectory slightly worse than the odometry it started from, and the whole
++33.44% comes from the backend closing the loop.
+
+That is specific to this dataset, not a broken front-end. In inline mode the
+same code earns +37.04% (see the performance figures at the top of this file),
+and `tests/ch7_slam/test_frontend_actually_corrects.py` gates it at better than
+0.9x the odometry RMSE there. What differs here is the input: this dataset's 41
+poses give the front-end far less overlap to align against than the 145 of a
+three-lap inline run, and the correction it can extract is smaller than the
+noise it adds. Worth knowing before quoting a single front-end number as *the*
+front-end number.
 
 **Visual Output:**
 
@@ -476,28 +463,35 @@ Note:
 
 Running `python -m ch7_slam.example_bundle_adjustment` produces:
 
+<!-- example-output: ch7_slam.example_bundle_adjustment -->
 ```
-================================================================================
-CHAPTER 7: VISUAL BUNDLE ADJUSTMENT EXAMPLE
-================================================================================
-
-1. Setting up camera parameters...
-   Camera: fx=500.0, fy=500.0
-
-2. Generating ground truth...
-   Generated 8 camera poses (circular trajectory)
-   Generated 15 3D landmarks
-
-3. Simulating camera observations...
-   Generated 117 observations
-
+   Generated 46 observations
+   Average 5.8 observations per pose
 4. Creating noisy initial estimates...
-   Initial pose RMSE: 0.0696 m
-   Initial landmark RMSE: 0.1708 m
-
-5. Running bundle adjustment optimization...
-   Error reduction: 98.61%
+   Initial pose RMSE: 0.5150 m
+   Initial landmark RMSE: 0.8717 m
+5. Building bundle adjustment factor graph...
+   Factor graph: 14 variables
+   Variables: 8 poses + 6 landmarks
+   Factors: 47 (46 reprojection + 1 prior)
+6. Running bundle adjustment optimization...
+   Initial reprojection error: 163.9 px RMS, worst 316.7 px
+   Final reprojection error: 0.53 px RMS, worst 1.14 px
+   Iterations: 25
+   Final RMS is at the 0.5 px measurement noise floor, so the solve is converged, not merely improved.
+7. Evaluating bundle adjustment results...
+   Pose RMSE (initial): 0.5150 m
+   Pose RMSE (optimized): 0.1510 m
+   Pose improvement: 70.68%
+   Landmark RMSE (initial): 0.8717 m
+   Landmark RMSE (optimized): 0.1136 m
+   Landmark improvement: 86.97%
 ```
+
+The reprojection error is reported in **pixels**, and the useful check is
+against the measurement noise floor rather than the percentage reduction: at
+0.53 px RMS against 0.5 px of injected noise, the solve has converged. A
+"99.9989% cost reduction" sounds better and says less.
 
 **Visual Output:**
 
@@ -582,7 +576,7 @@ python -m ch7_slam.example_bundle_adjustment --animate
 **Key Insights:**
 - **Trajectory:** Square 8m x 8m loop with 3 laps (145 poses)
 - **Environment:** Room with asymmetric features for reliable ICP
-- **Loop closures:** 5 observation-based closures detected (descriptor + ICP verification)
+- **Loop closures:** 147 observation-based closures detected over the 3 laps (descriptor + ICP verification)
 - **Consistency check:** `max|frontend - odom|` > 0 confirms front-end is working
 - **Machine-readable output:** `[SLAM_SUMMARY]` JSON line for automated testing
 
@@ -776,13 +770,13 @@ docs/architecture/
 └── ipin_ch7_flow_clean.svg          # Execution flow (rendered)
 
 data/sim/
-├── ch7_slam_2d_square/              # Square trajectory (35% improvement)
+├── ch7_slam_2d_square/              # Square trajectory (+33.4% RMSE)
 │   ├── ground_truth_poses.txt       # True poses (evaluation only)
 │   ├── odometry_poses.txt           # Noisy odometry (input)
 │   ├── landmarks.txt                # Environment features
 │   ├── scans.npz                    # LiDAR scans (input)
 │   └── config.json                  # Simulation parameters
-└── ch7_slam_2d_high_drift/          # High drift (21% improvement)
+└── ch7_slam_2d_high_drift/          # High drift (+13.1% RMSE)
     ├── ground_truth_poses.txt
     ├── odometry_poses.txt
     ├── landmarks.txt

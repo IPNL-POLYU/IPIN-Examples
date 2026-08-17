@@ -370,23 +370,36 @@ Compares EKF, UKF, Particle Filter, and Factor Graph Optimization on the same 2D
 ### Example 1: Least Squares Methods
 
 **Console output:**
-```
-======================================================================
-CHAPTER 3: LEAST SQUARES EXAMPLES
-======================================================================
 
-Example 1: Linear Least Squares (2D Positioning)
-  True position: [3.0, 4.0] m
-  LS estimate:   [3.02, 3.92] m
-  Error: 0.080 m
-
-Example 4: Robust Least Squares (8 anchors, 5.0m outlier)
-  Standard LS error: 1.29 m (corrupted by outlier)
-  Huber LS error:    0.08 m (93.5% improvement)
-  Cauchy LS error:   0.03 m (97.4% improvement)
-  
-Note: Uses 8 anchors (not 4) to provide sufficient redundancy for robust estimation
+<!-- example-output: ch3_estimators.example_least_squares -->
 ```
+EXAMPLE 1: Linear Least Squares (Eq. 3.2-3.3)
+======================================================================
+Measurement model: h_i(x) = ||x - a_i|| (range to anchor)
+Residual: r_i = y_i - h_i(x)  (book convention)
+True position:      [3. 4.]
+Initial guess:      [5. 5.]
+LS estimate:        [3.02093732 3.9228227 ]
+Position error:     0.0800 m
+...
+EXAMPLE 5: Robust LS with Table 3.1 Estimators
+======================================================================
+Scenario: 2D positioning from 8 anchors
+Added 5.0 m NLOS outlier to anchor 2
+(8 anchors provide redundancy for outlier rejection)
+...
+Method               Position                  Error (m)  Outlier w
+-----------------------------------------------------------------
+L2 (Table 3.1)       [3.525, 2.826]            1.2858     1.0000
+Cauchy (Table 3.1)   [3.005, 3.973]            0.0274     0.0010
+Huber (Table 3.1)    [3.039, 3.888]            0.1186     0.0467
+G-M (Table 3.1)      [3.009, 3.994]            0.0112     0.0000
+Tukey (extra)        [3.025, 4.012]            0.0282     0.0000
+```
+
+The `Outlier w` column is the weight each estimator gave the corrupted anchor,
+which is the mechanism behind the error column beside it: L2 keeps the outlier
+at full weight and is dragged 1.29 m off; Geman-McClure drives it to zero.
 
 **Generated figure:** `figs/ch3_least_squares_examples.png`
 
