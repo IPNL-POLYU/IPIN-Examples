@@ -140,6 +140,58 @@ def ecef_to_llh(
     return np.array([lat, lon, height], dtype=np.float64)
 
 
+def enu_to_llh_offset(
+    east: float,
+    north: float,
+    lat: float,
+) -> NDArray[np.float64]:
+    """Convert a local East/North displacement in metres to a geodetic offset.
+
+    Returns the offset in **radians**, ready to add to a latitude and longitude
+    that are already in radians. This is the first-order local tangent
+    approximation: divide by the meridian radius of curvature M going north,
+    and by the prime-vertical radius N scaled by cos(lat) going east.
+
+    Use this instead of a "metres per degree" constant. Such constants have to
+    be run through :func:`numpy.deg2rad` before they touch a radian coordinate,
+    and they are only valid at the latitude they were computed for -- one
+    degree of longitude spans 78.8 km at 45 deg but 88.1 km at 37.8 deg. Both
+    mistakes have shipped here: an example printed 6405.80 m as "100m East",
+    and the Chapter 2 dataset generator sampled a 50 m building footprint
+    across 2.7 km. Taking metres in and returning radians leaves no unit for a
+    caller to mislay.
+
+    Args:
+        east: Eastward displacement in meters.
+        north: Northward displacement in meters.
+        lat: Latitude the offset is taken about, in radians.
+
+    Returns:
+        Offset as numpy array [dlat, dlon] in radians.
+
+    Example:
+        >>> import numpy as np
+        >>> lat = np.deg2rad(37.7749)
+        >>> dlat, dlon = enu_to_llh_offset(100.0, 0.0, lat)
+        >>> # lon + dlon is 100 m east of lon, to within the curvature term.
+
+    Reference:
+        Chapter 2, Section 2.1 - local tangent linearisation of Eq. (2.9).
+        Exact to first order; the neglected term grows as the square of the
+        offset (about 1 mm at 100 m, 99 mm at 1 km).
+    """
+    sin_lat = np.sin(lat)
+    denom = 1.0 - WGS84_E2 * sin_lat**2
+    # Prime-vertical radius N (east) and meridian radius M (north).
+    n_radius = WGS84_A / np.sqrt(denom)
+    m_radius = WGS84_A * (1.0 - WGS84_E2) / denom**1.5
+
+    dlat = north / m_radius
+    dlon = east / (n_radius * np.cos(lat))
+
+    return np.array([dlat, dlon], dtype=np.float64)
+
+
 def ecef_to_enu(
     x: float,
     y: float,

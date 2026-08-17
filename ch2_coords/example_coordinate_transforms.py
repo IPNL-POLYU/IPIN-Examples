@@ -32,6 +32,7 @@ from core.coords import (
     ecef_to_enu,
     ecef_to_llh,
     enu_to_ecef,
+    enu_to_llh_offset,
     euler_to_quat,
     euler_to_rotation_matrix,
     llh_to_ecef,
@@ -39,7 +40,6 @@ from core.coords import (
     quat_to_rotation_matrix,
     rotation_matrix_to_euler,
 )
-from core.coords.transforms import WGS84_A, WGS84_E2
 
 
 def load_dataset(data_dir: str) -> dict:
@@ -233,21 +233,13 @@ def run_with_inline_data() -> None:
     lon_ref = np.deg2rad(-122.4194)
     height_ref = 0.0
 
-    # Turn a displacement in metres into one in radians, via the local radii of
-    # curvature: the meridian radius M northward, the prime-vertical radius N
-    # scaled by cos(lat) eastward.
-    #
-    # Doing it from the radii rather than from a "metres per degree" constant
-    # closes two traps at once. The constant is per *degree*, so it has to be
-    # converted before it is added to a latitude already in radians -- miss that
-    # and the offset is 180/pi = 57.3x too large. And it is only valid at the
-    # latitude it was computed for: one degree of longitude spans 78.8 km at
-    # 45 deg but 88.1 km here.
-    sin_ref = np.sin(lat_ref)
-    n_radius = WGS84_A / np.sqrt(1.0 - WGS84_E2 * sin_ref**2)
-    m_radius = WGS84_A * (1.0 - WGS84_E2) / (1.0 - WGS84_E2 * sin_ref**2) ** 1.5
-    rad_per_m_north = 1.0 / m_radius
-    rad_per_m_east = 1.0 / (n_radius * np.cos(lat_ref))
+    # Offsets in metres, converted to radians by the local radii of curvature.
+    # `enu_to_llh_offset` takes metres and returns radians precisely so there is
+    # no per-degree constant for a caller to add to a radian coordinate -- the
+    # mistake that made "100m East" print 6405.80 m here, and that sampled this
+    # chapter's 50 m dataset footprint across 2.7 km.
+    dlat_100_north, _ = enu_to_llh_offset(0.0, 100.0, lat_ref)
+    _, dlon_100_east = enu_to_llh_offset(100.0, 0.0, lat_ref)
 
     print("Offsets are built from the local radii of curvature, so each target")
     print("should come back as the ENU it is named for. The residual below is")
@@ -257,9 +249,9 @@ def run_with_inline_data() -> None:
     # Define target points relative to reference, each with the ENU it is named
     # for. Printing the two together is what makes the section check itself.
     targets = [
-        ("100m East", lat_ref, lon_ref + 100.0 * rad_per_m_east, 0.0,
+        ("100m East", lat_ref, lon_ref + dlon_100_east, 0.0,
          np.array([100.0, 0.0, 0.0])),
-        ("100m North", lat_ref + 100.0 * rad_per_m_north, lon_ref, 0.0,
+        ("100m North", lat_ref + dlat_100_north, lon_ref, 0.0,
          np.array([0.0, 100.0, 0.0])),
         ("50m Up", lat_ref, lon_ref, 50.0,
          np.array([0.0, 0.0, 50.0])),

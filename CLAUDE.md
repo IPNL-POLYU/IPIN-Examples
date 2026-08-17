@@ -129,11 +129,11 @@ Two things about that shape are worth carrying forward:
   the true figure is 88100, so it was independently wrong by 12% — an error the
   57.3x one would have hidden completely had anyone gone looking.
 
-Derive such a conversion rather than pasting it: the offsets now come from the
-WGS84 radii of curvature at the reference latitude, which has no per-degree
-constant to mislay and no latitude to be wrong about. Sub-millimetre residuals
-remain and are real — the second-order curvature term, growing as the square of
-the offset, which the example prints.
+Derive such a conversion rather than pasting it. `core.coords.enu_to_llh_offset`
+takes metres and returns radians, from the WGS84 radii of curvature at the given
+latitude — no per-degree constant to mislay and no latitude to be wrong about.
+Sub-millimetre residuals remain and are real: the second-order curvature term,
+growing as the square of the offset, which the example prints.
 
 ## Dataset files have to agree with each other
 
@@ -154,8 +154,10 @@ Neither was caught because the READMEs' round-trip experiments **recompute both
 sides from the same source file** and compare those, which passes whatever the
 shipped bytes contain. If you add such a check, read the shipped file.
 
-Every dataset has now been audited this way. Eighteen came back consistent;
-the three defects were ch2's two above and one in ch6 strapdown, where
+Every dataset has now been audited this way. Eighteen came back consistent —
+though see the next section: ch2's coordinates were among the eighteen and were
+wrong by 57.3x, which consistency could not see. The three defects *this* shape
+found were ch2's two above and one in ch6 strapdown, where
 `imu.npz/accel_xy` was map-frame acceleration while the README's Eq. (6.19)
 integrates it as `v += C(theta) f dt` and so rotates it a second time. On the
 circular trajectory the accelerometer carried no centripetal term at all:
@@ -167,6 +169,40 @@ acceleration was 0.1002 m/s² against a declared 0.1 — a perfect match, and
 wrong. Checking a vector quantity against only one candidate frame will
 confirm whichever you picked, so compare against both and let the systematic
 mean pick the winner.
+
+## Agreeing with each other is not enough — check `config.json`
+
+The audit above passed ch2's coordinates, and they were wrong by 57.3x. The
+generator added a value it named `lat_offset_deg` straight to a latitude in
+radians, so a building `config.json` declares as 50 m was sampled across
+2666 m × 2612 m. `test_coordinate_files_agree.py` was green throughout, because
+the ENU was derived from the same inflated LLH.
+
+**A unit or frame error is common-mode: it moves the data and every check
+recomputed from that data together.** Consistency is structurally blind to it,
+so it cannot be the only guard. `config.json` is the one file in a dataset
+stating *intent* rather than a derived quantity — compare against it. See
+`tests/ch2_coords/test_dataset_matches_its_config.py`.
+
+Two things about that one are worth carrying:
+
+- **The documentation had already met the bug and explained it away.** The
+  dataset README carried "Issue 2: ENU Range Seems Wrong — Symptoms: ENU
+  coordinates in km instead of m — Cause: Wrong reference point". Someone saw
+  the symptom, guessed a cause that could not produce it, and wrote it up as
+  reader error. A troubleshooting entry describing your own output is a bug
+  report, not documentation; check it against the code before believing it.
+- **Its neighbour was the same shape.** `config.json` also advertised
+  `"rotation_roundtrip_deg": 360.0`, which the README explained as gimbal lock
+  and prescribed quaternions for. It was a branch cut: yaw sampled on [0, 2π)
+  and recovered on (−π, π], differenced without wrapping. Wrapped, the error is
+  0.0. **A rotation error of 360° is the identity** — like a classifier at its
+  base rate, the number is the arithmetic signature of a measurement bug, and
+  the prescribed fix would have changed nothing.
+
+Convert metres to radians with `core.coords.enu_to_llh_offset`, which takes
+metres and returns radians so there is no per-degree quantity left to mislay.
+Both ch2 instances were a hand-rolled constant; the third would have been too.
 
 So expect a red here to be real, but confirm the tolerance first:
 

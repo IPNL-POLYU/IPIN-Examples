@@ -92,14 +92,23 @@ From `config.json`:
 "accuracy": {
   "llh_roundtrip_lat_arcsec": 4.58e-11,
   "llh_roundtrip_lon_arcsec": 0.0,
-  "llh_roundtrip_height_m": 9.31e-10,
-  "rotation_roundtrip_deg": 360.0
+  "llh_roundtrip_height_m": 1.86e-09,
+  "rotation_roundtrip_deg": 0.0
 }
 ```
 
 **Key Points**:
 - Position round-trip: **sub-nanometer accuracy!**
-- Rotation: Large error due to Euler gimbal lock (educational!)
+- Rotation round-trip: **exact** — Euler → quaternion → matrix → Euler
+  recovers the input to machine precision.
+
+> This field used to read `360.0`, and this README explained it as gimbal
+> lock. It was neither gimbal lock nor a rotation error. Yaw is sampled on
+> [0, 2π) but recovered on (−π, π], so an exact round-trip of 4.4307 rad came
+> back as −1.8525 rad and a raw subtraction called the 2π difference "error".
+> **A rotation error of 360° is the identity** — a pipeline reporting one is
+> measuring its own subtraction, not its accuracy. The generator now wraps the
+> difference to [−π, π] before taking its magnitude.
 
 ## Example Usage
 
@@ -167,34 +176,67 @@ python scripts/generate_ch2_coordinate_transforms_dataset.py --preset london
 
 ## Common Issues
 
-### Issue 1: Large Rotation Errors
+### Issue 1: Rotation round-trip error of exactly ~360°
 
-**Symptoms**: Euler round-trip error ~360°
+**Symptom**: comparing Euler angles before and after a round-trip gives ~360°,
+or ~2π rad, on the yaw column only.
 
-**Cause**: Gimbal lock or angle wrapping
+**Cause**: a branch-cut artifact in *your comparison*, not an error in the
+rotation. Yaw is sampled on [0, 2π) here but every recovery function returns
+(−π, π], so an exact round-trip of 4.4307 rad comes back as −1.8525 rad. The
+two describe the same rotation; subtracting them does not.
 
-**Solution**: Use quaternions instead:
+This dataset shipped with `"rotation_roundtrip_deg": 360.0` for exactly this
+reason, and this README used to explain it as gimbal lock and recommend
+quaternions. Neither was true — and note that quaternions would not have helped,
+because there was nothing wrong to fix. **A rotation error of 360° is the
+identity.** Treat one as a bug in the measurement.
+
+**Fix**: wrap the difference before taking its magnitude.
 ```py
-# Avoid Euler for computation
-q1 = euler_to_quat(roll, pitch, yaw)
-q2 = euler_to_quat(roll2, pitch2, yaw2)
-
-# Compose rotations (quaternion multiplication)
-q_combined = quat_multiply(q1, q2)  # No gimbal lock!
+# Wrap to [-pi, pi] so the comparison respects the branch cut
+d = euler_recovered - euler_original
+d = (d + np.pi) % (2 * np.pi) - np.pi
+error_deg = np.rad2deg(np.abs(d).max())   # 0.0 for this dataset
 ```
 
-### Issue 2: ENU Range Seems Wrong
+Gimbal lock is real, but it lives at **roll = ±90°** in this book's convention
+(see `ch2_coords/figs/ch2_gimbal_lock.png`) and this dataset never goes near it
+— roll is sampled within ±30°.
 
-**Symptoms**: ENU coordinates in km instead of m
+### Issue 2: ENU coordinates come out far larger than the building
 
-**Cause**: Wrong reference point
+**Symptom**: points hundreds of metres or kilometres from the reference, for a
+building declared tens of metres across.
 
-**Solution**: Use building center as reference:
+**Cause**: an offset in **degrees** (or in metres) added to a coordinate already
+in **radians**. This is not hypothetical — it is the bug this dataset shipped
+with. The generator computed `building_size_m / 111000.0`, named it
+`lat_offset_deg`, and added it straight to a latitude in radians. No `deg2rad`
+ran, so every offset was 180/π = 57.3× too large and the declared 50 m footprint
+was sampled across **2666 m × 2612 m**.
+
+This README previously listed the same symptom under "wrong reference point".
+That was a misdiagnosis: the reference point was correct, and re-deriving it
+could not have helped. A frame or unit error is common-mode — it moves the data
+and any check recomputed from that same data together — so the only thing that
+catches it is comparing against an independent statement of intent, here
+`config.json`. See `tests/ch2_coords/test_dataset_matches_its_config.py`.
+
+**Fix**: let the library do the conversion. `enu_to_llh_offset` takes metres and
+returns radians, so there is no per-degree quantity to mislay:
 ```python
-# Load correct reference. The file holds a single row, so loadtxt returns a
-# (3,) vector -- unpack it directly; ref_llh[0] is just the latitude.
-ref_llh = np.loadtxt("data/sim/ch2_coords_san_francisco/reference_llh.txt")
-lat_ref, lon_ref, h_ref = ref_llh
+import numpy as np
+from core.coords import ecef_to_enu, enu_to_llh_offset, llh_to_ecef
+
+lat_ref, lon_ref = np.deg2rad(37.7749), np.deg2rad(-122.4194)
+
+# 25 m east, 25 m north of the reference -- inside a 50 m footprint
+dlat, dlon = enu_to_llh_offset(east=25.0, north=25.0, lat=lat_ref)
+xyz = llh_to_ecef(lat_ref + dlat, lon_ref + dlon, 0.0)
+enu = ecef_to_enu(*xyz, lat_ref, lon_ref, 0.0)
+print(f"ENU: [{enu[0]:.2f}, {enu[1]:.2f}, {enu[2]:.2f}] m")   # ~[25, 25, 0]
+assert abs(enu[0] - 25.0) < 0.01 and abs(enu[1] - 25.0) < 0.01
 ```
 
 ## Recommended Experiments

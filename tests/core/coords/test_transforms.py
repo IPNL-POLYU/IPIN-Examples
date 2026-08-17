@@ -24,6 +24,7 @@ from core.coords.transforms import (
     ecef_to_llh,
     enu_to_body,
     enu_to_ecef,
+    enu_to_llh_offset,
     enu_to_ned,
     llh_to_ecef,
     map_to_body,
@@ -381,6 +382,87 @@ class TestEnuBody(unittest.TestCase):
             x_body = enu_to_body(x_enu, roll, pitch, yaw)
             recovered = body_to_enu(x_body, roll, pitch, yaw)
             np.testing.assert_allclose(recovered, x_enu, atol=1e-9)
+
+
+class TestENUToLLHOffset(unittest.TestCase):
+    """A displacement in metres becomes the right offset in radians.
+
+    This function exists because the conversion was twice done by hand with a
+    "metres per degree" constant and twice got the units wrong: an example
+    printed 6405.80 m as "100m East", and the Ch2 dataset generator sampled a
+    declared 50 m footprint across 2.7 km. Both were a per-degree value added
+    to a radian coordinate. Taking metres in and returning radians removes the
+    quantity that was being mislaid, so these tests check the contract in the
+    units the caller uses: metres in, metres back out through the real
+    transform.
+    """
+
+    LAT = np.deg2rad(37.7749)
+    LON = np.deg2rad(-122.4194)
+
+    def _round_trip(self, east: float, north: float) -> np.ndarray:
+        """Offset by (east, north) metres and read the ENU back."""
+        dlat, dlon = enu_to_llh_offset(east, north, self.LAT)
+        xyz = llh_to_ecef(self.LAT + dlat, self.LON + dlon, 0.0)
+        return ecef_to_enu(*xyz, self.LAT, self.LON, 0.0)
+
+    def test_one_hundred_metres_east_comes_back_as_one_hundred(self) -> None:
+        """The headline claim, in the units of the argument."""
+        enu = self._round_trip(100.0, 0.0)
+        self.assertAlmostEqual(enu[0], 100.0, delta=0.01)
+        self.assertAlmostEqual(enu[1], 0.0, delta=0.01)
+
+    def test_one_hundred_metres_north_comes_back_as_one_hundred(self) -> None:
+        enu = self._round_trip(0.0, 100.0)
+        self.assertAlmostEqual(enu[0], 0.0, delta=0.01)
+        self.assertAlmostEqual(enu[1], 100.0, delta=0.01)
+
+    def test_the_neglected_term_is_second_order(self) -> None:
+        """The residual scales as the square of the offset, and only so.
+
+        This is what distinguishes an honest first-order approximation from a
+        scale error. A wrong constant would give a residual growing linearly;
+        the curvature term grows as d^2, so the error per metre must grow by
+        10x for each 10x of distance.
+        """
+        errors = {}
+        for distance in (10.0, 100.0, 1000.0):
+            enu = self._round_trip(distance, 0.0)
+            errors[distance] = abs(np.linalg.norm(enu - [distance, 0.0, 0.0]))
+
+        # 100x the distance, 10000x the error -- with room for the fact that
+        # the east residual mixes the drop with the parallel-vs-normal-section
+        # difference.
+        ratio = errors[1000.0] / errors[10.0]
+        self.assertGreater(ratio, 5e3)
+        self.assertLess(ratio, 2e4)
+
+    def test_a_degree_sized_offset_is_not_produced(self) -> None:
+        """Guard the actual defect: the result must be radian-scaled.
+
+        100 m of latitude is 1.57e-5 rad. The bug produced 9.0e-4 -- the same
+        number read as degrees. Anything above 1e-4 rad for a 100 m offset is
+        that mistake, whatever produced it.
+        """
+        dlat, dlon = enu_to_llh_offset(100.0, 100.0, self.LAT)
+        self.assertLess(abs(dlat), 1e-4)
+        self.assertLess(abs(dlon), 1e-4)
+
+    def test_longitude_scaling_follows_latitude(self) -> None:
+        """cos(lat) is applied to east, and is not silently constant.
+
+        The borrowed 78800 was correct at 45 deg and 12% wrong at 37.77, which
+        is the failure a fixed constant guarantees. A degree of longitude must
+        shrink as latitude rises.
+        """
+        equator = enu_to_llh_offset(100.0, 0.0, 0.0)[1]
+        mid = enu_to_llh_offset(100.0, 0.0, np.deg2rad(45.0))[1]
+        high = enu_to_llh_offset(100.0, 0.0, np.deg2rad(60.0))[1]
+
+        self.assertLess(equator, mid)
+        self.assertLess(mid, high)
+        # At 60 deg, cos(lat) = 0.5, so the same metres need ~2x the longitude.
+        self.assertAlmostEqual(high / equator, 2.0, delta=0.01)
 
 
 if __name__ == "__main__":
