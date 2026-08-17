@@ -26,9 +26,15 @@ are fenced ```py and pinned below; three (`ch4`) were made runnable instead,
 because the data they needed was already loaded a few blocks above.
 
 **Fencing a fragment freezes whatever it says**, so each of the ten was checked
-against the real signature by hand even though none can execute. That found two
-more defects, both in `ch7_slam/README.md`, and both cases of two documents
-describing one API differently:
+against the real signature even though none can execute as written. The two ch7
+corrections below were then verified by *running* them: a scratch harness built
+the odometry deltas from the shipped square dataset, and confirmed all four dict
+keys are present over 40 steps and that `detect(scans, poses)` returns one
+`LoopClosure` with every field the README names readable. Signature inspection
+would have been enough to find the bugs; execution is what proves the fix.
+
+That found two defects, both in `ch7_slam/README.md`, and both cases of two
+documents describing one API differently:
 
 - `SlamFrontend2D.step()` returns a **dict**; the README unpacked it as a
   three-tuple. `QUICK_START.md` had it right.
