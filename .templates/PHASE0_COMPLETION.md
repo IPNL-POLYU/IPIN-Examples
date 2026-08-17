@@ -15,7 +15,7 @@ Phase 0 established the foundation for all dataset documentation across the IPIN
 
 **`templates/dataset_README_template.md`**
 - Complete template for dataset-specific READMEs
-- All required sections from design doc Section 5.3.2
+- All required sections from `dataset_README_template.md`
 - Includes placeholders for:
   - Overview and learning objectives
   - File structure tables
@@ -112,7 +112,7 @@ Phase 0 established the foundation for all dataset documentation across the IPIN
 
 ## References
 
-- **Design Document**: `references/design_doc.md` Section 5.3
+- **Dataset README standard**: `.templates/dataset_README_template.md`, enforced by `tools/validate_dataset_docs.py`
 - **Implementation Plan**: See Phase 0 in implementation plan document
 - **Templates Directory**: `.templates/`
 - **Validation Tool**: `tools/validate_dataset_docs.py`

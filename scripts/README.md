@@ -453,7 +453,7 @@ A: No, these scripts generate offline datasets. For real-time simulation, see `c
 python scripts/generate_[dataset]_dataset.py --help
 
 # Report issues
-# Check: references/design_doc.md Section 5.3
+# Check: .templates/dataset_README_template.md
 # Contact: [your support contact]
 ```
 
@@ -473,13 +473,13 @@ If you're creating a new generation script:
 8. ✓ Test all CLI options
 9. ✓ Add output dataset README using template
 
-See `templates/` and `references/design_doc.md` Section 5.3 for requirements.
+See `.templates/dataset_README_template.md` for requirements.
 
 ---
 
 ## References
 
-- **Design Document**: `references/design_doc.md` Section 5.3
+- **Dataset README standard**: `.templates/dataset_README_template.md`
 - **Dataset Catalog**: `data/sim/README.md`
 - **Learning Guide**: `docs/data_simulation_guide.md`
 - **Templates**: `templates/` folder
