@@ -36,6 +36,7 @@ from core.coords import (
     llh_to_ecef,
     ecef_to_llh,
     ecef_to_enu,
+    enu_to_llh_offset,
     euler_to_quat,
     euler_to_rotation_matrix,
     quat_to_rotation_matrix,
@@ -67,16 +68,29 @@ def generate_building_trajectory_llh(
     """
     rng = np.random.default_rng(seed)
 
-    # Convert building size to approximate lat/lon offsets
-    # At mid-latitudes: 1 degree ≈ 111 km
-    # This is approximate but sufficient for local indoor scenarios
-    meters_per_degree = 111000.0 * np.cos(lat_center)
-    lat_offset_deg = building_size_m / 111000.0
-    lon_offset_deg = building_size_m / meters_per_degree
+    # Sample the footprint in metres, then convert to radians.
+    #
+    # This used to compute `lat_offset_deg = building_size_m / 111000.0` and add
+    # it straight to `lat_center`, which is in radians -- the variable name says
+    # `_deg` and no deg2rad ever ran. Every offset came out 180/pi = 57.3x too
+    # large, so a declared 50 m building was sampled across 2.7 km, and the
+    # dataset README wrote the symptom up as "ENU coordinates in km instead of
+    # m" under a troubleshooting entry blaming the reader's reference point.
+    #
+    # `enu_to_llh_offset` takes metres and returns radians, so there is no
+    # per-degree quantity left for anyone to add to a radian coordinate.
+    # Drawn north-then-east to match the old lat-then-lon draw order, so the
+    # only thing this change moves is the scale.
+    half = building_size_m / 2.0
+    north_m = rng.uniform(-half, half, n_points)
+    east_m = rng.uniform(-half, half, n_points)
+    offsets = np.array([
+        enu_to_llh_offset(e, n, lat_center) for e, n in zip(east_m, north_m)
+    ])
 
     # Generate random positions within building footprint
-    lats = lat_center + rng.uniform(-lat_offset_deg/2, lat_offset_deg/2, n_points)
-    lons = lon_center + rng.uniform(-lon_offset_deg/2, lon_offset_deg/2, n_points)
+    lats = lat_center + offsets[:, 0]
+    lons = lon_center + offsets[:, 1]
 
     # Heights: random floors (0-5) × 3m per floor
     heights = height_ground + rng.integers(0, 6, n_points) * 3.0
@@ -291,9 +305,15 @@ def generate_dataset(
 
     # Verify rotation round-trip
     print("\nStep 6: Verifying rotation round-trips...")
-    euler_from_quat = np.array([rotation_matrix_to_euler(quat_to_rotation_matrix(q)) 
+    euler_from_quat = np.array([rotation_matrix_to_euler(quat_to_rotation_matrix(q))
                                   for q in quaternions])
-    euler_errors = np.abs(euler - euler_from_quat)
+    # Wrap the difference to [-pi, pi] before taking its size. Yaw is sampled on
+    # [0, 2pi) but recovered on (-pi, pi], so an exact round-trip of 4.4307 rad
+    # comes back as -1.8525 rad and a raw subtraction calls that 2pi of error.
+    # This reported "rotation_roundtrip_deg": 360.0 -- which the dataset README
+    # then explained as gimbal lock, and offered quaternions as the fix. It was
+    # neither: wrapped, the error is 0.0, and the round-trip was always exact.
+    euler_errors = np.abs((euler - euler_from_quat + np.pi) % (2 * np.pi) - np.pi)
     print(f"  Euler <-> Quaternion error: max {np.rad2deg(euler_errors.max()):.3e} deg")
 
     # Save dataset

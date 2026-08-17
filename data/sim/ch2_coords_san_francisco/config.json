@@ -14,8 +14,8 @@
   "accuracy": {
     "llh_roundtrip_lat_arcsec": 4.579998741307464e-11,
     "llh_roundtrip_lon_arcsec": 0.0,
-    "llh_roundtrip_height_m": 9.313225746154785e-10,
-    "rotation_roundtrip_deg": 360.00000000000006
+    "llh_roundtrip_height_m": 1.862645149230957e-09,
+    "rotation_roundtrip_deg": 0.0
   },
   "equations": [
     "2.1 (LLH->ECEF)",
