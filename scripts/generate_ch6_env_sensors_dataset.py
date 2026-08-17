@@ -40,6 +40,7 @@ from core.sensors import (
     pressure_to_altitude,
     detect_floor_change,
     smooth_measurement_simple,
+    wrap_angle_diff,
 )
 
 
@@ -484,10 +485,23 @@ def generate_dataset(
     heading_est = run_mag_heading_estimation(t, mag_meas, att_true)
     elapsed_mag = time.time() - start
 
-    # Compute heading error
+    # Compute heading error.
+    #
+    # Wrap the *difference* to [-pi, pi]. The previous form was
+    # `min(|d|, 2pi - |d|)`, which is only the shorter arc when |d| <= 2pi --
+    # and it is not: the walk's first phase runs yaw up to 7.84 rad while
+    # `mag_heading` returns (-pi, pi], so |d| reached 11 rad and `2pi - |d|`
+    # went negative. 221 of 1800 samples were handed a negative "error", which
+    # dragged the reported mean down to 2.66 deg from a true 4.30 deg.
+    #
+    # `wrap_angle_diff` is the repo's primitive for exactly this, and
+    # `ch6_dead_reckoning/example_environment.py` already computes this same
+    # heading error with it. The generator hand-rolled a fourth variant instead
+    # and got it wrong -- duplicated policy only has to be forgotten once.
     heading_true = att_true[:, 2]
-    heading_error = np.abs(heading_est - heading_true)
-    heading_error = np.minimum(heading_error, 2 * np.pi - heading_error)  # Wrap
+    heading_error = np.abs(
+        np.array([wrap_angle_diff(e, t_) for e, t_ in zip(heading_est, heading_true)])
+    )
     heading_error_deg = np.rad2deg(heading_error)
     mean_heading_error = np.mean(heading_error_deg)
     max_heading_error = np.max(heading_error_deg)

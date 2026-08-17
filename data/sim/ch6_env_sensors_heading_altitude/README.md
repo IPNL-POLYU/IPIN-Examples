@@ -167,7 +167,7 @@ fprintf('Loaded %d samples, %d floors\n', length(t), length(unique(floor_true)))
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
-from core.sensors import mag_heading
+from core.sensors import mag_heading, wrap_angle_diff
 
 # Load dataset
 data_dir = Path("data/sim/ch6_env_sensors_heading_altitude")
@@ -188,9 +188,17 @@ for k in range(N):
     # Eq. (6.51-6.53): Tilt compensation + heading
     heading_est[k] = mag_heading(mag_meas[k], roll[k], pitch[k], declination=0.0)
 
-# Compute heading error
-heading_error = np.abs(heading_est - yaw_true)
-heading_error = np.minimum(heading_error, 2 * np.pi - heading_error)  # Wrap to [-pi, pi]
+# Compute heading error.
+#
+# Wrap the *difference*, with the library's own helper. This block used to read
+# `np.minimum(d, 2*np.pi - d)`, which is the shorter arc only while d <= 2*pi.
+# The true yaw here climbs to 7.84 rad in the first phase while mag_heading
+# returns (-pi, pi], so d reached 11 rad, `2*pi - d` went negative, and 221 of
+# 1800 samples were handed a negative "error" -- reporting a 2.66 deg mean where
+# the truth is 3.51.
+heading_error = np.abs(
+    np.array([wrap_angle_diff(e, y) for e, y in zip(heading_est, yaw_true)])
+)
 heading_error_deg = np.rad2deg(heading_error)
 
 print(f"Mean heading error: {np.mean(heading_error_deg):.2f} deg")
@@ -403,16 +411,22 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_weather
 4. Compare heading errors
 
 **Expected Results**:
-- With tilt compensation: 2.7° error
-- Without tilt compensation: 5.1° error — 1.9× worse. The walking tilt here is
+- With tilt compensation: 3.5° error
+- Without tilt compensation: 6.6° error — 1.9× worse. The walking tilt here is
   ±5.5° roll and ±2.9° pitch; a larger tilt widens the gap.
+
+  (Both figures were 2.7° and 5.1° until the heading error was wrapped
+  correctly — see the note in the Quick Start block. The *ratio* barely moved,
+  1.90× to 1.89×, because the broken wrap understated both sides alike. That is
+  worth knowing in both directions: a ratio can stay convincing while the
+  magnitudes it is built from are wrong, so check the absolute numbers too.)
 
 **Code**:
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from core.sensors import mag_heading
+from core.sensors import mag_heading, wrap_angle_diff
 
 # Load dataset
 data_dir = Path("data/sim/ch6_env_sensors_heading_altitude")
@@ -431,10 +445,12 @@ heading_with = np.array([mag_heading(mag_meas[k], roll[k], pitch[k]) for k in ra
 heading_without = np.array([mag_heading(mag_meas[k], 0.0, 0.0) for k in range(len(t))])
 
 # Compute errors
-error_with = np.abs(heading_with - yaw_true)
-error_without = np.abs(heading_without - yaw_true)
-error_with = np.minimum(error_with, 2*np.pi - error_with)
-error_without = np.minimum(error_without, 2*np.pi - error_without)
+# Wrap the difference -- see the note in "Compute heading error" above for why
+# `np.minimum(d, 2*np.pi - d)` is wrong on this trajectory.
+error_with = np.abs(np.array(
+    [wrap_angle_diff(e, y) for e, y in zip(heading_with, yaw_true)]))
+error_without = np.abs(np.array(
+    [wrap_angle_diff(e, y) for e, y in zip(heading_without, yaw_true)]))
 
 print(f"WITH tilt compensation: {np.rad2deg(np.mean(error_with)):.2f} deg error")
 print(f"WITHOUT tilt compensation: {np.rad2deg(np.mean(error_without)):.2f} deg error")
@@ -504,7 +520,7 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_poor --
 
 | Metric | Magnetometer | Barometer | Notes |
 |--------|--------------|-----------|-------|
-| **Mean Error** | 2.7 deg | 1.6m | Bounded, no drift |
+| **Mean Error** | 3.5 deg | 1.6m | Bounded, no drift |
 | **Max Error** | 14.6 deg | 2.9m | Occasional spikes |
 | **Floor Detection** | N/A | 50-70% | 3-floor building |
 | **Drift Over Time** | None! | ~2m/hour | Weather-dependent |
