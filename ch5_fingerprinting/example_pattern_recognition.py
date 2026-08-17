@@ -290,7 +290,7 @@ def main():
     # Plot 8: Box plot of errors
     ax8 = plt.subplot(2, 4, 8)
     error_data = [test_results[r]['errors'] for r in reg_values]
-    bp = ax8.boxplot(error_data, labels=[f'λ={r}' for r in reg_values], 
+    bp = ax8.boxplot(error_data, tick_labels=[f'λ={r}' for r in reg_values], 
                     patch_artist=True)
     for patch in bp['boxes']:
         patch.set_facecolor('lightgreen')

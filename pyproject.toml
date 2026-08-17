@@ -32,7 +32,13 @@ classifiers = [
 dependencies = [
     "numpy>=1.20.0",
     "scipy>=1.7.0",
-    "matplotlib>=3.3.0",
+    # 3.9 for Axes.boxplot(tick_labels=...). The old spelling, labels=, was
+    # deprecated in 3.9 and *removed* in 3.11, so the examples using it crashed
+    # outright on a current install while still only warning on 3.10 -- which
+    # is why it went unnoticed locally. The floor said 3.3.0, but one example
+    # had already been migrated to tick_labels, so 3.3 had not been buildable
+    # for a while.
+    "matplotlib>=3.9.0",
     "jupyter>=1.0.0",
     "tqdm>=4.62.0",
     # Required by core/fingerprinting/classification.py, which raises

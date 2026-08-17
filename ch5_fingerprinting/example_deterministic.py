@@ -316,7 +316,7 @@ def main():
     ax4 = plt.subplot(2, 3, 4)
     error_data = [r['errors'] for r in results]
     method_names = [r['method'] for r in results]
-    bp = ax4.boxplot(error_data, labels=method_names, patch_artist=True)
+    bp = ax4.boxplot(error_data, tick_labels=method_names, patch_artist=True)
     for patch in bp['boxes']:
         patch.set_facecolor('lightblue')
     ax4.set_ylabel('Positioning Error (m)')
