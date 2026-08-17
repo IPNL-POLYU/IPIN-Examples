@@ -27,6 +27,18 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 
 
+def wrap_angle_deg(angle_deg: float) -> float:
+    """Wrap a degree-valued angle difference to [-180, 180].
+
+    `angle_est` comes from `atan2` and so lands in (-180, 180]. At the 30 deg
+    used here nothing crosses the branch cut and this changes no printed
+    number, but a calibration near +/-180 deg would otherwise report a 2 deg
+    misalignment as 358.
+    """
+    return float(np.degrees(np.arctan2(
+        np.sin(np.radians(angle_deg)), np.cos(np.radians(angle_deg))
+    )))
+
 def estimate_imu_bias_stationary(
     accel_samples: np.ndarray,
     gyro_samples: np.ndarray,
@@ -400,7 +412,7 @@ Extrinsic Calibration Results:
 
 True Rotation Angle:    {angle_true:>8.2f} deg
 Estimated Rotation:     {angle_est:>8.2f} deg
-Error:                  {abs(angle_true - angle_est):>8.4f} deg
+Error:                  {abs(wrap_angle_deg(angle_true - angle_est)):>8.4f} deg
 
 True Lever-arm:         [{t_true[0]:>6.3f}, {t_true[1]:>6.3f}] m
 Estimated Lever-arm:    [{t_est[0]:>6.3f}, {t_est[1]:>6.3f}] m
@@ -565,7 +577,7 @@ def main():
         print("="*70)
         print(f"{'Parameter':<30} {'Estimated':>15} {'True':>15} {'Error':>10}")
         print("-" * 70)
-        print(f"Rotation Angle [deg]          {angle_est:>15.2f} {angle_true:>15.2f} {abs(angle_est - angle_true):>10.4f}")
+        print(f"Rotation Angle [deg]          {angle_est:>15.2f} {angle_true:>15.2f} {abs(wrap_angle_deg(angle_est - angle_true)):>10.4f}")
         print(f"Lever-arm X [m]               {t_est[0]:>15.4f} {ext_data['true_t'][0]:>15.4f} {abs(t_est[0] - ext_data['true_t'][0]):>10.5f}")
         print(f"Lever-arm Y [m]               {t_est[1]:>15.4f} {ext_data['true_t'][1]:>15.4f} {abs(t_est[1] - ext_data['true_t'][1]):>10.5f}")
         print("="*70)

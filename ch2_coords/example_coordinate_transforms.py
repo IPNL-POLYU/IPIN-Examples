@@ -28,6 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
+from core.utils import angle_diff
 from core.coords import (
     ecef_to_enu,
     ecef_to_llh,
@@ -326,7 +327,14 @@ def run_with_inline_data() -> None:
     # Round-trip check: Euler -> Quat -> Euler
     q_rt = euler_to_quat(roll, pitch, yaw)
     euler_rt = quat_to_euler(q_rt)
-    rt_error = np.max(np.abs(np.array([roll, pitch, yaw]) - euler_rt))
+    # Wrap the difference. With these angles nothing crosses the branch cut,
+    # so this prints the same 1.11e-16 either way -- but a reader who swaps in
+    # a yaw of 200 deg gets it back as -160 and a raw subtraction would call
+    # that 2pi of error and print FAIL for a perfect round-trip. The Ch2
+    # dataset generator had exactly this and reported 360 deg as its accuracy.
+    rt_error = np.max(np.abs(
+        angle_diff(np.array([roll, pitch, yaw]), euler_rt)
+    ))
     print(f"\nRound-trip Euler->Quat->Euler error: {rt_error:.2e} rad "
           f"({'PASS' if rt_error < 1e-9 else 'FAIL'})")
 

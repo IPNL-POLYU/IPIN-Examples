@@ -19,6 +19,8 @@ from typing import Callable, Dict, List, Tuple
 
 import numpy as np
 
+from core.utils.angles import angle_diff
+
 
 class Factor:
     """
@@ -846,7 +848,13 @@ def test_lm_monotonic_decrease():
         def residual_func_b(x_vars, anchor=anchor, z=z_bearing):
             pos = x_vars[0]
             predicted = np.arctan2(anchor[1] - pos[1], anchor[0] - pos[0])
-            return np.array([predicted - z])
+            # Wrap the residual. `predicted` and `z` are each in (-pi, pi], so
+            # a raw subtraction reaches 2pi across the branch cut -- this
+            # module's own `angle_diff` docstring names the case: measured
+            # +179 deg against predicted -179 deg is 2 deg of error, not 358.
+            # An unwrapped bearing residual hands the optimiser a spurious
+            # gradient wherever the anchor lies roughly west of the estimate.
+            return np.array([angle_diff(predicted, z)])
 
         def jacobian_func_b(x_vars, anchor=anchor):
             pos = x_vars[0]

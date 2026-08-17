@@ -232,12 +232,37 @@ Two properties of this one are worth expecting:
 Use `core.sensors.wrap_angle_diff` for a difference and `wrap_heading` for a
 single angle. Both already existed; the generator and the dataset README each
 hand-rolled a copy and both got it wrong. That is now four wrap helpers in the
-repo (those two, plus `example_comparison._wrap_to_pi`) — prefer the shared
-ones. See `tests/ch6_dead_reckoning/test_heading_error_is_wrapped.py`, whose
-first two assertions had to be rewritten because `abs(wrap_angle_diff(...))` is
+repo (those two, plus `core.utils.angle_diff` and
+`example_comparison._wrap_to_pi`) — prefer the shared ones, which
+`tests/core/test_angle_differences_are_wrapped.py` holds to one another. See
+also `tests/ch6_dead_reckoning/test_heading_error_is_wrapped.py`, whose first
+two assertions had to be rewritten because `abs(wrap_angle_diff(...))` is
 non-negative and under 180° *by construction*: they were testing numpy, not the
 dataset. Pin what distinguishes the two reductions, not what the helper
 guarantees.
+
+The chapter examples have now been swept too, and **none had a live defect** —
+every angular error they actually report already went through a correct helper.
+The sweep's value was elsewhere:
+
+- **One real bug, in `core/` again.** `factor_graph.py` built a bearing
+  residual as `predicted - z` with no wrap, the case `angle_diff`'s own
+  docstring names. An anchor due west and a 1 cm perturbation flips the raw
+  residual to −6.2807 rad where the truth is +0.0025 — wrong magnitude *and
+  wrong sign*, so the optimiser is pushed the wrong way. Third time a sweep of
+  the examples found the defect underneath them.
+- **Four latent subtractions**, in ch2's round-trip `PASS/FAIL` gate, ch7's two
+  loop-closure checks, ch7's front-end no-op gate and ch8's calibration. All
+  printed identical output before and after the fix. **That is the argument for
+  wrapping anyway:** a branch-cut bug is invisible until someone changes an
+  angle, and a textbook invites exactly that. ch2's gate would have printed
+  `FAIL` for a perfect round-trip at a yaw of 200°.
+
+One thing the sweep turned up that is not about angles: `core/estimators/*.py`
+holds **18 `test_`-named functions that pytest never collects**, because
+`testpaths = ["tests"]`. They print "UNIT TESTS" banners and run only under
+`if __name__ == "__main__"`. All 18 pass today — checked — but nothing would
+notice if they stopped.
 
 So expect a red here to be real, but confirm the tolerance first:
 
