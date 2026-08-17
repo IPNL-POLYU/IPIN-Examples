@@ -549,7 +549,7 @@ Expect agreement within 2× for order-of-magnitude predictions.
 ### Related Documentation
 - `data/sim/README.md` - Dataset catalog
 - `scripts/README.md` - Generation script usage
-- `references/design_doc.md` - Section 5.3 (Dataset standards)
+- `.templates/dataset_README_template.md` - the dataset README standard
 
 ### Tools
 - `tools/plot_dataset_overview.py` - Quick visualization

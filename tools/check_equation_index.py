@@ -12,7 +12,9 @@ Usage:
     python tools/check_equation_index.py --fix  # Update index with missing entries
 
 Reference:
-    Design document Section 6: Equation-Level Traceability
+    Equation-level traceability. The design document planned a section for
+    this and never wrote it; docs/equation_index.yml is the standard, and
+    this tool is what enforces it.
 """
 
 import argparse

@@ -518,7 +518,9 @@ Potential additions for completeness (not required):
 ## References
 
 - **Book**: *Principles of Indoor Positioning and Indoor Navigation*, Chapter 7
-- **Design Document**: `references/design_doc.md`, Section 7.6
+- **Design Document**: `references/design_doc.md` — a historical record of
+  intent. Its chapter-7 specification was planned and never written; this
+  file and `ch7_slam/README.md` are the current references.
 - **Equation Index**: `docs/equation_index.yml`
 - **README**: `ch7_slam/README.md`
 

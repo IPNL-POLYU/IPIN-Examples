@@ -1,4 +1,50 @@
-# 1. Project Overview
+# Design Document (original)
+
+> **Status: historical.** This is the design document as written *before* the
+> implementation, kept as a record of intent. It is **not an API reference**, and
+> the signatures in Section 4 should not be relied on. It is no longer updated.
+
+Sections 1 to 3 — purpose, scope, and the architectural stances — have largely
+held, and are still worth reading. Section 4 is a specification of APIs that were
+then built differently, and is where this document will mislead you.
+
+**Measured against the code**, as of the change that added this header and kept
+current by `tests/docs/test_design_doc_is_historical.py`:
+
+| | |
+|---|---|
+| Core APIs specified | 117 |
+| …that exist | 86 |
+| …that do not | 31 — of which 16 were renamed and 15 never built |
+| Module paths named | 35 |
+| …that do not exist | 10 |
+| Cross-references to Sections 5–8 | 42 |
+| Sections 5–8 actually present | **0** |
+
+Three quarters right is the worst place for a reference to sit: correct often
+enough that you stop checking. And the document cannot resolve its own
+cross-references — Sections 5 through 8 were planned and never written, so
+"see Section 5.3" points nowhere. Seven files elsewhere in the repository cited
+those sections before this was noticed; they now point at the templates and
+indexes that actually hold the standards.
+
+`tests/docs/test_design_doc_is_historical.py` carries the full translation table
+from every name here that does not exist to the one that replaced it, or to
+`None` where the thing was never built. Start there if a signature below does not
+resolve.
+
+**Where the current answers live, all of them checked:**
+
+| For | Read |
+|---|---|
+| Equation → code | `docs/equation_index.yml`, validated in CI |
+| A chapter's API and its real output | `chX_*/README.md` |
+| A dataset's structure and loading | `data/sim/*/README.md` |
+| The conventions that are binding | `.cursor/rules/` |
+| The dataset README standard | `.templates/dataset_README_template.md` |
+| The environment and its traps | `CLAUDE.md` |
+
+---
 
 ## 1.1 Purpose
 
