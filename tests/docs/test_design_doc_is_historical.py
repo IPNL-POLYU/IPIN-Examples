@@ -243,7 +243,7 @@ def test_nothing_cites_a_design_doc_section_that_does_not_exist():
         if path.suffix not in (".py", ".md", ".mdc") or not path.is_file():
             continue
         parts = set(path.parts)
-        if parts & {".git", "__pycache__", ".dev"} or "worktrees" in path.parts:
+        if parts & {".git", "__pycache__"} or "worktrees" in path.parts:
             continue
         # This file quotes the offending citations in order to explain them.
         if path in (DESIGN_DOC, Path(__file__).resolve()):
@@ -268,5 +268,10 @@ def test_nothing_cites_a_design_doc_section_that_does_not_exist():
         "These cite a design-doc section that does not exist:\n  "
         + "\n  ".join(sorted(set(offenders)))
         + f"\n\ndesign_doc.md has top-level sections {sorted(available)}. The "
-        f"dataset README standard lives in .templates/dataset_README_template.md."
+        f"dataset README standard lives in .templates/dataset_README_template.md; "
+        f"equation traceability lives in docs/equation_index.yml.\n\n"
+        f"If the citation is a *historical* note recording what was believed at "
+        f"the time -- .dev/ is full of those -- say so in the sentence rather "
+        f"than exempting the file. An exemption here is a hole in the only thing "
+        f"stopping these pointers coming back."
     )
