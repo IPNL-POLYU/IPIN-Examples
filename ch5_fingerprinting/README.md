@@ -72,7 +72,7 @@ leaping across the floor and snapping back.
 |----------------|---------|-------------|
 | All examples | `data/sim/ch5_wifi_fingerprint_grid/` | Standard 5m grid, 121 RPs (default) |
 | All examples | `data/sim/ch5_wifi_fingerprint_dense/` | Dense 2m grid, 676 RPs (higher accuracy) |
-| All examples | `data/sim/ch5_wifi_fingerprint_sparse/` | Sparse 10m grid, 25 RPs (quick deployment) |
+| All examples | `data/sim/ch5_wifi_fingerprint_sparse/` | Sparse 10m grid, 36 RPs per floor (quick deployment) |
 
 > **Note**: To use a different dataset density, edit the `db_path` variable in the example scripts.
 
@@ -405,7 +405,8 @@ db_features = db.get_mean_features()  # (M, N)
 norm_params = compute_normalization_params(db_features, method="zscore")
 
 # Normalize query using database statistics
-query = np.array([-55, -65, -75])  # Device with +5 dBm offset
+query = np.array([-55, -65, -75, -85, -70, -60, -80, -90])  # +5 dBm offset
+#                 8 values, one per AP in the shipped database
 query_norm, _ = normalize_fingerprint(
     query,
     method="zscore",
@@ -422,7 +423,12 @@ Combine averaging + normalization:
 from core.fingerprinting import preprocess_query
 
 # Preprocess query: average scans + normalize
-scans = np.array([[-50, -60], [-52, -58], [-48, -62]])
+# Three scans of all 8 APs, as a phone would collect them.
+scans = np.array([
+    [-50, -60, -70, -80, -65, -55, -75, -85],
+    [-52, -58, -72, -78, -67, -53, -77, -83],
+    [-48, -62, -68, -82, -63, -57, -73, -87],
+])
 query_preprocessed, info = preprocess_query(
     scans,
     averaging_method="mean",
@@ -456,9 +462,9 @@ from core.fingerprinting import nn_localize, fit_gaussian_naive_bayes, map_local
 import numpy as np
 
 # Query with some APs missing (NaN)
-query = np.array([-51.0, np.nan, -71.0, -81.0, np.nan, -65.0])
-#                 AP1    AP2     AP3    AP4    AP5    AP6
-#                 ✓      X       ✓      ✓      X      ✓
+query = np.array([-51.0, np.nan, -71.0, -81.0, np.nan, -65.0, -75.0, -85.0])
+#                 AP1    AP2     AP3    AP4    AP5    AP6    AP7    AP8
+#                 ✓      X       ✓      ✓      X      ✓      ✓      ✓
 
 # Deterministic methods work with missing values
 pos_nn = nn_localize(query, db, floor_id=0)  # Uses AP1, AP3, AP4, AP6
@@ -484,7 +490,7 @@ This diagram shows:
 - **Datasets**: Three WiFi fingerprint databases in `data/sim/`:
   - `ch5_wifi_fingerprint_grid/` (default, 5m grid, 121 RPs)
   - `ch5_wifi_fingerprint_dense/` (2m grid, 676 RPs)
-  - `ch5_wifi_fingerprint_sparse/` (10m grid, 25 RPs)
+  - `ch5_wifi_fingerprint_sparse/` (10m grid, 36 RPs per floor)
 - **Output**: Generated figures saved to `figs/` subdirectory
 
 **Source**: PlantUML source available at [`docs/architecture/ipin_ch5_component_overview.puml`](../docs/architecture/ipin_ch5_component_overview.puml)
@@ -574,7 +580,7 @@ data/sim/
 ├── ch5_wifi_fingerprint_dense/       # Dense dataset (2m grid, 676 RPs)
 │   ├── fingerprints.csv
 │   └── metadata.json
-└── ch5_wifi_fingerprint_sparse/      # Sparse dataset (10m grid, 25 RPs)
+└── ch5_wifi_fingerprint_sparse/      # Sparse dataset (10m grid, 36 RPs/floor)
     ├── fingerprints.csv
     └── metadata.json
 
