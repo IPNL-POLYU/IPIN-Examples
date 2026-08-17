@@ -53,9 +53,10 @@ WARN = '!'    # Was: ⚠
 # ch5 datasets at all. What is left is real, and each entry says what it needs
 # rather than merely naming the dataset.
 #
-# Six of the nine entries are simply a missing README, and they are the same gap
-# data/sim/README.md links to and does not have -- its catalogue table gives
-# every dataset a [README](...) link, including these.
+# It started at nine. Six of those were simply a missing README -- the same six
+# data/sim/README.md gave a [README](...) link to and did not have -- and they
+# are written now, so what remains is three READMEs that exist but are
+# incomplete.
 KNOWN_INCOMPLETE = {
     "ch2_coords_san_francisco":
         "no Loading Example, Configuration Parameters or Visualization Example "
@@ -68,12 +69,6 @@ KNOWN_INCOMPLETE = {
         "reflection ambiguity and why DOP misses it, which reads better than "
         "the template order. Needs a decision: reshape it, or update the "
         "template and this tool to match current practice.",
-    "ch3_estimator_high_nonlinear": "no README.",
-    "ch4_rf_2d_nlos": "no README.",
-    "ch4_rf_2d_optimal": "no README.",
-    "ch7_slam_2d_high_drift": "no README.",
-    "ch5_wifi_fingerprint_dense": "no README.",
-    "ch5_wifi_fingerprint_sparse": "no README.",
 }
 
 # Not a documentation gap, so not in the register, but worth writing down while
