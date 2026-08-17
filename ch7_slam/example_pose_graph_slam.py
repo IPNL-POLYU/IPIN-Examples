@@ -45,6 +45,8 @@ Date: December 2025
 import argparse
 import json
 import numpy as np
+
+from core.utils import wrap_angle
 import matplotlib.pyplot as plt
 from matplotlib.transforms import blended_transform_factory
 from pathlib import Path
@@ -189,7 +191,11 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     max_yaw_diff = 0.0
     for i in range(n_poses):
         trans_diff = np.linalg.norm(frontend_poses[i][:2] - odom_poses[i][:2])
-        yaw_diff = abs(frontend_poses[i][2] - odom_poses[i][2])
+        # Wrap: this feeds a 1e-6 sameness gate that exists to catch the
+        # frontend returning odometry untouched. Two representations of one
+        # heading differ by 2pi, so an unwrapped diff would call an identical
+        # pose different and let the no-op through.
+        yaw_diff = abs(wrap_angle(frontend_poses[i][2] - odom_poses[i][2]))
         max_trans_diff = max(max_trans_diff, trans_diff)
         max_yaw_diff = max(max_yaw_diff, yaw_diff)
     
@@ -1577,7 +1583,9 @@ def run_with_inline_data(
         start_pose = true_poses[0]
         end_pose = true_poses[-1]
         closure_dist = np.linalg.norm(end_pose[:2] - start_pose[:2])
-        closure_yaw = abs(end_pose[2] - start_pose[2])
+        # Wrap: a closed loop returns to its start heading, which differs by
+        # a multiple of 2pi. Unwrapped, a perfect closure reports 360 deg.
+        closure_yaw = abs(wrap_angle(end_pose[2] - start_pose[2]))
         print(f"   Generated {n_poses} poses (square, {n_laps} laps)")
         print(f"   Loop closure check: dist={closure_dist:.3f}m, yaw={np.degrees(closure_yaw):.1f}deg")
         
@@ -1726,7 +1734,11 @@ def run_with_inline_data(
     max_yaw_diff = 0.0
     for i in range(n_poses):
         trans_diff = np.linalg.norm(frontend_poses[i][:2] - odom_poses[i][:2])
-        yaw_diff = abs(frontend_poses[i][2] - odom_poses[i][2])
+        # Wrap: this feeds a 1e-6 sameness gate that exists to catch the
+        # frontend returning odometry untouched. Two representations of one
+        # heading differ by 2pi, so an unwrapped diff would call an identical
+        # pose different and let the no-op through.
+        yaw_diff = abs(wrap_angle(frontend_poses[i][2] - odom_poses[i][2]))
         max_trans_diff = max(max_trans_diff, trans_diff)
         max_yaw_diff = max(max_yaw_diff, yaw_diff)
     
@@ -1912,7 +1924,9 @@ def run_with_inline_data(
     start_pose = true_poses[0]
     end_pose = true_poses[-1]
     closure_dist = np.linalg.norm(end_pose[:2] - start_pose[:2])
-    closure_yaw = abs(end_pose[2] - start_pose[2])
+    # Wrap: a closed loop returns to its start heading, which differs by
+    # a multiple of 2pi. Unwrapped, a perfect closure reports 360 deg.
+    closure_yaw = abs(wrap_angle(end_pose[2] - start_pose[2]))
     
     summary = {
         "mode": "inline",
