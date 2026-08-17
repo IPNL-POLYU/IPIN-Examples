@@ -147,7 +147,9 @@ path = Path("data/sim/ch7_slam_2d_square")
 true_poses = np.loadtxt(path / "ground_truth_poses.txt")
 odom_poses = np.loadtxt(path / "odometry_poses.txt")
 landmarks = np.loadtxt(path / "landmarks.txt")
-scans = np.load(path / "scans.npz")['scans']
+scan_data = np.load(path / "scans.npz")
+# One array per pose, keyed scan_0 .. scan_40. There is no "scans" key.
+scans = [scan_data[f"scan_{i}"] for i in range(len(true_poses))]
 config = json.load(open(path / "config.json"))
 ```
 
