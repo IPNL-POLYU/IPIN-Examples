@@ -102,6 +102,39 @@ resolved and the *call* is wrong — that is API drift, and it is always real.
 That one rule separated eight genuine drifts from twenty-one fragments in a
 register that had counted all twenty-nine as "broken".
 
+## Editing a chapter README's "Expected Output"
+
+`tests/docs/test_readme_example_output.py` runs the example and requires every
+non-blank line of the marked block to appear, in order, in its stdout. So
+**paste a real transcript, never a tidied one** — `...` on its own line elides,
+`~` stands in for one varying token, and that is the whole vocabulary.
+Numbers get 5% for platform noise; text must match exactly.
+
+`UNCHECKED_TRANSCRIPTS` is the ratchet and **it is empty today**. Its last
+entry was ch2's, deliberately held open because marking the block would have
+pinned a bug: the example built "100m East" as
+`np.deg2rad(-122.4194) + 100 / 78800`, adding a per-*degree* constant to a
+value already in radians, and printed the resulting 6405.80 m as 100 m.
+
+Two things about that shape are worth carrying forward:
+
+- **A unit error hides behind whichever output is unit-agnostic.** Of the three
+  targets, "50m Up" was right — a height is metres either way — and one correct
+  line out of three made the block look like it worked. The same reflex as the
+  frame audit in ch6: if one component of a vector cannot express the error,
+  it will be the one you look at.
+- **A constant borrowed from a passing test is not thereby correct.** 78800 came
+  from `tests/core/coords/test_transforms.py`, where it is metres per degree of
+  longitude at 45° and used correctly, with `deg2rad`. At this example's 37.77°
+  the true figure is 88100, so it was independently wrong by 12% — an error the
+  57.3x one would have hidden completely had anyone gone looking.
+
+Derive such a conversion rather than pasting it: the offsets now come from the
+WGS84 radii of curvature at the reference latitude, which has no per-degree
+constant to mislay and no latitude to be wrong about. Sub-millimetre residuals
+remain and are real — the second-order curvature term, growing as the square of
+the offset, which the example prints.
+
 ## Dataset files have to agree with each other
 
 Several datasets ship the same information in more than one form, and those

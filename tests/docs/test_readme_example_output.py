@@ -75,28 +75,22 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 #: THIS REGISTER MUST ONLY SHRINK. An entry is a block whose numbers nothing
 #: checks, which is exactly the state the audit found the whole set in.
 #:
-#: One entry, and it is here because marking the block would enshrine a bug.
+#: It is empty. Every transcript in every chapter README is marked and checked.
 #:
-#: ch2's transcript prints `Target: 100m East -> ENU: [6405.80, 2.49, -3.21] m`.
-#: The example builds that target as `np.deg2rad(-122.4194) + 100 / 78800`:
-#: 78800 is roughly metres per *degree* of longitude, but it is added to a value
-#: already in radians, so the offset is 57.3x too large. 100 / 78800 rad is
-#: 0.0727 deg, which at this latitude is the 6405 m the run reports. "100m
-#: North" is wrong the same way (5729 m); "50m Up" is right, because a height is
-#: metres either way.
+#: The last entry was ch2's, held back because marking it would have pinned a
+#: bug: the example built "100m East" as `np.deg2rad(-122.4194) + 100 / 78800`,
+#: adding a per-*degree* constant to a value already in radians, and the block
+#: showed the resulting 6405.80 m as though it were 100. That is fixed -- the
+#: offsets now come from the local radii of curvature -- and the block is
+#: marked. `tests/ch2_coords/test_enu_offsets_are_metres.py` asserts the claim
+#: in metres, so the transcript is no longer the only thing standing behind it.
 #:
-#: Pinning that transcript would make this suite defend the defect, so the block
-#: stays unmarked until the example is fixed. Mark it in the same change.
-#:
-#: Every other transcript in every chapter README is now checked. Four blocks
-#: were left off an earlier draft of this register with reasons -- unseeded
-#: RNGs, a single un-averaged draw -- that turned out on measurement to be
-#: false: all four are bit-reproducible across processes, and the ch4 example
+#: Four blocks were left off an earlier draft of this register with reasons --
+#: unseeded RNGs, a single un-averaged draw -- that turned out on measurement to
+#: be false: all four are bit-reproducible across processes, and the ch4 example
 #: already reports a 2000-draw RMS beside the single draw. Verify before
 #: registering; a plausible reason is not a reason.
-UNCHECKED_TRANSCRIPTS = {
-    "ch2_coords": 1,
-}
+UNCHECKED_TRANSCRIPTS: dict[str, int] = {}
 
 #: Spans that legitimately differ between runs and machines, masked before
 #: comparison. Deliberately short: every entry is a licence for the block to

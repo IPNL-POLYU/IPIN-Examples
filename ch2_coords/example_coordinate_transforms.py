@@ -39,6 +39,7 @@ from core.coords import (
     quat_to_rotation_matrix,
     rotation_matrix_to_euler,
 )
+from core.coords.transforms import WGS84_A, WGS84_E2
 
 
 def load_dataset(data_dir: str) -> dict:
@@ -232,19 +233,39 @@ def run_with_inline_data() -> None:
     lon_ref = np.deg2rad(-122.4194)
     height_ref = 0.0
 
-    # Define target points relative to reference
+    # Turn a displacement in metres into one in radians, via the local radii of
+    # curvature: the meridian radius M northward, the prime-vertical radius N
+    # scaled by cos(lat) eastward.
+    #
+    # Doing it from the radii rather than from a "metres per degree" constant
+    # closes two traps at once. The constant is per *degree*, so it has to be
+    # converted before it is added to a latitude already in radians -- miss that
+    # and the offset is 180/pi = 57.3x too large. And it is only valid at the
+    # latitude it was computed for: one degree of longitude spans 78.8 km at
+    # 45 deg but 88.1 km here.
+    sin_ref = np.sin(lat_ref)
+    n_radius = WGS84_A / np.sqrt(1.0 - WGS84_E2 * sin_ref**2)
+    m_radius = WGS84_A * (1.0 - WGS84_E2) / (1.0 - WGS84_E2 * sin_ref**2) ** 1.5
+    rad_per_m_north = 1.0 / m_radius
+    rad_per_m_east = 1.0 / (n_radius * np.cos(lat_ref))
+
+    print("Offsets are built from the local radii of curvature, so each target")
+    print("should come back as the ENU it is named for. The residual below is")
+    print("the second-order curvature term the linear conversion drops; it grows")
+    print("as the square of the offset, and is exactly zero for a pure height.")
+
+    # Define target points relative to reference, each with the ENU it is named
+    # for. Printing the two together is what makes the section check itself.
     targets = [
-        ("100m East", np.deg2rad(37.7749), np.deg2rad(-122.4194) + 100 / 78800, 0.0),
-        ("100m North", np.deg2rad(37.7749) + 100 / 111000, np.deg2rad(-122.4194), 0.0),
-        (
-            "50m Up",
-            np.deg2rad(37.7749),
-            np.deg2rad(-122.4194),
-            50.0,
-        ),
+        ("100m East", lat_ref, lon_ref + 100.0 * rad_per_m_east, 0.0,
+         np.array([100.0, 0.0, 0.0])),
+        ("100m North", lat_ref + 100.0 * rad_per_m_north, lon_ref, 0.0,
+         np.array([0.0, 100.0, 0.0])),
+        ("50m Up", lat_ref, lon_ref, 50.0,
+         np.array([0.0, 0.0, 50.0])),
     ]
 
-    for name, lat_tgt, lon_tgt, height_tgt in targets:
+    for name, lat_tgt, lon_tgt, height_tgt, enu_named in targets:
         # Convert target to ECEF
         xyz_tgt = llh_to_ecef(lat_tgt, lon_tgt, height_tgt)
 
@@ -253,6 +274,8 @@ def run_with_inline_data() -> None:
 
         print(f"\nTarget: {name}")
         print(f"  ENU: [{enu[0]:.2f}, {enu[1]:.2f}, {enu[2]:.2f}] m")
+        print(f"  Error vs. the named offset: "
+              f"{np.linalg.norm(enu - enu_named) * 1e3:.2f} mm")
 
     # Example 4: Rotation representations
     print("\n4. Rotation Representations")

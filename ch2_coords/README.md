@@ -156,11 +156,13 @@ print(f"||q|| = {np.linalg.norm(q):.6f}")  # Should be 1.0
 
 ## Expected Output
 
-When you run the demonstration script, you should see output similar to:
+When you run the demonstration script, you should see:
 
+<!-- example-output: ch2_coords.example_coordinate_transforms -->
 ```
 ======================================================================
 Chapter 2: Coordinate Transformation Examples
+(Using inline generated data)
 ======================================================================
 
 1. LLH to ECEF Transformation
@@ -184,8 +186,22 @@ Recovered LLH:
 
 3. Local ENU Frame Transformation
 ----------------------------------------------------------------------
+Offsets are built from the local radii of curvature, so each target
+should come back as the ENU it is named for. The residual below is
+the second-order curvature term the linear conversion drops; it grows
+as the square of the offset, and is exactly zero for a pure height.
+
+Target: 100m East
+  ENU: [100.00, 0.00, -0.00] m
+  Error vs. the named offset: 0.99 mm
+
+Target: 100m North
+  ENU: [-0.00, 100.00, -0.00] m
+  Error vs. the named offset: 0.79 mm
+
 Target: 50m Up
   ENU: [0.00, -0.00, 50.00] m
+  Error vs. the named offset: 0.00 mm
 
 4. Rotation Representations
 ----------------------------------------------------------------------
@@ -195,26 +211,34 @@ Euler Angles:
   Yaw:   30.0°
 
 Rotation Matrix:
-[[ 0.81379768 -0.44096961  0.37852231]
- [ 0.46984631  0.88256412  0.01802831]
- [-0.34202014  0.16317591  0.92541658]]
+[[ 0.85286853  0.49240388 -0.17364818]
+ [-0.41841204  0.84349327  0.33682409]
+ [ 0.31232456 -0.21461018  0.92541658]]
   Determinant: 1.000000 (should be 1.0)
 
 Quaternion [qw, qx, qy, qz]:
-  [0.95154852 0.03813458 0.18930786 0.23929834]
+  [0.95154852 0.14487813 0.12767944 0.23929834]
   Norm: 1.000000 (should be 1.0)
 
-5. Applying Rotation to Vector
+5. Applying the Coordinate Transform (x_new = C @ x_old)
 ----------------------------------------------------------------------
-Vector in body frame: [1. 0. 0.]
-Vector in navigation frame: [ 0.81379768  0.46984631 -0.34202014]
+Point in old frame: [1. 0. 0.]
+Coordinates in new frame: [ 0.85286853 -0.41841204  0.31232456]
 
-6. Round-trip Rotation Conversions
+6. Quaternion -> Euler (Eqs. 2.22-2.23)
+----------------------------------------------------------------------
+Quaternion: [0.95154852 0.14487813 0.12767944 0.23929834]
+Euler from quat_to_euler: [10.0°, 20.0°, 30.0°]
+Original Euler:           [10.0°, 20.0°, 30.0°]
+
+Round-trip Euler->Quat->Euler error: 1.11e-16 rad (PASS)
+
+7. Round-trip Rotation Conversions (Matrix Path)
 ----------------------------------------------------------------------
 Original Euler: [10.0°, 20.0°, 30.0°]
 Recovered Euler: [10.0°, 20.0°, 30.0°]
 
-7. Practical Indoor Positioning Scenario
+8. Practical Indoor Positioning Scenario
 ----------------------------------------------------------------------
 Building entrance (reference): 37.7749°N, 122.4194°W
 
@@ -237,6 +261,8 @@ Parking:
 ======================================================================
 Examples completed successfully!
 ======================================================================
+
+Tip: Run with --data ch2_coords_san_francisco to use pre-generated dataset
 ```
 
 ## Architecture Diagrams
