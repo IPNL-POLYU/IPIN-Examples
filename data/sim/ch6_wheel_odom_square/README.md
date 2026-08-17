@@ -6,7 +6,7 @@ This dataset demonstrates **vehicle dead reckoning using wheel encoders with IMU
 
 **Key Learning Objective**: Understand that wheel odometry provides bounded drift but is sensitive to wheel slip, making it superior to pure IMU for vehicles but still requiring corrections.
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 1. **Bounded Drift**: Wheel odometry error grows with distance (~0.25% drift rate), not time
@@ -55,7 +55,7 @@ python scripts/generate_ch6_wheel_odom_dataset.py --preset slip
 python scripts/generate_ch6_wheel_odom_dataset.py --preset poor
 ```
 
-## Files
+## Files and Data Structure
 
 ### Ground Truth
 - `time.txt`: Timestamps [N×1] (seconds)
@@ -74,7 +74,7 @@ python scripts/generate_ch6_wheel_odom_dataset.py --preset poor
 ### Configuration
 - `config.json`: All dataset parameters and performance metrics
 
-## Loading Data
+## Loading Example
 
 ### Python
 ```python
@@ -230,7 +230,7 @@ plt.show()
 
 **Expected Result**: ~0.8m final error (0.25% drift rate)
 
-## Visualization
+## Visualization Example
 
 ### Plot with Built-in Tool
 ```bash
@@ -280,7 +280,7 @@ print(f"Drift rate: {error[-1] / distance[-1] * 100:.3f}% of distance")
 
 **Expected Pattern**: Linear growth with distance (not time!)
 
-## Parameter Effects
+## Parameter Effects and Learning Experiments
 
 ### Effect of Encoder Noise
 
@@ -332,7 +332,7 @@ python scripts/generate_ch6_wheel_odom_dataset.py --output data/sim/wheel_lever_
 python scripts/generate_ch6_wheel_odom_dataset.py --output data/sim/wheel_lever_large --lever-arm 3.0 0 -0.5
 ```
 
-## Experiments
+## Recommended Experiments
 
 ### Experiment 1: Bounded Drift Analysis
 
@@ -554,7 +554,7 @@ plt.show()
 - IMU strapdown: ~100m error in 12s (UNBOUNDED)
 - Wheel odometry: ~0.8m error over 327m (BOUNDED, 100× better!)
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 6, Section 6.2: Wheel Odometry Dead Reckoning
 

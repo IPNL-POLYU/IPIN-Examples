@@ -6,7 +6,7 @@ This dataset demonstrates **RF (Radio Frequency) positioning using TOA, TDOA, an
 
 **Key Learning Objective**: Understand that beacon geometry is THE most important factor in RF positioning accuracy - geometry can cause 10× variation in GDOP!
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 1. **Geometry is Critical**: GDOP varies from <2 (good) to >10 (poor) based on beacon layout
@@ -63,7 +63,7 @@ python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset poor_geometry
 python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset nlos
 ```
 
-## Files
+## Files and Data Structure
 
 ### Beacon Configuration
 - `beacons.txt`: Beacon positions [N_beacons×2] (x, y in meters)
@@ -84,7 +84,7 @@ python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset nlos
 ### Configuration
 - `config.json`: All dataset parameters and performance metrics
 
-## Loading Data
+## Loading Example
 
 ### Python
 ```python
@@ -317,7 +317,7 @@ is still reachable as `residual="tan"` if you want to see it misbehave.
 Report the median and the failure count anyway. Both are cheap, and a mean
 alone would have hidden the old defect completely.
 
-## Visualization
+## Visualization Example
 
 ### Plot GDOP Map
 ```python
@@ -357,7 +357,7 @@ print(f"Max GDOP: {gdop_toa.max():.2f} (worst geometry)")
 
 **Learning Point**: GDOP is lowest at center, increases near edges and corners
 
-## Parameter Effects
+## Parameter Effects and Learning Experiments
 
 ### Effect of Beacon Geometry
 
@@ -419,7 +419,7 @@ python scripts/generate_ch4_rf_2d_positioning_dataset.py --output data/sim/ch4_a
 
 **Learning Point**: AOA errors amplify with distance from beacons!
 
-## Experiments
+## Recommended Experiments
 
 ### Experiment 1: Geometry Impact on GDOP
 
@@ -528,7 +528,7 @@ variant, TOA and TDOA fail on all 100 positions while AOA still solves 92 of
 them to a 0.26m median. Ranges from anchors on a line leave the position
 ambiguous; bearings do not. That contrast is the reason the variant exists.
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 4: RF Point Positioning
 

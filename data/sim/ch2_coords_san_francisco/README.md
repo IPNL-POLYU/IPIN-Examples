@@ -6,7 +6,7 @@ This dataset demonstrates **practical coordinate transformations** for indoor po
 
 **Key Learning Objective**: Understand coordinate frame transformations are the foundation of indoor positioning - wrong choice or poor precision → positioning errors!
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 1. **Coordinate Frames**: LLH (GPS), ECEF (global), ENU (local building)
@@ -21,7 +21,7 @@ This dataset demonstrates **practical coordinate transformations** for indoor po
 - **Eq. (2.3)**: ECEF → ENU (rotation + translation)
 - **Eqs. (2.5-2.10)**: Rotation representations
 
-## Files
+## Files and Data Structure
 
 - `llh_coordinates.txt`: GPS-like coordinates [N×3] (lat, lon, height in rad, rad, m)
 - `ecef_coordinates.txt`: Global Cartesian [N×3] (X, Y, Z in m)
@@ -150,7 +150,7 @@ v_body = np.array([1, 0, 0])  # Forward in body frame
 v_global = R @ v_body          # Forward in global frame
 ```
 
-## Parameter Effects
+## Parameter Effects and Learning Experiments
 
 ### Location Dependency
 Different locations have different ECEF coordinates:
@@ -197,7 +197,7 @@ ref_llh = np.loadtxt("data/sim/ch2_coords_san_francisco/reference_llh.txt")
 lat_ref, lon_ref, h_ref = ref_llh
 ```
 
-## Experiments
+## Recommended Experiments
 
 ### Experiment 1: Verify Round-Trip Accuracy
 ```python
@@ -237,7 +237,7 @@ for e in euler[:3]:
     print(f"Matrix difference: {diff:.3e}")  # Should be ~0
 ```
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 2: Coordinate Systems
 
