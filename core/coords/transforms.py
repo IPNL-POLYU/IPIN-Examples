@@ -169,6 +169,10 @@ def enu_to_llh_offset(
     Returns:
         Offset as numpy array [dlat, dlon] in radians.
 
+    Raises:
+        ValueError: If the eastward displacement is not local at this latitude
+            — see below.
+
     Example:
         >>> import numpy as np
         >>> lat = np.deg2rad(37.7749)
@@ -187,7 +191,27 @@ def enu_to_llh_offset(
     m_radius = WGS84_A * (1.0 - WGS84_E2) / denom**1.5
 
     dlat = north / m_radius
-    dlon = east / (n_radius * np.cos(lat))
+    # Radius of the parallel through this latitude. It shrinks to zero at the
+    # poles, where an eastward metre stops corresponding to any bounded change
+    # in longitude.
+    parallel_radius = n_radius * np.cos(lat)
+    dlon = east / parallel_radius if parallel_radius != 0.0 else np.inf
+
+    # Refuse a displacement that is not local, rather than returning a number.
+    # `cos(pi/2)` is 6.1e-17 rather than 0, so the pole divides by something
+    # tiny-but-finite and yields no warning at all: `enu_to_llh_offset(100, 0,
+    # pi/2)` returned 2.55e+11 rad, a silent absurdity of exactly the kind a
+    # local linearisation invites. At any latitude a reader would call "local",
+    # pi/2 of longitude is thousands of kilometres away, so this cannot fire on
+    # legitimate use.
+    if not np.isfinite(dlon) or abs(dlon) > np.pi / 2:
+        raise ValueError(
+            f"east={east} m at latitude {np.rad2deg(lat):.4f} deg implies "
+            f"{dlon:.3e} rad of longitude, which is not a local offset. The "
+            f"parallel through this latitude has radius {parallel_radius:.3e} "
+            f"m; the tangent-plane approximation this function makes does not "
+            f"hold near the poles."
+        )
 
     return np.array([dlat, dlon], dtype=np.float64)
 

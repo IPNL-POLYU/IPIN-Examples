@@ -448,6 +448,45 @@ class TestENUToLLHOffset(unittest.TestCase):
         self.assertLess(abs(dlat), 1e-4)
         self.assertLess(abs(dlon), 1e-4)
 
+    def test_a_pole_is_refused_rather_than_answered(self) -> None:
+        """Near the pole the linearisation stops meaning anything, and says so.
+
+        `cos(pi/2)` is 6.1e-17 rather than 0, so this divides by something
+        tiny-but-finite and raises no warning: before the guard,
+        `enu_to_llh_offset(100.0, 0.0, pi/2)` returned 2.55e+11 rad. A silent
+        absurdity is worse than an exception, so it is now an exception.
+        """
+        with self.assertRaises(ValueError):
+            enu_to_llh_offset(100.0, 0.0, np.pi / 2)
+        with self.assertRaises(ValueError):
+            enu_to_llh_offset(100.0, 0.0, -np.pi / 2)
+
+    def test_high_latitudes_still_work(self) -> None:
+        """The guard must not fire on anywhere anyone actually positions.
+
+        Svalbard is about as far north as an indoor-positioning deployment
+        gets. A check that also refused legitimate input would be worse than
+        the silent number it replaced.
+
+        The tolerance is derived rather than picked, because a flat one is
+        wrong here: a parallel curves toward the pole, so an eastward offset
+        picks up a northward residual of about ``d^2 tan(lat) / 2R``. That is
+        1.4 mm at 60 deg but 44.8 mm at 89 deg, and the measured miss tracks it
+        to within a few percent. A fixed 50 mm delta would have passed 89 deg
+        for the wrong reason and failed at 89.5.
+        """
+        for lat_deg in (60.0, 78.2, 89.0):
+            with self.subTest(lat=lat_deg):
+                lat = np.deg2rad(lat_deg)
+                dlat, dlon = enu_to_llh_offset(100.0, 100.0, lat)
+                xyz = llh_to_ecef(lat + dlat, dlon, 0.0)
+                enu = ecef_to_enu(*xyz, lat, 0.0, 0.0)
+
+                predicted = 100.0**2 * np.tan(lat) / (2 * 6.4e6)
+                tolerance = 2.0 * predicted + 0.005
+                self.assertAlmostEqual(enu[0], 100.0, delta=tolerance)
+                self.assertAlmostEqual(enu[1], 100.0, delta=tolerance)
+
     def test_longitude_scaling_follows_latitude(self) -> None:
         """cos(lat) is applied to east, and is not silently constant.
 
