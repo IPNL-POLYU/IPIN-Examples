@@ -215,7 +215,6 @@ def plot_uwb_ranges(data: Dict, axes: Optional[np.ndarray] = None) -> np.ndarray
         axes = axes.flatten()
     
     uwb = data['uwb']
-    anchors = data['anchors']
     config = data['config']
     
     t_uwb = uwb['t']
@@ -331,7 +330,7 @@ def plot_dataset_overview(dataset_path: str, output_dir: Optional[str] = None,
     print(f"  UWB samples: {config['dataset_info']['uwb_samples']}")
     
     # Create plots
-    print(f"\nGenerating plots...")
+    print("\nGenerating plots...")
     
     # 1. Trajectory with anchors
     print("  1/5: Trajectory")

@@ -4,9 +4,19 @@ This tool checks that each dataset in data/sim/ has complete documentation
 following the standards defined in Section 5.3 of the design document.
 
 Usage:
-    python tools/validate_dataset_docs.py                    # Check all datasets
-    python tools/validate_dataset_docs.py fusion_2d_imu_uwb  # Check specific dataset
-    python tools/validate_dataset_docs.py --fix              # Auto-create missing READMEs
+    python tools/validate_dataset_docs.py                       # every dataset
+    python tools/validate_dataset_docs.py ch4_rf_2d_square      # just one
+    python tools/validate_dataset_docs.py --quiet                # summary only
+    python tools/validate_dataset_docs.py --strict               # warnings fail too
+
+Exits 0 when every failing dataset is listed in KNOWN_INCOMPLETE below, and
+non-zero on a gap that is not -- or on a registered dataset that has become
+valid, so the register cannot go stale. `tests/test_repo_validators.py` runs it.
+
+This docstring used to advertise a `--fix` flag that auto-created missing
+READMEs. There is no such flag and no such code; the four arguments above are
+all argparse defines. It also named a `fusion_2d_imu_uwb` dataset, which has
+been `ch8_fusion_2d_imu_uwb` since the chapter prefixes went in.
 
 Author: Li-Ta Hsu
 Date: December 2025
@@ -15,7 +25,7 @@ Date: December 2025
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Dict, List, Tuple
 
 
 class Colors:
@@ -32,6 +42,46 @@ CHECK = 'OK'  # Was: ✓
 CROSS = 'X'   # Was: ✗
 WARN = '!'    # Was: ⚠
 
+
+# Datasets whose documentation is genuinely incomplete, with what is missing.
+#
+# THIS REGISTER MUST ONLY SHRINK. It exists so this tool can run in CI against
+# today's real state: before it, the tool reported 72 errors across 12 datasets,
+# and a check that is always red is a check nobody reads. Most of those 72 were
+# the tool's own fault and are fixed -- it demanded .npz of text datasets,
+# demanded one specific set of table column names, and could not see the three
+# ch5 datasets at all. What is left is real, and each entry says what it needs
+# rather than merely naming the dataset.
+#
+# Six of the nine entries are simply a missing README, and they are the same gap
+# data/sim/README.md links to and does not have -- its catalogue table gives
+# every dataset a [README](...) link, including these.
+KNOWN_INCOMPLETE = {
+    "ch2_coords_san_francisco":
+        "no Loading Example, Configuration Parameters or Visualization Example "
+        "section, and no table in Parameter Effects. Its Quick Start and "
+        "Example Usage sections cover some of the ground under other names.",
+    "ch3_estimator_nonlinear":
+        "no Visualization Example section.",
+    "ch4_rf_2d_linear":
+        "written to a different shape from the template -- it leads with the "
+        "reflection ambiguity and why DOP misses it, which reads better than "
+        "the template order. Needs a decision: reshape it, or update the "
+        "template and this tool to match current practice.",
+    "ch3_estimator_high_nonlinear": "no README.",
+    "ch4_rf_2d_nlos": "no README.",
+    "ch4_rf_2d_optimal": "no README.",
+    "ch7_slam_2d_high_drift": "no README.",
+    "ch5_wifi_fingerprint_dense": "no README.",
+    "ch5_wifi_fingerprint_sparse": "no README.",
+}
+
+# Not a documentation gap, so not in the register, but worth writing down while
+# it is in view: all three ch5 datasets carry metadata.json rather than the
+# config.json every other dataset uses, and none of the three records a seed.
+# Their scenario parameters are there -- AP positions, grid spacing, path-loss
+# model -- so they document what they are, but they cannot be regenerated
+# exactly, which every other dataset here can.
 
 # Required sections in dataset README (from Section 5.3.2)
 REQUIRED_SECTIONS = [
@@ -63,24 +113,45 @@ def check_dataset_files(dataset_path: Path) -> Tuple[List[str], List[str]]:
     Returns:
         Tuple of (found_files, missing_files)
     """
-    required_files = ["config.json"]
-    
-    # Check for at least one .npz or .npy file
-    data_files = list(dataset_path.glob("*.npz")) + list(dataset_path.glob("*.npy"))
-    
+    # A dataset needs its generation parameters and at least one data file.
+    #
+    # .txt counts. This used to demand .npz or .npy, which failed nine of the
+    # shipped datasets -- every text-based one -- while data/sim/README.md
+    # documents .txt as a supported format and answers "why do some datasets
+    # use .txt and others .npz?" with "both formats are supported". The design
+    # doc says NPZ *preferred*, not required. So the check was reporting a
+    # house-style preference as a missing file, and that is most of why this
+    # tool sat red and unread.
+    data_files = [
+        path
+        for suffix in ("*.npz", "*.npy", "*.txt")
+        for path in dataset_path.glob(suffix)
+    ]
+
     found = []
     missing = []
-    
-    if (dataset_path / "config.json").exists():
-        found.append("config.json")
+
+    # config.json is the documented name; the three ch5 fingerprint datasets
+    # use metadata.json instead. It carries the scenario parameters -- AP
+    # positions, grid spacing, path-loss model -- so it serves the purpose, and
+    # it is accepted here rather than reported as a missing file. The naming
+    # inconsistency, and the fact that none of the three records a seed, are
+    # noted against them in KNOWN_INCOMPLETE.
+    config = next(
+        (name for name in ("config.json", "metadata.json")
+         if (dataset_path / name).exists()),
+        None,
+    )
+    if config:
+        found.append(config)
     else:
         missing.append("config.json")
-    
+
     if data_files:
         found.append(f"data files ({len(data_files)} found)")
     else:
-        missing.append("data files (.npz or .npy)")
-    
+        missing.append("data files (.npz, .npy or .txt)")
+
     return found, missing
 
 
@@ -148,11 +219,33 @@ def check_parameter_table(readme_path: Path) -> bool:
         return False
     
     content = readme_path.read_text(encoding='utf-8')
-    
-    # Look for table with "Parameter" and "Effect" columns
-    has_table = "| Parameter |" in content and "| Effect" in content
-    
-    return has_table
+
+    # A markdown table inside the parameter-effects section.
+    #
+    # This used to require the literal column headers "| Parameter |" and
+    # "| Effect", which is a check on one table's column naming rather than on
+    # whether the section says anything. It failed seven READMEs that carry
+    # several parameter-effects tables each, because theirs are headed with the
+    # quantity actually being varied -- "| Geometry | Mean GDOP | ... |",
+    # "| TOA Noise (m) | Position Error (m) | ... |". Renaming those columns to
+    # "Parameter" would make them worse, so the check moved instead.
+    section = "## Parameter Effects and Learning Experiments"
+    if section not in content:
+        return False
+
+    body = content.split(section, 1)[1]
+    lines = []
+    for line in body.splitlines():
+        if line.startswith("## "):
+            break
+        lines.append(line)
+
+    # A table needs the |---|---| separator row under its header.
+    separator = set("|-: \t")
+    return any(
+        line.lstrip().startswith("|") and set(line) <= separator and "-" in line
+        for line in lines
+    )
 
 
 def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Dict]:
@@ -167,6 +260,7 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
     """
     results = {
         'path': dataset_path,
+        'dataset': dataset_path.name,
         'has_readme': False,
         'has_config': False,
         'has_data_files': False,
@@ -185,7 +279,9 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
     
     # Check files
     found_files, missing_files = check_dataset_files(dataset_path)
-    results['has_config'] = "config.json" in found_files
+    results['has_config'] = any(
+        name in found_files for name in ("config.json", "metadata.json")
+    )
     results['has_data_files'] = any("data files" in f for f in found_files)
     
     if missing_files:
@@ -277,13 +373,28 @@ def find_datasets(data_sim_path: Path) -> List[Path]:
         List of dataset directory paths.
     """
     datasets = []
-    
+
+    # Anything that carries a README or a data file of any kind.
+    #
+    # This used to require config.json or *.npz, which silently skipped the
+    # three ch5 fingerprint datasets -- they carry metadata.json and *.npy --
+    # so the tool reported "17 datasets checked" out of 20 and a reader had no
+    # way to know which three were missing. ch5_wifi_fingerprint_grid has a
+    # full README that nothing had ever validated.
+    markers = ("config.json", "metadata.json")
+    suffixes = ("*.npz", "*.npy", "*.txt")
+
     for item in data_sim_path.iterdir():
-        if item.is_dir() and not item.name.startswith('.'):
-            # Check if it looks like a dataset (has config.json or data files)
-            if (item / "config.json").exists() or list(item.glob("*.npz")):
-                datasets.append(item)
-    
+        if not item.is_dir() or item.name.startswith('.'):
+            continue
+        looks_like_dataset = (
+            (item / "README.md").exists()
+            or any((item / marker).exists() for marker in markers)
+            or any(item.glob(suffix) for suffix in suffixes)
+        )
+        if looks_like_dataset:
+            datasets.append(item)
+
     return sorted(datasets)
 
 
@@ -308,7 +419,7 @@ def print_summary(results_list: List[Tuple[bool, Dict]]):
         print(f"\n{Colors.GREEN}{Colors.BOLD}All datasets have complete documentation! [{CHECK}]{Colors.END}")
     else:
         print(f"\n{Colors.RED}{Colors.BOLD}Some datasets need documentation fixes.{Colors.END}")
-        print(f"\nDatasets needing attention:")
+        print("\nDatasets needing attention:")
         for is_valid, results in results_list:
             if not is_valid:
                 print(f"  - {results['path'].name}: {len(results['errors'])} errors")
@@ -407,9 +518,70 @@ Examples:
     # Print summary
     print_summary(results_list)
     
-    # Exit code: 0 if all valid, 1 if any invalid
-    all_valid = all(is_valid for is_valid, _ in results_list)
-    return 0 if all_valid else 1
+    # --strict is a "show me everything" mode, so the register does not apply.
+    #
+    # It promotes the recommended-section warnings to errors, which fails eight
+    # datasets that are complete by the required-section standard the register
+    # tracks. Running them through the register logic reported those eight as
+    # "New documentation gaps" and advised adding them to KNOWN_INCOMPLETE,
+    # which would have been wrong: they are not incomplete, they simply lack
+    # optional sections.
+    if args.strict:
+        failing = sorted(
+            results['dataset'] for is_valid, results in results_list if not is_valid
+        )
+        if failing:
+            print(f"\n{Colors.YELLOW}{Colors.BOLD}Strict mode: recommended "
+                  f"sections missing{Colors.END}")
+            for name in failing:
+                print(f"  - {name}")
+            print(
+                "\nStrict mode treats the RECOMMENDED_SECTIONS as required. "
+                "These are not KNOWN_INCOMPLETE candidates -- that register is "
+                "for the required set. Run without --strict for the answer CI "
+                "uses."
+            )
+            return 1
+        print(f"\n{Colors.GREEN}{Colors.BOLD}[PASSED]{Colors.END} strict")
+        return 0
+
+    # Exit code: a registered failure is debt, not a regression.
+    #
+    # An unregistered failure fails the build. A *registered* dataset that has
+    # become valid also fails it, so the register cannot quietly grow stale --
+    # the same reasoning as the ratchets in tests/test_repo_conventions.py.
+    unregistered = sorted(
+        results['dataset'] for is_valid, results in results_list
+        if not is_valid and results['dataset'] not in KNOWN_INCOMPLETE
+    )
+    fixed = sorted(
+        results['dataset'] for is_valid, results in results_list
+        if is_valid and results['dataset'] in KNOWN_INCOMPLETE
+    )
+
+    if unregistered:
+        print(f"\n{Colors.RED}{Colors.BOLD}New documentation gaps:{Colors.END}")
+        for name in unregistered:
+            print(f"  - {name}")
+        print(
+            "\nFix the dataset's README, or add it to KNOWN_INCOMPLETE with a "
+            "line saying what it still needs."
+        )
+    if fixed:
+        print(f"\n{Colors.GREEN}{Colors.BOLD}Now valid, so drop from "
+              f"KNOWN_INCOMPLETE:{Colors.END}")
+        for name in fixed:
+            print(f"  - {name}")
+
+    if not unregistered and not fixed:
+        registered = sum(
+            1 for is_valid, results in results_list
+            if not is_valid and results['dataset'] in KNOWN_INCOMPLETE
+        )
+        print(f"\n{Colors.GREEN}{Colors.BOLD}[PASSED]{Colors.END} "
+              f"no new gaps ({registered} known, listed in KNOWN_INCOMPLETE)")
+
+    return 1 if (unregistered or fixed) else 0
 
 
 if __name__ == "__main__":

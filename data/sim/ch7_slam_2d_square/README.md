@@ -6,7 +6,7 @@ This dataset demonstrates **2D LiDAR-based pose graph SLAM** with odometry drift
 
 **Key Learning Objective**: Understand that loop closure detection + pose graph optimization can reduce final positioning error by 10× compared to dead-reckoning alone!
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 1. **Odometry Drift**: See how small per-step errors accumulate over time
@@ -46,7 +46,7 @@ python scripts/generate_ch7_slam_2d_dataset.py --preset high_drift
 python scripts/generate_ch7_slam_2d_dataset.py --preset figure8
 ```
 
-## Files
+## Files and Data Structure
 
 ### Trajectory Data
 - `ground_truth_poses.txt`: True robot poses [N×3] (x, y, yaw in m, rad)
@@ -62,7 +62,7 @@ python scripts/generate_ch7_slam_2d_dataset.py --preset figure8
 ### Configuration
 - `config.json`: All dataset parameters and statistics
 
-## Loading Data
+## Loading Example
 
 ### Python
 ```python
@@ -286,7 +286,7 @@ rather than removing it everywhere.
 
 **Learning Point**: Loop closure + optimization = global consistency!
 
-## Visualization
+## Visualization Example
 
 ### Plot Scan Matching
 ```python
@@ -334,7 +334,7 @@ plt.show()
 
 **Learning Point**: ICP aligns overlapping scans to detect loop closures!
 
-## Parameter Effects
+## Parameter Effects and Learning Experiments
 
 ### Effect of Odometry Noise
 
@@ -369,7 +369,7 @@ python scripts/generate_ch7_slam_2d_dataset.py --preset figure8
 
 **Learning Point**: More loop closures → better global consistency!
 
-## Experiments
+## Recommended Experiments
 
 ### Experiment 1: Quantify Drift Accumulation
 
@@ -474,7 +474,7 @@ print(f"Drift rate: {errors[-1]/distances[-1]*100:.2f}% of distance")
 
 **Key Insight**: Loop closure benefit increases with odometry quality!
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 7: SLAM
 

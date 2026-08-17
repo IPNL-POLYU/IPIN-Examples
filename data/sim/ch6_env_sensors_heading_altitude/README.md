@@ -6,7 +6,7 @@ This dataset demonstrates **magnetometer and barometer sensors for indoor naviga
 
 **Key Learning Objective**: Understand that environmental sensors provide absolute measurements that don't drift, but are susceptible to indoor disturbances (magnetic anomalies, weather pressure changes).
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 1. **Absolute Heading**: Magnetometer provides drift-free heading (unlike gyro integration)
@@ -61,7 +61,7 @@ python scripts/generate_ch6_env_sensors_dataset.py --preset disturbances
 python scripts/generate_ch6_env_sensors_dataset.py --preset poor
 ```
 
-## Files
+## Files and Data Structure
 
 ### Ground Truth
 - `time.txt`: Timestamps [N×1] (seconds)
@@ -80,7 +80,7 @@ python scripts/generate_ch6_env_sensors_dataset.py --preset poor
 ### Configuration
 - `config.json`: All dataset parameters and performance metrics
 
-## Loading Data
+## Loading Example
 
 ### Python
 ```python
@@ -290,7 +290,7 @@ plt.show()
 
 **Expected Result**: ~1-2m altitude error, 50-70% floor detection accuracy
 
-## Visualization
+## Visualization Example
 
 ### Plot with Built-in Tool
 ```bash
@@ -335,7 +335,7 @@ ax.legend()
 plt.show()
 ```
 
-## Parameter Effects
+## Parameter Effects and Learning Experiments
 
 ### Effect of Magnetometer Noise
 
@@ -390,7 +390,7 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_weather
 
 **Learning Point**: Weather changes limit long-term barometric altitude accuracy!
 
-## Experiments
+## Recommended Experiments
 
 ### Experiment 1: Tilt Compensation Necessity
 
@@ -514,7 +514,7 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_poor --
 
 **Key Insight**: Environmental sensors provide absolute measurements (no drift!) but are susceptible to indoor disturbances.
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 6, Section 6.4: Environmental Sensors
 

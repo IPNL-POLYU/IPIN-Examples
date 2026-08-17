@@ -11,7 +11,7 @@ still be unusable. Collinear beacons make the range measurements ambiguous
 under reflection about the beacon line — and DOP, which is a local measure,
 cannot see that at all.
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 
@@ -38,7 +38,7 @@ Same measurement models as the square variant:
 - **Eqs. (4.63)-(4.66)**: AOA azimuth model
 - **Eq. (4.5)**: DOP from the geometry matrix
 
-## Files
+## Files and Data Structure
 
 Identical layout to `ch4_rf_2d_square`:
 
@@ -53,7 +53,7 @@ Identical layout to `ch4_rf_2d_square`:
 python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset poor_geometry
 ```
 
-## Loading Data
+## Loading Example
 
 ```python
 import numpy as np
@@ -257,7 +257,7 @@ well, so the solver returns the one in its basin.
 is a property of the geometry. Add a measurement type that breaks the symmetry
 (one bearing is enough), move a beacon off the line, or supply a side prior.
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 4: RF Positioning
 

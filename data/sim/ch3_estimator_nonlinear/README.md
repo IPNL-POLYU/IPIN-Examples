@@ -6,7 +6,7 @@ This dataset demonstrates **when to use KF vs. EKF vs. UKF vs. PF** by comparing
 
 **Key Learning Objective**: Understand that estimator choice depends on system linearity and noise characteristics - wrong choice can degrade performance by 10×!
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 1. **KF Assumptions**: Linear system + Gaussian noise (optimal when valid)
@@ -57,7 +57,7 @@ python scripts/generate_ch3_estimator_comparison_dataset.py --preset high_nonlin
 python scripts/generate_ch3_estimator_comparison_dataset.py --preset outliers
 ```
 
-## Files
+## Files and Data Structure
 
 ### Trajectory Data
 - `time.txt`: Time vector [N×1] (seconds)
@@ -73,7 +73,7 @@ python scripts/generate_ch3_estimator_comparison_dataset.py --preset outliers
 ### Configuration
 - `config.json`: All dataset parameters and statistics
 
-## Loading Data
+## Loading Example
 
 ### Python
 ```python
@@ -200,7 +200,7 @@ plt.show()
 
 **Learning Point**: Circular motion → nonlinear range measurements!
 
-## Parameter Effects
+## Parameter Effects and Learning Experiments
 
 ### Effect of System Nonlinearity
 
@@ -245,7 +245,7 @@ python scripts/generate_ch3_estimator_comparison_dataset.py --preset outliers
 
 **Learning Point**: Trade-off between accuracy and speed!
 
-## Experiments
+## Recommended Experiments
 
 ### Experiment 1: Estimator Comparison on Nonlinear Problem
 
@@ -320,7 +320,7 @@ python scripts/generate_ch3_estimator_comparison_dataset.py --preset outliers
 - Circular trajectory (10m radius, 0.3 rad/s)
 - Range noise: 0.5m, Bearing noise: 5°
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 3: State Estimation
 

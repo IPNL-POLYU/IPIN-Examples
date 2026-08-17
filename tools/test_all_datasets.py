@@ -19,7 +19,6 @@ import re
 import subprocess
 import sys
 import tempfile
-import traceback
 from pathlib import Path
 from typing import Dict, List, Tuple
 
@@ -274,7 +273,7 @@ def test_dataset(dataset_path: Path, verbose: bool = False) -> Dict:
         if test_result["status"] == "PASS":
             results["code_blocks_passed"] += 1
             if verbose:
-                print(f"    PASS")
+                print("    PASS")
         else:
             results["code_blocks_failed"] += 1
             error_msg = f"Code block at line {line_num} in '{section}' failed: {test_result.get('error', 'Unknown error')}"

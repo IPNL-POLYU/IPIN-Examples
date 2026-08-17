@@ -362,6 +362,12 @@ PYFLAKES_AREAS = {
     "scripts": ["scripts/**/*.py"],
     "tests": ["tests/**/*.py"],
     "chapters": [CHAPTER_GLOB],
+    # tools/ was outside this check until its two validators were wired into the
+    # suite. It held six findings at that point -- an unused import in a script
+    # named like a test that pytest never collects, an assigned-and-discarded
+    # local, and four f-strings with no placeholders. All cleared; the area is
+    # here so they cannot come back now that this code runs in CI.
+    "tools": ["tools/**/*.py"],
 }
 
 

@@ -6,7 +6,7 @@ This dataset demonstrates **smartphone-based pedestrian navigation using step de
 
 **Key Learning Objective**: Understand that heading errors DOMINATE PDR accuracy - a 1° heading error causes approximately 1.7% position error per step!
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 1. **Heading is Critical**: 1° heading error = 1.7% position error (trigonometric amplification)
@@ -63,7 +63,7 @@ python scripts/generate_ch6_pdr_dataset.py --preset poor_gyro
 python scripts/generate_ch6_pdr_dataset.py --preset poor_mag
 ```
 
-## Files
+## Files and Data Structure
 
 ### Ground Truth
 - `time.txt`: Timestamps [N×1] (seconds)
@@ -84,7 +84,7 @@ python scripts/generate_ch6_pdr_dataset.py --preset poor_mag
 ### Configuration
 - `config.json`: All dataset parameters and performance metrics
 
-## Loading Data
+## Loading Example
 
 ### Python
 ```python
@@ -311,7 +311,7 @@ print(f"Mean error: {np.mean(error_mag):.3f} m")
 
 **Expected Result**: 0.46m final error, 0.42m mean — 18.8× better than gyro.
 
-## Visualization
+## Visualization Example
 
 ### Plot with Built-in Tool
 ```bash
@@ -395,7 +395,7 @@ print(f"Mag heading error: {np.mean(heading_error_mag_deg):.1f} deg (bounded)")
 - Gyro: Linear growth over time (drift)
 - Mag: Oscillating but bounded (noisy but absolute)
 
-## Parameter Effects
+## Parameter Effects and Learning Experiments
 
 ### Effect of Gyro Bias (Heading Drift)
 
@@ -454,7 +454,7 @@ python scripts/generate_ch6_pdr_dataset.py --output data/sim/pdr_freq_30 --step-
 
 **Learning Point**: Higher step frequency = longer step length (Eq. 6.49) but also more heading error accumulation.
 
-## Experiments
+## Recommended Experiments
 
 ### Experiment 1: Heading Error Amplification
 
@@ -624,7 +624,7 @@ the mean error tells the story better than the final: the gyro's mean (4.27m)
 is half its final (8.72m), which is what a steadily growing error looks like,
 while the magnetometer's mean and final are the same size.
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 6, Section 6.3: Pedestrian Dead Reckoning
 

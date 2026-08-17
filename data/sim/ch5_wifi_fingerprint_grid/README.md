@@ -6,7 +6,7 @@ This dataset demonstrates **Wi-Fi fingerprinting for indoor positioning** using 
 
 **Key Learning Objective**: Understand fingerprinting as a pattern-matching approach where positioning = finding the best match between a query measurement and a pre-built database.
 
-## Dataset Purpose
+## Scenario Description
 
 ### Learning Goals
 1. **Fingerprinting Paradigm**: Learn pattern-matching vs. geometric positioning
@@ -62,7 +62,7 @@ python scripts/generate_wifi_fingerprint_dataset.py --preset sparse
 python scripts/generate_wifi_fingerprint_dataset.py --preset few_aps
 ```
 
-## Files
+## Files and Data Structure
 
 ### Fingerprint Database
 - `locations.npy`: Reference point 2D positions [N×2] (x, y in meters)
@@ -80,7 +80,7 @@ features[i]  = [RSS_1, ..., RSS_M]  RSS vector from M APs at RP i
 floor_ids[i] = floor number         Floor label for RP i
 ```
 
-## Loading Data
+## Loading Example
 
 ### Python
 ```python
@@ -242,7 +242,7 @@ print(f"Posterior mean position: {estimated_pos_pm}")
 
 **Expected**: Smoother than MAP, similar to k-NN
 
-## Visualization
+## Visualization Example
 
 ### Plot Radio Map (Single AP)
 ```python
@@ -303,7 +303,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-## Parameter Effects
+## Parameter Effects and Learning Experiments
 
 ### Effect of Grid Spacing
 
@@ -353,7 +353,7 @@ python scripts/generate_wifi_fingerprint_dataset.py --n-aps 12 --output data/sim
 
 **Learning Point**: 8 APs is sweet spot (good accuracy, manageable infrastructure)
 
-## Experiments
+## Recommended Experiments
 
 ### Experiment 1: Method Comparison
 
@@ -424,7 +424,7 @@ python scripts/generate_wifi_fingerprint_dataset.py --n-aps 12 --output data/sim
 - Dense (2m): ~1.5m error (2.5× better, 5.6× larger database)
 - Sparse (10m): ~6.0m error (3× worse, 5× smaller database)
 
-## Book Connection
+## Connection to Book Equations
 
 ### Chapter 5: Fingerprinting-based Positioning
 
