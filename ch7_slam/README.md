@@ -438,10 +438,16 @@ Results:
 
 Read the front-end line: **it is negative.** Scan-to-map ICP leaves this
 trajectory slightly worse than the odometry it started from, and the whole
-+33.44% comes from the backend closing the loop. That is the honest result on
-this dataset, and it is consistent with the `FRONTEND_IS_KNOWN_NO_OP` entry in
-`tests/test_repo_conventions.py`: the front-end is a placeholder whose gates
-currently pass everything through. Do not read it as a working scan matcher.
++33.44% comes from the backend closing the loop.
+
+That is specific to this dataset, not a broken front-end. In inline mode the
+same code earns +37.04% (see the performance figures at the top of this file),
+and `tests/ch7_slam/test_frontend_actually_corrects.py` gates it at better than
+0.9x the odometry RMSE there. What differs here is the input: this dataset's 41
+poses give the front-end far less overlap to align against than the 145 of a
+three-lap inline run, and the correction it can extract is smaller than the
+noise it adds. Worth knowing before quoting a single front-end number as *the*
+front-end number.
 
 **Visual Output:**
 
