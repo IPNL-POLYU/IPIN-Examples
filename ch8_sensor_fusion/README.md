@@ -406,7 +406,7 @@ The book emphasizes that **calibration is a prerequisite for accurate sensor fus
 - **Accelerometer** should read gravity (9.81 m/s²) → deviation is **bias**
 
 **Method:**
-```python
+```py
 from ch8_sensor_fusion.calibration_demo import estimate_imu_bias_stationary
 
 # Collect stationary IMU data
@@ -448,7 +448,7 @@ where:
 - `t` is the 2D translation vector (lever-arm)
 
 **Method:**
-```python
+```py
 from ch8_sensor_fusion.calibration_demo import calibrate_extrinsic_2d_least_squares
 
 # Collect synchronized position data from both sensors

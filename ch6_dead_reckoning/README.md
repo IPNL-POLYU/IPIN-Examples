@@ -26,7 +26,7 @@ All Chapter 6 algorithms use **explicit frame conventions** via the `FrameConven
 - Heading 0° = East, 90° = North
 - Gravity: [0, 0, -9.81] m/s²
 
-```python
+```py
 from core.sensors import FrameConvention, strapdown_update
 
 # Explicit frame convention (recommended)

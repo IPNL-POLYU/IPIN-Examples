@@ -119,6 +119,15 @@ from core.rf import (
     SPEED_OF_LIGHT
 )
 
+# Names carried on from the loading block above, so this runs as written.
+anchors = beacons[:, :2]
+anchor = anchors[0]
+agent = positions[0]
+ranges = toa_ranges[0]
+# Three elements: this solver estimates position *and* clock bias jointly, so
+# the initial guess is [x, y, bias_m]. A two-element guess raises ValueError.
+initial = np.array([5.0, 5.0, 0.0])
+
 # Measurement model: clock bias in SECONDS
 clock_bias_s = 10e-9  # 10 nanoseconds
 range_biased = toa_range(anchor, agent, clock_bias_s=clock_bias_s)
@@ -299,6 +308,12 @@ Using identity weighting (ignoring correlation) leads to suboptimal estimates, e
 
 ```python
 from core.rf import build_tdoa_covariance, TDOAPositioner
+
+# Re-derive the inputs rather than inheriting them. The five-anchor example
+# above leaves its own `anchors` in scope, and TDOA wants exactly
+# n_anchors - 1 measurements -- four anchors, three differences.
+anchors = beacons[:, :2]
+tdoa_measurements = tdoa_diffs[0]
 
 # Per-anchor range noise (meters)
 sigmas = np.array([0.5, 0.1, 0.1, 0.1])  # ref=0 has higher noise
