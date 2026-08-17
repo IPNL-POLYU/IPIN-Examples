@@ -48,7 +48,7 @@ python -m ch7_slam.example_slam_frontend
 
 **File:** `core/slam/frontend_2d.py`
 
-```python
+```py
 from core.slam import SlamFrontend2D
 
 frontend = SlamFrontend2D(submap_voxel_size=0.1)
@@ -77,7 +77,7 @@ for i, (odom_delta, scan) in enumerate(trajectory):
 
 **File:** `core/slam/loop_closure_2d.py`
 
-```python
+```py
 from core.slam import LoopClosureDetector2D
 
 detector = LoopClosureDetector2D(
@@ -103,7 +103,7 @@ for lc in loop_closures:
 
 **File:** `core/slam/factors.py` (existing)
 
-```python
+```py
 from core.slam import create_pose_graph
 
 # Build graph

@@ -213,13 +213,14 @@ The implementation demonstrates a **complete observation-driven SLAM system** wh
 - ICP: Scan-to-map alignment for drift correction
 
 **Key Methods:**
-```python
+```py
 frontend = SlamFrontend2D(initial_pose=np.array([0, 0, 0]))
 for i, (odom_delta, scan) in enumerate(zip(odometry, scans)):
-    pose_pred, pose_est, quality = frontend.step(i, odom_delta, scan)
-    # pose_pred: predicted from odometry
-    # pose_est: refined by scan-to-map ICP
-    # quality: convergence flag, residual, iterations
+    result = frontend.step(i, odom_delta, scan)
+    result["pose_pred"]             # predicted from odometry alone
+    result["pose_est"]              # refined by scan-to-map ICP
+    result["match_quality"]         # MatchQuality: converged, residual, iterations
+    result["correction_magnitude"]  # |pose_est - pose_pred|
 ```
 
 **Performance:** Typical improvement of 36% over raw odometry (local alignment only)
@@ -246,14 +247,16 @@ for i, (odom_delta, scan) in enumerate(zip(odometry, scans)):
    - Convergence check: ensure ICP success
 
 **Key Methods:**
-```python
+```py
 detector = LoopClosureDetector2D(
     min_descriptor_similarity=0.70,
     min_time_separation=10,
     max_icp_residual=0.5
 )
-loop_closures = detector.detect(poses, scans)
-# Returns: [(i, j, rel_pose, covariance), ...]
+# Scans first; poses are optional and only used for the secondary distance gate.
+loop_closures = detector.detect(scans, poses)
+# Returns a list of LoopClosure, with fields i, j, rel_pose, covariance,
+# descriptor_similarity, icp_residual, icp_iterations.
 ```
 
 **Performance:** Finds 2-3x more loop closures than dataset-provided indices (observation-driven)
@@ -275,7 +278,7 @@ pose_0 --odom--> pose_1 --odom--> ... --odom--> pose_N
 - **Loop Closure Factors:** Long-range constraints from observation-based detection
 
 **Key Code:**
-```python
+```py
 from core.slam import create_pose_graph
 
 graph = create_pose_graph(
@@ -294,7 +297,7 @@ optimized_vars, history = graph.optimize(method="gauss_newton")
 **Purpose:** Visual proof that optimization improves map quality
 
 **Map Reconstruction:**
-```python
+```py
 from core.slam import se2_apply
 
 def build_map(poses, scans):
