@@ -204,6 +204,41 @@ Convert metres to radians with `core.coords.enu_to_llh_offset`, which takes
 metres and returns radians so there is no per-degree quantity left to mislay.
 Both ch2 instances were a hand-rolled constant; the third would have been too.
 
+## Wrapping an angle difference
+
+All eleven generators have now been swept for the two ch2 shapes. The unit half
+is clean and structurally cannot recur — ch2 was the only geodetic generator,
+and the four remaining degree/radian boundaries (`ch3:165`, `ch4:220`) convert
+correctly. The wrap half turned up one more, in ch6 env sensors.
+
+**`min(|d|, 2*pi - |d|)` is not a wrap.** It is the shorter arc only while
+`|d| <= 2*pi`, and it returns a *negative* number above that. The ch6 building
+walk runs true yaw to 7.84 rad while `mag_heading` returns `(-pi, pi]`, so 221
+of 1800 samples got a negative "error" and the mean written into `config.json`
+was 2.66° against a true 3.51°.
+
+Two properties of this one are worth expecting:
+
+- **It was invisible on clean data.** Noiseless, the difference is exactly 0 or
+  exactly 2*pi, and `2*pi - 2*pi` is 0 — so the broken form is *right*. Only
+  the noisy path that actually ships produces `2*pi + eps`, hence `-eps`.
+  Checking a reduction against ideal input will confirm whichever you wrote.
+- **The ratio survived.** The README's tilt-compensation experiment divides two
+  of these means and still prints "1.9x worse", because both sides were
+  understated alike. A ratio can stay convincing while the magnitudes under it
+  are wrong, so 030's "look at the ratio" rule needs its converse: check the
+  absolute numbers too.
+
+Use `core.sensors.wrap_angle_diff` for a difference and `wrap_heading` for a
+single angle. Both already existed; the generator and the dataset README each
+hand-rolled a copy and both got it wrong. That is now four wrap helpers in the
+repo (those two, plus `example_comparison._wrap_to_pi`) — prefer the shared
+ones. See `tests/ch6_dead_reckoning/test_heading_error_is_wrapped.py`, whose
+first two assertions had to be rewritten because `abs(wrap_angle_diff(...))` is
+non-negative and under 180° *by construction*: they were testing numpy, not the
+dataset. Pin what distinguishes the two reductions, not what the helper
+guarantees.
+
 So expect a red here to be real, but confirm the tolerance first:
 
 **Data files are written at `%.3f` or `%.6f`, so quantisation is the floor.**
