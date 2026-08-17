@@ -1,7 +1,12 @@
 """Validate dataset documentation completeness.
 
 This tool checks that each dataset in data/sim/ has complete documentation
-following the standards defined in Section 5.3 of the design document.
+against .templates/dataset_README_template.md, which is where the required
+section list comes from.
+
+This docstring used to cite a chapter of the design document as the source
+of that standard. No such chapter was ever written -- that document stops
+partway -- so the citation had always pointed at nothing.
 
 Usage:
     python tools/validate_dataset_docs.py                       # every dataset
@@ -78,7 +83,7 @@ KNOWN_INCOMPLETE = {
 # model -- so they document what they are, but they cannot be regenerated
 # exactly, which every other dataset here can.
 
-# Required sections in dataset README (from Section 5.3.2)
+# Required sections in dataset README, from .templates/dataset_README_template.md
 REQUIRED_SECTIONS = [
     "## Overview",
     "## Scenario Description",

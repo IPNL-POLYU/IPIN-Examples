@@ -159,7 +159,7 @@ Total issues found: 0
 
 ### `validate_dataset_docs.py`
 
-Validates dataset documentation completeness following the standards in `references/design_doc.md` Section 5.3.
+Validates dataset documentation completeness against `.templates/dataset_README_template.md`.
 
 **Usage:**
 ```bash
@@ -178,7 +178,7 @@ python tools/validate_dataset_docs.py --strict
 
 **What it validates:**
 1. Required files present (config.json, data files)
-2. Required README sections (per Section 5.3.2):
+2. Required README sections (per `dataset_README_template.md`):
    - Overview
    - Scenario Description
    - Files and Data Structure
