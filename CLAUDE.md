@@ -111,6 +111,70 @@ resulting `NameError` in cell 1 cascades through a shared namespace.
 **A tool that cannot read the thing reports the thing as broken** -- check the
 harness before believing a survey that says most of a directory is rotten.
 
+## A path in prose is the one claim nothing executes
+
+Every other guard here works by running something -- the ` ```python ` blocks in
+the dataset and chapter READMEs, the notebooks, an example's stdout against its
+transcript. None of them look at `python scripts/generate_x.py` inside a
+` ```bash ` fence, so a file rename is invisible to CI however many readers it
+strands. `tests/docs/test_documented_paths_exist.py` closes that, and it found
+**17 stale references across 10 reader-facing documents** on its first run.
+
+The three citation forms are separate checks, because each is blind to the
+others and the drift was distributed across all three:
+
+- `scripts/foo.py` -- an anchored repo-relative path.
+- `` `foo.py` `` -- a backticked bare filename. Six of `scripts/README.md`'s
+  seven stale names carried no directory prefix, so no path regex would ever
+  have matched them.
+- `python -m a.b` -- no slash, no `.py`. This is how ch8's time-offset dataset
+  told the reader twice to run `tc_uwb_imu_ekf_augmented`, which was never
+  written.
+
+Exempt: documents carrying `HISTORICAL_MARKER` (owned by
+`test_design_doc_is_historical.py`, which maps their old names to new ones) and
+`.dev/`, which is dated session summaries. Anything else naming a file it does
+not expect to exist has to say so in the prose and be listed in `ASPIRATIONAL`.
+There is one such case, and its phrasing is the point: ch7's "**Future work**:
+Could add as `core/slam/loam.py`" is correct prose about a deliberately absent
+file, and a guard that cannot tell it from a stale rename teaches people to
+delete honest sentences.
+
+**The worst of what this found was not a broken link.** Chasing
+`tc_uwb_imu_ekf_augmented` showed the whole experiment around it was
+unrunnable: all three commands in that block passed flags
+(`--no-time-correction`, `--time-offset`, `--output`) that `tc_uwb_imu_ekf` does
+not have, and the results table reported RMSE, NIS and convergence for runs
+nobody could perform. Its "offline correction" row claimed 0.08-0.12 m against
+an uncorrected 0.18-0.25 m -- correction more than halving the error -- where
+the real demo measures 0.211 m to 0.185 m, 12.5%. **The kinematic bound was
+already written down in the code**: `temporal_calibration_demo.py`'s docstring
+records that a 50 ms offset at 1 m/s displaces the platform 5 cm and so cannot
+cost more, having had this exact inflation removed once before. The doc kept the
+old story. When a document and a docstring disagree about the size of an effect,
+the one with the derivation is right.
+
+So expect a stale path to be a thread, not a typo: pull it and check whether the
+surrounding worked example ever ran.
+
+**Flag drift is the next layer and is not guarded yet.** A scan of `--help`
+against every documented invocation found five real cases in three files
+(`ch6_foot_zupt_walk`, `docs/ch8_lc_tc_comparison_guide.md`, `scripts/README.md`),
+plus parameter tables that were largely fictional -- all five flags ch4's
+inventory entry documented were invented, and four of ch5's seven. Those tables
+are now rebuilt from `--help`, with the "Range" column dropped because nothing
+sourced it, and `--help` named as the authority so the tables cannot quietly
+become it.
+
+**That scan reported 9 files before it reported 3.** The first run shelled out
+to `--help` without `PYTHONIOENCODING=utf-8`; the child printed a degree sign,
+cp950 could not encode it, the child died, and empty help text read as "this
+program has no flags". Third time in this repo that a tool which could not read
+the thing reported the thing as broken -- see the notebook `exec` harness and
+the docs fence regex above. `tests/example_runner.py` already sets that variable
+for exactly this reason. **Set it in any subprocess you scan with, and treat an
+empty result as unreadable rather than as evidence.**
+
 ## Editing a dataset README
 
 `tests/docs/test_readme_code_blocks.py` executes every ` ```python ` block in

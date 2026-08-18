@@ -56,10 +56,10 @@ This dataset demonstrates **Wi-Fi fingerprinting for indoor positioning** using 
 
 **Generate variants**:
 ```bash
-python scripts/generate_wifi_fingerprint_dataset.py --preset baseline
-python scripts/generate_wifi_fingerprint_dataset.py --preset dense
-python scripts/generate_wifi_fingerprint_dataset.py --preset sparse
-python scripts/generate_wifi_fingerprint_dataset.py --preset few_aps
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset baseline
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset dense
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset sparse
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset few_aps
 ```
 
 ## Files and Data Structure
@@ -317,9 +317,9 @@ plt.show()
 
 **Generate comparison**:
 ```bash
-python scripts/generate_wifi_fingerprint_dataset.py --preset dense
-python scripts/generate_wifi_fingerprint_dataset.py --preset baseline
-python scripts/generate_wifi_fingerprint_dataset.py --preset sparse
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset dense
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset baseline
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset sparse
 ```
 
 **Learning Point**: Dense grids → better accuracy but 5× more effort!
@@ -346,9 +346,9 @@ python scripts/generate_wifi_fingerprint_dataset.py --preset sparse
 
 **Generate comparison**:
 ```bash
-python scripts/generate_wifi_fingerprint_dataset.py --preset baseline      # 8 APs
-python scripts/generate_wifi_fingerprint_dataset.py --preset few_aps      # 4 APs
-python scripts/generate_wifi_fingerprint_dataset.py --n-aps 12 --output data/sim/wifi_fp_many_aps
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset baseline      # 8 APs
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --preset few_aps      # 4 APs
+python scripts/generate_ch5_wifi_fingerprint_dataset.py --n-aps 12 --output data/sim/wifi_fp_many_aps
 ```
 
 **Learning Point**: 8 APs is sweet spot (good accuracy, manageable infrastructure)

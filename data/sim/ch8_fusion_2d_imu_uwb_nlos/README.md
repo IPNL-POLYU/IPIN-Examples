@@ -316,7 +316,7 @@ python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
 ```bash
 # Generate datasets with varying NLOS bias
 for bias in 0.2 0.5 1.0 2.0; do
-    python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
         --nlos-anchors 1 2 \
         --nlos-bias $bias \
         --output data/sim/fusion_nlos_bias_${bias}
@@ -409,7 +409,7 @@ Still, constant bias is good first approximation for testing robustness.
 
 This dataset was generated using:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --nlos-anchors 1 2 \
     --nlos-bias 0.8 \
     --output data/sim/ch8_fusion_2d_imu_uwb_nlos
@@ -417,24 +417,24 @@ python scripts/generate_fusion_2d_imu_uwb_dataset.py \
 
 **Or using preset**:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --preset nlos_severe
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --preset nlos_severe
 ```
 
 **Generate all 3 standard variants**:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --all-variants
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --all-variants
 ```
 
 **Custom NLOS experiments**:
 ```bash
 # Very severe NLOS (2m bias on 3 anchors)
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --nlos-anchors 0 1 2 \
     --nlos-bias 2.0 \
     --output data/sim/fusion_nlos_extreme
 
 # Mild NLOS (0.2m bias, harder to detect)
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --nlos-anchors 1 \
     --nlos-bias 0.2 \
     --output data/sim/fusion_nlos_mild
@@ -452,9 +452,8 @@ python scripts/generate_fusion_2d_imu_uwb_dataset.py \
 - **NLOS Background**: Chapter 4, Section 4.5 (Multipath and NLOS)
 - **Related Examples**:
   - `ch8_sensor_fusion/tc_uwb_imu_ekf.py` - Main fusion with gating support
-  - `ch8_sensor_fusion/example_robust_losses.py` - Robust loss comparison
-  - `ch8_sensor_fusion/example_innovation_monitoring.py` - NIS analysis
-- **Generation Script**: `scripts/generate_fusion_2d_imu_uwb_dataset.py`
+  - `ch8_sensor_fusion/tuning_robust_demo.py` - Robust loss comparison and NIS analysis
+- **Generation Script**: `scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py`
 - **Baseline**: See `fusion_2d_imu_uwb/README.md` for clean reference
 
 

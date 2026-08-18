@@ -32,104 +32,225 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
 
 ## Generation Scripts Inventory
 
-### Chapter 8: Sensor Fusion
+Eleven generators, one per dataset family. **`--help` is the authority on
+parameters** -- the tables below name the ones worth reaching for first, not
+every flag. Each generator also takes `--preset`, `--output` and `--seed`, and
+`--output` wins over a preset's own directory when both are given.
 
-**`generate_ch8_fusion_2d_imu_uwb_dataset.py`** - IMU + UWB Fusion Dataset
+### Chapter 2: Coordinate Systems
 
-Generates 2D walking trajectory with high-rate IMU and low-rate UWB ranging.
+**`generate_ch2_coordinate_transforms_dataset.py`** - LLH / ENU / NED transforms
+
+Samples points across a building footprint and stores each in several frames.
 
 **Key Parameters**:
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `--duration` | 60.0 | 10-300 | Trajectory duration (seconds) |
-| `--speed` | 1.0 | 0.5-2.0 | Walking speed (m/s) |
-| `--accel-noise` | 0.1 | 0.01-1.0 | Accelerometer noise σ (m/s²) |
-| `--gyro-noise` | 0.01 | 0.001-0.1 | Gyroscope noise σ (rad/s) |
-| `--range-noise` | 0.05 | 0.01-0.5 | UWB range noise σ (meters) |
-| `--nlos-anchors` | [] | [0-3] | List of NLOS anchor indices |
-| `--nlos-bias` | 0.5 | 0-2.0 | NLOS positive bias (meters) |
-| `--dropout-rate` | 0.05 | 0-0.5 | Measurement dropout probability |
-| `--time-offset` | 0.0 | -0.5 to 0.5 | Sensor time offset (seconds) |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--latitude` | 37.7749 | Center latitude (degrees) |
+| `--building-size` | 50.0 | Building footprint size (meters) |
 
-**Presets**: `baseline`, `nlos_severe`, `high_dropout`, `degraded_imu`, `time_offset_50ms`
-
-**Examples**: See "Chapter 8 Experimentation Scenarios" section below.
+**Presets**: `san_francisco`, `tokyo`, `london`
 
 ---
 
-### Chapter 6: Dead Reckoning
+### Chapter 3: State Estimation
 
-**`generate_ch6_strapdown_dataset.py`** - IMU Strapdown Integration
+**`generate_ch3_estimator_comparison_dataset.py`** - Range/bearing estimator comparison
 
-Generates pure IMU data to demonstrate drift characteristics.
-
-**Key Parameters**:
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `--imu-grade` | consumer | tactical/consumer/mems | IMU quality preset |
-| `--accel-noise` | 0.1 | 0.01-1.0 | Accel noise σ (m/s²) |
-| `--gyro-noise` | 0.01 | 0.001-0.1 | Gyro noise σ (rad/s) |
-| `--accel-bias` | 0.0 | 0-0.5 | Constant accel bias (m/s²) |
-| `--gyro-bias` | 0.0 | 0-0.1 | Constant gyro bias (rad/s) |
-
-**Presets**: 
-- `tactical`: Low noise (0.01 m/s², 0.001 rad/s)
-- `consumer`: Medium noise (0.1 m/s², 0.01 rad/s) - default
-- `mems`: High noise (0.5 m/s², 0.05 rad/s)
-
-**`generate_ch6_wheel_odom_dataset.py`** - Vehicle Wheel Odometry
-
-**`generate_ch6_zupt_walk_dataset.py`** - Foot-Mounted IMU with ZUPT
-
-**`generate_ch6_pdr_corridor_dataset.py`** - Pedestrian Dead Reckoning
-
-**`generate_ch6_env_sensors_dataset.py`** - Magnetometer + Barometer
-
----
-
-### Chapter 5: Fingerprinting
-
-**`generate_wifi_fingerprint_dataset.py`** - Wi-Fi RSS Fingerprint Database
-
-Generates multi-floor fingerprint database with log-distance path-loss model.
+Range and bearing measurements to beacons along a trajectory, for comparing
+least squares, EKF, UKF and particle filters.
 
 **Key Parameters**:
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `--area-size` | 50×50 | 20-100 | Floor dimensions (meters) |
-| `--grid-spacing` | 5.0 | 1-10 | Reference point spacing (meters) |
-| `--n-floors` | 3 | 1-5 | Number of floors |
-| `--n-aps` | 8 | 4-20 | Number of access points |
-| `--path-loss-exp` | 2.5 | 2.0-4.0 | Path loss exponent |
-| `--shadow-fading` | 4.0 | 2-8 | Shadow fading σ (dBm) |
-| `--floor-atten` | 15.0 | 10-20 | Floor attenuation (dB) |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--duration` | 30.0 | Duration (seconds) |
+| `--dt` | 0.1 | Time step (seconds) |
+| `--n-beacons` | 4 | Number of beacons |
+| `--range-noise` | 0.5 | Range noise σ (meters) |
+| `--bearing-noise` | 5.0 | Bearing noise σ (degrees) |
 
-**Examples**: See "Chapter 5 Experimentation Scenarios" section below.
+**Presets**: `linear`, `nonlinear`, `high_nonlinearity`, `outliers`
 
 ---
 
 ### Chapter 4: RF Point Positioning
 
-**`generate_rf_2d_floor_dataset.py`** - RF Beacon/Anchor Dataset
+**`generate_ch4_rf_2d_positioning_dataset.py`** - TOA / TDOA / AOA measurements
 
-Generates TOA/TDOA/AOA/RSS measurements from beacons.
+Anchor geometry plus per-point measurements, for point positioning and DOP.
 
 **Key Parameters**:
-| Parameter | Default | Range | Description |
-|-----------|---------|-------|-------------|
-| `--beacon-layout` | distributed | clustered/distributed/linear | Beacon geometry |
-| `--n-beacons` | 4 | 4-12 | Number of beacons |
-| `--timing-noise` | 10 | 1-50 | Timing noise (nanoseconds) |
-| `--rss-sigma` | 4.0 | 2-10 | RSS noise σ (dBm) |
-| `--nlos-beacons` | [] | varies | NLOS beacon indices |
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--num-points` | 100 | Number of evaluation points |
+| `--toa-noise` | 0.1 | TOA noise σ (meters) |
+| `--tdoa-noise` | 0.1 | TDOA noise σ (meters) |
+| `--aoa-noise` | 2.0 | AOA noise σ (degrees) |
+
+**Presets**: `baseline`, `optimal`, `poor_geometry`, `nlos`
+
+---
+
+### Chapter 5: Fingerprinting
+
+**`generate_ch5_wifi_fingerprint_dataset.py`** - Wi-Fi RSS fingerprint database
+
+Multi-floor fingerprint database from a log-distance path-loss model.
+
+**Key Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--area-width` | 50.0 | Area width (meters) |
+| `--area-height` | 50.0 | Area height (meters) |
+| `--grid-spacing` | 5.0 | Reference point spacing (meters) |
+| `--n-floors` | 3 | Number of floors |
+| `--floor-height` | 3.0 | Floor height (meters) |
+| `--n-aps` | 8 | Number of access points |
+
+**Presets**: `baseline`, `dense`, `sparse`, `few_aps`, `multisamples`
+
+---
+
+### Chapter 6: Dead Reckoning
+
+**`generate_ch6_strapdown_dataset.py`** - IMU strapdown integration
+
+Circular trajectory with body-frame IMU samples.
+
+**Key Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--radius` | 10.0 | Circle radius (meters) |
+| `--speed` | 1.0 | Constant speed (m/s) |
+| `--duration` | 60.0 | Duration (seconds) |
+| `--dt` | 0.01 | Time step (seconds, 100 Hz) |
+| `--accel-noise` | 0.1 | Accelerometer noise σ (m/s²) |
+| `--gyro-noise` | 0.01 | Gyroscope noise σ (rad/s) |
+
+**Presets**: `tactical`, `consumer`, `mems`, `biased_consumer`
+
+Biases are per axis: `--accel-bias-x`, `--accel-bias-y`, `--gyro-bias`.
+
+---
+
+**`generate_ch6_zupt_dataset.py`** - Foot-mounted IMU with ZUPT
+
+Stepping trajectory with stance phases a zero-velocity detector can find.
+
+**Key Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--num-steps` | 20 | Number of steps |
+| `--step-length` | 0.7 | Distance per step (meters) |
+| `--step-duration` | 0.6 | Time per step (seconds) |
+| `--stance-duration` | 0.2 | Stationary time per step (seconds) |
+| `--accel-noise` | 0.1 | Accelerometer noise σ (m/s²) |
+| `--gyro-noise` | 0.01 | Gyroscope noise σ (rad/s) |
+
+**Presets**: `baseline`, `fast_walk`, `slow_walk`, `noisy_imu`
+
+---
+
+**`generate_ch6_pdr_dataset.py`** - Pedestrian dead reckoning
+
+Corridor walk with step events, for step detection and heading.
+
+**Key Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--num-legs` | 4 | Number of corridor legs |
+| `--leg-length` | 30.0 | Length of each leg (meters) |
+| `--step-freq` | 2.0 | Step frequency (Hz) |
+| `--height` | 1.75 | Pedestrian height (meters) |
+
+**Presets**: `baseline`, `noisy`, `poor_gyro`, `poor_mag`
+
+---
+
+**`generate_ch6_wheel_odom_dataset.py`** - Vehicle wheel odometry
+
+Square laps with encoder and gyro, optional wheel slip.
+
+**Key Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--side-length` | 20.0 | Square side length (meters) |
+| `--speed` | 5.0 | Forward speed (m/s) |
+| `--num-laps` | 2 | Number of laps |
+| `--encoder-noise` | 0.05 | Encoder noise σ (m/s) |
+| `--gyro-noise` | 0.001 | Gyro noise σ (rad/s) |
+| `--wheel-bias` | 0.01 | Wheel speed bias (m/s) |
+| `--gyro-bias` | 0.0005 | Gyro bias (rad/s) |
+
+**Presets**: `baseline`, `noisy`, `slip`, `poor`
+
+---
+
+**`generate_ch6_env_sensors_dataset.py`** - Magnetometer and barometer
+
+Building walk across floors, with optional magnetic disturbances.
+
+**Key Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--duration` | 180.0 | Duration (seconds) |
+| `--floor-height` | 3.5 | Height of each floor (meters) |
+| `--mag-noise` | 2.0 | Magnetometer noise (microTesla) |
+| `--pressure-noise` | 10.0 | Pressure noise (Pa) |
+
+**Presets**: `baseline`, `noisy`, `disturbances`, `poor`
 
 ---
 
 ### Chapter 7: SLAM
 
-**`generate_slam_lidar2d_dataset.py`** - 2D LiDAR SLAM
+**`generate_ch7_slam_2d_dataset.py`** - 2D LiDAR SLAM
 
-**`generate_slam_visual_dataset.py`** - Visual SLAM / Bundle Adjustment
+Odometry, scans and landmarks around a closed trajectory.
+
+**Key Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--size` | 20.0 | Trajectory size (meters) |
+| `--n-poses-per-side` | 10 | Poses per segment |
+| `--n-landmarks` | 50 | Number of landmarks |
+| `--max-range` | 15.0 | Sensor max range (meters) |
+| `--translation-noise` | 0.1 | Odometry translation noise σ (m) |
+| `--rotation-noise` | 0.02 | Odometry rotation noise σ (rad) |
+
+**Presets**: `baseline`, `low_drift`, `high_drift`, `figure8`
+
+Visual SLAM and bundle adjustment are covered by
+`ch7_slam/example_bundle_adjustment.py`, which builds its own scene inline --
+there is no visual dataset generator.
+
+---
+
+### Chapter 8: Sensor Fusion
+
+**`generate_ch8_fusion_2d_imu_uwb_dataset.py`** - IMU + UWB fusion dataset
+
+Generates 2D walking trajectory with high-rate IMU and low-rate UWB ranging.
+
+**Key Parameters**:
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `--duration` | 60.0 | Trajectory duration (seconds) |
+| `--speed` | 1.0 | Walking speed (m/s) |
+| `--accel-noise` | 0.1 | Accelerometer noise σ (m/s²) |
+| `--gyro-noise` | 0.01 | Gyroscope noise σ (rad/s) |
+| `--range-noise` | 0.05 | UWB range noise σ (meters) |
+| `--nlos-anchors` | [] | List of NLOS anchor indices |
+| `--nlos-bias` | 0.5 | NLOS positive bias (meters) |
+| `--dropout-rate` | 0.05 | Measurement dropout probability |
+| `--time-offset` | 0.0 | Sensor time offset (seconds) |
+
+**Presets**: `baseline`, `nlos_severe`, `high_dropout`, `degraded_imu`,
+`time_offset_50ms`, `tactical_imu`
+
+`--all-variants` writes every preset in one run.
+
+**Examples**: See "Chapter 8 Experimentation Scenarios" section below.
 
 ---
 
@@ -199,7 +320,7 @@ python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_med_noise
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_high_noise
 
 # Compare results
-python tools/compare_dataset_variants.py \
+python tools/compare_fusion_variants.py \
     data/sim/fusion_low_noise \
     data/sim/fusion_med_noise \
     data/sim/fusion_high_noise
@@ -300,9 +421,9 @@ python -m ch8_sensor_fusion.temporal_calibration_demo \
 **Setup**:
 ```bash
 # Generate datasets for different IMU grades
-python scripts/generate_ch6_strapdown_dataset.py --imu-grade tactical
-python scripts/generate_ch6_strapdown_dataset.py --imu-grade consumer
-python scripts/generate_ch6_strapdown_dataset.py --imu-grade mems
+python scripts/generate_ch6_strapdown_dataset.py --preset tactical
+python scripts/generate_ch6_strapdown_dataset.py --preset consumer
+python scripts/generate_ch6_strapdown_dataset.py --preset mems
 ```
 
 **Run Experiments**:
@@ -328,7 +449,7 @@ python -m ch6_dead_reckoning.example_imu_strapdown --data ch6_strapdown_mems
 **Setup**:
 ```bash
 # Generate foot-mounted IMU data with stance phases
-python scripts/generate_ch6_zupt_walk_dataset.py --duration 120
+python scripts/generate_ch6_zupt_dataset.py --num-steps 40
 ```
 
 **Run Experiments**:

@@ -233,7 +233,7 @@ plt.savefig('fusion_2d_baseline_ranges.svg')
 
 **Quick visualization**:
 ```bash
-python tools/plot_dataset_overview.py data/sim/ch8_fusion_2d_imu_uwb
+python tools/plot_fusion_dataset.py data/sim/ch8_fusion_2d_imu_uwb
 ```
 
 ---
@@ -304,13 +304,13 @@ python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
 **Setup**:
 ```bash
 # Generate datasets with varying IMU quality
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --preset tactical_imu --output data/sim/fusion_tactical
 
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --preset baseline --output data/sim/fusion_consumer
 
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --preset degraded_imu --output data/sim/fusion_mems
 
 # Run fusion on each
@@ -404,12 +404,12 @@ A: 2D positioning requires minimum 3 anchors (3 ranges → 2D position via trila
 
 This dataset was generated using:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
 ```
 
 **Regenerate with custom parameters**:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --accel-noise 0.2 \
     --gyro-noise 0.02 \
     --range-noise 0.1 \
@@ -420,15 +420,15 @@ python scripts/generate_fusion_2d_imu_uwb_dataset.py \
 **Use presets**:
 ```bash
 # Tactical-grade IMU
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --preset tactical_imu
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --preset tactical_imu
 
 # High dropout test
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --preset high_dropout
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --preset high_dropout
 ```
 
 **Generate all 3 standard variants at once**:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --all-variants
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --all-variants
 ```
 
 See `scripts/README.md` for more experimentation scenarios.
@@ -446,8 +446,8 @@ See `scripts/README.md` for more experimentation scenarios.
 - **Related Examples**: 
   - `ch8_sensor_fusion/lc_uwb_imu_ekf.py` - Loosely-coupled demo
   - `ch8_sensor_fusion/tc_uwb_imu_ekf.py` - Tightly-coupled demo
-  - `ch8_sensor_fusion/example_innovation_monitoring.py` - NIS analysis
-- **Generation Script**: `scripts/generate_fusion_2d_imu_uwb_dataset.py`
+  - `ch8_sensor_fusion/tuning_robust_demo.py` - NIS analysis and robust tuning
+- **Generation Script**: `scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py`
 - **Variants**: See `fusion_2d_imu_uwb_nlos/` and `fusion_2d_imu_uwb_timeoffset/`
 
 

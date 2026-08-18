@@ -145,7 +145,7 @@ plt.savefig('[output_name].svg')
 
 **Quick visualization**:
 ```bash
-python tools/plot_dataset_overview.py data/sim/[dataset_name]
+python tools/plot_fusion_dataset.py data/sim/[dataset_name]
 ```
 
 ---

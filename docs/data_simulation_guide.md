@@ -552,8 +552,8 @@ Expect agreement within 2× for order-of-magnitude predictions.
 - `.templates/dataset_README_template.md` - the dataset README standard
 
 ### Tools
-- `tools/plot_dataset_overview.py` - Quick visualization
-- `tools/compare_dataset_variants.py` - Side-by-side comparison
-- `tools/validate_dataset.py` - Format validation
+- `tools/plot_fusion_dataset.py` - Quick visualization
+- `tools/compare_fusion_variants.py` - Side-by-side comparison
+- `tools/validate_dataset_docs.py` - Format validation
 
 

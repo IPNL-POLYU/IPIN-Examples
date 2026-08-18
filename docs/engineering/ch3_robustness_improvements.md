@@ -372,7 +372,7 @@ x_next = model.f(x, dt=dt)
 
 ### Run All Tests
 ```bash
-cd c:/Users/lqmohsu/IPIN-Examples
+cd /path/to/IPIN-Examples
 
 # Test Jacobians
 python -m pytest tests/test_jacobians.py -v

@@ -85,7 +85,7 @@ SUCCESS: All tests passed!
 ### Run Your Own Tests
 
 ```bash
-cd c:/Users/lqmohsu/IPIN-Examples
+cd /path/to/IPIN-Examples
 
 # Test new utilities
 python -c "from core.utils import wrap_angle, check_anchor_geometry; import numpy as np; print('SUCCESS: Utilities loaded')"

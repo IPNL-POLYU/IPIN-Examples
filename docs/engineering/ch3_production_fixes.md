@@ -296,8 +296,8 @@ elif gdop < 2:
 Run comprehensive tests:
 
 ```bash
-cd c:/Users/lqmohsu/IPIN-Examples
-python test_new_utilities.py
+cd /path/to/IPIN-Examples
+python -m pytest tests/ch3_estimators -q
 ```
 
 **Expected output:**
@@ -340,7 +340,7 @@ SUCCESS: All tests passed!
 - 📝 Documentation comments added throughout
 
 ### Test Files
-- ✅ `test_new_utilities.py` - Comprehensive unit tests
+- ✅ `tests/ch3_estimators/` - Unit tests for the Chapter 3 estimators
 
 ---
 
@@ -407,6 +407,6 @@ if compute_gdop_2d(visible_anchors, position) > threshold:
 
 All three critical fixes are implemented, tested, and documented. The ch3_estimators module is now suitable for production use with proper error handling and geometric validation.
 
-**Verification:** Run `python test_new_utilities.py` - all tests pass.
+**Verification:** Run `python -m pytest tests/ch3_estimators -q` - all tests pass.
 
 

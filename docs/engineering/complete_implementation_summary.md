@@ -194,7 +194,7 @@ is_valid, msg = check_anchor_geometry(anchors)
 
 ### Run Complete Test Suite
 ```bash
-cd c:/Users/lqmohsu/IPIN-Examples
+cd /path/to/IPIN-Examples
 
 # 1. Test new utilities
 python -c "from core.utils import wrap_angle, check_observability; print('Utilities OK')"
