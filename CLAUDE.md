@@ -641,6 +641,60 @@ it was not too weak, it was too strong, and the failure mode of too-strong is a
 red that teaches people to distrust the suite.
 
 
+## The library used to own the randomness, and the recommended fix broke it
+
+Six functions in `core/` drew straight from numpy's global RNG: the two
+`simulate_*_measurement` in `core/rf`, the two scan generators in `core/slam`,
+and `ParticleFilter.__init__` and `_resample`. Eleven draws.
+
+Nothing was broken. Every example that reaches them calls `np.random.seed(...)`,
+which is exactly why the committed figures reproduce. **The hazard is that the
+repair this repo's own convention check recommends would have broken them:**
+`test_examples_do_not_draw_from_the_unseeded_global_rng` says "prefer threading
+an explicit `rng = np.random.default_rng(seed)`", and a local Generator does not
+cover a library's global draws. Modernise an example that way and its figures
+quietly stop reproducing, having followed the advice.
+
+That is the shape worth recognising: **a latent defect whose trigger is someone
+doing the right thing.** It cannot be found by looking for wrong code, because
+none of it is wrong yet.
+
+Each function now takes `rng`, defaulting to `np.random` itself:
+
+```python
+def _rng(rng):
+    return np.random if rng is None else rng
+```
+
+**The default has to be `np.random` and not `default_rng()`.** A fresh Generator
+ignores `np.random.seed`, so switching the default would have moved every figure
+in the repository. Verified rather than assumed: the Chapter 3 and Chapter 4
+figures regenerate byte-identically after the change, which is the whole
+argument that this was refactoring and not editing.
+
+One mechanical detail with a trap in it: `Generator` has no `randn`, so those
+sites became `standard_normal`. The two draw **the same values from the same
+seeded stream** -- checked directly, not inferred from the docs -- so the swap
+is free. Had they differed, this change would have silently rewritten seven RSS
+draws.
+
+Two guards, because one is not enough and it is worth knowing why:
+
+- `KNOWN_GLOBAL_RNG_IN_CORE` in `tests/test_repo_conventions.py` is an AST check
+  that no library function calls `np.random.<draw>` at all. It sees *shape*.
+- `tests/core/test_rng_injection_is_honoured.py` sees *behaviour*, because a
+  function can accept `rng`, ignore it, and satisfy the AST check perfectly.
+
+**Which assertion catches an ignored parameter was established by mutation, and
+it was not the one I expected.** Making `_rng` return `np.random`
+unconditionally is caught by "the same Generator gives the same draws whatever
+`np.random.seed` says" -- not by "the injected result differs from the default",
+which was written first and deleted. Two consecutive draws from the global
+stream differ whether or not anyone is listening to the argument, so that
+assertion discriminated nothing while reading like the main event. Run the
+mutation before deciding which of your assertions is load-bearing; the
+convincing-sounding one is not reliably the one doing the work.
+
 ## Figures
 
 `core.eval.save_figure` is the only output path; it writes svg/pdf/png together

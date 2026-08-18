@@ -97,6 +97,23 @@ KNOWN_UNCOLLECTED_TESTS: set = set()
 # check is what stops the other six being found the same way.
 KNOWN_PRESET_OVERRIDES_OUTPUT: set = set()
 
+# Library functions in core/ that draw from numpy's global RNG directly,
+# predating this check. Same ratchet: only shrink it.
+#
+# Empty. Six did -- simulate_rss_measurement and simulate_rtt_measurement in
+# core/rf, generate_scan_with_occlusion and generate_dense_wall_scan in
+# core/slam, and ParticleFilter's __init__ and _resample -- for eleven draws in
+# total. Nothing was broken: every example reaching them calls np.random.seed,
+# which is why the committed figures reproduce. The hazard is that the fix this
+# file *recommends* one check below ("prefer threading an explicit
+# rng = np.random.default_rng(seed)") would have broken them, because a local
+# Generator does not cover a library's global draws. Following good advice is a
+# poor way to lose reproducibility.
+#
+# The remaining np.random calls under core/ are all inside check_* self-check
+# demos, which seed themselves and are not library surface.
+KNOWN_GLOBAL_RNG_IN_CORE: set = set()
+
 
 def _chapter_scripts():
     """Every chapter-level Python file, as repo-relative paths."""
@@ -565,4 +582,76 @@ def test_preset_does_not_overwrite_an_explicit_output(script):
         f"discards an explicit --output and rewrites the shipped dataset "
         f"instead. Use `output_dir = output_dir or \"...\"` so the preset only "
         f"supplies a default, and make sure --output itself defaults to None."
+    )
+
+
+def _core_modules():
+    """Every module in the shared library."""
+    return sorted(REPO_ROOT.glob("core/**/*.py"))
+
+
+@pytest.mark.parametrize("module", _core_modules(), ids=_relative)
+def test_core_library_takes_its_randomness_from_the_caller(module):
+    """A library function must let the caller own the stream it draws from.
+
+    `np.random.normal(...)` inside core/ reads numpy's global stream, which the
+    caller can only control with np.random.seed. That works, and every example
+    here does it -- but it means an example that modernises to
+    `rng = np.random.default_rng(seed)` silently stops covering the library, and
+    its figures stop reproducing. The advice and the hazard point the same way,
+    which is what makes this worth a check rather than a note.
+
+    Take an `rng` parameter and default it to np.random. That keeps today's
+    behaviour exactly -- verified by regenerating the Chapter 3 and Chapter 4
+    figures byte-identically -- while making the correct thing reachable.
+
+    Assigning np.random (`rng = np.random if rng is None else rng`) is the
+    intended default and is not a call, so it does not trip this. Only *drawing*
+    does.
+    """
+    relative = _relative(module)
+    tree = ast.parse(module.read_text(encoding="utf-8"))
+
+    # check_*/demo_* are by-hand self-checks, not library surface; they seed
+    # themselves and are covered by the uncollected-tests ratchet above.
+    demo_lines = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
+            ("check_", "demo_")
+        ):
+            for child in ast.walk(node):
+                if hasattr(child, "lineno"):
+                    demo_lines.add(child.lineno)
+
+    offenders = []
+    for node in ast.walk(tree):
+        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
+            continue
+        owner = node.func.value
+        if not (
+            isinstance(owner, ast.Attribute)
+            and owner.attr == "random"
+            and isinstance(owner.value, ast.Name)
+            and owner.value.id == "np"
+        ):
+            continue
+        if node.func.attr in {"seed", "default_rng", "Generator", "RandomState"}:
+            continue
+        if node.lineno in demo_lines:
+            continue
+        offenders.append(f"line {node.lineno}: np.random.{node.func.attr}")
+
+    if not offenders:
+        return
+
+    if relative in KNOWN_GLOBAL_RNG_IN_CORE:
+        pytest.skip(f"known pre-existing global RNG draw ({relative})")
+
+    assert not offenders, (
+        f"{relative} draws from the global RNG in library code:\n  "
+        + "\n  ".join(offenders)
+        + "\n\nAccept an rng parameter and default it to np.random, so a caller "
+        "threading its own Generator actually covers this draw. Note "
+        "Generator has no randn -- use standard_normal, which draws the same "
+        "values from the same stream."
     )

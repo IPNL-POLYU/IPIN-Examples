@@ -21,6 +21,19 @@ SPEED_OF_LIGHT = 299792458.0  # m/s
 # =============================================================================
 # Clock Bias Unit Conversion Utilities
 # =============================================================================
+def _rng(rng):
+    """Return *rng*, or numpy's global stream when none was supplied.
+
+    The default is np.random rather than a fresh default_rng() on purpose. A
+    fresh Generator would ignore np.random.seed, and every example in this
+    repository seeds that way, so changing the default would quietly stop the
+    committed figures reproducing. np.random.randn became standard_normal for
+    the same reason in reverse -- Generator has no randn, and the two draw the
+    same values from the same seeded stream.
+    """
+    return np.random if rng is None else rng
+
+
 def clock_bias_seconds_to_meters(
     bias_seconds: float,
     c: float = SPEED_OF_LIGHT,
@@ -262,6 +275,7 @@ def simulate_rtt_measurement(
     clock_drift: float = 0.0,
     clock_drift_std: float = 0.0,
     c: float = SPEED_OF_LIGHT,
+    rng=None,
 ) -> Tuple[float, dict]:
     """
     Simulate a realistic RTT measurement with noise.
@@ -327,13 +341,13 @@ def simulate_rtt_measurement(
 
     # Add noise to processing time if std > 0
     if processing_time_std > 0:
-        processing_time_actual = processing_time + np.random.randn() * processing_time_std
+        processing_time_actual = processing_time + _rng(rng).standard_normal() * processing_time_std
     else:
         processing_time_actual = processing_time
 
     # Add noise to clock drift if std > 0
     if clock_drift_std > 0:
-        clock_drift_actual = clock_drift + np.random.randn() * clock_drift_std
+        clock_drift_actual = clock_drift + _rng(rng).standard_normal() * clock_drift_std
     else:
         clock_drift_actual = clock_drift
 
@@ -486,6 +500,7 @@ def simulate_rss_measurement(
     sigma_short_linear: float = 0.0,
     n_samples_avg: int = 1,
     short_fading_model: str = "rayleigh",
+    rng=None,
 ) -> Tuple[float, dict]:
     """
     Simulate an RSS measurement with fading noise (book Eqs. 4.10, 4.12).
@@ -599,7 +614,7 @@ def simulate_rss_measurement(
     # Modeled as Gaussian in dB per book
     omega_long_db = 0.0
     if sigma_long_db > 0:
-        omega_long_db = np.random.randn() * sigma_long_db
+        omega_long_db = _rng(rng).standard_normal() * sigma_long_db
 
     # Short-term fading (time-varying, can be reduced by averaging)
     omega_short_db = 0.0
@@ -610,7 +625,7 @@ def simulate_rss_measurement(
             # Rayleigh fading in amplitude domain
             # A ~ Rayleigh(σ), P = A² ~ Exponential
             # Generate n_samples_avg independent Rayleigh samples
-            amplitudes = np.random.rayleigh(
+            amplitudes = _rng(rng).rayleigh(
                 scale=sigma_short_linear, size=n_samples_avg
             )
             # Convert to power (linear)
@@ -640,7 +655,7 @@ def simulate_rss_measurement(
             sigma_short_db = sigma_short_linear
             if n_samples_avg > 1:
                 # Generate n samples and average
-                samples_db = np.random.randn(n_samples_avg) * sigma_short_db
+                samples_db = _rng(rng).standard_normal(n_samples_avg) * sigma_short_db
                 omega_short_samples = samples_db.tolist()
 
                 # For Gaussian in dB: averaging in dB is NOT physically correct
@@ -648,9 +663,9 @@ def simulate_rss_measurement(
                 # convert to linear, average, convert back.
                 # Here we use the simple approximation: std reduces by sqrt(n)
                 effective_std = sigma_short_db / np.sqrt(n_samples_avg)
-                omega_short_db = np.random.randn() * effective_std
+                omega_short_db = _rng(rng).standard_normal() * effective_std
             else:
-                omega_short_db = np.random.randn() * sigma_short_db
+                omega_short_db = _rng(rng).standard_normal() * sigma_short_db
                 omega_short_samples = [omega_short_db]
 
     # Measured RSS (Eq. 4.12)
