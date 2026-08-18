@@ -34,6 +34,27 @@ import numpy as np
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+
+#: How far a regenerated value may sit from the shipped one.
+#:
+#: This was np.array_equal -- bit exact -- and that turned out not to be
+#: portable. The generator is bit-reproducible on one machine: two local runs
+#: and the shipped files agree exactly, max|difference| 0.0. Across CI runners
+#: it is not. With identical numpy 2.4.6 and scipy 1.17.1, one run matched
+#: exactly and a later one differed by 2.8e-14 on values of order 100 -- one to
+#: two ulp, and nothing in that PR could reach this generator, which imports
+#: only core.fingerprinting. The likely mechanism is numpy dispatching a
+#: different SIMD kernel for np.log10 on a different CPU; that is not proven
+#: here, but the last bit clearly does not survive a change of runner.
+#:
+#: 1e-9 keeps the test able to fail for the reason it exists, and that was
+#: measured rather than assumed: regenerating with seed + 1 gives
+#: max|difference| = 23.06 dB. So the bound sits ten orders below the defect it
+#: must catch and four orders above the noise it tolerates. **A tolerance has to
+#: be justified against both** -- against the noise, or it is flaky, and against
+#: the defect, or it is decorative.
+VALUE_TOL = 1e-9
+
 GENERATOR = "scripts/generate_ch5_wifi_fingerprint_dataset.py"
 
 #: (shipped directory, generator preset)
@@ -98,11 +119,13 @@ def test_regenerating_from_the_seed_reproduces_the_shipped_arrays(
         expected = np.load(shipped / name)
         actual = np.load(tmp_path / name)
         assert actual.shape == expected.shape, f"{dataset}/{name}: shape changed"
-        assert np.array_equal(actual, expected), (
-            f"{dataset}/{name} does not reproduce from seed {seed}. Either the "
-            f"generator's draw order changed or the shipped file was not made "
-            f"with this seed; max|difference| = "
-            f"{np.abs(actual - expected).max():.6g}."
+        difference = np.abs(actual - expected).max()
+        assert difference < VALUE_TOL, (
+            f"{dataset}/{name} does not reproduce from seed {seed}: "
+            f"max|difference| = {difference:.6g}, over the {VALUE_TOL:g} "
+            f"tolerance. That is far above last-bit noise, so the generator's "
+            f"draw order changed or the shipped file was not made with this "
+            f"seed."
         )
 
     # floor_ids is compared on value, not dtype: the shipped copies were written

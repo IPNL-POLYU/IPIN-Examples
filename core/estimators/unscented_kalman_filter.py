@@ -292,9 +292,9 @@ class UnscentedKalmanFilter(StateEstimator):
         self.covariance = self.covariance - K @ Pzz @ K.T
 
 
-def test_ukf_range_only_tracking():
+def check_ukf_range_only_tracking():
     """
-    Unit test: 2D range-only tracking with UKF.
+    Self-check: 2D range-only tracking with UKF.
 
     Tests the UKF on a nonlinear range-only measurement problem.
     Expected: UKF should handle nonlinearity better than EKF.
@@ -362,9 +362,9 @@ def test_ukf_range_only_tracking():
     print("  [PASS] Test passed")
 
 
-def test_ukf_bearing_only_tracking():
+def check_ukf_bearing_only_tracking():
     """
-    Unit test: 2D bearing-only tracking with UKF.
+    Self-check: 2D bearing-only tracking with UKF.
 
     Tests UKF on highly nonlinear bearing-only measurements.
     """
@@ -431,17 +431,17 @@ def test_ukf_bearing_only_tracking():
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("UNSCENTED KALMAN FILTER UNIT TESTS")
+    print("UNSCENTED KALMAN FILTER SELF-CHECKS")
     print("=" * 70)
     print()
 
-    test_ukf_range_only_tracking()
+    check_ukf_range_only_tracking()
     print()
-    test_ukf_bearing_only_tracking()
+    check_ukf_bearing_only_tracking()
 
     print()
     print("=" * 70)
-    print("ALL TESTS PASSED")
+    print("ALL CHECKS PASSED")
     print("=" * 70)
 
 

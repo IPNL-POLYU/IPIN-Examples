@@ -22,7 +22,7 @@ ch{2-8}_*/          # Chapter-specific examples demonstrating book algorithms
 data/sim/           # Pre-generated simulation datasets (20+ scenarios)
 docs/               # Equation mappings, guides, engineering notes
 scripts/            # Dataset generation scripts
-tests/              # 778+ unit tests (pytest + unittest)
+tests/              # Unit tests and repo guards (pytest + unittest)
 notebooks/          # Jupyter notebooks for interactive learning
 ```
 

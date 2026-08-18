@@ -217,9 +217,9 @@ class ExtendedKalmanFilter(StateEstimator):
         return innovation, innovation_cov
 
 
-def test_ekf_range_only_tracking():
+def check_ekf_range_only_tracking():
     """
-    Unit test: 2D range-only tracking with EKF.
+    Self-check: 2D range-only tracking with EKF.
 
     State: [x, y, vx, vy] (position and velocity in 2D)
     Measurement: range from origin (nonlinear)
@@ -323,9 +323,9 @@ def test_ekf_range_only_tracking():
     print("  [PASS] Test passed")
 
 
-def test_ekf_bearing_only_tracking():
+def check_ekf_bearing_only_tracking():
     """
-    Unit test: 2D bearing-only tracking with EKF.
+    Self-check: 2D bearing-only tracking with EKF.
 
     State: [x, y, vx, vy]
     Measurement: bearing angle from origin (nonlinear)
@@ -415,7 +415,7 @@ def test_ekf_bearing_only_tracking():
     print("  [PASS] Test passed")
 
 
-def test_ekf_jacobian_evaluation_point():
+def check_ekf_jacobian_evaluation_point():
     """
     Regression test: Verify process Jacobian F_{k-1} is evaluated at x̂_{k-1}.
 
@@ -526,19 +526,19 @@ def test_ekf_jacobian_evaluation_point():
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("EXTENDED KALMAN FILTER UNIT TESTS")
+    print("EXTENDED KALMAN FILTER SELF-CHECKS")
     print("=" * 70)
     print()
 
-    test_ekf_jacobian_evaluation_point()
+    check_ekf_jacobian_evaluation_point()
     print()
-    test_ekf_range_only_tracking()
+    check_ekf_range_only_tracking()
     print()
-    test_ekf_bearing_only_tracking()
+    check_ekf_bearing_only_tracking()
 
     print()
     print("=" * 70)
-    print("ALL TESTS PASSED")
+    print("ALL CHECKS PASSED")
     print("=" * 70)
 
 

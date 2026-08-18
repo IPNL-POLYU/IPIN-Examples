@@ -208,9 +208,9 @@ class ParticleFilter(StateEstimator):
         return self.particles.copy(), self.weights.copy()
 
 
-def test_particle_filter_1d():
+def check_particle_filter_1d():
     """
-    Unit test: 1D tracking with Particle Filter.
+    Self-check: 1D tracking with Particle Filter.
 
     Tests PF on a simple 1D constant velocity model.
     """
@@ -232,16 +232,22 @@ def test_particle_filter_1d():
         z_pred = H @ x
         measurement_std = 0.5
         # Gaussian likelihood
-        return np.exp(-0.5 * ((z - z_pred) / measurement_std)**2) / (measurement_std * np.sqrt(2 * np.pi))
+        # np.sum keeps this a scalar: the annotation is
+        # Callable[..., float], and z arrives shape (1,) while z_pred is scalar,
+        # so the elementwise form returned a shape-(1,) array.
+        return float(
+            np.exp(-0.5 * np.sum(((z - z_pred) / measurement_std) ** 2))
+            / (measurement_std * np.sqrt(2 * np.pi))
+        )
 
     x0 = np.array([0.0, 1.0])
     P0 = np.diag([1.0, 0.5])
 
+    np.random.seed(42)
     pf = ParticleFilter(process_model, likelihood_func, n_particles, x0, P0)
 
     # Generate true trajectory
     true_state = x0.copy()
-    np.random.seed(42)
 
     for _ in range(n_steps):
         true_state = np.array([[1.0, dt], [0.0, 1.0]]) @ true_state
@@ -255,20 +261,26 @@ def test_particle_filter_1d():
 
     x_est, P_est = pf.get_state()
 
-    # Check that filter ran successfully
     position_error = abs(x_est[0] - true_state[0])
-    
-    print("Particle Filter 1D Tracking Test:")
+
+    # Seeded above, so this is a fixed number: 0.2149 m. The bound is loose
+    # enough to survive a platform digit and tight enough that a filter which
+    # stopped tracking would breach it -- the measurement noise alone is 0.5 m.
+    assert position_error < 0.6, (
+        f"1D tracking error {position_error:.4f} m exceeds the measurement "
+        f"noise it should be beating"
+    )
+
+    print("Particle Filter 1D Tracking Demo:")
     print(f"  Final true position: {true_state[0]:.2f} m")
     print(f"  Final estimated position: {x_est[0]:.2f} m")
     print(f"  Position error: {position_error:.4f} m")
     print(f"  Number of particles: {n_particles}")
-    print("  [PASS] Test passed")
 
 
-def test_particle_filter_nonlinear():
+def check_particle_filter_nonlinear():
     """
-    Unit test: Nonlinear tracking with highly non-Gaussian noise.
+    Self-check: Nonlinear tracking with highly non-Gaussian noise.
 
     Tests PF on a problem where Gaussian filters would fail.
     """
@@ -295,16 +307,19 @@ def test_particle_filter_nonlinear():
         # Range measurement from origin
         z_pred = np.sqrt(x[0]**2 + x[1]**2)
         measurement_std = 0.5
-        return np.exp(-0.5 * ((z - z_pred) / measurement_std)**2) / (measurement_std * np.sqrt(2 * np.pi))
+        return float(
+            np.exp(-0.5 * np.sum(((z - z_pred) / measurement_std) ** 2))
+            / (measurement_std * np.sqrt(2 * np.pi))
+        )
 
     x0 = np.array([5.0, 1.0])
     P0 = np.diag([1.0, 0.5])
 
+    np.random.seed(42)
     pf = ParticleFilter(process_model, likelihood_func, n_particles, x0, P0)
 
     # Generate trajectory
     true_state = x0.copy()
-    np.random.seed(42)
 
     for _ in range(n_steps):
         # Simple dynamics for true state
@@ -322,26 +337,31 @@ def test_particle_filter_nonlinear():
 
     x_est, _ = pf.get_state()
 
-    print("Particle Filter Nonlinear Tracking Test:")
+    position_error = abs(x_est[0] - true_state[0])
+    assert position_error < 1.0, (
+        f"nonlinear tracking error {position_error:.4f} m on a state of "
+        f"magnitude {abs(true_state[0]):.2f} m means the filter lost the target"
+    )
+
+    print("Particle Filter Nonlinear Tracking Demo:")
     print(f"  Final true state: {true_state}")
     print(f"  Final estimated state: {x_est}")
     print(f"  Number of particles: {n_particles}")
-    print("  [PASS] Test passed")
 
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("PARTICLE FILTER UNIT TESTS")
+    print("PARTICLE FILTER SELF-CHECKS")
     print("=" * 70)
     print()
 
-    test_particle_filter_1d()
+    check_particle_filter_1d()
     print()
-    test_particle_filter_nonlinear()
+    check_particle_filter_nonlinear()
 
     print()
     print("=" * 70)
-    print("ALL TESTS PASSED")
+    print("ALL CHECKS PASSED")
     print("=" * 70)
 
 

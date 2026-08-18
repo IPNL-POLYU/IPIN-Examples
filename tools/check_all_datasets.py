@@ -5,9 +5,9 @@ Tests all code examples in all dataset READMEs across all chapters.
 Validates that documentation is accurate and examples are runnable.
 
 Usage:
-    python tools/test_all_datasets.py              # Test all datasets
-    python tools/test_all_datasets.py --chapter 8   # Test specific chapter
-    python tools/test_all_datasets.py --verbose     # Detailed output
+    python tools/check_all_datasets.py              # Test all datasets
+    python tools/check_all_datasets.py --chapter 8   # Test specific chapter
+    python tools/check_all_datasets.py --verbose     # Detailed output
 
 Author: Li-Ta Hsu
 Date: December 2024
@@ -133,7 +133,7 @@ def is_runnable_code(code: str) -> bool:
     return True
 
 
-def test_code_block(code: str, dataset_path: Path, verbose: bool = False) -> Dict:
+def check_code_block(code: str, dataset_path: Path, verbose: bool = False) -> Dict:
     """
     Test a single code block.
 
@@ -209,7 +209,7 @@ os.chdir(project_root)
         }
 
 
-def test_dataset(dataset_path: Path, verbose: bool = False) -> Dict:
+def check_dataset(dataset_path: Path, verbose: bool = False) -> Dict:
     """
     Test a single dataset.
 
@@ -268,7 +268,7 @@ def test_dataset(dataset_path: Path, verbose: bool = False) -> Dict:
         if verbose:
             print(f"  [{i}/{len(code_blocks)}] Testing code in '{section}' (line {line_num})...")
 
-        test_result = test_code_block(code, dataset_path, verbose)
+        test_result = check_code_block(code, dataset_path, verbose)
 
         if test_result["status"] == "PASS":
             results["code_blocks_passed"] += 1
@@ -378,7 +378,7 @@ def main():
             dataset_path = Path(dataset_path_str)
             print(f"\n  Testing {dataset_path.name}...")
 
-            result = test_dataset(dataset_path, args.verbose)
+            result = check_dataset(dataset_path, args.verbose)
             results_list.append(result)
 
         all_results[chapter] = results_list

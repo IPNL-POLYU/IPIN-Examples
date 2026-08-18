@@ -71,7 +71,7 @@ def load_multifloor_database() -> FingerprintDatabase:
     return db
 
 
-def test_classification_accuracy(db: FingerprintDatabase, rng=None):
+def evaluate_classification_accuracy(db: FingerprintDatabase, rng=None):
     """Measure classifier accuracy on held-out queries, not on training data.
 
     Args:
@@ -154,7 +154,7 @@ def test_classification_accuracy(db: FingerprintDatabase, rng=None):
     return rf_classifier, svm_classifier
 
 
-def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier,
+def evaluate_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier,
                        rng=None):
     """Test classification with noisy queries.
 
@@ -238,7 +238,7 @@ def test_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifier,
     plt.close()
 
 
-def test_hierarchical_localization(db: FingerprintDatabase, rng=None):
+def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     """Test hierarchical coarse-to-fine localization.
 
     Args:
@@ -491,13 +491,13 @@ def main():
     db = load_multifloor_database()
 
     # Test 1: Classification accuracy
-    rf_classifier, svm_classifier = test_classification_accuracy(db, rng=rng)
+    rf_classifier, svm_classifier = evaluate_classification_accuracy(db, rng=rng)
     
     # Test 2: Robustness to noise
-    test_noisy_queries(db, rf_classifier, svm_classifier, rng=rng)
+    evaluate_noisy_queries(db, rf_classifier, svm_classifier, rng=rng)
     
     # Test 3: Hierarchical localization
-    test_hierarchical_localization(db, rng=rng)
+    evaluate_hierarchical_localization(db, rng=rng)
     
     print("\n" + "=" * 70)
     print("All demonstrations completed successfully!")
