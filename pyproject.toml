@@ -59,6 +59,13 @@ dev = [
     # dependency: tests/test_repo_conventions.py imports it, and a test whose
     # tool is present only by accident is one that silently skips.
     "pyflakes>=3.0.0",
+    # tests/docs/test_notebooks_run.py executes the notebooks in a real kernel.
+    # These arrive with the `jupyter` runtime dependency, but are declared here
+    # for the same reason pyflakes is: a test whose tool is present only by
+    # accident is one that silently skips.
+    "nbclient>=0.7.0",
+    "nbformat>=5.0.0",
+    "ipykernel>=6.0.0",
     "mypy>=0.950",
     "ruff>=0.1.0",
     "pydocstyle>=6.0.0",
