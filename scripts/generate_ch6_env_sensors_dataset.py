@@ -492,7 +492,7 @@ def generate_dataset(
     # and it is not: the walk's first phase runs yaw up to 7.84 rad while
     # `mag_heading` returns (-pi, pi], so |d| reached 11 rad and `2pi - |d|`
     # went negative. 221 of 1800 samples were handed a negative "error", which
-    # dragged the reported mean down to 2.66 deg from a true 4.30 deg.
+    # dragged the reported mean down to 2.66 deg from a true 3.51 deg.
     #
     # `wrap_angle_diff` is the repo's primitive for exactly this, and
     # `ch6_dead_reckoning/example_environment.py` already computes this same
