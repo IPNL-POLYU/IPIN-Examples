@@ -460,7 +460,7 @@ See `scripts/README.md` for more experimentation scenarios.
   - Error propagation analysis: Section 6.1.2
 - **Related Examples**:
   - `ch6_dead_reckoning/example_imu_strapdown.py` - Integration demo
-  - `ch6_dead_reckoning/example_error_analysis.py` - Drift analysis
+  - `ch6_dead_reckoning/example_comparison.py` - Drift of each DR method, side by side
 - **Generation Script**: `scripts/generate_ch6_strapdown_dataset.py`
 - **Related Datasets**:
   - `ch6_foot_zupt_walk/` - ZUPT demonstrates how to bound drift

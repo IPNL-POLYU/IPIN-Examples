@@ -529,7 +529,7 @@ This diagram shows:
 - **Core Modules**: Reusable sensor fusion implementations in:
   - `core/fusion/` (StampedMeasurement, TimeSyncModel, gating/robust utils)
   - `core/estimators/` (ExtendedKalmanFilter)
-  - `core/eval.py` (errors, RMSE)
+  - `core/eval/` (errors, RMSE)
 - **Chapter Models**: Fusion-specific models in `lc_models.py` (LC models + WLS solver) and `tc_models.py` (TC models + interpolation)
 - **Data Sources**: Optional synthetic datasets from `data/sim/ch8_*` directories
 - **Output Figures**: Generated visualizations in `figs/`

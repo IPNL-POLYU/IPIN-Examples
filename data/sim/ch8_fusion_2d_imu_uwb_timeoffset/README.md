@@ -301,41 +301,31 @@ With appropriate process/measurement models (Ch8, Eqs. 8.19-8.21).
 
 **Setup**:
 ```bash
-# Run fusion WITHOUT temporal correction
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
-    --no-time-correction \
-    --output results_no_correction.json
-
-# Run fusion WITH offline temporal correction (if known)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
-    --time-offset -0.05 \
-    --clock-drift 0.0001 \
-    --output results_with_correction.json
-
-# Run fusion WITH online temporal calibration (estimate offset)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf_augmented \
-    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
-    --estimate-time-offset \
-    --output results_online_calibration.json
+# Runs the fusion twice on this dataset -- once ignoring the offset, once
+# correcting it with TimeSyncModel -- and prints both RMSEs.
+python -m ch8_sensor_fusion.temporal_calibration_demo --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset
 ```
 
 **Expected Observations**:
 
-| Configuration | Position RMSE | NIS Consistency | Time Offset Estimate |
-|---------------|---------------|-----------------|----------------------|
-| No correction | 0.18-0.25 m | Poor (~50-60% within bounds) | N/A |
-| Offline correction (known) | 0.08-0.12 m | Good (~95% within bounds) | N/A (provided) |
-| Online calibration | 0.10-0.15 m | Good after convergence | Converges to -0.05s in ~20-30s |
+| Configuration | Position RMSE | Improvement |
+|---------------|---------------|-------------|
+| Without time correction | 0.211 m | (baseline) |
+| With TimeSyncModel | 0.185 m | 12.5% |
 
 **Analysis**:
-1. Plot position RMSE over time (all 3 cases)
-2. Plot NIS values with χ² threshold
-3. For online calibration: plot estimated time offset vs. true value
-4. Compute convergence time for online estimator
 
-**Key Insight**: Even "small" time offsets (50ms) significantly degrade performance when robot speed is non-negligible. Proper temporal calibration is critical in multi-rate fusion systems.
+The gap is 0.026 m, and that is the size it has to be. A -50 ms offset on a
+platform moving at 1.0 m/s displaces it 0.050 m, so no correction of this clock
+error can recover more than about 5 cm on this trajectory. **Check that bound
+before reading the table**: a temporal correction reported as halving the error
+here would be describing something other than the clock.
+
+Online estimation of the offset -- augmenting the state with the clock
+parameters rather than supplying them -- is described in the chapter but **not
+implemented in this repository**, so there is no third configuration to run.
+
+**Key Insight**: the cost of a time offset is *speed dependent*, not large in itself. At walking pace 50 ms is 2.6 cm of extra RMSE; on a vehicle at 15 m/s the same clock error is metres. Size the synchronisation requirement from the platform dynamics, not from a number measured on a pedestrian.
 
 ---
 
@@ -347,25 +337,39 @@ python -m ch8_sensor_fusion.tc_uwb_imu_ekf_augmented \
 ```bash
 # Generate datasets with varying time offset
 for offset in -0.2 -0.1 -0.05 -0.02 0.0 0.02 0.05 0.1 0.2; do
-    python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+    python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
         --time-offset $offset \
         --output data/sim/fusion_timeoffset_${offset}
 done
 
-# Run uncorrected fusion on each
+# Compare corrected against uncorrected on each. The demo runs both and
+# prints the pair, so one invocation per dataset is enough.
 for offset in -0.2 -0.1 -0.05 -0.02 0.0 0.02 0.05 0.1 0.2; do
-    python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-        --data data/sim/fusion_timeoffset_${offset} \
-        --no-time-correction \
-        --output results_offset_${offset}.json
+    python -m ch8_sensor_fusion.temporal_calibration_demo \
+        --data data/sim/fusion_timeoffset_${offset}
 done
 ```
 
 **Expected Observations**:
-- Offset = 0: Baseline performance (RMSE ~0.10m)
-- |Offset| < 20ms: Mild degradation (RMSE ~0.12-0.15m)
-- |Offset| = 50ms: Significant degradation (RMSE ~0.20-0.25m)
-- |Offset| > 100ms: Severe degradation (RMSE > 0.30m), may trigger gating
+
+Two points on this curve are measured, and they anchor the rest:
+
+| Offset | Uncorrected RMSE | Corrected RMSE |
+|--------|------------------|----------------|
+| 0 ms | 0.185 m | 0.185 m (0.0% -- nothing to correct) |
+| -50 ms | 0.211 m | 0.185 m (12.5%) |
+
+The 0.185 m floor is the fusion error with no clock problem at all; a time
+offset adds to it rather than replacing it. So read the curve as
+`RMSE(offset) = 0.185 m + something(|offset|)`, where the added term is bounded
+by `speed x |offset|` -- 0.05 m at 50 ms, 0.10 m at 100 ms, 0.20 m at 200 ms,
+at this dataset's 1.0 m/s. The observed 50 ms term is 0.026 m, about half that
+bound, because the displacement is along track and the filter absorbs some of
+it.
+
+**A ladder that starts anywhere but 0.185 m is measuring something else.** If
+your offset-0 run does not land on the floor, the offset is not what is hurting
+you -- check the filter before reading anything into the sweep.
 
 **Analysis**:
 - Plot RMSE vs. time offset (V-shaped curve, minimum at 0)
@@ -400,13 +404,10 @@ x_pred = propagate_state_to(t_corrected)
 z_pred = h(x_pred)
 ```
 
-**Run**:
-```bash
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf_augmented \
-    --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
-    --estimate-time-offset \
-    --output results_online.json
-```
+**Run**: this one is yours to write. The repository ships offline correction
+only -- `TimeSyncModel` applied with the offset supplied -- so there is no
+augmented-state module here to invoke. Build it against the same dataset and
+compare your result to the 0.185 m the offline path reaches above.
 
 **Expected Observations**:
 - Time offset estimate starts at 0 (or prior guess)
@@ -471,7 +472,7 @@ Modern systems must handle both!
 
 This dataset was generated using:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --time-offset -0.05 \
     --clock-drift 0.0001 \
     --output data/sim/ch8_fusion_2d_imu_uwb_timeoffset
@@ -479,29 +480,29 @@ python scripts/generate_fusion_2d_imu_uwb_dataset.py \
 
 **Or using preset**:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --preset time_offset_50ms
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --preset time_offset_50ms
 ```
 
 **Generate all 3 standard variants**:
 ```bash
-python scripts/generate_fusion_2d_imu_uwb_dataset.py --all-variants
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py --all-variants
 ```
 
 **Custom temporal calibration experiments**:
 ```bash
 # Larger offset (200ms)
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --time-offset -0.2 \
     --output data/sim/fusion_timeoffset_200ms
 
 # Large clock drift only (no initial offset)
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --time-offset 0.0 \
     --clock-drift 0.001 \
     --output data/sim/fusion_drift_1000ppm
 
 # Positive offset (IMU behind UWB)
-python scripts/generate_fusion_2d_imu_uwb_dataset.py \
+python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --time-offset 0.05 \
     --output data/sim/fusion_timeoffset_positive
 ```
@@ -517,9 +518,8 @@ python scripts/generate_fusion_2d_imu_uwb_dataset.py \
   - Ch8, Section 8.1: Multi-rate fusion fundamentals
 - **Related Examples**:
   - `ch8_sensor_fusion/tc_uwb_imu_ekf.py` - Main fusion (supports offline correction)
-  - `ch8_sensor_fusion/tc_uwb_imu_ekf_augmented.py` - Augmented-state fusion (online estimation)
-  - `ch8_sensor_fusion/example_temporal_calibration.py` - Dedicated temporal calibration demo
-- **Generation Script**: `scripts/generate_fusion_2d_imu_uwb_dataset.py`
+  - `ch8_sensor_fusion/temporal_calibration_demo.py` - Dedicated temporal calibration demo
+- **Generation Script**: `scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py`
 - **Baseline**: See `fusion_2d_imu_uwb/README.md` for synchronized reference
 
 

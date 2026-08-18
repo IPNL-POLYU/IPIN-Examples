@@ -467,7 +467,7 @@ See `scripts/README.md` for more experimentation scenarios.
   - Error analysis: Section 6.3.2
 - **Related Examples**:
   - `ch6_dead_reckoning/example_zupt.py` - ZUPT EKF implementation
-  - `ch6_dead_reckoning/example_stance_detection.py` - Detector algorithms
+  - `ch6_dead_reckoning/example_zupt.py` - Stance detection and ZUPT correction
 - **Generation Script**: `scripts/generate_ch6_zupt_dataset.py`
 - **Related Datasets**:
   - `ch6_strapdown_basic/` - Shows the problem (unbounded drift)
