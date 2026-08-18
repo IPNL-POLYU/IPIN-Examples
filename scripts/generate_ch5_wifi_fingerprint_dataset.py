@@ -231,6 +231,13 @@ def generate_wifi_fingerprint_database(
             },
             "description": f"Synthetic Wi-Fi RSS fingerprint database ({'multi-sample' if n_samples_per_rp > 1 else 'single-sample'})",
             "generation_date": "2024-12-24",
+            # The seed, and the parameters it has to be paired with. Without
+            # these the shipped arrays cannot be regenerated exactly -- the ch5
+            # datasets were the only three of twenty that could not say how they
+            # were made. They always were reproducible; nothing recorded it.
+            "seed": seed,
+            "n_aps": n_aps,
+            "generator": "scripts/generate_ch5_wifi_fingerprint_dataset.py",
         },
     )
     
@@ -287,8 +294,10 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/ch5_wifi_fingerprint_grid",
-        help="Output directory (default: data/sim/ch5_wifi_fingerprint_grid)",
+        default=None,
+        help="Output directory. Defaults to the preset's own directory, or "
+             "data/sim/ch5_wifi_fingerprint_grid without a preset. Given "
+             "explicitly it always wins -- a preset does not override it.",
     )
     
     # Area parameters
@@ -338,42 +347,42 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         n_floors = 3
         n_aps = 8
         n_samples = 1
-        output_dir = "data/sim/ch5_wifi_fingerprint_grid"
+        output_dir = args.output or "data/sim/ch5_wifi_fingerprint_grid"
     elif args.preset == "dense":
         area_size = (50.0, 50.0)
         grid_spacing = 2.0
         n_floors = 3
         n_aps = 8
         n_samples = 1
-        output_dir = "data/sim/ch5_wifi_fingerprint_dense"
+        output_dir = args.output or "data/sim/ch5_wifi_fingerprint_dense"
     elif args.preset == "sparse":
         area_size = (50.0, 50.0)
         grid_spacing = 10.0
         n_floors = 3
         n_aps = 8
         n_samples = 1
-        output_dir = "data/sim/ch5_wifi_fingerprint_sparse"
+        output_dir = args.output or "data/sim/ch5_wifi_fingerprint_sparse"
     elif args.preset == "few_aps":
         area_size = (50.0, 50.0)
         grid_spacing = 5.0
         n_floors = 3
         n_aps = 4
         n_samples = 1
-        output_dir = "data/sim/ch5_wifi_fingerprint_few_aps"
+        output_dir = args.output or "data/sim/ch5_wifi_fingerprint_few_aps"
     elif args.preset == "multisamples":
         area_size = (50.0, 50.0)
         grid_spacing = 5.0
         n_floors = 3
         n_aps = 8
         n_samples = 10  # 10 samples per RP for proper μ/σ estimation
-        output_dir = "data/sim/ch5_wifi_fingerprint_multisamples"
+        output_dir = args.output or "data/sim/ch5_wifi_fingerprint_multisamples"
     else:
         area_size = (args.area_width, args.area_height)
         grid_spacing = args.grid_spacing
         n_floors = args.n_floors
         n_aps = args.n_aps
         n_samples = args.n_samples
-        output_dir = args.output
+        output_dir = args.output or "data/sim/ch5_wifi_fingerprint_grid"
     
     # Generate database
     db = generate_wifi_fingerprint_database(

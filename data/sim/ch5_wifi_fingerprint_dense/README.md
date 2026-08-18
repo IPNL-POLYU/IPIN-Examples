@@ -51,9 +51,10 @@ distinguish them, which is a defect the repository has hit before (see
 | `floor_ids.npy` | (2028,) | Floor index, 0–2 |
 | `metadata.json` | — | AP positions, grid spacing, path-loss model |
 
-Note there is **no `config.json`** and **no seed**: this family records its
-scenario parameters in `metadata.json`, and cannot be regenerated bit-exactly.
-Every other dataset family here can.
+This family uses `metadata.json` where the rest of `data/sim` uses
+`config.json`, but it records the same thing: the scenario parameters **and
+the seed**, so it regenerates bit-exactly like every other dataset here.
+`tests/ch5_fingerprinting/test_dataset_reproduces_from_its_seed.py` checks that.
 
 ## Loading Example
 
@@ -239,9 +240,9 @@ python scripts/generate_ch5_wifi_fingerprint_dataset.py --grid-spacing 2.0 \
     --output data/sim/ch5_wifi_fingerprint_dense
 ```
 
-The generator does not record a seed in `metadata.json`, so a regenerated
-dataset will not match the shipped bytes. Treat the shipped files as the
-reference.
+`metadata.json` records the seed, so this reproduces the shipped
+`features.npy` and `locations.npy` byte for byte. It was always reproducible;
+until the seed was written down, nothing could say so.
 
 ## References
 

@@ -58,6 +58,7 @@
   "grid_spacing": 10.0,
   "floor_height": 3.0,
   "n_floors": 3,
+  "n_samples_per_rp": 1,
   "path_loss_model": {
     "type": "log_distance",
     "P0_dBm": -30.0,
@@ -65,6 +66,9 @@
     "shadow_fading_std_dBm": 4.0,
     "floor_attenuation_dB": 15.0
   },
-  "description": "Synthetic Wi-Fi RSS fingerprint database for indoor positioning",
-  "generation_date": "2024-12-13"
+  "description": "Synthetic Wi-Fi RSS fingerprint database (single-sample)",
+  "generation_date": "2024-12-24",
+  "seed": 42,
+  "n_aps": 8,
+  "generator": "scripts/generate_ch5_wifi_fingerprint_dataset.py"
 }
