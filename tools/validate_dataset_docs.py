@@ -76,12 +76,11 @@ KNOWN_INCOMPLETE = {
         "template and this tool to match current practice.",
 }
 
-# Not a documentation gap, so not in the register, but worth writing down while
-# it is in view: all three ch5 datasets carry metadata.json rather than the
-# config.json every other dataset uses, and none of the three records a seed.
-# Their scenario parameters are there -- AP positions, grid spacing, path-loss
-# model -- so they document what they are, but they cannot be regenerated
-# exactly, which every other dataset here can.
+# Not a documentation gap, so not in the register: the three ch5 datasets carry
+# metadata.json where every other dataset uses config.json. The naming is
+# inconsistent and the file does the same job. It now also records the seed,
+# so all twenty datasets regenerate exactly -- see
+# tests/ch5_fingerprinting/test_dataset_reproduces_from_its_seed.py.
 
 # Required sections in dataset README, from .templates/dataset_README_template.md
 REQUIRED_SECTIONS = [
@@ -135,8 +134,7 @@ def check_dataset_files(dataset_path: Path) -> Tuple[List[str], List[str]]:
     # use metadata.json instead. It carries the scenario parameters -- AP
     # positions, grid spacing, path-loss model -- so it serves the purpose, and
     # it is accepted here rather than reported as a missing file. The naming
-    # inconsistency, and the fact that none of the three records a seed, are
-    # noted against them in KNOWN_INCOMPLETE.
+    # inconsistency is noted above.
     config = next(
         (name for name in ("config.json", "metadata.json")
          if (dataset_path / name).exists()),
