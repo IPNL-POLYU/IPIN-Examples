@@ -77,6 +77,40 @@ your run wrote anything.
 If `slam_with_maps.png` shows up in `git status` after a test run now, that is
 a real change and not the churn this note used to describe.
 
+## `docs/` is deliberately not executed, and this is why
+
+Four bodies of documentation here carry runnable Python. Three are executed by
+CI -- `data/sim/*/README.md`, `ch*/README.md`, and `notebooks/*.ipynb`. **`docs/`
+is not, and that was a decision rather than an oversight.** Measured before
+deciding, so the numbers are here to save the next person repeating it:
+
+- 119 ` ```python ` blocks across 15 files. **21 run. 90 are placeholder
+  fragments** (`position`, `anchors`, `x`, `landmarks` supplied by the reader).
+  Two are not Python at all: a prose block with degree signs, and a `pytest ...`
+  shell line.
+- **Zero defects found.** Every `from core ... import` resolves; all 10
+  `(symbol, file)` table claims are correct; no block touches matplotlib, so
+  none carries the version exposure that broke six examples and two notebooks.
+
+Guarding it would mean re-fencing ~98 blocks to protect 21 clean ones. The other
+three bodies each earned their guard by finding real bugs on the first run --
+eight API drifts in the dataset READMEs, five in the chapter READMEs, two
+matplotlib crashes in the notebooks. `docs/` found none, and its ` ```python `
+fence has never meant "runnable" here, only "highlight as Python".
+
+**If you re-measure this, dedent the blocks first.** Fenced blocks nested in
+numbered lists are indented, and a naive `` ```python
+(.*?)
+``` `` regex
+captures that indentation and reports `IndentationError` on valid code. That
+mistake inflated the first count of this survey from 8 non-Python blocks to 20,
+and the block count from 119 to 102. The same shape cost an afternoon on the
+notebooks: a bare `exec` harness reported 37 of 59 cells broken, because
+`%matplotlib inline` is stored as `get_ipython().run_line_magic(...)` and the
+resulting `NameError` in cell 1 cascades through a shared namespace.
+**A tool that cannot read the thing reports the thing as broken** -- check the
+harness before believing a survey that says most of a directory is rotten.
+
 ## Editing a dataset README
 
 `tests/docs/test_readme_code_blocks.py` executes every ` ```python ` block in
