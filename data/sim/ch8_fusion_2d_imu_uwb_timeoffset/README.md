@@ -325,7 +325,7 @@ Online estimation of the offset -- augmenting the state with the clock
 parameters rather than supplying them -- is described in the chapter but **not
 implemented in this repository**, so there is no third configuration to run.
 
-**Key Insight**: Even "small" time offsets (50ms) significantly degrade performance when robot speed is non-negligible. Proper temporal calibration is critical in multi-rate fusion systems.
+**Key Insight**: the cost of a time offset is *speed dependent*, not large in itself. At walking pace 50 ms is 2.6 cm of extra RMSE; on a vehicle at 15 m/s the same clock error is metres. Size the synchronisation requirement from the platform dynamics, not from a number measured on a pedestrian.
 
 ---
 
@@ -342,20 +342,34 @@ for offset in -0.2 -0.1 -0.05 -0.02 0.0 0.02 0.05 0.1 0.2; do
         --output data/sim/fusion_timeoffset_${offset}
 done
 
-# Run uncorrected fusion on each
+# Compare corrected against uncorrected on each. The demo runs both and
+# prints the pair, so one invocation per dataset is enough.
 for offset in -0.2 -0.1 -0.05 -0.02 0.0 0.02 0.05 0.1 0.2; do
-    python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-        --data data/sim/fusion_timeoffset_${offset} \
-        --no-time-correction \
-        --output results_offset_${offset}.json
+    python -m ch8_sensor_fusion.temporal_calibration_demo \
+        --data data/sim/fusion_timeoffset_${offset}
 done
 ```
 
 **Expected Observations**:
-- Offset = 0: Baseline performance (RMSE ~0.10m)
-- |Offset| < 20ms: Mild degradation (RMSE ~0.12-0.15m)
-- |Offset| = 50ms: Significant degradation (RMSE ~0.20-0.25m)
-- |Offset| > 100ms: Severe degradation (RMSE > 0.30m), may trigger gating
+
+Two points on this curve are measured, and they anchor the rest:
+
+| Offset | Uncorrected RMSE | Corrected RMSE |
+|--------|------------------|----------------|
+| 0 ms | 0.185 m | 0.185 m (0.0% -- nothing to correct) |
+| -50 ms | 0.211 m | 0.185 m (12.5%) |
+
+The 0.185 m floor is the fusion error with no clock problem at all; a time
+offset adds to it rather than replacing it. So read the curve as
+`RMSE(offset) = 0.185 m + something(|offset|)`, where the added term is bounded
+by `speed x |offset|` -- 0.05 m at 50 ms, 0.10 m at 100 ms, 0.20 m at 200 ms,
+at this dataset's 1.0 m/s. The observed 50 ms term is 0.026 m, about half that
+bound, because the displacement is along track and the filter absorbs some of
+it.
+
+**A ladder that starts anywhere but 0.185 m is measuring something else.** If
+your offset-0 run does not land on the floor, the offset is not what is hurting
+you -- check the filter before reading anything into the sweep.
 
 **Analysis**:
 - Plot RMSE vs. time offset (V-shaped curve, minimum at 0)

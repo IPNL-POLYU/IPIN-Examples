@@ -100,7 +100,8 @@ def test_documented_python_paths_resolve(document):
         + "\n\nA renamed file is the usual cause -- point the document at the new "
         "name rather than deleting the line. If the document names the file as "
         "future work the reader is expected to write, say so in the prose and "
-        "add it to ASPIRATIONAL."
+        "add it to ASPIRATIONAL. For a metasyntactic placeholder, write it as "
+        "scripts/<name>.py -- every check here skips angle brackets."
     )
 
 

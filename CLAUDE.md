@@ -115,7 +115,7 @@ harness before believing a survey that says most of a directory is rotten.
 
 Every other guard here works by running something -- the ` ```python ` blocks in
 the dataset and chapter READMEs, the notebooks, an example's stdout against its
-transcript. None of them look at `python scripts/generate_x.py` inside a
+transcript. None of them look at `python scripts/generate_<name>.py` inside a
 ` ```bash ` fence, so a file rename is invisible to CI however many readers it
 strands. `tests/docs/test_documented_paths_exist.py` closes that, and it found
 **17 stale references across 10 reader-facing documents** on its first run.
@@ -123,11 +123,11 @@ strands. `tests/docs/test_documented_paths_exist.py` closes that, and it found
 The three citation forms are separate checks, because each is blind to the
 others and the drift was distributed across all three:
 
-- `scripts/foo.py` -- an anchored repo-relative path.
-- `` `foo.py` `` -- a backticked bare filename. Six of `scripts/README.md`'s
+- `scripts/<name>.py` -- an anchored repo-relative path.
+- `` `<name>.py` `` -- a backticked bare filename. Six of `scripts/README.md`'s
   seven stale names carried no directory prefix, so no path regex would ever
   have matched them.
-- `python -m a.b` -- no slash, no `.py`. This is how ch8's time-offset dataset
+- `python -m <pkg>.<module>` -- no slash, no `.py`. This is how ch8's time-offset dataset
   told the reader twice to run `tc_uwb_imu_ekf_augmented`, which was never
   written.
 
