@@ -86,6 +86,17 @@ KNOWN_UNSEEDED_RNG: set = set()
 # equation-anchored test file for every one of those six modules.
 KNOWN_UNCOLLECTED_TESTS: set = set()
 
+# Generators whose preset branch assigns output_dir a bare literal, predating
+# this check. Same ratchet: only shrink it.
+#
+# Empty. Seven of them did: ch2, ch3, ch4, ch6 env/pdr/wheel_odom and ch7 each
+# wrote `output_dir = "data/sim/..."` inside their preset chain, unconditionally,
+# so `--preset X --output somewhere` silently regenerated the *shipped* dataset
+# and left `somewhere` empty. ch5's copy was found the hard way in an earlier
+# session, by overwriting three shipped datasets while surveying them; this
+# check is what stops the other six being found the same way.
+KNOWN_PRESET_OVERRIDES_OUTPUT: set = set()
+
 
 def _chapter_scripts():
     """Every chapter-level Python file, as repo-relative paths."""
@@ -501,4 +512,57 @@ def test_no_test_functions_outside_the_tests_tree(source):
         f"pytest never collects, because testpaths = [\"tests\"]: "
         f"{', '.join(sorted(offenders))}. Rename to check_* or demo_* if it is a "
         f"by-hand self-check, or move it under tests/ if it is a real test."
+    )
+
+
+def _generators():
+    """Every dataset generation script."""
+    return sorted(REPO_ROOT.glob("scripts/generate_*.py"))
+
+
+@pytest.mark.parametrize("script", _generators(), ids=_relative)
+def test_preset_does_not_overwrite_an_explicit_output(script):
+    """A preset may supply the default directory, never override the caller.
+
+    `output_dir = "data/sim/whatever"` inside a preset branch discards whatever
+    the caller passed. The failure is silent and destructive in the same breath:
+    the command appears to write where you asked, and actually rewrites the
+    shipped dataset. Write `output_dir = output_dir or "data/sim/whatever"` so
+    the preset only fills a gap.
+
+    The paired hazard is the inverse, and it is why this check is not enough on
+    its own: if --output also declares an argparse default, output_dir is never
+    empty and the preset's directory becomes unreachable. --output must default
+    to None, with the module's own directory supplied as a fallback after the
+    preset chain.
+    """
+    relative = _relative(script)
+    tree = ast.parse(script.read_text(encoding="utf-8"))
+
+    offenders = []
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Assign):
+            continue
+        if not any(
+            isinstance(target, ast.Name) and target.id == "output_dir"
+            for target in node.targets
+        ):
+            continue
+        value = node.value
+        if isinstance(value, ast.Constant) and isinstance(value.value, str):
+            if value.value.startswith("data/sim/"):
+                offenders.append((node.lineno, value.value))
+
+    if not offenders:
+        return
+
+    if relative in KNOWN_PRESET_OVERRIDES_OUTPUT:
+        pytest.skip(f"known pre-existing preset override ({relative})")
+
+    listed = ", ".join(f"line {n}: {v}" for n, v in offenders)
+    assert not offenders, (
+        f"{relative} assigns output_dir a bare literal ({listed}), which "
+        f"discards an explicit --output and rewrites the shipped dataset "
+        f"instead. Use `output_dir = output_dir or \"...\"` so the preset only "
+        f"supplies a default, and make sure --output itself defaults to None."
     )

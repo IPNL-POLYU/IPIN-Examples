@@ -371,28 +371,31 @@ def generate_dataset(
         n_poses_per_side = 10
         translation_noise = 0.1
         rotation_noise = 0.02
-        output_dir = "data/sim/ch7_slam_2d_square"
+        output_dir = output_dir or "data/sim/ch7_slam_2d_square"
     elif preset == "low_drift":
         trajectory = "square"
         size = 20.0
         n_poses_per_side = 10
         translation_noise = 0.02
         rotation_noise = 0.005
-        output_dir = "data/sim/ch7_slam_2d_low_drift"
+        output_dir = output_dir or "data/sim/ch7_slam_2d_low_drift"
     elif preset == "high_drift":
         trajectory = "square"
         size = 20.0
         n_poses_per_side = 10
         translation_noise = 0.3
         rotation_noise = 0.05
-        output_dir = "data/sim/ch7_slam_2d_high_drift"
+        output_dir = output_dir or "data/sim/ch7_slam_2d_high_drift"
     elif preset == "figure8":
         trajectory = "figure8"
         size = 15.0
         n_poses_per_side = 15
         translation_noise = 0.1
         rotation_noise = 0.02
-        output_dir = "data/sim/ch7_slam_2d_figure8"
+        output_dir = output_dir or "data/sim/ch7_slam_2d_figure8"
+
+    # No preset and no --output: the module's own dataset.
+    output_dir = output_dir or "data/sim/ch7_slam_2d_square"
 
     print("\n" + "=" * 70)
     print(f"Generating Ch7 SLAM 2D Dataset: {Path(output_dir).name}")
@@ -536,7 +539,7 @@ Book Reference: Chapter 7, Sections 7.2-7.3
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/ch7_slam_2d_square",
+        default=None,
         help="Output directory (default: data/sim/ch7_slam_2d_square)",
     )
 

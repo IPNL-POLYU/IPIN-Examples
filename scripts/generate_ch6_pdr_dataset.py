@@ -529,28 +529,31 @@ def generate_dataset(
         gyro_noise = 0.005
         mag_noise = 0.05
         gyro_bias = 0.002
-        output_dir = "data/sim/ch6_pdr_corridor_walk"
+        output_dir = output_dir or "data/sim/ch6_pdr_corridor_walk"
     elif preset == "noisy":
         # Higher noise
         accel_noise = 0.3
         gyro_noise = 0.015
         mag_noise = 0.15
         gyro_bias = 0.01
-        output_dir = "data/sim/ch6_pdr_noisy"
+        output_dir = output_dir or "data/sim/ch6_pdr_noisy"
     elif preset == "poor_gyro":
         # Poor gyro (severe heading drift)
         accel_noise = 0.2
         gyro_noise = 0.03
         mag_noise = 0.08
         gyro_bias = 0.02
-        output_dir = "data/sim/ch6_pdr_poor_gyro"
+        output_dir = output_dir or "data/sim/ch6_pdr_poor_gyro"
     elif preset == "poor_mag":
         # Poor magnetometer (distorted heading)
         accel_noise = 0.2
         gyro_noise = 0.008
         mag_noise = 0.3
         gyro_bias = 0.005
-        output_dir = "data/sim/ch6_pdr_poor_mag"
+        output_dir = output_dir or "data/sim/ch6_pdr_poor_mag"
+
+    # No preset and no --output: the module's own dataset.
+    output_dir = output_dir or "data/sim/ch6_pdr_corridor_walk"
 
     print("\n" + "=" * 70)
     print(f"Generating Ch6 PDR Dataset: {Path(output_dir).name}")
@@ -738,7 +741,7 @@ Book Reference: Chapter 6, Section 6.3 (Pedestrian Dead Reckoning)
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/ch6_pdr_corridor_walk",
+        default=None,
         help="Output directory (default: data/sim/ch6_pdr_corridor_walk)",
     )
 

@@ -42,18 +42,21 @@ MAX_ACCEL_M_S2 = 5.0 * 9.81
 KNOWN_DISCONTINUOUS = {
     "ch6_foot_zupt_walk",
     # Found by the text-dataset checks at the bottom of this file, on their
-    # first run -- the npz glob above had never looked at either.
-    #
-    # ch6_env_sensors_heading_altitude: 255.2 m/s^2, 26 g, at a peak speed of
-    # 51.05 m/s. That is 184 km/h in a dead-reckoning chapter, so the position
-    # is not merely jumpy, it is describing something that is not a pedestrian.
-    # Worth a look before anyone reads an accuracy off it.
+    # first run -- the npz glob above had never looked here.
     #
     # ch6_wheel_odom_square: 50.0 m/s^2, 5.1 g, at 5.00 m/s -- square corners
     # on a wheeled platform, the same shape as Chapter 8's and this chapter's
-    # PDR corridor. Both left listed rather than fixed here: each needs its
-    # generator understood, and this change already regenerates one dataset.
-    "ch6_env_sensors_heading_altitude",
+    # PDR corridor. Left listed rather than fixed: it needs its generator
+    # understood first.
+    #
+    # ch6_env_sensors_heading_altitude was the third entry and is gone. It was
+    # not one defect but three, all from phases written as absolute closed forms
+    # with nothing tying each to the one before: the stairwells sat at points
+    # the walk never reached (10.1 m and 7.8 m of teleport), the corridor was a
+    # line walked back and forth so the heading reversed 180 deg in one sample,
+    # and the figure-8 asserted a yaw with the atan2 arguments swapped. Chaining
+    # the phases and deriving yaw from the velocity took it to 2.37 m/s, 1.2 g
+    # and 59.8 deg/s.
     "ch6_wheel_odom_square",
 }
 

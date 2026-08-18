@@ -239,15 +239,18 @@ def generate_dataset(
     if preset == "san_francisco":
         latitude_deg = 37.7749
         longitude_deg = -122.4194
-        output_dir = "data/sim/ch2_coords_san_francisco"
+        output_dir = output_dir or "data/sim/ch2_coords_san_francisco"
     elif preset == "tokyo":
         latitude_deg = 35.6762
         longitude_deg = 139.6503
-        output_dir = "data/sim/ch2_coords_tokyo"
+        output_dir = output_dir or "data/sim/ch2_coords_tokyo"
     elif preset == "london":
         latitude_deg = 51.5074
         longitude_deg = -0.1278
-        output_dir = "data/sim/ch2_coords_london"
+        output_dir = output_dir or "data/sim/ch2_coords_london"
+
+    # No preset and no --output: the module's own dataset.
+    output_dir = output_dir or "data/sim/ch2_coords_san_francisco"
 
     print("\n" + "=" * 70)
     print(f"Generating Ch2 Coordinate Transforms Dataset: {Path(output_dir).name}")
@@ -409,7 +412,7 @@ Book Reference: Chapter 2, Sections 2.1-2.3
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/ch2_coords_san_francisco",
+        default=None,
         help="Output directory (default: data/sim/ch2_coords_san_francisco)",
     )
 

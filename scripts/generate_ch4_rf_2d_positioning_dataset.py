@@ -442,7 +442,7 @@ def generate_dataset(
         tdoa_noise = 0.1
         aoa_noise_deg = 2.0
         add_nlos = False
-        output_dir = "data/sim/ch4_rf_2d_square"
+        output_dir = output_dir or "data/sim/ch4_rf_2d_square"
     elif preset == "optimal":
         geometry = "optimal"
         trajectory = "grid"
@@ -450,7 +450,7 @@ def generate_dataset(
         tdoa_noise = 0.1
         aoa_noise_deg = 2.0
         add_nlos = False
-        output_dir = "data/sim/ch4_rf_2d_optimal"
+        output_dir = output_dir or "data/sim/ch4_rf_2d_optimal"
     elif preset == "poor_geometry":
         geometry = "linear"
         trajectory = "grid"
@@ -458,7 +458,7 @@ def generate_dataset(
         tdoa_noise = 0.1
         aoa_noise_deg = 2.0
         add_nlos = False
-        output_dir = "data/sim/ch4_rf_2d_linear"
+        output_dir = output_dir or "data/sim/ch4_rf_2d_linear"
     elif preset == "nlos":
         geometry = "square"
         trajectory = "grid"
@@ -467,7 +467,10 @@ def generate_dataset(
         aoa_noise_deg = 2.0
         add_nlos = True
         nlos_bias = 0.8
-        output_dir = "data/sim/ch4_rf_2d_nlos"
+        output_dir = output_dir or "data/sim/ch4_rf_2d_nlos"
+
+    # No preset and no --output: the module's own dataset.
+    output_dir = output_dir or "data/sim/ch4_rf_2d_square"
 
     print("\n" + "=" * 70)
     print(f"Generating Ch4 RF 2D Positioning Dataset: {Path(output_dir).name}")
@@ -685,7 +688,7 @@ Book Reference: Chapter 4, Sections 4.1-4.5
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/ch4_rf_2d_square",
+        default=None,
         help="Output directory (default: data/sim/ch4_rf_2d_square)",
     )
 
