@@ -571,9 +571,9 @@ class FactorGraph:
             current_idx += dim
 
 
-def test_fgo_simple_ls():
+def check_fgo_simple_ls():
     """
-    Unit test: Simple linear least squares using FGO.
+    Self-check: Simple linear least squares using FGO.
 
     Tests FGO on a problem that can be verified analytically.
     """
@@ -616,9 +616,9 @@ def test_fgo_simple_ls():
     print("  [PASS] Test passed")
 
 
-def test_fgo_2d_positioning():
+def check_fgo_2d_positioning():
     """
-    Unit test: 2D positioning from range measurements.
+    Self-check: 2D positioning from range measurements.
 
     Tests FGO on a simple 2D trilateration problem.
     """
@@ -674,9 +674,9 @@ def test_fgo_2d_positioning():
     print("  [PASS] Test passed")
 
 
-def test_fgo_levenberg_marquardt():
+def check_fgo_levenberg_marquardt():
     """
-    Unit test: Levenberg-Marquardt optimization (Algorithm 3.2).
+    Self-check: Levenberg-Marquardt optimization (Algorithm 3.2).
 
     Tests LM on a mildly nonlinear problem to ensure:
     1. LM converges to the correct solution
@@ -746,9 +746,9 @@ def test_fgo_levenberg_marquardt():
     print("  [PASS] Test passed")
 
 
-def test_fgo_line_search():
+def check_fgo_line_search():
     """
-    Unit test: Line search optimization (Algorithm 3.1).
+    Self-check: Line search optimization (Algorithm 3.1).
 
     Tests line search with sufficient decrease condition.
     """
@@ -801,9 +801,9 @@ def test_fgo_line_search():
     print("  [PASS] Test passed")
 
 
-def test_lm_monotonic_decrease():
+def check_lm_monotonic_decrease():
     """
-    Unit test: Verify LM error decreases monotonically.
+    Self-check: Verify LM error decreases monotonically.
 
     This test uses a mildly nonlinear problem to verify that LM
     does not diverge and maintains stable convergence.
@@ -894,9 +894,9 @@ def test_lm_monotonic_decrease():
     print("  [PASS] Test passed")
 
 
-def test_gd_with_line_search():
+def check_gd_with_line_search():
     """
-    Unit test: Gradient descent with Armijo line search (Algorithm 3.1).
+    Self-check: Gradient descent with Armijo line search (Algorithm 3.1).
 
     Tests that gradient descent with line_search=True:
     1. Uses Armijo backtracking line search
@@ -993,25 +993,25 @@ def test_gd_with_line_search():
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("FACTOR GRAPH OPTIMIZATION UNIT TESTS")
+    print("FACTOR GRAPH OPTIMIZATION SELF-CHECKS")
     print("=" * 70)
     print()
 
-    test_fgo_simple_ls()
+    check_fgo_simple_ls()
     print()
-    test_fgo_2d_positioning()
+    check_fgo_2d_positioning()
     print()
-    test_fgo_line_search()
+    check_fgo_line_search()
     print()
-    test_gd_with_line_search()
+    check_gd_with_line_search()
     print()
-    test_fgo_levenberg_marquardt()
+    check_fgo_levenberg_marquardt()
     print()
-    test_lm_monotonic_decrease()
+    check_lm_monotonic_decrease()
 
     print()
     print("=" * 70)
-    print("ALL TESTS PASSED")
+    print("ALL CHECKS PASSED")
     print("=" * 70)
 
 

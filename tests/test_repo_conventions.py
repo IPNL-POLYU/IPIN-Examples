@@ -72,6 +72,20 @@ KNOWN_RAW_ANIMATION: set = set()
 # copies of the same sequence.
 KNOWN_UNSEEDED_RNG: set = set()
 
+# Files outside tests/ that define test_-prefixed functions, predating this
+# test. Same ratchet: only shrink it.
+#
+# Empty. core/estimators/ held 18 of them -- three in kalman_filter, three in
+# extended_kalman_filter, two each in unscented, iterated and particle_filter,
+# six in factor_graph -- printing "UNIT TESTS" banners under
+# if __name__ == "__main__". Because testpaths = ["tests"], pytest never
+# collected any of them, so 18 functions named like tests contributed nothing to
+# the suite and nothing would have noticed them breaking. They are now check_*,
+# which is what they are: self-checks a reader runs by hand. The real coverage
+# was never missing -- tests/core/estimators/ already holds an
+# equation-anchored test file for every one of those six modules.
+KNOWN_UNCOLLECTED_TESTS: set = set()
+
 
 def _chapter_scripts():
     """Every chapter-level Python file, as repo-relative paths."""
@@ -434,4 +448,53 @@ def test_no_pyflakes_warnings(area):
         + ("\n  ..." if len(reported) > 40 else "")
         + "\n\nThe repo is pyflakes-clean; keep it that way. If a warning is "
         "genuinely wrong, add the file to KNOWN_PYFLAKES with the reason."
+    )
+
+
+def _source_files_outside_tests():
+    """Every Python file in the library, chapters, scripts and tools."""
+    found = []
+    for pattern in ("core/**/*.py", "ch*_*/**/*.py", "scripts/*.py", "tools/*.py"):
+        found.extend(REPO_ROOT.glob(pattern))
+    return sorted(set(found))
+
+
+@pytest.mark.parametrize("source", _source_files_outside_tests(), ids=_relative)
+def test_no_test_functions_outside_the_tests_tree(source):
+    """A test_-prefixed function outside tests/ is never collected.
+
+    pyproject sets testpaths = ["tests"], so pytest does not look anywhere else.
+    A function named test_something in core/ therefore looks like coverage from
+    every angle except the one that matters: it does not run, and nothing
+    reports it when it stops working.
+
+    core/estimators/ carried 18 such functions. All 18 passed when checked by
+    hand, which is exactly why the shape survives -- it fails silently by never
+    speaking at all. Two of them, in particle_filter, asserted nothing whatever
+    and printed "[PASS] Test passed" unconditionally beneath a comment reading
+    "Check that filter ran successfully".
+
+    Name a by-hand self-check check_* or demo_*. If it is a real test, move it
+    under tests/ where it will be collected.
+    """
+    relative = _relative(source)
+    tree = ast.parse(source.read_text(encoding="utf-8"))
+    offenders = [
+        node.name
+        for node in ast.walk(tree)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+        and node.name.startswith("test_")
+    ]
+
+    if not offenders:
+        return
+
+    if relative in KNOWN_UNCOLLECTED_TESTS:
+        pytest.skip(f"known pre-existing uncollected tests ({relative})")
+
+    assert not offenders, (
+        f"{relative} defines {len(offenders)} test_-prefixed function(s) that "
+        f"pytest never collects, because testpaths = [\"tests\"]: "
+        f"{', '.join(sorted(offenders))}. Rename to check_* or demo_* if it is a "
+        f"by-hand self-check, or move it under tests/ if it is a real test."
     )

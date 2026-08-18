@@ -115,20 +115,20 @@ python tools/compare_fusion_variants.py \
 
 ---
 
-### `test_all_datasets.py`
+### `check_all_datasets.py`
 
 Tests all code examples in dataset READMEs across all chapters. Validates that documentation is accurate and examples are runnable.
 
 **Usage:**
 ```bash
 # Test all datasets
-python tools/test_all_datasets.py
+python tools/check_all_datasets.py
 
 # Test specific chapter only
-python tools/test_all_datasets.py --chapter 8
+python tools/check_all_datasets.py --chapter 8
 
 # Verbose output (detailed test results)
-python tools/test_all_datasets.py --verbose
+python tools/check_all_datasets.py --verbose
 ```
 
 **What it tests:**
@@ -229,7 +229,7 @@ Add to your CI pipeline (e.g., GitHub Actions):
   run: python tools/validate_dataset_docs.py --strict
 
 - name: Test dataset examples
-  run: python tools/test_all_datasets.py
+  run: python tools/check_all_datasets.py
 ```
 
 ## Adding New Tools

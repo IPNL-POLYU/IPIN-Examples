@@ -21,6 +21,9 @@ IPIN-Examples/
 │   ├── fingerprinting/          # Wi-Fi/magnetic fingerprinting algorithms
 │   ├── slam/                    # SLAM geometry, scan matching, factors
 │   ├── fusion/                  # Multi-sensor fusion utilities
+│   ├── models/                  # Common motion & measurement models
+│   ├── sim/                     # Synthetic sensor data from a trajectory
+│   ├── utils/                   # Angles, geometry, observability
 │   └── eval/                    # Metrics, error stats, plots
 ├── ch2_coords/                  # Chapter 2: Coordinate Systems
 ├── ch3_estimators/              # Chapter 3: State Estimation
@@ -35,7 +38,7 @@ IPIN-Examples/
 ├── scripts/                     # Dataset generation scripts
 ├── tools/                       # CI/maintenance scripts
 ├── references/                  # Design specifications
-└── tests/                       # Unit tests (1,171 test cases)
+└── tests/                       # Unit tests, plus the guards over docs and figures
 ```
 
 ## Architecture Diagram

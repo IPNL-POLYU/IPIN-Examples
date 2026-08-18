@@ -223,9 +223,9 @@ class KalmanFilter(StateEstimator):
         return innovation, innovation_cov
 
 
-def test_kalman_filter_1d_constant_velocity():
+def check_kalman_filter_1d_constant_velocity():
     """
-    Unit test: 1D constant velocity tracking.
+    Self-check: 1D constant velocity tracking.
 
     Tests the Kalman filter on a simple 1D constant velocity model.
     State: [position, velocity]
@@ -296,9 +296,9 @@ def test_kalman_filter_1d_constant_velocity():
     print("  [PASS] Test passed")
 
 
-def test_kalman_filter_innovation():
+def check_kalman_filter_innovation():
     """
-    Unit test: Innovation computation.
+    Self-check: Innovation computation.
 
     Tests that innovation and innovation covariance are computed correctly.
     """
@@ -336,9 +336,9 @@ def test_kalman_filter_innovation():
     print("  [PASS] Test passed")
 
 
-def test_kalman_filter_callable_matrices():
+def check_kalman_filter_callable_matrices():
     """
-    Unit test: Time-varying matrices (callable).
+    Self-check: Time-varying matrices (callable).
 
     Tests that the filter works with time-varying F, Q, H, R.
     """
@@ -380,18 +380,18 @@ def test_kalman_filter_callable_matrices():
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("KALMAN FILTER UNIT TESTS")
+    print("KALMAN FILTER SELF-CHECKS")
     print("=" * 70)
     print()
 
-    test_kalman_filter_1d_constant_velocity()
+    check_kalman_filter_1d_constant_velocity()
     print()
-    test_kalman_filter_innovation()
+    check_kalman_filter_innovation()
     print()
-    test_kalman_filter_callable_matrices()
+    check_kalman_filter_callable_matrices()
 
     print()
     print("=" * 70)
-    print("ALL TESTS PASSED")
+    print("ALL CHECKS PASSED")
     print("=" * 70)
 

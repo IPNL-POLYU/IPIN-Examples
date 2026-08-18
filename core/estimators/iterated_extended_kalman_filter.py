@@ -284,9 +284,9 @@ class IteratedExtendedKalmanFilter(StateEstimator):
         return innovation, innovation_cov
 
 
-def test_iekf_convergence():
+def check_iekf_convergence():
     """
-    Unit test: Verify IEKF converges in fewer steps with mild nonlinearity.
+    Self-check: Verify IEKF converges in fewer steps with mild nonlinearity.
     """
     dt = 0.1
 
@@ -338,9 +338,9 @@ def test_iekf_convergence():
     assert iters <= 10, "IEKF did not converge within max iterations"
 
 
-def test_iekf_vs_ekf_high_nonlinearity():
+def check_iekf_vs_ekf_high_nonlinearity():
     """
-    Unit test: Compare IEKF vs EKF on highly nonlinear measurement.
+    Self-check: Compare IEKF vs EKF on highly nonlinear measurement.
 
     IEKF should produce better estimates than EKF when nonlinearity is severe.
     """
@@ -455,16 +455,16 @@ def test_iekf_vs_ekf_high_nonlinearity():
 
 if __name__ == "__main__":
     print("=" * 70)
-    print("ITERATED EXTENDED KALMAN FILTER UNIT TESTS")
+    print("ITERATED EXTENDED KALMAN FILTER SELF-CHECKS")
     print("=" * 70)
     print()
 
-    test_iekf_convergence()
+    check_iekf_convergence()
     print()
-    test_iekf_vs_ekf_high_nonlinearity()
+    check_iekf_vs_ekf_high_nonlinearity()
 
     print()
     print("=" * 70)
-    print("ALL TESTS PASSED")
+    print("ALL CHECKS PASSED")
     print("=" * 70)
 

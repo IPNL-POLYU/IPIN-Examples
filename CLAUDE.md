@@ -356,11 +356,45 @@ The sweep's value was elsewhere:
   angle, and a textbook invites exactly that. ch2's gate would have printed
   `FAIL` for a perfect round-trip at a yaw of 200°.
 
-One thing the sweep turned up that is not about angles: `core/estimators/*.py`
-holds **18 `test_`-named functions that pytest never collects**, because
-`testpaths = ["tests"]`. They print "UNIT TESTS" banners and run only under
-`if __name__ == "__main__"`. All 18 pass today — checked — but nothing would
-notice if they stopped.
+One thing that sweep turned up is not about angles, and it is now fixed and
+ratcheted: `core/estimators/*.py` held **18 `test_`-named functions that pytest
+never collected**, because `testpaths = ["tests"]`. They printed "UNIT TESTS"
+banners under `if __name__ == "__main__"`. All 18 passed — which is exactly why
+the shape survives. **It fails silently by never speaking at all**, so there is
+no red to notice; the functions look like coverage from every angle except the
+one that decides whether they run.
+
+They are now `check_*`, which is what they are: self-checks a reader runs by
+hand. **The real coverage was never missing** — `tests/core/estimators/` already
+holds an equation-anchored test file for every one of those six modules, so the
+inline ones were duplicates wearing the name of the thing that already existed.
+Before assuming an uncollected test is a coverage gap, look for the collected
+file next door.
+
+`KNOWN_UNCOLLECTED_TESTS` in `tests/test_repo_conventions.py` keeps it that way,
+over `core/`, the chapters, `scripts/` and `tools/`. It is empty, and it found
+two more the hand survey had missed: three `test_`-named evaluation stages in
+`ch5_fingerprinting/example_classification.py`, all taking required arguments so
+pytest could only ever have errored on them, and two helpers in a *tool* whose
+own filename began with `test_` — now `check_all_datasets.py`, since a CLI
+matching `python_files` is the same confusion one level up.
+
+Two of the 18, in `particle_filter.py`, **asserted nothing at all** and printed
+`"[PASS] Test passed"` unconditionally, beneath a comment reading "Check that
+filter ran successfully". They also seeded *after* constructing the filter, so
+the particle cloud was drawn unseeded and three runs gave 0.2245, 0.0516 and
+0.1486 m. Seeded first they are a fixed 0.2149 m, which is what made a real
+assertion possible — **an unseeded check cannot be given a bound, so it tends to
+be given a print instead.**
+
+Fixing them surfaced a third thing worth knowing: that demo's `likelihood_func`
+returned a shape-`(1,)` array where the signature says
+`Callable[..., float]`, so `weights[i] *= likelihood` assigned an array into a
+scalar slot — a numpy DeprecationWarning that says it *will* become an error.
+`ch3_estimators/example_particle_bimodal.py` had it right with `np.sum` all
+along. Same lesson as the matplotlib `labels=` removal that broke CI twice this
+year: **a warning naming a future version is a scheduled breakage**, and the
+correct form is usually already in a sibling file.
 
 So expect a red here to be real, but confirm the tolerance first:
 
