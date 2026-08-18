@@ -408,6 +408,88 @@ storage precision, against one real defect. An exact-looking residual is the
 tell that it is yours: 0.7854 rad/s turned out to be π/4 from an off-by-one in
 the check, while the genuine bug was a dull, perfectly uniform 15 m.
 
+## `--preset` and `--output`, and the shape a one-instance fix leaves behind
+
+A generator's preset may supply the output directory. It may not *override* one
+the caller gave, and seven of them did: ch2, ch3, ch4, ch6 env/pdr/wheel_odom
+and ch7 each ran `output_dir = "data/sim/..."` unconditionally inside the preset
+chain. `--preset X --output somewhere` therefore regenerated the **shipped**
+dataset and left `somewhere` empty -- silent and destructive in one step, since
+the command appears to write where you asked.
+
+**ch5's copy of this was found and fixed an earlier session, by overwriting
+three shipped datasets while surveying them. The other six were never looked
+for.** That is the lesson worth carrying: a defect found in one file is evidence
+about a *shape*, and the sweep costs one grep. This one was found again the same
+way -- by stashing the fix, regenerating, and watching the run write into
+`data/sim` -- which is a slow way to learn something a search would have said.
+
+The inverse hazard is real and I walked straight into it. `output_dir or "..."`
+only helps when `output_dir` can be empty, and `--output` declared an argparse
+default pointing at the *baseline* directory, so it never was: every preset would
+have written to the baseline dataset. So the contract has two halves and needs
+both:
+
+- `--output` defaults to `None`.
+- The preset chain supplies a default with `output_dir = output_dir or "..."`,
+  and the module's own directory is a fallback *after* the chain.
+
+`KNOWN_PRESET_OVERRIDES_OUTPUT` in `tests/test_repo_conventions.py` holds the
+first half as an AST check and is empty. The second half it cannot see, so the
+docstring says so.
+
+## A trajectory written as independent closed forms will not join up
+
+`ch6_env_sensors_heading_altitude` sat in `KNOWN_DISCONTINUOUS` described as "not
+a pedestrian" at 51 m/s. Measured, the walk was ordinary -- mean 1.20 m/s, median
+1.05 -- with **two** bad samples out of 1799, both at phase boundaries. Each
+phase was an absolute closed form with nothing tying it to the one before, so
+the stairwells sat at points the walk never reached: 10.1 m of teleport at t=60,
+7.8 m at t=120.
+
+**Read the distribution before believing the peak.** The register's summary was
+true and still gave the wrong picture of what to fix; two teleports in an
+otherwise sane walk is a different job from a trajectory that is wrong
+throughout.
+
+Two further defects were hiding under the first, and both came from asserting
+the heading per phase instead of deriving it:
+
+- The corridor was a line walked back and forth with `y` fixed, so the heading
+  reversed 180 degrees in one 0.1 s sample -- **1800 deg/s, in the chapter about
+  heading**. Now a flattened loop, which turns through the same 180 degrees
+  continuously.
+- The figure-8 set `yaw = atan2(8 cos p * 2, 4 cos 2p * 2)`. For
+  `x = 10 + 8 sin p, y = 10 + 4 sin 2p` the velocity is `(8 cos p, 8 cos 2p)`,
+  so the arguments were swapped and the heading was wrong for a sixth of the
+  run. Deriving yaw from the velocity removes this **by construction** -- the
+  trajectory and the heading can no longer disagree, because there is only one
+  of them.
+
+Result: 51.05 -> 2.37 m/s, 26 g -> 1.2 g, 1800 -> 59.8 deg/s. The barometer,
+floor labels and altitude error are byte-identical, which is the check that the
+change stayed inside the trajectory.
+
+Two things that happened while fixing it are worth expecting:
+
+- **The numbers named my own bug faster than reading did.** Splitting the loop
+  in two left `altitude = z` reading the *position* loop's final value, pinning
+  every sample at 7.0 m. The tells were exact: `barometer_clean` differed by
+  84.09 Pa, which is the whole 0-7 m range, and the altitude error was 4.06 m,
+  which is the mean distance from 7 m. An error equal to a range or a mean is
+  arithmetic, not noise.
+- **A guard-the-guard test caught a regression I would not have.** `atan2`
+  returns `(-pi, pi]`, and storing that would have kept the true yaw wrapped --
+  at which point `min(|d|, 2pi - |d|)` never goes negative here and
+  `tests/ch6_dead_reckoning/test_heading_error_is_wrapped.py` would have passed
+  for a broken implementation. Someone had written
+  `test_the_trajectory_still_exercises_the_wrap` for exactly this, and it failed
+  the moment I regenerated. `np.unwrap` restores the accumulating heading, and
+  the demonstration is now stronger than before: 702 of 1800 samples go negative
+  under the naive form, against 221, understating 3.41 deg as 0.70.
+  **When you rewrite the data a test depends on, run that test before believing
+  the rewrite is an improvement.**
+
 ## Attributing a dataset diff
 
 If regenerating a dataset produces a diff, find out whether your change caused

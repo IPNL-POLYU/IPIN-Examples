@@ -273,25 +273,28 @@ def generate_dataset(
         range_noise = 0.3
         bearing_noise_deg = 3.0
         outlier_rate = 0.0
-        output_dir = "data/sim/ch3_estimator_linear"
+        output_dir = output_dir or "data/sim/ch3_estimator_linear"
     elif preset == "nonlinear":
         trajectory = "circular"
         range_noise = 0.5
         bearing_noise_deg = 5.0
         outlier_rate = 0.0
-        output_dir = "data/sim/ch3_estimator_nonlinear"
+        output_dir = output_dir or "data/sim/ch3_estimator_nonlinear"
     elif preset == "high_nonlinearity":
         trajectory = "figure8"
         range_noise = 0.5
         bearing_noise_deg = 5.0
         outlier_rate = 0.0
-        output_dir = "data/sim/ch3_estimator_high_nonlinear"
+        output_dir = output_dir or "data/sim/ch3_estimator_high_nonlinear"
     elif preset == "outliers":
         trajectory = "circular"
         range_noise = 0.5
         bearing_noise_deg = 5.0
         outlier_rate = 0.1
-        output_dir = "data/sim/ch3_estimator_outliers"
+        output_dir = output_dir or "data/sim/ch3_estimator_outliers"
+
+    # No preset and no --output: the module's own dataset.
+    output_dir = output_dir or "data/sim/ch3_estimator_nonlinear"
 
     print("\n" + "=" * 70)
     print(f"Generating Ch3 Estimator Comparison Dataset: {Path(output_dir).name}")
@@ -444,7 +447,7 @@ Book Reference: Chapter 3, Sections 3.2-3.4
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/ch3_estimator_nonlinear",
+        default=None,
         help="Output directory (default: data/sim/ch3_estimator_nonlinear)",
     )
 

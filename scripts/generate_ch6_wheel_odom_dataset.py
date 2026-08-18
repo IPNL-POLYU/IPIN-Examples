@@ -380,7 +380,7 @@ def generate_dataset(
         wheel_bias = 0.005
         gyro_bias = 0.0002
         add_slip = False
-        output_dir = "data/sim/ch6_wheel_odom_square"
+        output_dir = output_dir or "data/sim/ch6_wheel_odom_square"
     elif preset == "noisy":
         # Higher noise
         encoder_noise = 0.1
@@ -388,7 +388,7 @@ def generate_dataset(
         wheel_bias = 0.02
         gyro_bias = 0.001
         add_slip = False
-        output_dir = "data/sim/ch6_wheel_odom_noisy"
+        output_dir = output_dir or "data/sim/ch6_wheel_odom_noisy"
     elif preset == "slip":
         # Add wheel slip during turns
         encoder_noise = 0.05
@@ -397,7 +397,7 @@ def generate_dataset(
         gyro_bias = 0.0005
         add_slip = True
         slip_magnitude = 0.3
-        output_dir = "data/sim/ch6_wheel_odom_slip"
+        output_dir = output_dir or "data/sim/ch6_wheel_odom_slip"
     elif preset == "poor":
         # Poor quality sensors + slip
         encoder_noise = 0.15
@@ -406,7 +406,10 @@ def generate_dataset(
         gyro_bias = 0.002
         add_slip = True
         slip_magnitude = 0.5
-        output_dir = "data/sim/ch6_wheel_odom_poor"
+        output_dir = output_dir or "data/sim/ch6_wheel_odom_poor"
+
+    # No preset and no --output: the module's own dataset.
+    output_dir = output_dir or "data/sim/ch6_wheel_odom_square"
 
     print("\n" + "=" * 70)
     print(f"Generating Ch6 Wheel Odometry Dataset: {Path(output_dir).name}")
@@ -599,7 +602,7 @@ Book Reference: Chapter 6, Section 6.2 (Wheel Odometry)
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/ch6_wheel_odom_square",
+        default=None,
         help="Output directory (default: data/sim/ch6_wheel_odom_square)",
     )
 

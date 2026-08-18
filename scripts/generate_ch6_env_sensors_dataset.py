@@ -44,6 +44,21 @@ from core.sensors import (
 )
 
 
+def _runs_of(flag):
+    """Yield (start, stop) inclusive index pairs for each True run in *flag*."""
+    runs = []
+    start = None
+    for i, value in enumerate(flag):
+        if value and start is None:
+            start = i
+        elif not value and start is not None:
+            runs.append((start, i - 1))
+            start = None
+    if start is not None:
+        runs.append((start, len(flag) - 1))
+    return runs
+
+
 def generate_building_walk(
     duration: float = 180.0,
     floor_height: float = 3.5,
@@ -89,71 +104,113 @@ def generate_building_walk(
     # Phase 4: Stairs up to floor 2 (120-150s)
     # Phase 5: Floor 2 walk (150-180s)
 
-    x, y, z = 0.0, 0.0, 0.0
-    yaw = 0.0
-    current_floor = 0
+    # Every phase starts where the previous one ended. The stairwell is the
+    # hinge: the ground-floor circle begins and ends at (10, 0), so that is
+    # where the stairs go, and the figure-8 above is centred on the same point
+    # so it both leaves from and returns to the stairhead.
+    STAIR_XY = (10.0, 0.0)
+    CIRCLE_RADIUS = 10.0
 
     for i in range(N):
         time_now = t[i]
 
-        # Determine phase
         if time_now < 60:
-            # Phase 1: Ground floor walk (circle)
+            # Phase 1: ground floor, one circle anticlockwise from (10, 0).
             current_floor = 0
-            radius = 10.0
-            omega = 2 * np.pi / 60.0  # One circle in 60s
-            x = radius * np.cos(omega * time_now)
-            y = radius * np.sin(omega * time_now)
+            omega = 2 * np.pi / 60.0
+            x = CIRCLE_RADIUS * np.cos(omega * time_now)
+            y = CIRCLE_RADIUS * np.sin(omega * time_now)
             z = 0.0
-            yaw = omega * time_now + np.pi / 2
 
         elif time_now < 90:
-            # Phase 2: Stairs up to floor 1
+            # Phase 2: stairs to floor 1, standing at the stairhead.
             progress = (time_now - 60) / 30.0
-            current_floor = 0  # Still climbing
-            x = 10.0
-            y = 10.0
+            current_floor = 0  # still climbing
+            x, y = STAIR_XY
             z = progress * floor_height
-            yaw = np.pi / 4  # Fixed heading while climbing
 
         elif time_now < 120:
-            # Phase 3: Floor 1 walk (figure-8)
+            # Phase 3: floor 1, figure-8 centred on the stairhead, so it starts
+            # and finishes there.
             current_floor = 1
             phase = (time_now - 90) / 30.0 * 2 * np.pi
-            x = 10.0 + 8.0 * np.sin(phase)
-            y = 10.0 + 4.0 * np.sin(2 * phase)
+            x = STAIR_XY[0] + 8.0 * np.sin(phase)
+            y = STAIR_XY[1] + 4.0 * np.sin(2 * phase)
             z = floor_height
-            yaw = np.arctan2(8.0 * np.cos(phase) * 2, 4.0 * np.cos(2 * phase) * 2)
 
         elif time_now < 150:
-            # Phase 4: Stairs up to floor 2
+            # Phase 4: stairs to floor 2, same stairhead.
             progress = (time_now - 120) / 30.0
-            current_floor = 1  # Still climbing
-            x = 2.0
-            y = 10.0
+            current_floor = 1  # still climbing
+            x, y = STAIR_XY
             z = floor_height + progress * floor_height
-            yaw = 3 * np.pi / 4
 
         else:
-            # Phase 5: Floor 2 walk (straight corridor back and forth)
+            # Phase 5: floor 2, a flattened loop rather than a line walked back
+            # and forth. A line forces the walker to reverse heading in a single
+            # sample; a loop turns through the same 180 degrees continuously,
+            # which is both what a person does and something a gyro can follow.
             current_floor = 2
-            phase = ((time_now - 150) % 15.0) / 15.0
-            if phase < 0.5:
-                # Walking forward
-                x = 2.0 + 20.0 * (phase * 2)
-                y = 10.0
-                yaw = 0.0
-            else:
-                # Walking backward
-                x = 22.0 - 20.0 * ((phase - 0.5) * 2)
-                y = 10.0
-                yaw = np.pi
-
+            phase = ((time_now - 150) % 20.0) / 20.0
+            x = STAIR_XY[0] + 5.0 * (1.0 - np.cos(2 * np.pi * phase))
+            y = STAIR_XY[1] + 1.5 * np.sin(2 * np.pi * phase)
             z = 2 * floor_height
 
         # Store position
         pos[i] = [x, y, z]
         floor_num[i] = current_floor
+
+    # Heading follows the horizontal velocity rather than being asserted per
+    # phase. Asserting it is what let the figure-8 ship a swapped atan2 for a
+    # sixth of the run: the trajectory said one thing and the heading another,
+    # and nothing compared them. Deriving it cannot disagree with the motion.
+    #
+    # On the stairs the walker is stationary in x-y, so there is no direction to
+    # read; hold the heading from the last moving sample, which is what someone
+    # standing on a landing facing the way they arrived actually does.
+    vx = np.gradient(pos[:, 0], t)
+    vy = np.gradient(pos[:, 1], t)
+    speed_xy = np.hypot(vx, vy)
+    MOVING = 0.05  # m/s
+
+    moving = speed_xy > MOVING
+    yaw_series = np.where(moving, np.arctan2(vy, vx), np.nan)
+
+    # On a landing the walker is stationary in x-y, so there is no direction to
+    # read. Holding the arrival heading is wrong at the far end: they arrive at
+    # the stairs heading north and leave along the figure-8 at 45 degrees, so
+    # the whole turn lands in one sample -- 447 deg/s, which is still a step, a
+    # smaller one. Turn through it instead, over the climb, which is what a
+    # person on a staircase does.
+    index = np.arange(N)
+    known = index[moving]
+    for start, stop in _runs_of(~moving):
+        before = known[known < start]
+        after = known[known > stop]
+        if not len(before) or not len(after):
+            # A stationary run at either end has only one heading to take.
+            fill = yaw_series[before[-1]] if len(before) else yaw_series[after[0]]
+            yaw_series[start : stop + 1] = fill
+            continue
+        a, b = yaw_series[before[-1]], yaw_series[after[0]]
+        # Turn the short way round: the difference is wrapped before it is
+        # spread, so a turn from +170 to -170 is 20 degrees and not 340.
+        sweep = (b - a + np.pi) % (2 * np.pi) - np.pi
+        steps = np.linspace(0.0, 1.0, stop - start + 3)[1:-1]
+        yaw_series[start : stop + 1] = a + sweep * steps
+
+    # Accumulate rather than wrap. atan2 returns (-pi, pi], and storing that is
+    # what tests/ch6_dead_reckoning/test_heading_error_is_wrapped.py exists to
+    # forbid: the true yaw has to leave (-pi, pi] or the naive
+    # min(|d|, 2pi - |d|) reduction never goes negative here, and the file stops
+    # discriminating between the broken form and the correct one. One circuit of
+    # the ground floor is a full turn, so unwrapping carries the heading past pi
+    # exactly as the original closed form did.
+    yaw_series = np.unwrap(yaw_series)
+
+    for i in range(N):
+        time_now = t[i]
+        yaw = yaw_series[i]
 
         # Attitude (slight device tilt during walking)
         roll = 0.1 * np.sin(2 * np.pi * 2.0 * time_now)  # 0.1 rad oscillation
@@ -196,7 +253,12 @@ def generate_building_walk(
         g = GRAVITY
         exponent = (g * M) / (R * L)
 
-        altitude = z
+        # Read the altitude back from the stored position. Using the loop
+        # variable z here would silently pick up whatever the *position* loop
+        # left behind -- it did, and pinned every sample at the final 7.0 m,
+        # for an 84 Pa constant error that read as a barometer three times
+        # worse than it is.
+        altitude = pos[i, 2]
         pressure[i] = P0 * (1 - L * altitude / T0) ** exponent
 
     return t, pos, att, mag, pressure, floor_num
@@ -408,28 +470,31 @@ def generate_dataset(
         mag_disturbance = False
         pressure_noise = 8.0
         weather_drift = 30.0
-        output_dir = "data/sim/ch6_env_sensors_heading_altitude"
+        output_dir = output_dir or "data/sim/ch6_env_sensors_heading_altitude"
     elif preset == "noisy":
         # Higher noise
         mag_noise = 4.0
         mag_disturbance = False
         pressure_noise = 20.0
         weather_drift = 80.0
-        output_dir = "data/sim/ch6_env_sensors_noisy"
+        output_dir = output_dir or "data/sim/ch6_env_sensors_noisy"
     elif preset == "disturbances":
         # Indoor magnetic disturbances
         mag_noise = 2.5
         mag_disturbance = True
         pressure_noise = 12.0
         weather_drift = 50.0
-        output_dir = "data/sim/ch6_env_sensors_disturbances"
+        output_dir = output_dir or "data/sim/ch6_env_sensors_disturbances"
     elif preset == "poor":
         # Poor quality + disturbances
         mag_noise = 6.0
         mag_disturbance = True
         pressure_noise = 30.0
         weather_drift = 120.0
-        output_dir = "data/sim/ch6_env_sensors_poor"
+        output_dir = output_dir or "data/sim/ch6_env_sensors_poor"
+
+    # No preset and no --output: the module's own dataset.
+    output_dir = output_dir or "data/sim/ch6_env_sensors_heading_altitude"
 
     print("\n" + "=" * 70)
     print(f"Generating Ch6 Environmental Sensors Dataset: {Path(output_dir).name}")
@@ -653,7 +718,7 @@ Book Reference: Chapter 6, Section 6.4 (Environmental Sensors)
     parser.add_argument(
         "--output",
         type=str,
-        default="data/sim/ch6_env_sensors_heading_altitude",
+        default=None,
         help="Output directory (default: data/sim/ch6_env_sensors_heading_altitude)",
     )
 

@@ -192,10 +192,10 @@ for k in range(N):
 #
 # Wrap the *difference*, with the library's own helper. This block used to read
 # `np.minimum(d, 2*np.pi - d)`, which is the shorter arc only while d <= 2*pi.
-# The true yaw here climbs to 7.84 rad in the first phase while mag_heading
-# returns (-pi, pi], so d reached 11 rad, `2*pi - d` went negative, and 221 of
-# 1800 samples were handed a negative "error" -- reporting a 2.66 deg mean where
-# the truth is 3.51.
+# The true yaw here accumulates past 7.8 rad -- one circuit of the ground floor
+# is a full turn -- while mag_heading returns (-pi, pi], so d exceeds 2*pi,
+# `2*pi - d` goes negative, and 702 of 1800 samples are handed a negative
+# "error": a 0.70 deg mean reported where the truth is 3.41.
 heading_error = np.abs(
     np.array([wrap_angle_diff(e, y) for e, y in zip(heading_est, yaw_true)])
 )
