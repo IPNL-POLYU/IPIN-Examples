@@ -58,23 +58,18 @@ WARN = '!'    # Was: ⚠
 # ch5 datasets at all. What is left is real, and each entry says what it needs
 # rather than merely naming the dataset.
 #
-# It started at nine. Six of those were simply a missing README -- the same six
-# data/sim/README.md gave a [README](...) link to and did not have -- and they
-# are written now, so what remains is three READMEs that exist but are
-# incomplete.
-KNOWN_INCOMPLETE = {
-    "ch2_coords_san_francisco":
-        "no Loading Example, Configuration Parameters or Visualization Example "
-        "section, and no table in Parameter Effects. Its Quick Start and "
-        "Example Usage sections cover some of the ground under other names.",
-    "ch3_estimator_nonlinear":
-        "no Visualization Example section.",
-    "ch4_rf_2d_linear":
-        "written to a different shape from the template -- it leads with the "
-        "reflection ambiguity and why DOP misses it, which reads better than "
-        "the template order. Needs a decision: reshape it, or update the "
-        "template and this tool to match current practice.",
-}
+# It started at nine and is empty. Six were simply a missing README -- the same
+# six data/sim/README.md gave a [README](...) link to and did not have. The last
+# three were READMEs that existed and lacked required sections.
+#
+# The third of those, ch4_rf_2d_linear, was recorded here as a decision to make:
+# it is written to a different shape from the template, leading with the
+# reflection ambiguity rather than the template's order, and that reads better.
+# The framing was wrong. This tool checks that a section is *present*, never
+# where it sits, so the narrative sections were never in conflict with the
+# template -- the four required ones were simply missing, and adding them left
+# the narrative intact. There was no template-versus-practice question.
+KNOWN_INCOMPLETE: dict = {}
 
 # Not a documentation gap, so not in the register: the three ch5 datasets carry
 # metadata.json where every other dataset uses config.json. The naming is
