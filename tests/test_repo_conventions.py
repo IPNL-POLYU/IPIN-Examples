@@ -454,7 +454,11 @@ def test_no_pyflakes_warnings(area):
 def _source_files_outside_tests():
     """Every Python file in the library, chapters, scripts and tools."""
     found = []
-    for pattern in ("core/**/*.py", "ch*_*/**/*.py", "scripts/*.py", "tools/*.py"):
+    # Recursive everywhere on purpose. scripts/ and tools/ are flat today, so
+    # a single-star glob would be complete -- and would silently stop being
+    # complete the day someone adds a subpackage under either.
+    patterns = ("core/**/*.py", "ch*_*/**/*.py", "scripts/**/*.py", "tools/**/*.py")
+    for pattern in patterns:
         found.extend(REPO_ROOT.glob(pattern))
     return sorted(set(found))
 
