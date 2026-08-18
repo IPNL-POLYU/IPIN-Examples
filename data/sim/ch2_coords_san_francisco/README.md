@@ -32,7 +32,7 @@ This dataset demonstrates **practical coordinate transformations** for indoor po
 - `rotation_matrices.txt`: 3×3 rotation matrices [N×9] (flattened)
 - `config.json`: Dataset parameters and accuracy metrics
 
-## Quick Start
+## Loading Example
 
 ```python
 import numpy as np
@@ -49,6 +49,87 @@ print(f"Loaded {len(llh)} points")
 print(f"LLH: {np.rad2deg(llh[0, :2])} degrees, {llh[0, 2]}m height")
 print(f"ECEF: {ecef[0]/1e3} km")
 print(f"ENU: {enu[0]} m (local)")
+```
+
+## Configuration Parameters
+
+```python
+import json
+
+sf_config = json.load(open(data_dir / "config.json"))
+
+ref = sf_config["reference_point"]
+print(f"reference:   {ref['latitude_deg']}, {ref['longitude_deg']} ({ref['location']})")
+print(f"building:    {sf_config['building']['size_m']} m across, "
+      f"{sf_config['building']['num_points']} points")
+print(f"seed:        {sf_config['seed']}")
+
+acc = sf_config["accuracy"]
+print(f"LLH round-trip:      {acc['llh_roundtrip_height_m']:.2e} m in height")
+print(f"rotation round-trip: {acc['rotation_roundtrip_deg']:.1f} deg")
+```
+
+| Parameter | Value | Effect |
+|---|---|---|
+| `reference_point` | 37.7749, -122.4194 | Origin of the ENU frame. Every ENU coordinate is relative to it |
+| `building.size_m` | 50.0 | The footprint the points are drawn in. Check it against the ENU extent below — they have disagreed before |
+| `building.num_points` | 20 | Sample count; small enough to read the files by eye |
+| `seed` | 42 | Fixed, so the sampled points are reproducible |
+| `accuracy.rotation_roundtrip_deg` | 0.0 | Euler -> matrix -> Euler, wrapped. It read 360.0 once, which is the identity rotation reported as total failure |
+
+**The footprint is the check worth running**, because a coordinate bug moves the
+data and every check derived from that data together:
+
+```python
+sf_enu = np.loadtxt(data_dir / "enu_coordinates.txt")
+sf_span_e = sf_enu[:, 0].max() - sf_enu[:, 0].min()
+sf_span_n = sf_enu[:, 1].max() - sf_enu[:, 1].min()
+
+print(f"declared building size: {sf_config['building']['size_m']:.1f} m")
+print(f"actual ENU footprint:   {sf_span_e:.1f} m east-west, {sf_span_n:.1f} m north-south")
+print(f"height range:           {sf_enu[:, 2].min():.1f} - {sf_enu[:, 2].max():.1f} m")
+```
+
+Expected output:
+
+```
+declared building size: 50.0 m
+actual ENU footprint:   46.3 m east-west, 45.6 m north-south
+height range:           -0.0 - 15.0 m
+```
+
+Twenty points drawn in a 50 m square span a little under 50 m, which is what a
+random sample of twenty should do. This dataset once spanned **2666 m**, because
+the generator added a per-degree constant to a latitude already in radians, and
+nothing compared the result against the size `config.json` declares. See
+`tests/ch2_coords/test_dataset_matches_its_config.py`.
+
+## Visualization Example
+
+```python
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+sf_fig, (sf_ax1, sf_ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+sf_ax1.scatter(sf_enu[:, 0], sf_enu[:, 1], c=sf_enu[:, 2], cmap="viridis", s=70)
+sf_ax1.plot(0, 0, "r+", markersize=16, label="reference point")
+sf_ax1.set_xlabel("East [m]")
+sf_ax1.set_ylabel("North [m]")
+sf_ax1.set_title("Building footprint in ENU")
+sf_ax1.legend()
+sf_ax1.grid(alpha=0.3)
+sf_ax1.axis("equal")
+
+sf_ax2.hist(sf_enu[:, 2], bins=10, color="steelblue", edgecolor="white")
+sf_ax2.set_xlabel("Up [m]")
+sf_ax2.set_ylabel("Points")
+sf_ax2.set_title("Floors: height is sampled, not continuous")
+sf_ax2.grid(alpha=0.3)
+
+sf_fig.tight_layout()
+print("figure built")
 ```
 
 ## Key Concepts
@@ -160,6 +241,13 @@ v_global = R @ v_body          # Forward in global frame
 ```
 
 ## Parameter Effects and Learning Experiments
+
+| Parameter | Try | What to watch |
+|---|---|---|
+| `--preset` | `san_francisco`, `tokyo`, `london` | ECEF changes completely while ENU barely moves. ENU is local by construction; that is the point of having it |
+| Reference latitude | 0 deg, 45 deg, 80 deg | Metres per degree of longitude shrinks as `cos(lat)`. A per-degree constant borrowed from one latitude is wrong at another -- which is how this dataset once ended up 57x too large |
+| `building.size_m` | 10, 50, 500 | The ENU footprint should follow it linearly. If it does not, the conversion is wrong, not the sampling |
+| Height range | single floor vs 15 m | Up is metres in both LLH and ENU, so a unit error in the horizontal leaves the vertical looking correct. One right component out of three is what made the old bug survive |
 
 ### Location Dependency
 Different locations have different ECEF coordinates:

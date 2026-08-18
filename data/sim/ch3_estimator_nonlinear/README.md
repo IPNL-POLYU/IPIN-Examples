@@ -245,6 +245,55 @@ python scripts/generate_ch3_estimator_comparison_dataset.py --preset outliers
 
 **Learning Point**: Trade-off between accuracy and speed!
 
+## Visualization Example
+
+```python
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+import numpy as np
+
+nl_t = np.loadtxt("data/sim/ch3_estimator_nonlinear/time.txt")
+nl_truth = np.loadtxt("data/sim/ch3_estimator_nonlinear/ground_truth_states.txt")
+nl_beacons = np.loadtxt("data/sim/ch3_estimator_nonlinear/beacons.txt")
+nl_ranges = np.loadtxt("data/sim/ch3_estimator_nonlinear/range_measurements.txt")
+
+nl_fig, (nl_ax1, nl_ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+nl_ax1.plot(nl_truth[:, 0], nl_truth[:, 1], "b-", linewidth=1.5, label="truth")
+nl_ax1.plot(nl_beacons[:, 0], nl_beacons[:, 1], "r^", markersize=11, label="beacons")
+nl_ax1.plot(nl_truth[0, 0], nl_truth[0, 1], "go", markersize=8, label="start")
+nl_ax1.set_xlabel("East [m]")
+nl_ax1.set_ylabel("North [m]")
+nl_ax1.set_title("Circular trajectory and beacon geometry")
+nl_ax1.legend()
+nl_ax1.grid(alpha=0.3)
+nl_ax1.axis("equal")
+
+# Range residual against the geometric truth: this is the noise the estimators
+# actually see, and it should be flat -- no trend, no bias.
+nl_true_range = np.linalg.norm(
+    nl_truth[:, None, :2] - nl_beacons[None, :, :], axis=2
+)
+nl_residual = nl_ranges - nl_true_range
+for nl_i in range(nl_beacons.shape[0]):
+    nl_ax2.plot(nl_t, nl_residual[:, nl_i], linewidth=0.7,
+                label=f"beacon {nl_i}")
+nl_ax2.set_xlabel("Time [s]")
+nl_ax2.set_ylabel("Range residual [m]")
+nl_ax2.set_title(f"Measurement noise (std {nl_residual.std():.3f} m)")
+nl_ax2.legend(fontsize=8)
+nl_ax2.grid(alpha=0.3)
+
+nl_fig.tight_layout()
+print(f"residual mean {nl_residual.mean():+.4f} m, std {nl_residual.std():.4f} m")
+```
+
+The residual panel is the one to read first. It should be flat noise about zero
+at the declared `range_noise_std_m`; a trend or an offset there means the
+trajectory and the measurements disagree, and no estimator can recover from
+that.
+
 ## Recommended Experiments
 
 ### Experiment 1: Estimator Comparison on Nonlinear Problem

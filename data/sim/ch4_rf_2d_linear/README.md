@@ -228,6 +228,132 @@ this geometry is bad, but that **geometry is method-specific**: the same
 configuration is excellent for AOA, globally ambiguous for TOA, and genuinely
 ill-conditioned for TDOA.
 
+## Configuration Parameters
+
+```python
+import json
+import numpy as np
+
+lin_dir = __import__("pathlib").Path("data/sim/ch4_rf_2d_linear")
+lin_config = json.load(open(lin_dir / "config.json"))
+
+print(f"preset:     {lin_config['preset']}")
+print(f"geometry:   {lin_config['geometry']['type']}, "
+      f"{lin_config['geometry']['num_beacons']} beacons")
+print(f"TOA noise:  {lin_config['measurements']['toa_noise_std_m']} m")
+print(f"AOA noise:  {lin_config['measurements']['aoa_noise_std_deg']} deg")
+for lin_kind in ("toa", "tdoa", "aoa"):
+    lin_d = lin_config["dop"][lin_kind]
+    print(f"GDOP {lin_kind:<4}: mean {lin_d['mean']:7.3f}  "
+          f"min {lin_d['min']:6.3f}  max {lin_d['max']:8.3f}")
+```
+
+Expected output:
+
+```
+preset:     poor_geometry
+geometry:   linear, 4 beacons
+TOA noise:  0.1 m
+AOA noise:  2.0 deg
+GDOP toa :  mean   1.426  min  1.016  max    3.603
+GDOP tdoa:  mean  10.355  min  1.613  max  111.018
+GDOP aoa :  mean   9.253  min  3.418  max   19.099
+```
+
+| Parameter | Value | Effect |
+|---|---|---|
+| `geometry.type` | `linear` | All four beacons on the line y = 10. This is the whole dataset |
+| `geometry.num_beacons` | 4 | Adding beacons *on the same line* does not help; the ambiguity is the line, not the count |
+| `measurements.toa_noise_std_m` | 0.1 | Multiply by GDOP for the error floor: 0.14 m typical for TOA, **11.1 m at the worst TDOA point** |
+| `measurements.aoa_noise_std_deg` | 2.0 | AOA is the one measurement type that breaks the reflection symmetry |
+| `nlos.enabled` | `false` | No bias. The difficulty here is geometric, not a corrupted measurement |
+
+## Parameter Effects and Learning Experiments
+
+| Parameter | Try | What to watch |
+|---|---|---|
+| Beacon layout | `poor_geometry`, `baseline`, `optimal` | TDOA GDOP goes 10.36 -> 0.87. TOA barely moves. **The measurement type decides how much geometry costs you** |
+| Beacon spread along the line | widen or narrow | Widening improves DOP *along* the line and does nothing for the reflection. Geometry has two failure modes here and only one responds |
+| Measurement type | TOA, TDOA, AOA | AOA has the best mean GDOP of the four ch4 datasets here (9.25), because a bearing distinguishes the two sides. TDOA has the worst |
+| Add one off-line beacon | move beacon 3 to (10, 2) | The cheapest fix. One measurement off the line collapses the ambiguity |
+
+**The spread, not the mean, is what a linear array does to you:**
+
+```python
+lin_gdop_tdoa = np.loadtxt(lin_dir / "gdop_tdoa.txt")
+
+print(f"TDOA GDOP  mean {lin_gdop_tdoa.mean():.2f}   "
+      f"median {np.median(lin_gdop_tdoa):.2f}   max {lin_gdop_tdoa.max():.2f}")
+print(f"points above GDOP 20: {(lin_gdop_tdoa > 20).sum()} of {lin_gdop_tdoa.size}")
+```
+
+The mean is dragged by a few catastrophic points rather than describing a
+typical one -- the same median-versus-mean gap that hides RSS aliasing in
+Chapter 5. A single reported DOP for this geometry tells you almost nothing.
+
+## Visualization Example
+
+```python
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+lin_beacons = np.loadtxt(lin_dir / "beacons.txt")
+lin_truth = np.loadtxt(lin_dir / "ground_truth_positions.txt")
+
+lin_fig, (lin_ax1, lin_ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+lin_sc = lin_ax1.scatter(lin_truth[:, 0], lin_truth[:, 1],
+                         c=np.log10(lin_gdop_tdoa), cmap="magma", s=45)
+lin_ax1.plot(lin_beacons[:, 0], lin_beacons[:, 1], "c^", markersize=13,
+             label="beacons")
+lin_ax1.axhline(10.0, color="cyan", linestyle="--", linewidth=1,
+                label="beacon line (mirror axis)")
+lin_fig.colorbar(lin_sc, ax=lin_ax1, label="log10 GDOP (TDOA)")
+lin_ax1.set_xlabel("East [m]")
+lin_ax1.set_ylabel("North [m]")
+lin_ax1.set_title("GDOP explodes on the beacon line")
+lin_ax1.legend(fontsize=8)
+lin_ax1.axis("equal")
+
+lin_ax2.hist(lin_gdop_tdoa, bins=40, color="indianred", edgecolor="white")
+lin_ax2.axvline(lin_gdop_tdoa.mean(), color="black", linestyle="--",
+                label=f"mean {lin_gdop_tdoa.mean():.1f}")
+lin_ax2.axvline(np.median(lin_gdop_tdoa), color="steelblue", linestyle="--",
+                label=f"median {np.median(lin_gdop_tdoa):.1f}")
+lin_ax2.set_yscale("log")
+lin_ax2.set_xlabel("GDOP (TDOA)")
+lin_ax2.set_ylabel("Query points (log)")
+lin_ax2.set_title("A long tail, not a shifted centre")
+lin_ax2.legend()
+
+lin_fig.tight_layout()
+print("figure built")
+```
+
+Points near y = 10 sit on the mirror axis itself, where the two solutions
+coincide and the geometry is at its most degenerate -- that is where the 111
+comes from.
+
+## Recommended Experiments
+
+1. **Solve the whole grid and count how many land on the wrong side.** The
+   reflection is not noise: a solver started on the wrong side converges
+   confidently to a wrong answer. Compare against
+   [`ch4_rf_2d_square`](../ch4_rf_2d_square/README.md) with identical noise.
+
+2. **Predict before measuring.** `sigma_position = GDOP x sigma_range`, so the
+   worst TDOA point should give about 111 x 0.1 = 11 m. Check whether a real
+   solve reaches that, and whether the failures are where GDOP says they will
+   be.
+
+3. **Fix it with one beacon.** Move a single beacon off the line and regenerate.
+   Watch which GDOP columns respond and which do not -- TDOA should collapse by
+   an order of magnitude while TOA barely moves.
+
+4. **Add the bearing.** AOA breaks the symmetry on its own. Compare an
+   AOA-only solve against TDOA-only on the same points.
+
 ## Common Issues & Solutions
 
 ### Issue 1: TOA returns the initial guess unchanged
