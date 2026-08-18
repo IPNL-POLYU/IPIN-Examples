@@ -127,7 +127,8 @@ others and the drift was distributed across all three:
 - `` `<name>.py` `` -- a backticked bare filename. Six of `scripts/README.md`'s
   seven stale names carried no directory prefix, so no path regex would ever
   have matched them.
-- `python -m <pkg>.<module>` -- no slash, no `.py`. This is how ch8's time-offset dataset
+- `python -m <pkg>.<module>` -- no slash, no `.py`. This is how ch8's
+  time-offset dataset
   told the reader twice to run `tc_uwb_imu_ekf_augmented`, which was never
   written.
 
@@ -373,7 +374,8 @@ file next door.
 
 `KNOWN_UNCOLLECTED_TESTS` in `tests/test_repo_conventions.py` keeps it that way,
 over `core/`, the chapters, `scripts/` and `tools/`. It is empty, and it found
-two more the hand survey had missed: three `test_`-named evaluation stages in
+five functions in two more files that the hand survey had missed: three
+`test_`-named evaluation stages in
 `ch5_fingerprinting/example_classification.py`, all taking required arguments so
 pytest could only ever have errored on them, and two helpers in a *tool* whose
 own filename began with `test_` — now `check_all_datasets.py`, since a CLI
