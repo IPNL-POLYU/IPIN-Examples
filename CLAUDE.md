@@ -538,6 +538,17 @@ committed figures are byte-reproducible because `save_figure` writes bytes; a
 `.npy` of RSS values is arithmetic, and arithmetic is portable only to a
 tolerance.
 
+The rest of the suite was swept for the same shape and is clean, so the test to
+apply is narrower than "never compare floats exactly". Exact equality is right
+when both sides come from **one process** (`test_allan_variance...` calls the
+generator twice and requires identical output -- correct, and the point of the
+test), from **stored bytes** (save then load), from an **assignment** rather than
+arithmetic, or from **integers**. It is wrong only when a fresh computation is
+compared against a file some other machine produced, and this was the repository's
+only instance. `tests/ch8_sensor_fusion/test_batch_update.py` already had the
+distinction right on adjacent lines: `assert_array_equal` for the integer anchor
+indices, `assert_array_almost_equal` for the float ranges beside them.
+
 The tolerance is now 1e-9, and both sides of it were measured, which is the part
 worth copying. Regenerating with `seed + 1` gives **23.06 dB** of difference, so
 the bound sits ten orders below the defect it must still catch and four orders
