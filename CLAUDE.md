@@ -517,6 +517,37 @@ code under test did its job.
 
 If a ch7 test does fail, re-run it in isolation before believing it.
 
+## Exact float equality does not survive a change of CI runner
+
+`tests/ch5_fingerprinting/test_dataset_reproduces_from_its_seed.py` compared
+regenerated arrays with `np.array_equal`. It passed locally, it passed on CI,
+and then it failed on CI with **max|difference| = 2.8e-14** on values of order
+100 -- one to two ulp -- with **identical numpy 2.4.6 and scipy 1.17.1** in both
+runs, from a branch that could not reach the generator at all (it imports only
+`core.fingerprinting`, and `core/__init__.py` is empty).
+
+Measured, so the next person does not repeat it: two local runs of the generator
+and the shipped files agree **exactly**, max|difference| 0.0. The generator is
+bit-reproducible on one machine and not across machines. The likely mechanism is
+numpy dispatching a different SIMD kernel for `np.log10` on a different CPU,
+which the heterogeneous Actions runner pool makes a coin flip; that is not
+proven, but the last bit plainly does not survive the move.
+
+**So do not assert bit equality on computed floats, only on stored ones.** The
+committed figures are byte-reproducible because `save_figure` writes bytes; a
+`.npy` of RSS values is arithmetic, and arithmetic is portable only to a
+tolerance.
+
+The tolerance is now 1e-9, and both sides of it were measured, which is the part
+worth copying. Regenerating with `seed + 1` gives **23.06 dB** of difference, so
+the bound sits ten orders below the defect it must still catch and four orders
+above the noise it has to tolerate. **Justify a tolerance against both** --
+against the noise or it is flaky, against the defect or it is decorative. Note
+that the first version of this test would have caught the seed regression too;
+it was not too weak, it was too strong, and the failure mode of too-strong is a
+red that teaches people to distrust the suite.
+
+
 ## Figures
 
 `core.eval.save_figure` is the only output path; it writes svg/pdf/png together
