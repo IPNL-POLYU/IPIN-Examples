@@ -217,8 +217,8 @@ This repository is supported by **The Hong Kong Polytechnic University (PolyU)**
 
 This repository is intended to be **academic-friendly** (research/teaching) while requiring **prior permission for commercial use**.
 
-- **Code** (e.g., `core/`, `ch*_*/`, `scripts/`, `tools/`, `tests/`) is licensed under the **PolyForm Noncommercial License 1.0.0**.
-- **Data** (e.g., `data/`) is licensed under **Creative Commons Attribution–NonCommercial 4.0 International (CC BY-NC 4.0)** unless otherwise noted in the corresponding folder.
+- **Code** (e.g., `core/`, `ch*_*/`, `scripts/`, `tools/`, `tests/`) is licensed under the **PolyForm Noncommercial License 1.0.0** — full text in [`LICENSE`](LICENSE).
+- **Data** (e.g., `data/`) is licensed under **Creative Commons Attribution–NonCommercial 4.0 International (CC BY-NC 4.0)** unless otherwise noted in the corresponding folder — full text in [`LICENSE-DATA`](LICENSE-DATA).
 
 ### Commercial use
 
