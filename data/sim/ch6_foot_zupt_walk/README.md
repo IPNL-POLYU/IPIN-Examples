@@ -279,11 +279,13 @@ python scripts/generate_ch6_strapdown_dataset.py --duration 12 --output data/sim
 
 **Run Integration**:
 ```bash
-# Pure IMU integration (unbounded drift)
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/ch6_foot_zupt_walk
+# Neither example reads data/sim -- both build their own trajectory -- so
+# they demonstrate the contrast on their own data rather than on this dataset:
+python -m ch6_dead_reckoning.example_imu_strapdown   # unbounded drift
+python -m ch6_dead_reckoning.example_zupt            # bounded by ZUPT
 
-# With ZUPT corrections (bounded drift)
-python -m ch6_dead_reckoning.example_zupt --data data/sim/ch6_foot_zupt_walk
+# To see it on *this* dataset, use the loading block earlier in this README:
+# it exposes is_stance, which is what a detector has to recover.
 ```
 
 **Expected Observations**:
@@ -367,10 +369,11 @@ python scripts/generate_ch6_zupt_dataset.py \
     --preset fast_walk \
     --output data/sim/ch6_zupt_fast
 
-# Run ZUPT on each
-python -m ch6_dead_reckoning.example_zupt --data data/sim/ch6_foot_zupt_walk
-python -m ch6_dead_reckoning.example_zupt --data data/sim/ch6_zupt_slow
-python -m ch6_dead_reckoning.example_zupt --data data/sim/ch6_zupt_fast
+# Compare the three directly: each config.json records the stance fraction,
+# which is what step duration changes and what a ZUPT detector depends on.
+for d in ch6_foot_zupt_walk ch6_zupt_slow ch6_zupt_fast; do
+    python -c "import json;c=json.load(open('data/sim/$d/config.json'));print('$d',c)"
+done
 ```
 
 **Expected Observations**:

@@ -356,16 +356,15 @@ done
 for bias in 0.2 0.5 1.0 2.0; do
     echo "Testing bias: $bias"
     
-    # Without gating
+    # Without gating. There is no --output: the run prints its RMSE and
+    # acceptance counts, and --save takes a figure path, not a JSON one.
     python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
         --data data/sim/fusion_nlos_bias_${bias} \
-        --no-gating \
-        --output results_no_gate_${bias}.json
-    
+        --no-gating
+
     # With gating (default)
     python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-        --data data/sim/fusion_nlos_bias_${bias} \
-        --output results_with_gate_${bias}.json
+        --data data/sim/fusion_nlos_bias_${bias}
 done
 ```
 
@@ -394,12 +393,9 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
 
 **Run Experiments**:
 ```bash
-# Without correction (degraded performance)
-python -m ch8_sensor_fusion.temporal_calibration_demo \
-    --data data/sim/fusion_time_offset_50ms \
-    --no-correction
-
-# With correction (recovered performance)
+# One run does both. The demo fuses the dataset twice -- once ignoring the
+# offset, once correcting it with TimeSyncModel -- and prints the pair, so
+# there is nothing to switch off and no --no-correction to do it with.
 python -m ch8_sensor_fusion.temporal_calibration_demo \
     --data data/sim/fusion_time_offset_50ms
 ```
@@ -428,9 +424,13 @@ python scripts/generate_ch6_strapdown_dataset.py --preset mems
 
 **Run Experiments**:
 ```bash
-python -m ch6_dead_reckoning.example_imu_strapdown --data ch6_strapdown_tactical
-python -m ch6_dead_reckoning.example_imu_strapdown --data ch6_strapdown_consumer
-python -m ch6_dead_reckoning.example_imu_strapdown --data ch6_strapdown_mems
+# The example builds its own trajectory and takes no dataset argument. The
+# three presets differ only in their IMU noise and bias, which config.json
+# records, so compare those and integrate the datasets with the block in
+# data/sim/ch6_strapdown_basic/README.md.
+for d in ch6_strapdown_tactical ch6_strapdown_basic ch6_strapdown_mems; do
+    python -c "import json;print('$d',json.load(open('data/sim/$d/config.json'))['imu'])"
+done
 ```
 
 **Expected Observations**:
@@ -454,11 +454,10 @@ python scripts/generate_ch6_zupt_dataset.py --num-steps 40
 
 **Run Experiments**:
 ```bash
-# Pure IMU integration (no ZUPT)
-python -m ch6_dead_reckoning.example_imu_strapdown --data ch6_foot_zupt_walk
-
-# With ZUPT corrections
-python -m ch6_dead_reckoning.example_zupt --data ch6_foot_zupt_walk
+# Neither takes a dataset; both build their own trajectory and show the
+# contrast on it.
+python -m ch6_dead_reckoning.example_imu_strapdown   # unbounded drift
+python -m ch6_dead_reckoning.example_zupt            # bounded by ZUPT
 ```
 
 **Expected Observations**:
@@ -495,9 +494,10 @@ python scripts/generate_ch5_wifi_fingerprint_dataset.py \
 
 **Run Experiments**:
 ```bash
-python -m ch5_fingerprinting.example_deterministic --data data/sim/wifi_sparse_4ap
-python -m ch5_fingerprinting.example_deterministic --data data/sim/wifi_medium_8ap
-python -m ch5_fingerprinting.example_deterministic --data data/sim/wifi_dense_16ap
+# example_deterministic reads data/sim/ch5_wifi_fingerprint_grid and declares
+# no flags, so it cannot be pointed at these. ch5_fingerprinting's README shows
+# the NN and k-NN calls directly against a loaded database -- load each variant
+# there instead, which is also less machinery than a CLI would be.
 ```
 
 **Expected Observations**:

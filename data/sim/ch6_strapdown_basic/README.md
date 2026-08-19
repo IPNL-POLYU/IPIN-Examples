@@ -267,9 +267,18 @@ python scripts/generate_ch6_strapdown_dataset.py \
 
 **Run Integration**:
 ```bash
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/ch6_strapdown_tactical
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/ch6_strapdown_basic
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/ch6_strapdown_mems
+# ch6_dead_reckoning.example_imu_strapdown builds its own figure-8 and does
+# not read data/sim, so it cannot be pointed at a variant. Use the loading and
+# integration block earlier in this README instead: set dataset_path to each
+# directory in turn and compare the drift it prints.
+for d in ch6_strapdown_tactical ch6_strapdown_basic ch6_strapdown_mems; do
+    echo "$d"; python - <<PY
+import numpy as np
+truth = np.load("data/sim/$d/truth.npz")
+imu = np.load("data/sim/$d/imu.npz")
+print("  samples:", len(imu["t"]), " duration:", truth["t"][-1], "s")
+PY
+done
 ```
 
 **Expected Observations**:
@@ -315,9 +324,10 @@ python scripts/generate_ch6_strapdown_dataset.py \
 
 **Run Integration**:
 ```bash
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/ch6_strapdown_noise_only
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/ch6_strapdown_bias_only
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/ch6_strapdown_combined
+# As above: the example does not take a dataset. Point this README's
+# integration block at each of the three directories and compare the growth of
+# the position error -- noise integrates as t^1.5, a bias as t^2, which is the
+# whole point of separating them.
 ```
 
 **Expected Observations**:
@@ -356,9 +366,9 @@ done
 **Run Integration**:
 ```bash
 for dur in 30 60 120 180; do
-    python -m ch6_dead_reckoning.example_imu_strapdown \
-        --data data/sim/ch6_strapdown_${dur}s \
-        --output results_${dur}s.json
+    # The example builds its own figure-8 and takes no arguments, so the
+    # duration sweep is a property of the datasets. Read it back from each:
+    python -c "import numpy as np; t=np.load('data/sim/ch6_strapdown_${dur}s/truth.npz')['t']; print('${dur}s', t[-1], len(t))"
 done
 ```
 

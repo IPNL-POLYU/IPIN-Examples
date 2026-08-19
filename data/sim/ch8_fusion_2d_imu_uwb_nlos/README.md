@@ -274,20 +274,17 @@ So NLOS measurements should be easily detected!
 # Run fusion without gating (corrupted by NLOS)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
     --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
-    --no-gating \
-    --output results_no_gating.json
+    --no-gating
 
 # Run fusion with chi-square gating (α=0.05)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
     --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
-    --alpha 0.05 \
-    --output results_gating_0.05.json
+    --confidence 0.95
 
 # Run with stricter gating (α=0.01)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
     --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
-    --alpha 0.01 \
-    --output results_gating_0.01.json
+    --confidence 0.99
 ```
 
 **Expected Observations**:
@@ -326,8 +323,7 @@ done
 for bias in 0.2 0.5 1.0 2.0; do
     python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
         --data data/sim/fusion_nlos_bias_${bias} \
-        --alpha 0.05 \
-        --output results_bias_${bias}.json
+        --confidence 0.95
 done
 ```
 

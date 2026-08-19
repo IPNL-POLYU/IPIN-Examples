@@ -490,6 +490,91 @@ Two things that happened while fixing it are worth expecting:
   **When you rewrite the data a test depends on, run that test before believing
   the rewrite is an improvement.**
 
+## Seventeen seeds nobody was running
+
+All twenty datasets record `seed: 42`. Until now three of them -- Chapter 5's --
+had anything that checked it. `tests/test_datasets_reproduce_from_their_recipe.py`
+now runs every generator into a temporary directory and compares against the
+shipped bytes. **The whole sweep is about 30 seconds**, which is the first thing
+worth knowing: the expensive part of this repository is the examples, not the
+data, and the reason this went unguarded for so long was an assumption about
+cost that nobody measured.
+
+Nineteen of twenty reproduced immediately. The findings were in the other one and
+in the machinery around it:
+
+- **ch6 PDR's `--preset baseline` did not produce the shipped baseline.** The
+  preset carried cleaner sensors -- 0.15 / 0.005 / 0.05 / 0.002 against defaults
+  of 0.2 / 0.01 / 0.1 / 0.005 -- and wrote to the same directory, so the
+  regeneration command *its own README offers* replaced the reference dataset
+  with different data. Its two sibling ch6 generators are fine: their datasets
+  record `preset=baseline` and regenerate from it exactly. The preset now
+  matches the defaults, so the command in the README is true and no shipped byte
+  moved.
+- **ch8's presets had no directory of their own.** `--preset nlos_severe` wrote
+  wherever `--output` defaulted, which was the *baseline* dataset. The sweep in
+  the previous session skipped ch8 because it had no literal `output_dir =
+  "data/sim/..."` to find -- the AST check looks for the shape, and ch8 had the
+  same hazard in a different shape.
+- **`nlos_severe` is not the shipped NLOS dataset.** It is the 1.5 m bias case;
+  the shipped one is 0.8 m, as its README and `--all-variants` both say. So
+  pointing the preset at that directory, which is what I did first, would have
+  replaced a shipped dataset with a different scenario under the same name. It
+  writes somewhere else now.
+
+**The comparison has to be NaN-aware, and this nearly cost the whole result.**
+UWB dropouts are stored as NaN -- 129 per Chapter 8 dataset. `np.abs(a - b).max()`
+returns `nan` across one, and `nan > worst` is False, so a running-maximum scan
+silently skips every array carrying a NaN. The first version of the survey did
+exactly that and reported all three Chapter 8 datasets as byte-perfect,
+**including the one that differs by 0.7 m**. A comparison that cannot see a
+difference reports agreement, which is indistinguishable from success.
+
+## Read argparse, do not run it
+
+`tests/docs/test_documented_flags_exist.py` checks that a flag a document passes
+is one the program declares. It reads the target's AST rather than running
+`--help`.
+
+That is not a performance choice, though it is also 200x faster. A `--help`
+scan was written first and reported nine broken files; it shelled out without
+`PYTHONIOENCODING=utf-8`, the child printed a degree sign, cp950 could not
+encode it, and empty help text read as "this program declares no flags". The
+AST version cannot be fooled that way -- and it found **more**, because a
+program with no `ArgumentParser` at all returns "no flags" from `--help` too,
+which the subprocess version could not distinguish from a crash.
+
+That distinction turned out to be the whole finding. `example_imu_strapdown`,
+`example_zupt` and `example_deterministic` were being passed `--data <dataset>`
+in about twenty places across five documents. None of the three declares any
+argument, and the first two do not read `data/sim` at all -- they build their own
+trajectory. **`--data` was not a stale spelling; it was a capability that never
+existed**, and every "run this on the three variants you just generated"
+experiment built on it was unrunnable as written.
+
+**Deleting the flag is not the fix.** Those blocks exist to compare variants, and
+a mechanical strip turns three commands into three identical ones, which compares
+nothing -- that is what the first attempt produced, and it is worth looking at
+your own diff for exactly that shape. Each block now points at the mechanism the
+reader has: the dataset README's own loading block, which takes `dataset_path`
+and can be pointed anywhere.
+
+Also found and fixed: `--alpha` on the ch8 fusion runs (the flag is
+`--confidence`, and `alpha` was deprecated in favour of it, so 0.05 becomes
+0.95), `--output results.json` on `tc_uwb_imu_ekf` (it has `--save`, which takes
+a *figure* path), `--no-correction` on `temporal_calibration_demo` (it runs both
+paths in one pass -- there is nothing to switch off), `--imu-grade` and
+`--accel-bias` on the ch6 strapdown generator (`--preset`, and per-axis
+`--accel-bias-x/-y`), and `--r-scale` on `tc_uwb_imu_ekf` -- where the paragraph
+directly above the block already said "modify the fusion script", so the doc
+contradicted itself in adjacent lines.
+
+**My debugging harness disagreed with the guard, and the harness was wrong.**
+Twice I wrote a quick script to enumerate the findings and it reported one file
+where pytest reported five. Both times the answer was to stop trusting the
+scratch tool and use the guard as the oracle. That is the third harness in this
+audit to misreport the thing it was pointed at.
+
 ## Attributing a dataset diff
 
 If regenerating a dataset produces a diff, find out whether your change caused
@@ -601,8 +686,9 @@ If a ch7 test does fail, re-run it in isolation before believing it.
 
 ## Exact float equality does not survive a change of CI runner
 
-`tests/ch5_fingerprinting/test_dataset_reproduces_from_its_seed.py` compared
-regenerated arrays with `np.array_equal`. It passed locally, it passed on CI,
+`tests/test_datasets_reproduce_from_their_recipe.py` compared
+regenerated arrays with `np.array_equal` (as the Chapter 5 test it grew out of
+did). It passed locally, it passed on CI,
 and then it failed on CI with **max|difference| = 2.8e-14** on values of order
 100 -- one to two ulp -- with **identical numpy 2.4.6 and scipy 1.17.1** in both
 runs, from a branch that could not reach the generator at all (it imports only
