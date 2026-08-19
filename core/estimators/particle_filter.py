@@ -45,6 +45,7 @@ class ParticleFilter(StateEstimator):
         x0: np.ndarray,
         P0: np.ndarray,
         resample_threshold: float = 0.5,
+        rng=None,
     ):
         """
         Initialize Particle Filter.
@@ -73,9 +74,13 @@ class ParticleFilter(StateEstimator):
         self.process_model = process_model
         self.likelihood_func = likelihood_func
         self.resample_threshold = resample_threshold
+        # np.random when the caller supplies nothing, so a caller that seeds
+        # with np.random.seed keeps the stream it had. A fresh default_rng()
+        # would ignore that seed and stop the committed figures reproducing.
+        self._rng = np.random if rng is None else rng
 
         # Initialize particles from initial distribution
-        self.particles = np.random.multivariate_normal(
+        self.particles = self._rng.multivariate_normal(
             x0, P0, size=n_particles
         )
 
@@ -180,7 +185,7 @@ class ParticleFilter(StateEstimator):
         cumsum = np.cumsum(self.weights)
 
         # Generate systematic samples
-        u0 = np.random.uniform(0, 1.0 / self.n_particles)
+        u0 = self._rng.uniform(0, 1.0 / self.n_particles)
         u = u0 + np.arange(self.n_particles) / self.n_particles
 
         # Resample particles

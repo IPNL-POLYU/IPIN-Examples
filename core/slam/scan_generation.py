@@ -15,6 +15,19 @@ from typing import List, Optional, Tuple
 import numpy as np
 
 
+def _rng(rng):
+    """Return *rng*, or numpy's global stream when none was supplied.
+
+    The default is np.random rather than a fresh default_rng() on purpose. A
+    fresh Generator would ignore np.random.seed, and every example in this
+    repository seeds that way, so changing the default would quietly stop the
+    committed figures reproducing. np.random.randn became standard_normal for
+    the same reason in reverse -- Generator has no randn, and the two draw the
+    same values from the same seeded stream.
+    """
+    return np.random if rng is None else rng
+
+
 def ray_segment_intersection(
     ray_origin: np.ndarray,
     ray_direction: np.ndarray,
@@ -94,6 +107,7 @@ def generate_scan_with_occlusion(
     max_range: float = 10.0,
     noise_std: float = 0.02,
     min_range: float = 0.1,
+    rng=None,
 ) -> np.ndarray:
     """Generate 2D LiDAR scan with proper occlusion handling using ray-casting.
     
@@ -162,7 +176,7 @@ def generate_scan_with_occlusion(
         if closest_point is not None and min_distance < max_range:
             # Add measurement noise
             if noise_std > 0:
-                noisy_distance = min_distance + np.random.normal(0, noise_std)
+                noisy_distance = min_distance + _rng(rng).normal(0, noise_std)
                 noisy_distance = max(min_range, noisy_distance)  # Clamp to min range
                 noisy_point = np.array([x, y]) + noisy_distance * ray_dir
             else:
@@ -192,6 +206,7 @@ def generate_dense_wall_scan(
     max_range: float = 8.0,
     noise_std: float = 0.02,
     points_per_wall: int = 50,
+    rng=None,
 ) -> np.ndarray:
     """Generate dense LiDAR scan from walls (legacy, without occlusion handling).
     
@@ -247,6 +262,6 @@ def generate_dense_wall_scan(
     
     # Add measurement noise
     if noise_std > 0:
-        scan += np.random.normal(0, noise_std, scan.shape)
+        scan += _rng(rng).normal(0, noise_std, scan.shape)
     
     return scan
