@@ -254,10 +254,10 @@ Test how gating affects both architectures:
 
 ```bash
 # Strict gating (99% confidence)
-python -m ch8_sensor_fusion.compare_lc_tc --alpha 0.01
+python -m ch8_sensor_fusion.compare_lc_tc --confidence 0.99
 
 # Loose gating (90% confidence)
-python -m ch8_sensor_fusion.compare_lc_tc --alpha 0.10
+python -m ch8_sensor_fusion.compare_lc_tc --confidence 0.9
 
 # No gating (accept all)
 python -m ch8_sensor_fusion.compare_lc_tc --no-gating

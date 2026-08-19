@@ -206,13 +206,13 @@ Where:
 # Perfect IMU (no noise, no bias) - control
 python scripts/generate_ch6_strapdown_dataset.py \
     --accel-noise 0.0 --gyro-noise 0.0 \
-    --accel-bias 0.0 --gyro-bias 0.0 \
+    --accel-bias-x 0.0 --accel-bias-y 0.0 --gyro-bias 0.0 \
     --duration 120 \
     --output data/sim/strapdown_perfect
 
 # Consumer-grade IMU (realistic)
 python scripts/generate_ch6_strapdown_dataset.py \
-    --imu-grade consumer \
+    --preset consumer \
     --duration 120 \
     --output data/sim/strapdown_consumer
 
@@ -225,7 +225,7 @@ python scripts/generate_ch6_strapdown_dataset.py \
 # With bias (to isolate bias effect)
 python scripts/generate_ch6_strapdown_dataset.py \
     --accel-noise 0.0 --gyro-noise 0.0 \
-    --accel-bias 0.1 --gyro-bias 0.01 \
+    --accel-bias-x 0.1 --accel-bias-y 0.1 --gyro-bias 0.01 \
     --duration 120 \
     --output data/sim/strapdown_biased
 ```
@@ -233,10 +233,13 @@ python scripts/generate_ch6_strapdown_dataset.py \
 #### Step 2: Run Strapdown Integration (5 min)
 
 ```bash
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/strapdown_perfect
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/strapdown_consumer
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/strapdown_high_noise
-python -m ch6_dead_reckoning.example_imu_strapdown --data data/sim/strapdown_biased
+# example_imu_strapdown generates its own figure-8 and takes no arguments, so
+# run it once to see strapdown drift in general:
+python -m ch6_dead_reckoning.example_imu_strapdown
+
+# To compare the four variants you just generated, load each one and integrate
+# it -- data/sim/ch6_strapdown_basic/README.md carries a block that does exactly
+# that, with dataset_path at the top to point elsewhere.
 ```
 
 #### Step 3: Analyze Results (10 min)
@@ -316,24 +319,16 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
 
 Modify the fusion script to scale R by factors: 0.1, 0.5, 1.0, 2.0, 5.0
 
-```bash
-# Under-estimated R (overconfident)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/ch8_fusion_2d_imu_uwb \
-    --r-scale 0.1 \
-    --output results_r_scale_0.1.json
+```text
+R is not exposed as a flag -- the line above says to modify the script, and
+that is still the way to do it. In ch8_sensor_fusion/tc_models.py, scale the
+measurement covariance where it is built, then run:
 
-# Correct R
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/ch8_fusion_2d_imu_uwb \
-    --r-scale 1.0 \
-    --output results_r_scale_1.0.json
+    python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
 
-# Over-estimated R (conservative)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
-    --data data/sim/ch8_fusion_2d_imu_uwb \
-    --r-scale 5.0 \
-    --output results_r_scale_5.0.json
+once per factor (0.1, 0.5, 1.0, 2.0, 5.0), reading the NIS consistency it
+prints. ch8_sensor_fusion/tuning_robust_demo.py does the neighbouring
+experiment -- robust weighting rather than R scaling -- without edits.
 ```
 
 #### Step 3: Analyze Innovation Statistics (15 min)
@@ -413,20 +408,17 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
 # No gating (baseline - corrupted by NLOS)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
     --data data/sim/fusion_nlos_1m \
-    --no-gating \
-    --output results_no_gating.json
+    --no-gating
 
 # Chi-square gating (α=0.05, 95% confidence)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
     --data data/sim/fusion_nlos_1m \
-    --alpha 0.05 \
-    --output results_gating_0.05.json
+    --confidence 0.95
 
 # Stricter gating (α=0.01, 99% confidence)
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
     --data data/sim/fusion_nlos_1m \
-    --alpha 0.01 \
-    --output results_gating_0.01.json
+    --confidence 0.99
 ```
 
 #### Step 3: Analyze Rejection Statistics (15 min)

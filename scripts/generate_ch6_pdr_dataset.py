@@ -524,11 +524,17 @@ def generate_dataset(
     """
     # Apply preset if specified
     if preset == "baseline":
-        # Clean sensors
-        accel_noise = 0.15
-        gyro_noise = 0.005
-        mag_noise = 0.05
-        gyro_bias = 0.002
+        # The shipped ch6_pdr_corridor_walk, which is what this preset writes
+        # over. These were 0.15 / 0.005 / 0.05 / 0.002 -- cleaner than the
+        # defaults the dataset was actually built from, so --preset baseline
+        # replaced the reference dataset with different data while the README
+        # offered it as the way to regenerate that dataset. The two sibling ch6
+        # generators do not have this problem: their datasets record
+        # preset=baseline and regenerate from it exactly.
+        accel_noise = 0.2
+        gyro_noise = 0.01
+        mag_noise = 0.1
+        gyro_bias = 0.005
         output_dir = output_dir or "data/sim/ch6_pdr_corridor_walk"
     elif preset == "noisy":
         # Higher noise

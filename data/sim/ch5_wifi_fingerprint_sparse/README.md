@@ -54,7 +54,8 @@ been bitten by before, in `core.fingerprinting.hierarchical_localize`.
 
 This family uses `metadata.json` where the rest of `data/sim` uses
 `config.json`. It records the scenario parameters **and the seed**, so it
-regenerates bit-exactly like every other dataset here.
+regenerates like every other dataset here --
+`tests/test_datasets_reproduce_from_their_recipe.py` checks that, for all twenty.
 
 ## Loading Example
 

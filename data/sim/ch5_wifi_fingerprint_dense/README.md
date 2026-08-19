@@ -53,8 +53,8 @@ distinguish them, which is a defect the repository has hit before (see
 
 This family uses `metadata.json` where the rest of `data/sim` uses
 `config.json`, but it records the same thing: the scenario parameters **and
-the seed**, so it regenerates bit-exactly like every other dataset here.
-`tests/ch5_fingerprinting/test_dataset_reproduces_from_its_seed.py` checks that.
+the seed**, so it regenerates like every other dataset here.
+`tests/test_datasets_reproduce_from_their_recipe.py` checks that, for all twenty.
 
 ## Loading Example
 

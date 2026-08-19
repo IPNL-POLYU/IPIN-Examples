@@ -26,6 +26,20 @@ import numpy as np
 # PRESET CONFIGURATIONS
 # ============================================================================
 
+#: Where each preset writes when the caller does not pass --output.
+PRESET_DIRS = {
+    'baseline': 'data/sim/ch8_fusion_2d_imu_uwb',
+    # NOT ch8_fusion_2d_imu_uwb_nlos. That shipped dataset uses a 0.8 m bias --
+    # see its README and --all-variants -- while this preset is the more severe
+    # 1.5 m case, so pointing it there would overwrite the shipped data with a
+    # different scenario under the same name.
+    'nlos_severe': 'data/sim/ch8_fusion_2d_imu_uwb_nlos_severe',
+    'time_offset_50ms': 'data/sim/ch8_fusion_2d_imu_uwb_timeoffset',
+    'high_dropout': 'data/sim/ch8_fusion_2d_imu_uwb_high_dropout',
+    'degraded_imu': 'data/sim/ch8_fusion_2d_imu_uwb_degraded_imu',
+    'tactical_imu': 'data/sim/ch8_fusion_2d_imu_uwb_tactical_imu',
+}
+
 PRESETS = {
     'baseline': {
         'description': 'Standard configuration with nominal parameters',
@@ -598,8 +612,12 @@ Available presets: """ + ", ".join(PRESETS.keys())
     parser.add_argument(
         '--output',
         type=str,
-        default='data/sim/ch8_fusion_2d_imu_uwb',
-        help='Output directory (default: data/sim/ch8_fusion_2d_imu_uwb)'
+        default=None,
+        help=(
+            "Output directory. Defaults to the preset's own directory, or "
+            'data/sim/ch8_fusion_2d_imu_uwb without a preset. Given '
+            'explicitly it always wins.'
+        )
     )
     
     parser.add_argument(
@@ -812,6 +830,16 @@ Available presets: """ + ", ".join(PRESETS.keys())
         for key, value in preset_config.items():
             if key != 'description' and hasattr(args, key):
                 setattr(args, key, value)
+
+    # A preset picks its own directory unless the caller named one. Without
+    # this, --output defaulted to the baseline directory and every preset wrote
+    # there, so `--preset nlos_severe` silently replaced the shipped baseline
+    # dataset with NLOS data. Only `baseline` and `time_offset_50ms` map onto a
+    # shipped dataset -- both reproduce theirs exactly -- and the rest get a
+    # directory of their own rather than borrowing one.
+    args.output = args.output or PRESET_DIRS.get(
+        args.preset, 'data/sim/ch8_fusion_2d_imu_uwb'
+    )
     
     # Validate parameters
     if args.duration <= 0:
