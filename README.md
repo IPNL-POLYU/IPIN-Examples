@@ -74,6 +74,22 @@ python ch5_fingerprinting/example_comparison.py
 python ch6_dead_reckoning/example_comparison.py
 ```
 
+## Notebooks
+
+Each chapter also has an interactive Jupyter notebook in [`notebooks/`](notebooks/) — open it directly in Google Colab, no local install required:
+
+| Notebook | Chapter | Open in Colab |
+|----------|---------|----------------|
+| `ch2_coordinate_systems.ipynb` | 2 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch2_coordinate_systems.ipynb) |
+| `ch3_state_estimation.ipynb` | 3 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch3_state_estimation.ipynb) |
+| `ch4_rf_positioning.ipynb` | 4 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch4_rf_positioning.ipynb) |
+| `ch5_fingerprinting.ipynb` | 5 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch5_fingerprinting.ipynb) |
+| `ch6_dead_reckoning.ipynb` | 6 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch6_dead_reckoning.ipynb) |
+| `ch7_slam.ipynb` | 7 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch7_slam.ipynb) |
+| `ch8_sensor_fusion.ipynb` | 8 | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch8_sensor_fusion.ipynb) |
+
+See [`notebooks/README.md`](notebooks/README.md) for details.
+
 ## Setup
 
 ### Prerequisites

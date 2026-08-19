@@ -4,24 +4,24 @@ This directory will contain interactive Jupyter notebooks for each chapter of *P
 
 ## Notebooks
 
-| Notebook | Chapter | Description | Status |
-|----------|---------|-------------|--------|
-| `ch2_coordinate_systems.ipynb` | 2 | LLH/ECEF/ENU transforms, rotations | ✅ Available |
-| `ch3_state_estimation.ipynb` | 3 | LS, WLS, Kalman Filter | ✅ Available |
-| `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA, RSS positioning | ✅ Available |
-| `ch5_fingerprinting.ipynb` | 5 | NN, k-NN, Bayesian fingerprinting | ✅ Available |
-| `ch6_dead_reckoning.ipynb` | 6 | IMU strapdown, PDR, environmental sensors | ✅ Available |
-| `ch7_slam.ipynb` | 7 | Pose graph SLAM, ICP scan matching | ✅ Available |
-| `ch8_sensor_fusion.ipynb` | 8 | TC/LC fusion, chi-square gating | ✅ Available |
+| Notebook | Chapter | Description | Open in Colab | Status |
+|----------|---------|-------------|----------------|--------|
+| `ch2_coordinate_systems.ipynb` | 2 | LLH/ECEF/ENU transforms, rotations | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch2_coordinate_systems.ipynb) | ✅ Available |
+| `ch3_state_estimation.ipynb` | 3 | LS, WLS, Kalman Filter | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch3_state_estimation.ipynb) | ✅ Available |
+| `ch4_rf_positioning.ipynb` | 4 | TOA, TDOA, AOA, RSS positioning | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch4_rf_positioning.ipynb) | ✅ Available |
+| `ch5_fingerprinting.ipynb` | 5 | NN, k-NN, Bayesian fingerprinting | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch5_fingerprinting.ipynb) | ✅ Available |
+| `ch6_dead_reckoning.ipynb` | 6 | IMU strapdown, PDR, environmental sensors | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch6_dead_reckoning.ipynb) | ✅ Available |
+| `ch7_slam.ipynb` | 7 | Pose graph SLAM, ICP scan matching | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch7_slam.ipynb) | ✅ Available |
+| `ch8_sensor_fusion.ipynb` | 8 | TC/LC fusion, chi-square gating | [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch8_sensor_fusion.ipynb) | ✅ Available |
 
 ## 🚀 Quick Start with Google Colab
 
-1. Open a notebook in Google Colab
-2. **Set the `GITHUB_REPO` variable** in the setup cell to your repository URL:
+1. Click an **Open in Colab** badge above (or open any notebook in this folder directly in Colab).
+2. Run the setup cell — `GITHUB_REPO` is already set to this repository, so it clones and installs dependencies automatically.
+   - Running from your own fork? Change `GITHUB_REPO` in the setup cell to your fork's URL first:
    ```python
    GITHUB_REPO = "https://github.com/YOUR_USERNAME/IPIN-Examples.git"
    ```
-3. Run the setup cell - it will clone and install dependencies automatically
 
 **Or run locally:**
 ```bash
