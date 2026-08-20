@@ -270,10 +270,10 @@ The `example_pdr.py` script now supports model selection:
 
 ```bash
 # Use book Eq. (6.49) - default for reproducibility
-python ch6_dead_reckoning/example_pdr.py --step-model book
+python -m ch6_dead_reckoning.example_pdr --step-model book
 
 # Use old power-law (deprecated)
-python ch6_dead_reckoning/example_pdr.py --step-model power_law
+python -m ch6_dead_reckoning.example_pdr --step-model power_law
 ```
 
 **Note:** The Weinberg model is not yet fully integrated into `example_pdr.py` because it requires per-step window processing (needs refactoring).

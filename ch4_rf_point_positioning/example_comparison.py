@@ -30,6 +30,7 @@ import numpy as np
 from tqdm import tqdm
 
 from core.eval import save_figure
+from core.utils import resolve_data_path
 from core.rf import (
     AOAPositioner,
     TDOAPositioner,
@@ -220,7 +221,7 @@ def compare_geometries(verbose: bool = True) -> Dict:
     all_results = {}
     
     for dataset_name, geometry_label in geometries:
-        data_path = Path("data/sim") / dataset_name
+        data_path = resolve_data_path(Path("data/sim") / dataset_name)
         if not data_path.exists():
             if verbose:
                 print(f"\nSkipping {dataset_name} (not found)")
@@ -824,13 +825,13 @@ Examples:
     
     elif args.data:
         # Run with dataset
-        data_path = Path(args.data)
+        data_path = resolve_data_path(args.data)
         if not data_path.exists():
-            data_path = Path("data/sim") / args.data
+            data_path = resolve_data_path(Path("data/sim") / args.data)
         if not data_path.exists():
             print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
             print("\nAvailable datasets:")
-            sim_dir = Path("data/sim")
+            sim_dir = resolve_data_path(Path("data/sim"))
             if sim_dir.exists():
                 for d in sorted(sim_dir.iterdir()):
                     if d.is_dir() and d.name.startswith("ch4"):

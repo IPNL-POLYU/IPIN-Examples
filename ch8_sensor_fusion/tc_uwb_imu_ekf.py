@@ -27,6 +27,7 @@ from core.eval import (
     compute_position_rmse,
     save_figure,
 )
+from core.utils import resolve_data_path
 from core.fusion import (
     StampedMeasurement,
     chi_square_gate,
@@ -56,7 +57,7 @@ def load_fusion_dataset(data_dir: str) -> Dict:
             - 'uwb': dict with t, ranges (M, A)
             - 'config': configuration dict
     """
-    data_path = Path(data_dir)
+    data_path = resolve_data_path(data_dir)
 
     # Load data files
     truth_data = np.load(data_path / "truth.npz")

@@ -46,7 +46,7 @@ import argparse
 import json
 import numpy as np
 
-from core.utils import wrap_angle
+from core.utils import resolve_data_path, wrap_angle
 import matplotlib.pyplot as plt
 from matplotlib.transforms import blended_transform_factory
 from pathlib import Path
@@ -75,7 +75,7 @@ def load_slam_dataset(data_dir: str) -> Dict:
     Returns:
         Dictionary with poses, landmarks, loop closures, and scans
     """
-    path = Path(data_dir)
+    path = resolve_data_path(data_dir)
     
     data = {
         'true_poses': np.loadtxt(path / 'ground_truth_poses.txt'),
@@ -2005,13 +2005,13 @@ Examples:
     
     if args.data:
         # Run with dataset
-        data_path = Path(args.data)
+        data_path = resolve_data_path(args.data)
         if not data_path.exists():
-            data_path = Path("data/sim") / args.data
+            data_path = resolve_data_path(Path("data/sim") / args.data)
         if not data_path.exists():
             print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
             print("\nAvailable datasets:")
-            sim_dir = Path("data/sim")
+            sim_dir = resolve_data_path(Path("data/sim"))
             if sim_dir.exists():
                 for d in sorted(sim_dir.iterdir()):
                     if d.is_dir() and d.name.startswith("ch7"):

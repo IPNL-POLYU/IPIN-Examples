@@ -29,7 +29,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from core.estimators import ExtendedKalmanFilter
 from core.eval import save_figure
-from core.utils import angle_diff
+from core.utils import angle_diff, resolve_data_path
 from core.utils.geometry import check_anchor_geometry
 from core.utils.observability import check_range_only_observability_2d
 
@@ -585,13 +585,13 @@ Examples:
     
     if args.data:
         # Run with dataset
-        data_path = Path(args.data)
+        data_path = resolve_data_path(args.data)
         if not data_path.exists():
-            data_path = Path("data/sim") / args.data
+            data_path = resolve_data_path(Path("data/sim") / args.data)
         if not data_path.exists():
             print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
             print("\nAvailable datasets:")
-            sim_dir = Path("data/sim")
+            sim_dir = resolve_data_path(Path("data/sim"))
             if sim_dir.exists():
                 for d in sorted(sim_dir.iterdir()):
                     if d.is_dir() and d.name.startswith("ch3"):

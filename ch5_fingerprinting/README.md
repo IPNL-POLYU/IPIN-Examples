@@ -222,7 +222,7 @@ pos_hier_rf, info = hierarchical_localize(
 
 ### Deterministic Methods Example
 
-Running `python ch5_fingerprinting/example_deterministic.py` produces:
+Running `python -m ch5_fingerprinting.example_deterministic` produces:
 
 The `Time (ms)` column is shown as `~`: it is whatever the machine that last
 ran this happened to manage, not a property of the method.
@@ -255,7 +255,7 @@ k-NN (k=5, uniform)       5.08         3.80         7.92         ~
 
 ### Comprehensive Comparison
 
-Running `python ch5_fingerprinting/example_comparison.py` generates:
+Running `python -m ch5_fingerprinting.example_comparison` generates:
 
 The example runs three noise scenarios; this is the baseline one.
 
@@ -293,7 +293,7 @@ this database — the example prints the reasoning under Key Insights.
 
 ### Classification and Hierarchical Methods Example
 
-Running `python ch5_fingerprinting/example_classification.py` produces:
+Running `python -m ch5_fingerprinting.example_classification` produces:
 
 <!-- example-output: ch5_fingerprinting.example_classification -->
 ```
