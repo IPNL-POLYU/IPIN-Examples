@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 
-from ch8_sensor_fusion.lc_models import solve_uwb_position_wls
+from core.fusion.lc_models import solve_uwb_position_wls
 
 
 class TestSolveUWBPositionWLS(unittest.TestCase):

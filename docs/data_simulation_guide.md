@@ -321,7 +321,7 @@ Modify the fusion script to scale R by factors: 0.1, 0.5, 1.0, 2.0, 5.0
 
 ```text
 R is not exposed as a flag -- the line above says to modify the script, and
-that is still the way to do it. In ch8_sensor_fusion/tc_models.py, scale the
+that is still the way to do it. In core/fusion/tc_models.py, scale the
 measurement covariance where it is built, then run:
 
     python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb

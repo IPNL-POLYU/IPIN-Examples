@@ -12,7 +12,7 @@ import unittest
 
 import numpy as np
 
-from ch8_sensor_fusion.tc_models import interpolate_imu_measurements
+from core.fusion.tc_models import interpolate_imu_measurements
 
 
 class TestIMUInterpolation(unittest.TestCase):

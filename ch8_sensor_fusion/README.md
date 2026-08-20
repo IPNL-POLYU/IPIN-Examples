@@ -94,7 +94,7 @@ docstring.
 | `mahalanobis_distance_squared()` | `core/fusion/gating.py` | Eq. (8.8) | d² = y'S⁻¹y |
 | `chi_square_gate()` | `core/fusion/gating.py` | Eq. (8.9) | Accept if d² < χ²(α,m) |
 | `AdaptiveGatingManager` | `core/fusion/adaptive.py` | Sec. 8.3.2 | Adaptive gating with P inflation & NIS monitoring |
-| `interpolate_imu_measurements()` | `tc_models.py` | Sec. 8.5.2 | Direct linear interpolation of IMU |
+| `interpolate_imu_measurements()` | `core/fusion/tc_models.py` | Sec. 8.5.2 | Direct linear interpolation of IMU |
 | `compute_observability_matrix()` | `observability_demo.py` | Eq. (8.3) | Build EKF observability matrix O_EKF |
 | `analyze_unobservable_states()` | `observability_demo.py` | Sec. 8.2 | Identify unobservable modes via SVD |
 | `estimate_imu_bias_stationary()` | `calibration_demo.py` | Sec. 8.4.1.3 | IMU intrinsic calibration (bias estimation) |
@@ -126,10 +126,10 @@ risk of filter divergence. See `core/fusion/adaptive.py` for implementation deta
 
 | Function | Location | Description |
 |----------|----------|-------------|
-| `create_process_model()` | `tc_models.py` | 2D IMU dead-reckoning process model |
-| `create_uwb_range_measurement_model()` | `tc_models.py` | UWB range measurement for TC |
-| `solve_uwb_position_wls()` | `lc_models.py` | WLS position solver for LC |
-| `create_lc_position_measurement_model()` | `lc_models.py` | Position measurement for LC |
+| `create_process_model()` | `core/fusion/tc_models.py` | 2D IMU dead-reckoning process model |
+| `create_uwb_range_measurement_model()` | `core/fusion/tc_models.py` | UWB range measurement for TC |
+| `solve_uwb_position_wls()` | `core/fusion/lc_models.py` | WLS position solver for LC |
+| `create_lc_position_measurement_model()` | `core/fusion/lc_models.py` | Position measurement for LC |
 
 ## Usage Examples
 
@@ -601,7 +601,7 @@ This diagram shows:
   - `core/fusion/` (StampedMeasurement, TimeSyncModel, gating/robust utils)
   - `core/estimators/` (ExtendedKalmanFilter)
   - `core/eval/` (errors, RMSE)
-- **Chapter Models**: Fusion-specific models in `lc_models.py` (LC models + WLS solver) and `tc_models.py` (TC models + interpolation)
+- **Fusion library**: `core/fusion/` holds the models (`lc_models.py`, `tc_models.py`), the dataset loader and both pipelines (`loosely_coupled.py`, `tightly_coupled.py`). The chapter files are demos: evaluate, plot, main.
 - **Data Sources**: Optional synthetic datasets from `data/sim/ch8_*` directories
 - **Output Figures**: Generated visualizations in `figs/`
 
@@ -668,21 +668,26 @@ This diagram illustrates the detailed execution pipeline for the sensor fusion d
 ```
 ch8_sensor_fusion/
 ├── README.md                        # This file (student documentation)
-├── tc_models.py                     # TC fusion EKF models
 ├── tc_uwb_imu_ekf.py                # TC demo
-├── lc_models.py                     # LC fusion EKF models
 ├── lc_uwb_imu_ekf.py                # LC demo
 ├── compare_lc_tc.py                 # LC vs TC comparison
 ├── observability_demo.py            # Observability analysis (Eq. 8.3)
 ├── tuning_robust_demo.py            # Robust estimation demo (Eq. 8.7)
 ├── temporal_calibration_demo.py     # Time sync demo (Sec. 8.5)
 ├── calibration_demo.py              # Calibration demo (Sec. 8.4)
+├── example_anchor_outage.py         # 8 s anchor outage: LC vs TC (Sec. 8.1.2)
 └── figs/                            # Generated figures
 
-core/fusion/
+core/fusion/                         # The library the demos above are thin over
+├── types.py                         # StampedMeasurement, TimeSyncModel
 ├── tuning.py                        # Innovation, scaling (Eqs. 8.5-8.7)
 ├── gating.py                        # Chi-square gating (Eqs. 8.8-8.9)
-└── adaptive.py                      # Adaptive gating manager (Sec. 8.3.2)
+├── adaptive.py                      # Adaptive gating manager (Sec. 8.3.2)
+├── dataset.py                       # load_fusion_dataset
+├── tc_models.py                     # TC process/measurement models, IMU interpolation
+├── lc_models.py                     # LC models + WLS position solver
+├── tightly_coupled.py               # run_tc_fusion (Sec. 8.1.2)
+└── loosely_coupled.py               # run_lc_fusion (Sec. 8.1.1)
 
 docs/architecture/
 ├── ipin_ch8_component_clean_v2.svg  # Component diagram (visual)

@@ -25,8 +25,7 @@ from core.eval import (
     resolve_figs_dir,
     save_figure,
 )
-from ch8_sensor_fusion.lc_uwb_imu_ekf import load_fusion_dataset, run_lc_fusion
-from ch8_sensor_fusion.tc_uwb_imu_ekf import run_tc_fusion
+from core.fusion import load_fusion_dataset, run_lc_fusion, run_tc_fusion
 
 
 def run_both_fusions(

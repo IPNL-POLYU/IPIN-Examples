@@ -1,0 +1,370 @@
+"""Tightly coupled IMU + UWB fusion (Section 8.1.2).
+
+Author: Li-Ta Hsu
+
+The pipeline itself, separated from the demo that plots it. It was previously
+defined inside ``ch8_sensor_fusion/tc_uwb_imu_ekf.py`` and imported from there
+by ``compare_lc_tc`` and ``example_anchor_outage``; every other chapter keeps
+its shared implementation in ``core/`` and its examples as leaves.
+
+References: Chapter 8, Section 8.1.2 (Tightly Coupled)
+"""
+
+from typing import Dict, List
+
+import numpy as np
+
+from core.fusion.adaptive import create_adaptive_manager_for_tc
+from core.fusion.gating import chi_square_gate, mahalanobis_distance_squared
+from core.fusion.tc_models import (
+    create_tc_fusion_ekf,
+    create_uwb_range_measurement_model,
+)
+from core.fusion.tuning import innovation, innovation_covariance
+from core.fusion.types import StampedMeasurement
+
+__all__ = ["run_tc_fusion"]
+
+
+def run_tc_fusion(
+    dataset: Dict,
+    use_gating: bool = True,
+    gate_confidence: float = 0.95,
+    batch_update: bool = False,
+    verbose: bool = True,
+) -> Dict:
+    """Run tightly coupled IMU + UWB fusion.
+
+    Args:
+        dataset: Dataset dictionary from load_fusion_dataset
+        use_gating: Whether to apply chi-square gating
+        gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
+        batch_update: If True, batch all UWB ranges at same timestamp (book's "m+n" mode);
+                      If False, sequential per-anchor updates (baseline)
+        verbose: Print progress
+
+    Returns:
+        Results dictionary with:
+            - 't': timestamps (N,)
+            - 'x_est': estimated states (N, 5)
+            - 'P_trace': trace of covariance (N,)
+            - 'innovations': list of innovations
+            - 'nis': list of NIS values
+            - 'gated': list of booleans (accepted/rejected)
+            - 'n_uwb_accepted': number of UWB updates accepted
+            - 'n_uwb_rejected': number of UWB updates rejected
+    """
+    if verbose:
+        print("=" * 70)
+        print("Tightly Coupled IMU + UWB EKF Fusion")
+        print("=" * 70)
+
+    # Extract data
+    truth = dataset["truth"]
+    imu = dataset["imu"]
+    uwb = dataset["uwb"]
+    anchors = dataset["uwb_anchors"]
+    config = dataset["config"]
+
+    # Initialize EKF at true starting position
+    x0 = np.array(
+        [
+            truth["p_xy"][0, 0],  # px
+            truth["p_xy"][0, 1],  # py
+            truth["v_xy"][0, 0],  # vx
+            truth["v_xy"][0, 1],  # vy
+            truth["yaw"][0],  # yaw
+        ]
+    )
+
+    # Increase initial uncertainty to be more conservative (per book guidance on P0)
+    # This prevents overconfidence in early stages before sufficient observations
+    P0 = np.diag([1.0, 1.0, 1.0, 1.0, 0.5]) ** 2  # Larger initial uncertainty
+
+    ekf = create_tc_fusion_ekf(initial_state=x0, initial_cov=P0)
+
+    if verbose:
+        print("\nInitialization:")
+        print(f"  State: {x0}")
+        print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
+        if use_gating:
+            print(
+                f"  Confidence: {gate_confidence} ({gate_confidence*100:.0f}% confidence)"
+            )
+
+    # Create measurement model functions for each anchor
+    meas_models = [
+        create_uwb_range_measurement_model(
+            anchor_position=anchors[i],
+            range_noise_std=config["uwb"]["range_noise_std_m"],
+        )
+        for i in range(anchors.shape[0])
+    ]
+
+    # Prepare timestamped measurements
+    measurements: List[StampedMeasurement] = []
+
+    # Add IMU measurements
+    for i in range(len(imu["t"])):
+        measurements.append(
+            StampedMeasurement(
+                t=imu["t"][i],
+                sensor="imu",
+                z=np.hstack([imu["accel_xy"][i], imu["gyro_z"][i]]),  # [ax, ay, gz]
+                R=np.eye(3),  # Not used for propagation
+                meta={},
+            )
+        )
+
+    # Add UWB measurements
+    if batch_update:
+        # Batch mode: group all ranges at each timestamp together
+        for i in range(len(uwb["t"])):
+            ranges_at_epoch = uwb["ranges"][i, :]
+            valid_mask = ~np.isnan(ranges_at_epoch)
+
+            if np.any(valid_mask):  # At least one valid range
+                measurements.append(
+                    StampedMeasurement(
+                        t=uwb["t"][i],
+                        sensor="uwb_batch",
+                        z=ranges_at_epoch[valid_mask],  # Only valid ranges
+                        R=np.eye(np.sum(valid_mask))
+                        * config["uwb"]["range_noise_std_m"] ** 2,
+                        meta={
+                            "valid_anchors": np.where(valid_mask)[0]
+                        },  # Indices of valid anchors
+                    )
+                )
+    else:
+        # Sequential mode: one measurement per anchor (baseline)
+        for i in range(len(uwb["t"])):
+            for anchor_idx in range(anchors.shape[0]):
+                range_meas = uwb["ranges"][i, anchor_idx]
+                if not np.isnan(range_meas):  # Skip dropouts
+                    measurements.append(
+                        StampedMeasurement(
+                            t=uwb["t"][i],
+                            sensor="uwb",
+                            z=np.array([range_meas]),
+                            R=np.array([[config["uwb"]["range_noise_std_m"] ** 2]]),
+                            meta={"anchor_idx": anchor_idx},
+                        )
+                    )
+
+    # Sort by timestamp
+    measurements.sort(key=lambda m: m.t)
+
+    if verbose:
+        print("\nMeasurements:")
+        print(f"  IMU samples: {len(imu['t'])}")
+        if batch_update:
+            print(
+                f"  UWB epochs: {len([m for m in measurements if m.sensor == 'uwb_batch'])}"
+            )
+            print("  Update mode: Batch (all ranges at once)")
+        else:
+            print(
+                f"  UWB samples: {len([m for m in measurements if m.sensor == 'uwb'])}"
+            )
+            print("  Update mode: Sequential (per-anchor)")
+        print(f"  Total: {len(measurements)}")
+
+    # Create adaptive gating manager (if gating enabled)
+    adaptive_mgr = None
+    if use_gating:
+        adaptive_mgr = create_adaptive_manager_for_tc(
+            n_anchors=anchors.shape[0],
+            consecutive_reject_limit=3,  # Lower limit for faster adaptation
+            nis_window_size=20,
+            nis_scale_threshold=2.0,  # More tolerant threshold (allow 2x NIS before scaling)
+            P_inflation_factor=2.0,  # Larger inflation for faster recovery
+            R_scale_factor=1.5,  # Larger R scaling steps
+        )
+
+    # Run fusion
+    history = {
+        "t": [],
+        "x_est": [],
+        "P_trace": [],
+        "innovations": [],
+        "nis": [],
+        "gated": [],
+        "R_scales": [],
+    }
+
+    n_uwb_accepted = 0
+    n_uwb_rejected = 0
+    t_prev = measurements[0].t
+
+    for idx, meas in enumerate(measurements):
+        dt = meas.t - t_prev
+
+        if meas.sensor == "imu":
+            # Propagate with IMU
+            u = meas.z  # [ax, ay, gyro_z]
+            ekf.predict(u=u, dt=dt)
+
+        elif meas.sensor == "uwb":
+            # UWB range update
+            anchor_idx = meas.meta["anchor_idx"]
+            h, H_func, R_func = meas_models[anchor_idx]
+
+            # Compute innovation
+            z_pred = h(ekf.state)
+            y = innovation(meas.z, z_pred)
+
+            # Compute innovation covariance
+            H = H_func(ekf.state)
+            R_base = R_func()
+
+            # Apply adaptive R scaling if using adaptive gating
+            if adaptive_mgr is not None:
+                R_scale = adaptive_mgr.get_R_scale()
+                R = R_scale * R_base
+            else:
+                R = R_base
+                R_scale = 1.0
+
+            S = innovation_covariance(H, ekf.covariance, R)
+
+            # Compute NIS for monitoring
+            nis_value = mahalanobis_distance_squared(y, S)
+
+            # Gating with adaptive management
+            accept = True
+            if use_gating:
+                # First check with chi-square gate
+                gate_accept = chi_square_gate(y, S, confidence=gate_confidence)
+
+                # Update adaptive manager (may override decision or request action)
+                accept, action = adaptive_mgr.update(nis_value, gate_accept)
+
+                # Handle adaptive actions
+                if action == "inflate_P":
+                    # Apply covariance inflation to prevent filter starvation
+                    ekf.covariance = adaptive_mgr.inflate_covariance(ekf.covariance)
+                # 'scale_R' action is handled automatically via get_R_scale()
+
+            if accept:
+                # Manually perform EKF update
+                K = ekf.covariance @ H.T @ np.linalg.inv(S)
+                ekf.state = ekf.state + (K @ y).flatten()
+                ekf.covariance = (np.eye(5) - K @ H) @ ekf.covariance
+                n_uwb_accepted += 1
+            else:
+                n_uwb_rejected += 1
+
+            # Log
+            history["innovations"].append(y[0])
+            history["nis"].append(nis_value)
+            history["gated"].append(accept)
+            history["R_scales"].append(R_scale)
+
+        elif meas.sensor == "uwb_batch":
+            # Batch UWB range update (all ranges at this timestamp)
+            valid_anchor_indices = meas.meta["valid_anchors"]
+            n_ranges = len(valid_anchor_indices)
+
+            # Build combined measurement vector and model
+            z_batch = meas.z  # Already contains only valid ranges
+            z_pred_batch = np.zeros(n_ranges)
+            H_batch = np.zeros((n_ranges, 5))
+
+            for i, anchor_idx in enumerate(valid_anchor_indices):
+                h, H_func, R_func = meas_models[anchor_idx]
+                z_pred_batch[i] = h(ekf.state)[0]  # Predicted range
+                H_batch[i, :] = H_func(ekf.state)[0, :]  # Jacobian row
+
+            # Compute innovation (full measurement vector)
+            y_batch = innovation(z_batch, z_pred_batch)
+
+            # Compute innovation covariance
+            R_base_batch = meas.R  # Already diagonal for independent ranges
+
+            # Apply adaptive R scaling if using adaptive gating
+            if adaptive_mgr is not None:
+                R_scale = adaptive_mgr.get_R_scale()
+                R_batch = R_scale * R_base_batch
+            else:
+                R_batch = R_base_batch
+                R_scale = 1.0
+
+            S_batch = innovation_covariance(H_batch, ekf.covariance, R_batch)
+
+            # Compute NIS for monitoring (DOF = n_ranges)
+            nis_value = mahalanobis_distance_squared(y_batch, S_batch)
+
+            # Gating with adaptive management
+            accept = True
+            if use_gating:
+                # Chi-square gate with DOF = n_ranges
+                gate_accept = chi_square_gate(
+                    y_batch, S_batch, confidence=gate_confidence
+                )
+
+                # Update adaptive manager
+                # Note: For batch mode, we need to create a temporary manager with correct DOF
+                # or modify the existing one. For simplicity, we'll use the same manager
+                # but the NIS interpretation will be different (higher expected value)
+                if adaptive_mgr is not None:
+                    # Normalize NIS by expected value for fair comparison
+                    # Expected NIS for batch = n_ranges (DOF)
+                    # Expected NIS for sequential = 1 (single range)
+                    # Scale NIS to "per-range" equivalent for adaptive manager
+                    nis_normalized = nis_value / n_ranges
+                    accept, action = adaptive_mgr.update(nis_normalized, gate_accept)
+
+                    # Handle adaptive actions
+                    if action == "inflate_P":
+                        ekf.covariance = adaptive_mgr.inflate_covariance(ekf.covariance)
+
+            if accept:
+                # Manually perform batch EKF update
+                K_batch = ekf.covariance @ H_batch.T @ np.linalg.inv(S_batch)
+                ekf.state = ekf.state + (K_batch @ y_batch).flatten()
+                ekf.covariance = (np.eye(5) - K_batch @ H_batch) @ ekf.covariance
+                n_uwb_accepted += 1
+            else:
+                n_uwb_rejected += 1
+
+            # Log (use norm of innovation vector for history)
+            history["innovations"].append(np.linalg.norm(y_batch))
+            history["nis"].append(nis_value)
+            history["gated"].append(accept)
+            history["R_scales"].append(R_scale)
+
+        # Record state
+        history["t"].append(meas.t)
+        history["x_est"].append(ekf.state.copy())
+        history["P_trace"].append(np.trace(ekf.covariance))
+
+        t_prev = meas.t
+
+    # Convert to arrays
+    history["t"] = np.array(history["t"])
+    history["x_est"] = np.array(history["x_est"])
+    history["P_trace"] = np.array(history["P_trace"])
+    history["n_uwb_accepted"] = n_uwb_accepted
+    history["n_uwb_rejected"] = n_uwb_rejected
+
+    if verbose:
+        print("\nFusion complete:")
+        print(f"  UWB accepted: {n_uwb_accepted}")
+        print(f"  UWB rejected: {n_uwb_rejected}")
+        if n_uwb_accepted + n_uwb_rejected > 0:
+            print(
+                f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%"
+            )
+
+        # Print adaptive gating stats if enabled
+        if adaptive_mgr is not None:
+            stats = adaptive_mgr.get_stats()
+            print("\nAdaptive Gating Stats:")
+            print(
+                f"  Mean NIS: {stats['mean_nis']:.2f} (expected: {stats['expected_nis']:.0f})"
+            )
+            print(f"  Final R scale: {stats['current_R_scale']:.2f}x")
+            print(f"  Covariance inflations: {stats['total_adaptations']}")
+
+    return history

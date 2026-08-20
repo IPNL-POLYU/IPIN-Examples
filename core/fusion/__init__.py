@@ -1,19 +1,24 @@
-"""Sensor fusion utilities for Chapter 8.
+"""Sensor fusion for Chapter 8.
 
-This package provides practical multi-sensor fusion tools including:
+This package provides:
 - Time-stamped measurement types and temporal synchronization
 - Innovation monitoring and covariance tuning (Eqs. 8.5-8.7)
 - Chi-square gating for outlier rejection (Eqs. 8.8-8.9)
 - Adaptive gating with covariance inflation and NIS monitoring
+- The dataset loader and both fusion architectures themselves,
+  ``run_lc_fusion`` (Sec. 8.1.1) and ``run_tc_fusion`` (Sec. 8.1.2)
 
-These utilities support the Chapter 8 examples demonstrating loosely vs
-tightly coupled fusion, observability, tuning, calibration, and temporal
-synchronization.
+The last of those used to live in ``ch8_sensor_fusion/``, where four demos
+imported them from a fifth. Every other chapter keeps its shared
+implementation here and its examples as leaves; this one does now too.
 
 Author: Li-Ta Hsu
 References: Chapter 8 - Sensor Fusion
 """
 
+from core.fusion.dataset import load_fusion_dataset
+from core.fusion.loosely_coupled import run_lc_fusion
+from core.fusion.tightly_coupled import run_tc_fusion
 from core.fusion.adaptive import (
     AdaptiveGatingManager,
     create_adaptive_manager_for_lc,
@@ -38,6 +43,10 @@ from core.fusion.tuning import (
 from core.fusion.types import StampedMeasurement, TimeSyncModel
 
 __all__ = [
+    # Datasets and the two fusion architectures (Sec. 8.1)
+    "load_fusion_dataset",
+    "run_lc_fusion",
+    "run_tc_fusion",
     # Types
     "StampedMeasurement",
     "TimeSyncModel",

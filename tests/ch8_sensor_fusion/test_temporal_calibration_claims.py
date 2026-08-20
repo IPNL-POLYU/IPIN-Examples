@@ -23,7 +23,7 @@ matplotlib.use("Agg")  # headless: no display during tests
 
 import numpy as np
 
-from ch8_sensor_fusion.tc_uwb_imu_ekf import load_fusion_dataset
+from core.fusion import load_fusion_dataset
 from ch8_sensor_fusion.temporal_calibration_demo import run_fusion_with_time_sync
 from core.eval import compute_position_rmse
 

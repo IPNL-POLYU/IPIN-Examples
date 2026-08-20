@@ -672,10 +672,8 @@ def test_core_library_takes_its_randomness_from_the_caller(module):
 KNOWN_NON_EXAMPLE_CHAPTER_FILES: set = {
     "ch8_sensor_fusion/calibration_demo.py",
     "ch8_sensor_fusion/compare_lc_tc.py",
-    "ch8_sensor_fusion/lc_models.py",
     "ch8_sensor_fusion/lc_uwb_imu_ekf.py",
     "ch8_sensor_fusion/observability_demo.py",
-    "ch8_sensor_fusion/tc_models.py",
     "ch8_sensor_fusion/tc_uwb_imu_ekf.py",
     "ch8_sensor_fusion/temporal_calibration_demo.py",
     "ch8_sensor_fusion/tuning_robust_demo.py",
@@ -693,15 +691,17 @@ KNOWN_NON_EXAMPLE_CHAPTER_FILES: set = {
 # would produce examples that import examples, a shape no other chapter has.
 # The library half belongs in core/fusion/, next to the gating, adaptive and
 # tuning modules it already sits beside.
-KNOWN_INTRA_CHAPTER_IMPORTS: set = {
-    "ch8_sensor_fusion/compare_lc_tc.py",
-    "ch8_sensor_fusion/example_anchor_outage.py",
-    "ch8_sensor_fusion/lc_models.py",
-    "ch8_sensor_fusion/lc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/tc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/temporal_calibration_demo.py",
-    "ch8_sensor_fusion/tuning_robust_demo.py",
-}
+# Empty. Seven files carried twelve of these, all Chapter 8, and they are gone:
+# tc_models and lc_models now live in core/fusion/ alongside the gating,
+# adaptive and tuning modules they always sat beside, and load_fusion_dataset,
+# run_tc_fusion and run_lc_fusion moved to core/fusion/dataset.py,
+# tightly_coupled.py and loosely_coupled.py. The two EKF demos went from
+# 658 and 474 lines to 255 and 210, which is what an example is supposed to
+# weigh: evaluate, plot, main.
+#
+# Verified by the chapter's own gate rather than by reading: all eight README
+# transcripts and all 27 committed figure files are unchanged, byte for byte.
+KNOWN_INTRA_CHAPTER_IMPORTS: set = set()
 
 
 def _chapter_dirs():

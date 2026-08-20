@@ -197,7 +197,7 @@ def create_lc_process_model(
         Tuple of (process_model, process_jacobian, process_noise_cov)
     """
     # Reuse TC process model
-    from ch8_sensor_fusion.tc_models import create_process_model
+    from core.fusion.tc_models import create_process_model
     return create_process_model(process_noise_std)
 
 

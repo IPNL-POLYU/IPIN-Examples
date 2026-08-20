@@ -233,9 +233,9 @@ ekf.update(measurement=z)
 ### Sensor Fusion Patterns (`ch8_sensor_fusion/`, `core/fusion/`)
 **Tightly vs Loosely Coupled:**
 - **Tightly Coupled (TC):** Direct sensor measurements in EKF update (e.g., UWB ranges → EKF)
-  - Files: `tc_uwb_imu_ekf.py`, `tc_models.py`
+  - Files: `tc_uwb_imu_ekf.py` (demo), `core/fusion/tc_models.py`, `core/fusion/tightly_coupled.py`
 - **Loosely Coupled (LC):** Position estimates from sub-filters → EKF
-  - Files: `lc_uwb_imu_ekf.py`, `lc_models.py`
+  - Files: `lc_uwb_imu_ekf.py` (demo), `core/fusion/lc_models.py`, `core/fusion/loosely_coupled.py`
 
 **Sequential vs Batch Updates:**
 - Sequential: One measurement at a time (`ekf.update(z)`)
