@@ -710,10 +710,14 @@ All demo scripts generate figures in the `ch8_sensor_fusion/figs/` directory. Th
 | `observability_demo.svg` | `observability_demo.py` | Sec. 8.2 |
 | `imu_calibration.svg` | `calibration_demo.py` | Sec. 8.4.1.3 |
 | `extrinsic_calibration.svg` | `calibration_demo.py` | Sec. 8.4.2 |
-| `temporal_calibration_test.png` | Test output | Sec. 8.5 |
-| `temporal_calibration_corrected.png` | Test output | Sec. 8.5 |
-| `imu_interpolation_test.png` | Test output | Sec. 8.5.2 |
-| `robust_loss_comparison.png` | Test output | Sec. 8.3 / Eq. 8.7 |
+| `temporal_calibration_demo.svg` | `temporal_calibration_demo.py` | Sec. 8.5 |
+| `tuning_robust_demo.svg` | `tuning_robust_demo.py` | Sec. 8.3 / Eq. 8.7 |
+| `ch8_anchor_outage.svg` | `example_anchor_outage.py` | Sec. 8.1.2 |
+
+Every row names the script that writes it, and
+`tests/ch8_sensor_fusion/test_figures_are_reproducible.py` checks both
+directions: each figure regenerates byte-for-byte, and nothing sits in `figs/`
+that no demo produces.
 
 ---
 
@@ -828,62 +832,42 @@ All demo scripts generate figures in the `ch8_sensor_fusion/figs/` directory. Th
 
 ---
 
-### 7. Temporal Calibration Test (`temporal_calibration_test.png`)
+### 7. Temporal Calibration (`temporal_calibration_demo.svg`)
 
 **Temporal calibration validation (Sec. 8.5):**
 
-This figure shows fusion results **before** temporal correction is applied:
-- UWB timestamps are offset by 50ms and drifting at 100ppm
-- Fusion accuracy is degraded due to timestamp mismatch
-- Demonstrates the importance of temporal synchronization
+Built by `temporal_calibration_demo.py`, which runs both paths in one pass:
+UWB timestamps offset by 50 ms and drifting at 100 ppm, fused with and without
+`TimeSyncModel` mapping sensor time to fusion time as
+`t_fusion = (1 + drift) * t_sensor + offset`.
+
+The measured gain is 0.211 m to 0.185 m, 12.5%, and it is bounded by kinematics
+rather than tuned: 50 ms at 1 m/s displaces the platform 0.050 m, so the
+correction cannot be worth more than that. The effect scales with speed, which
+is the reason temporal alignment matters -- not any large number this demo
+prints.
 
 ---
 
-### 8. Temporal Calibration Corrected (`temporal_calibration_corrected.png`)
-
-**Temporal calibration with correction applied:**
-
-Shows fusion results **after** `TimeSyncModel` corrects the timestamps:
-- UWB sensor time is mapped to fusion time using: `t_fusion = (1 + drift) * t_sensor + offset`
-- Improved alignment between IMU and UWB measurements
-- Reduced position error compared to uncorrected case
-
----
-
-### 9. IMU Interpolation Test (`imu_interpolation_test.png`)
-
-**Direct linear interpolation validation (Sec. 8.5.2):**
-
-This figure validates the `interpolate_imu_measurements()` function:
-- Tests interpolation at various query times between IMU samples
-- Verifies that interpolated values (accel, gyro) are correct
-- Confirms EKF can handle asynchronous UWB timestamps
-
-**Key Point:** When UWB arrives between IMU[k] and IMU[k+1], the EKF must propagate to the exact measurement time using interpolated IMU inputs.
-
----
-
-### 10. Robust Loss Comparison (`robust_loss_comparison.png`)
+### 8. Robust Loss Comparison (`tuning_robust_demo.svg`)
 
 **Robust loss functions for outlier handling (Sec. 8.3, Eq. 8.7):**
 
-This figure compares different robust loss functions:
-- **Standard (no robustness)**: All measurements weighted equally
-- **Huber loss**: Linear penalty for large residuals (soft rejection)
-- **Cauchy loss**: Heavier down-weighting of outliers
+Built by `tuning_robust_demo.py` on the NLOS dataset, comparing no gating,
+chi-square gating, Huber and Cauchy.
 
-**Key Concept (Eq. 8.7):** Robust functions return scale factors **w_R ≥ 1** that inflate R for outliers:
-- Small residual → w_R ≈ 1 (nominal covariance)
-- Large residual → w_R >> 1 (inflated covariance, reduced influence)
+**Key Concept (Eq. 8.7):** the robust functions return scale factors
+**w_R >= 1** that inflate R for outliers -- small residual gives w_R around 1,
+large residual gives w_R much greater than 1, reducing influence without
+removing the measurement.
 
-This is softer than hard chi-square gating and preserves some information from outliers.
+The figure's point is the failure, not the 1.1% win: hard chi-square gating
+scores 25.66 m against a 0.72 m baseline, because R is set from line-of-sight
+noise while half these ranges carry an NLOS bias an order of magnitude larger.
+The gate rejects 81% of measurements, the state drifts, and the drift inflates
+the next innovation. The robust losses survive the same mis-specified R.
 
 ---
-
-**Note:** 
-- SVG figures are publication-quality vector graphics suitable for documents and presentations.
-- PNG figures are raster test outputs used for validation during development.
-- The `compare_lc_tc.py` script can optionally generate a JSON report with `--report <path>`, but this is not created by default.
 
 ## References
 
