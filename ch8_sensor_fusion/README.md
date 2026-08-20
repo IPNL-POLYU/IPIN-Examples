@@ -319,6 +319,62 @@ all on 13 epochs.
 
 *Nine-panel comparison showing trajectories, errors, NIS plots, and metrics.*
 
+### Robust Tuning Demo
+
+```bash
+python -m ch8_sensor_fusion.tuning_robust_demo
+```
+
+<!-- example-output: ch8_sensor_fusion.tuning_robust_demo -->
+```
+Method                        RMSE [m]     Accepted     Rejected
+----------------------------------------------------------------------
+Baseline (no gating)             0.722         2271            0
+Chi-Square Gating               25.664          422         1849
+Huber Loss                       0.722         2271            0
+Cauchy Loss                      0.714         2271            0
+======================================================================
+
+Key Findings:
+  * Best method: Cauchy
+  * Improvement over baseline: 1.1%
+...
+  Why chi-square gating collapses here (RMSE 25.66 m):
+```
+
+The 1.1% headline is the honest number and the interesting one is below it: a
+hard chi-square gate makes this dataset **35x worse**, because R is set from
+line-of-sight noise while half the ranges carry an NLOS bias an order of
+magnitude larger. The gate then rejects 81% of measurements, the state drifts,
+and the drift inflates the next innovation. A gate is only as good as the
+covariance it tests against; the robust losses survive the same mis-specified R
+because they scale an outlier down instead of removing it.
+
+### Temporal Calibration Demo
+
+```bash
+python -m ch8_sensor_fusion.temporal_calibration_demo
+```
+
+<!-- example-output: ch8_sensor_fusion.temporal_calibration_demo -->
+```
+Method                             RMSE [m]     Improvement
+----------------------------------------------------------------------
+Without Time Correction               0.211      (baseline)
+With TimeSyncModel                    0.185           12.5%
+======================================================================
+
+Key Findings:
+  * Uncorrected: 0.211 m RMSE; corrected: 0.185 m
+  * So a -50.0 ms offset costs 0.026 m, and TimeSyncModel recovers it: 12.5% better
+  * That is the order the kinematics predict: 1.00 m/s for 50 ms displaces the platform 0.050 m
+```
+
+Note the demo checks its own result against the kinematics rather than
+asserting it: 50 ms at 1 m/s displaces the platform 0.050 m, so the correction
+cannot be worth more than that. This is the bound `docs/` once contradicted by
+claiming the same correction more than halved the error.
+
 ## LC vs TC Comparison
 
 | Aspect | **Tightly Coupled (TC)** | **Loosely Coupled (LC)** |
@@ -366,8 +422,10 @@ Unobservable directions are identified via SVD null space analysis.
 python -m ch8_sensor_fusion.observability_demo
 ```
 
+<!-- example-output: ch8_sensor_fusion.observability_demo -->
 ```
 [A] Odometry-Only System:
+----------------------------------------------------------------------
   State dimension: 4
   Observable states: 2
   Unobservable states: 2
@@ -375,19 +433,32 @@ python -m ch8_sensor_fusion.observability_demo
   Rank: 2 / 4
 
   Unobservable modes (null space basis):
-    Mode 1: {'px': -1.0, 'py': 0.0, 'vx': 0.0, 'vy': 0.0}
+    Mode 1: {'px': -1.0, 'py': -0.0, 'vx': -0.0, 'vy': -0.0}
               (dominant: px)
-    Mode 2: {'px': 0.0, 'py': 1.0, 'vx': 0.0, 'vy': 0.0}
+    Mode 2: {'px': -0.0, 'py': 1.0, 'vx': 0.0, 'vy': -0.0}
               (dominant: py)
 
+  Singular values (first 5): [7.07106781 7.07106781 0.         0.        ]
+
 [B] Odometry + Absolute Fixes System:
+----------------------------------------------------------------------
   State dimension: 4
   Observable states: 4
   Unobservable states: 0
+  Observability matrix shape: (100, 4)
   Rank: 4 / 4
 
   System is FULLY OBSERVABLE!
 ```
+
+The two unobservable modes are exactly the position axes, and their velocity
+coefficients are zero — which is the chapter's claim made arithmetic. The block
+above is now checked against the program's real output, and pinning it is what
+found the two defects it used to hide: the coefficients printed as
+`np.float64(-0.9999999999999998)` under numpy 2, and `(dominant: ...)` named
+the second-largest component however small, so a mode of `[-1, 0, 0, 0]` was
+reported as `dominant: vy, px` — naming a velocity state, in the section
+arguing velocity is the observable half.
 
 **Key Insights:**
 - Odometry observes velocity → position unobservable (constant drift)

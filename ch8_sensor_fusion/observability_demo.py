@@ -918,9 +918,25 @@ def main():
         print("\n  Unobservable modes (null space basis):")
         for i in range(obs_analysis_odom['n_unobservable']):
             mode = obs_analysis_odom['unobservable_modes'][:, i]
-            print(f"    Mode {i+1}: {dict(zip(state_names, mode))}")
-            # Identify dominant components
-            dominant_idx = np.argsort(np.abs(mode))[-2:]
+            # Round for display. The raw entries are numpy scalars, which
+            # numpy 2 reprs as np.float64(-0.9999999999999998) -- accurate and
+            # unreadable in a table the chapter asks the reader to interpret.
+            components = {
+                name: round(float(value), 3)
+                for name, value in zip(state_names, mode)
+            }
+            print(f"    Mode {i+1}: {components}")
+            # Identify dominant components. Taking argsort()[-2:] unconditionally
+            # named the second-largest entry however small it was, so a mode that
+            # is exactly one basis vector -- [-1, 0, 0, 0] -- was reported as
+            # "dominant: vy, px", naming a state whose coefficient is zero. In a
+            # section arguing that translation is unobservable and velocity is
+            # not, that is the wrong claim to print.
+            magnitudes = np.abs(mode)
+            significant = magnitudes >= 0.1 * magnitudes.max()
+            dominant_idx = [
+                j for j in np.argsort(magnitudes)[::-1] if significant[j]
+            ][:2]
             dominant_states = [state_names[j] for j in dominant_idx]
             print(f"              (dominant: {', '.join(dominant_states)})")
     
