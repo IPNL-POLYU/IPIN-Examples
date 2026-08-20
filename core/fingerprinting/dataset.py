@@ -13,6 +13,7 @@ from typing import Union
 
 import numpy as np
 
+from ..utils.paths import resolve_data_path
 from .types import FingerprintDatabase
 
 
@@ -45,7 +46,7 @@ def load_fingerprint_database(
         >>> print(db)
         FingerprintDatabase(n_rps=75, n_features=6, location_dim=2, floors=[0, 1, 2])
     """
-    data_dir = Path(data_dir)
+    data_dir = resolve_data_path(data_dir)
 
     if format == "npz":
         return _load_npz_database(data_dir)
@@ -64,7 +65,12 @@ def _load_npz_database(data_dir: Path) -> FingerprintDatabase:
     # Check existence
     for filepath in [locations_file, features_file, floor_ids_file, metadata_file]:
         if not filepath.exists():
-            raise FileNotFoundError(f"Required file not found: {filepath}")
+            raise FileNotFoundError(
+                f"Required file not found: {filepath}. Looked under "
+                f"'{data_dir}'. Dataset paths are resolved against the working "
+                f"directory first and then the repository root, so if you meant "
+                f"a shipped dataset, check the name."
+            )
 
     # Load arrays
     locations = np.load(locations_file)

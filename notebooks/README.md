@@ -43,53 +43,53 @@ In addition to notebooks, please explore the extensive resources already availab
 ### Chapter 2: Coordinate Systems
 
 ```bash
-python ch2_coords/example_coordinate_transforms.py
+python -m ch2_coords.example_coordinate_transforms
 ```
 
 ### Chapter 3: State Estimation
 
 ```bash
-python ch3_estimators/example_least_squares.py
-python ch3_estimators/example_kalman_1d.py
-python ch3_estimators/example_ekf_range_bearing.py
-python ch3_estimators/example_comparison.py
+python -m ch3_estimators.example_least_squares
+python -m ch3_estimators.example_kalman_1d
+python -m ch3_estimators.example_ekf_range_bearing
+python -m ch3_estimators.example_comparison
 ```
 
 ### Chapter 4: RF Point Positioning
 
 ```bash
-python ch4_rf_point_positioning/example_toa_positioning.py
-python ch4_rf_point_positioning/example_tdoa_positioning.py
-python ch4_rf_point_positioning/example_aoa_positioning.py
-python ch4_rf_point_positioning/example_comparison.py
+python -m ch4_rf_point_positioning.example_toa_positioning
+python -m ch4_rf_point_positioning.example_tdoa_positioning
+python -m ch4_rf_point_positioning.example_aoa_positioning
+python -m ch4_rf_point_positioning.example_comparison
 ```
 
 ### Chapter 5: Fingerprinting
 
 ```bash
-python ch5_fingerprinting/example_deterministic.py
-python ch5_fingerprinting/example_probabilistic.py
-python ch5_fingerprinting/example_pattern_recognition.py
-python ch5_fingerprinting/example_comparison.py
+python -m ch5_fingerprinting.example_deterministic
+python -m ch5_fingerprinting.example_probabilistic
+python -m ch5_fingerprinting.example_pattern_recognition
+python -m ch5_fingerprinting.example_comparison
 ```
 
 ### Chapter 6: Dead Reckoning
 
 ```bash
-python ch6_dead_reckoning/example_imu_strapdown.py
-python ch6_dead_reckoning/example_pdr.py
-python ch6_dead_reckoning/example_wheel_odometry.py
-python ch6_dead_reckoning/example_zupt.py
-python ch6_dead_reckoning/example_allan_variance.py
-python ch6_dead_reckoning/example_environment.py
-python ch6_dead_reckoning/example_comparison.py
+python -m ch6_dead_reckoning.example_imu_strapdown
+python -m ch6_dead_reckoning.example_pdr
+python -m ch6_dead_reckoning.example_wheel_odometry
+python -m ch6_dead_reckoning.example_zupt
+python -m ch6_dead_reckoning.example_allan_variance
+python -m ch6_dead_reckoning.example_environment
+python -m ch6_dead_reckoning.example_comparison
 ```
 
 ### Chapter 7: SLAM
 
 ```bash
-python ch7_slam/example_pose_graph_slam.py
-python ch7_slam/example_bundle_adjustment.py
+python -m ch7_slam.example_pose_graph_slam
+python -m ch7_slam.example_bundle_adjustment
 ```
 
 ### Chapter 8: Sensor Fusion

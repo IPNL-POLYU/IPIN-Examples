@@ -69,12 +69,17 @@ class ExampleRun(NamedTuple):
 
 
 @functools.lru_cache(maxsize=None)
-def run_example(module: str, *args: str) -> ExampleRun:
+def run_example(module: str, *args: str, cwd: str = None) -> ExampleRun:
     """Run a chapter example as a subprocess, once per argument tuple.
 
     Args:
         module: Importable module path, e.g. "ch7_slam.example_pose_graph_slam".
         *args: Command-line arguments passed to the module.
+        cwd: Working directory to run from, defaulting to the repository root.
+            Part of the memoisation key, so a run from a chapter directory does
+            not collide with the same invocation from the root. Only
+            `tests/docs/test_examples_run_from_chapter_dir.py` passes it; every
+            other caller wants the default.
 
     Returns:
         The shared ExampleRun for this invocation.
@@ -104,10 +109,13 @@ def run_example(module: str, *args: str) -> ExampleRun:
     started_at = time.time()
     process = subprocess.run(
         [sys.executable, "-m", module, *args],
-        # Still the repo root: the examples resolve "data/sim" relative to the
-        # working directory, so a tmpdir here would break dataset loading. Only
-        # the figure output is diverted, and by IPIN_FIGS_DIR above.
-        cwd=WORKSPACE_ROOT,
+        # The repo root by default. Dataset paths now resolve against the
+        # working directory *and then* the repository root
+        # (core.utils.resolve_data_path), so this is no longer load-bearing for
+        # dataset loading -- but it is what every existing caller expects, and
+        # test_examples_run_from_chapter_dir exists to hold the other case.
+        # Only the figure output is diverted, and by IPIN_FIGS_DIR above.
+        cwd=cwd or WORKSPACE_ROOT,
         capture_output=True,
         text=True,
         encoding="utf-8",

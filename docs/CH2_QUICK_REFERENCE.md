@@ -46,7 +46,7 @@
 pytest tests/core/coords/ -v
 
 # Run examples
-python ch2_coords/example_coordinate_transforms.py
+python -m ch2_coords.example_coordinate_transforms
 
 # Search for equation
 grep -r "Eq. (2.1)" core/ ch2_coords/

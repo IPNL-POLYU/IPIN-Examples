@@ -140,12 +140,12 @@ If existing code violates the style guide, propose refactoring to make it compli
 ### Running Examples
 ```bash
 # From repository root - all examples are modules
-python ch3_estimators/example_least_squares.py
+python -m ch3_estimators.example_least_squares
 python -m ch8_sensor_fusion.tc_uwb_imu_ekf
 python -m ch8_sensor_fusion.compare_lc_tc
 
 # Examples can use pre-generated datasets
-python ch3_estimators/example_ekf_range_bearing.py --data ch3_estimator_nonlinear
+python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_nonlinear
 ```
 
 ### Testing Workflow

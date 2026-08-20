@@ -59,20 +59,20 @@ Each chapter folder contains example scripts and a README with equation-to-code 
 
 | Chapter | Topic | Key Algorithms | Equations |
 |---------|-------|----------------|-----------|
-| **Ch2** | Coordinate Systems | LLH↔ECEF↔ENU, Euler/Quaternion/Matrix rotations | Eqs. 2.9-2.23 |
+| **Ch2** | Coordinate Systems | LLH↔ECEF↔ENU, Euler/Quaternion/Matrix rotations | Eqs. 2.1-2.23 |
 | **Ch3** | State Estimation | LS, WLS, KF, EKF, IEKF, UKF, PF, FGO | Eqs. 3.1-3.56 |
-| **Ch4** | RF Positioning | TOA, TDOA, AOA, RSS, DOP | Eqs. 4.1-4.69 |
-| **Ch5** | Fingerprinting | NN, k-NN, MAP, Posterior Mean, Classification | Eqs. 5.1-5.5 |
+| **Ch4** | RF Positioning | TOA, TDOA, AOA, RSS, DOP | Eqs. 4.1-4.108 |
+| **Ch5** | Fingerprinting | NN, k-NN, MAP, Posterior Mean, Classification | Eqs. 5.1-5.6 |
 | **Ch6** | Dead Reckoning | IMU Strapdown, PDR, ZUPT, Wheel Odometry, Allan Variance | Eqs. 6.2-6.61 |
 | **Ch7** | SLAM | ICP, NDT, Pose Graph, Bundle Adjustment | Eqs. 7.10-7.70 |
-| **Ch8** | Sensor Fusion | LC/TC EKF, Observability, Gating, Calibration | Eqs. 8.3-8.9 |
+| **Ch8** | Sensor Fusion | LC/TC EKF, Observability, Gating, Calibration | Eqs. 8.1-8.9 |
 
-**Quick Start:** Run any chapter's example script:
-```bash
-python ch3_estimators/example_least_squares.py
-python ch5_fingerprinting/example_comparison.py
-python ch6_dead_reckoning/example_comparison.py
-```
+The **Equations** column is the span of book equations that
+[`docs/equation_index.yml`](docs/equation_index.yml) maps to code for that
+chapter. It is a span, not a complete list — the index has deliberate gaps
+where the book states an equation this repository does not implement.
+
+See [Quick Start](#quick-start) below to run the examples.
 
 ## Notebooks
 
@@ -94,7 +94,7 @@ See [`notebooks/README.md`](notebooks/README.md) for details.
 
 ### Prerequisites
 
-- Python 3.8 or higher
+- Python 3.10 or higher
 - pip
 
 ### Installation
@@ -123,6 +123,26 @@ source .venv/bin/activate
 ```bash
 pip install -e ".[dev]"
 ```
+
+## Quick Start
+
+Run any chapter's example as a module:
+
+```bash
+python -m ch3_estimators.example_least_squares
+python -m ch5_fingerprinting.example_comparison
+python -m ch6_dead_reckoning.example_comparison
+```
+
+`python -m` puts the repository root on `sys.path`, so these run straight from
+a fresh clone even before step 4 above. The script form —
+`python <chapter>/<example>.py` — puts the *script's* directory there instead,
+so `core` is only importable once the package is installed. That is why every
+command in this repository is written as `python -m`.
+
+Examples find their datasets from any working directory, so `cd`-ing into a
+chapter folder first is fine. Each one prints its results and writes its
+figures to `ch*_*/figs/`; set `IPIN_FIGS_DIR` to send them somewhere else.
 
 ## Code Style
 

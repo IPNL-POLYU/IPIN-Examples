@@ -637,7 +637,7 @@ estimated_pos, info = positioner.solve(tdoa, initial_guess=np.array([6.0, 6.0]))
 
 ### TOA Positioning Example
 
-Running `python ch4_rf_point_positioning/example_toa_positioning.py` produces:
+Running `python -m ch4_rf_point_positioning.example_toa_positioning` produces:
 
 <!-- example-output: ch4_rf_point_positioning.example_toa_positioning -->
 ```
@@ -679,7 +679,7 @@ land low, and the percentile range says how little that means.
 
 ### RF Methods Comparison
 
-Running `python ch4_rf_point_positioning/example_comparison.py` generates a comprehensive comparison:
+Running `python -m ch4_rf_point_positioning.example_comparison` generates a comprehensive comparison:
 
 The left four columns are the noise injected at each level; the right columns
 are the resulting median position error over repeated draws. One draw is not a

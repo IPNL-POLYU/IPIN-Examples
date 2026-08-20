@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Dict, Optional
 
 from core.eval import resolve_figs_dir, save_figure
+from core.utils import resolve_data_path
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -1007,13 +1008,13 @@ Examples:
     
     if args.data:
         # Run with dataset
-        data_path = Path(args.data)
+        data_path = resolve_data_path(args.data)
         if not data_path.exists():
-            data_path = Path("data/sim") / args.data
+            data_path = resolve_data_path(Path("data/sim") / args.data)
         if not data_path.exists():
             print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
             print("\nAvailable datasets:")
-            sim_dir = Path("data/sim")
+            sim_dir = resolve_data_path(Path("data/sim"))
             if sim_dir.exists():
                 for d in sorted(sim_dir.iterdir()):
                     if d.is_dir() and d.name.startswith("ch6"):

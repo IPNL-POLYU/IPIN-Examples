@@ -28,7 +28,7 @@ from pathlib import Path
 
 import numpy as np
 
-from core.utils import angle_diff
+from core.utils import angle_diff, resolve_data_path
 from core.coords import (
     ecef_to_enu,
     ecef_to_llh,
@@ -412,14 +412,14 @@ Examples:
     
     if args.data:
         # Resolve dataset path
-        data_path = Path(args.data)
+        data_path = resolve_data_path(args.data)
         if not data_path.exists():
             # Try prepending data/sim/
-            data_path = Path("data/sim") / args.data
+            data_path = resolve_data_path(Path("data/sim") / args.data)
         if not data_path.exists():
             print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
             print("Available datasets:")
-            sim_dir = Path("data/sim")
+            sim_dir = resolve_data_path(Path("data/sim"))
             if sim_dir.exists():
                 for d in sorted(sim_dir.iterdir()):
                     if d.is_dir() and d.name.startswith("ch2"):

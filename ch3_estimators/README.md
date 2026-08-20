@@ -18,16 +18,16 @@ This module implements the state estimation algorithms described in **Chapter 3*
 
 ```bash
 # Run from repository root
-python ch3_estimators/example_least_squares.py
-python ch3_estimators/example_kalman_1d.py
-python ch3_estimators/example_ekf_range_bearing.py
-python ch3_estimators/example_iekf_range_bearing.py
+python -m ch3_estimators.example_least_squares
+python -m ch3_estimators.example_kalman_1d
+python -m ch3_estimators.example_ekf_range_bearing
+python -m ch3_estimators.example_iekf_range_bearing
 
 # Run with pre-generated dataset
-python ch3_estimators/example_ekf_range_bearing.py --data ch3_estimator_nonlinear
+python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_nonlinear
 
 # Run comprehensive comparison of all estimators (EKF, UKF, PF, FGO)
-python ch3_estimators/example_comparison.py
+python -m ch3_estimators.example_comparison
 
 # A posterior no Gaussian can hold (add --animate for the GIF)
 python -m ch3_estimators.example_particle_bimodal
@@ -342,7 +342,7 @@ Demonstrates constant-velocity Kalman Filter for 1D position and velocity estima
 ### Example 3: EKF Range-Bearing Tracking (Section 3.2.2)
 
 ```bash
-python ch3_estimators/example_ekf_range_bearing.py
+python -m ch3_estimators.example_ekf_range_bearing
 ```
 
 Demonstrates Extended Kalman Filter for 2D trajectory estimation with nonlinear range-bearing measurements. Includes proper angle wrapping for bearing innovations.
@@ -350,7 +350,7 @@ Demonstrates Extended Kalman Filter for 2D trajectory estimation with nonlinear 
 ### Example 4: IEKF vs EKF Comparison (Section 3.2.3)
 
 ```bash
-python ch3_estimators/example_iekf_range_bearing.py
+python -m ch3_estimators.example_iekf_range_bearing
 ```
 
 Demonstrates the Iterated Extended Kalman Filter and compares it with standard EKF in high-nonlinearity scenarios. Shows IEKF's improved stability when measurements are highly nonlinear.
@@ -358,7 +358,7 @@ Demonstrates the Iterated Extended Kalman Filter and compares it with standard E
 ### Example 5: Estimator Comparison (Section 3.5)
 
 ```bash
-python ch3_estimators/example_comparison.py
+python -m ch3_estimators.example_comparison
 ```
 
 Compares EKF, UKF, Particle Filter, and Factor Graph Optimization on the same 2D tracking problem. Demonstrates accuracy vs. computational cost trade-offs.

@@ -183,8 +183,8 @@ The range model is `h(x) = ||[x, y] - b_i||` and the bearing model is
 1. **Run the chapter example on both datasets and compare.**
 
    ```bash
-   python ch3_estimators/example_ekf_range_bearing.py --data ch3_estimator_nonlinear
-   python ch3_estimators/example_ekf_range_bearing.py --data ch3_estimator_high_nonlinear
+   python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_nonlinear
+   python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_high_nonlinear
    ```
 
 2. **Check consistency, not just error.** A filter can have a respectable RMSE
