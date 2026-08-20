@@ -575,6 +575,49 @@ where pytest reported five. Both times the answer was to stop trusting the
 scratch tool and use the guard as the oracle. That is the third harness in this
 audit to misreport the thing it was pointed at.
 
+## Four guards that measurement killed, and why that was the right answer
+
+PR #66 fixed equation-number drift in four notebooks by hand: ch2's intro
+claimed Eq. (2.1)-(2.10) mapped sequentially to LLH/ECEF/ENU/rotations, when
+`docs/equation_index.yml` and the chapter README had carried the corrected
+numbers since an earlier audit -- LLH/ECEF is (2.9). The obvious follow-up is a
+guard so it cannot drift again. **Four designs, four rejected by measurement.**
+They are written down here because each one is the first thing the next person
+will think of, and each takes an hour to disprove:
+
+- **Every `Eq. (N.M)` cited anywhere must exist in the index.** The invariant
+  itself is wrong: the index maps equations *to code*, not to the book, and ch3
+  has no 3.5, 3.6, 3.7, 3.10 or 3.13. Thirteen files legitimately cite
+  unimplemented equations, and this guard calls every one of them drift.
+- **Within a cell, a cited equation must match the indexed object called
+  there.** Can never fire: equations live in markdown cells and calls in code
+  cells, so **0** such pairs exist.
+- **Within a notebook, calling an indexed object requires citing its
+  equation.** 68% noise -- 17 of 25 called objects have no equation cited, and
+  that is normal prose.
+- **A symbol named in notebook prose must exist.** Vacuous: notebook markdown
+  contains **0** backticked identifiers.
+
+The first is the instructive one. I proposed it before measuring, and it would
+have turned thirteen honest documents red. **Check what the reference data
+actually covers before asserting things against it** -- `equation_index.yml` is
+a code map with deliberate gaps, not a table of contents, and nothing about its
+name says so.
+
+**The coupling people worry about is already guarded.** "If we change the Python,
+do the notebooks follow?" -- yes, `tests/docs/test_notebooks_run.py` executes all
+seven in a real kernel and asserts no cell produced an `error` output. Verified
+by mutation rather than by reading: adding a required argument to
+`core.coords.rotations.euler_to_quat` turns the ch2 notebook red in 8.7 seconds.
+What is *not* guarded is notebook prose -- equation numbers, described behaviour
+-- and that is the same class as the ` ```bash ` paths in the section above,
+except that here no precise invariant exists to check it against.
+
+So the useful distinction, and it is worth keeping: **an API coupling is a gate,
+a prose claim about numbering is a rule.** A guard built anyway would land in one
+of two states -- never firing, or noisy enough that someone turns it off -- and
+both are worse than the rule, because both look like coverage.
+
 ## Attributing a dataset diff
 
 If regenerating a dataset produces a diff, find out whether your change caused
