@@ -870,10 +870,13 @@ today, as is `KNOWN_PYFLAKES` — see below.
 ## Lint
 
 pyflakes is clean across the whole repo and `test_no_pyflakes_warnings` in
-`tests/test_repo_conventions.py` keeps it that way, over `core/`, `scripts/`,
-`tests/` and the chapter directories — 259 files, about 5 seconds, via the
-pyflakes API rather than a subprocess each. Syntax errors count as failures
-too. `pyflakes` is declared in the `dev` extra rather than inherited from
+`tests/test_repo_conventions.py` keeps it that way, over five areas — `core/`,
+`scripts/`, `tests/`, `tools/` and the chapter directories, just under 300 files
+today. It runs them through the pyflakes API rather than spawning a subprocess
+per file, and the reason is worth the sentence: a spawn costs about 0.85 s on
+this machine, so the subprocess form would take **roughly four minutes** where
+the API takes **about six seconds**. Syntax errors count as failures too.
+`pyflakes` is declared in the `dev` extra rather than inherited from
 flake8, because a tool present by accident makes a test skip in silence.
 
 **The half of that check that earns it is undefined names, not tidiness.** An
