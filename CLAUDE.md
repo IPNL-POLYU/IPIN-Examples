@@ -26,11 +26,20 @@ resolves to the main checkout — including whatever uncommitted changes happen
 to sit there. You can edit `core/` in your worktree, run an example, and test
 a completely different copy without any error.
 
-Pin the worktree root, which lands ahead of the editable finder:
+**Run it as a module and the problem does not arise.** `python -m` puts the
+working directory on `sys.path[0]`, which lands ahead of the editable finder,
+so from the worktree root you get the worktree's `core`:
 
 ```bash
-PYTHONPATH=$(pwd) python ch6_dead_reckoning/example_comparison.py
+python -m ch6_dead_reckoning.example_comparison
 ```
+
+Measured against a scratch worktree carrying a marked `core/`: the script form
+resolved to the main checkout, the module form to the worktree copy. Setting
+`PYTHONPATH=$(pwd)` also works and is what this note used to say; it is now
+redundant, because every documented command in the repository is the module
+form and `tests/docs/test_documented_commands_use_module_form.py` keeps it that
+way. Two problems, one fix — see the section below for the other one.
 
 The tell-tale symptom is a `TypeError` about an argument you just added, while
 `python -c "import core..."` shows the right signature — the `-c` form puts cwd
@@ -574,6 +583,71 @@ Twice I wrote a quick script to enumerate the findings and it reported one file
 where pytest reported five. Both times the answer was to stop trusting the
 scratch tool and use the guard as the oracle. That is the third harness in this
 audit to misreport the thing it was pointed at.
+
+## The first ten minutes, and the documents nobody re-reads
+
+Walking the repository as a first-time reader — fresh clone, README top to
+bottom, run the first thing it tells you to run — found four blockers before
+any of the physics. All 38 runnable demos passed throughout; none of this was
+broken code.
+
+**The entry documents had the invocation form backwards.** The seven chapter
+READMEs used `python -m` 71 times against 11 script uses, but the top-level
+README's Quick Start and `notebooks/README.md` — the two documents a newcomer
+actually lands on — used the script form throughout, and Quick Start sat
+*above* the Setup section that installs the package. The script form puts the
+*script's* directory on `sys.path`, so on a clone that has not been installed
+it is `ModuleNotFoundError: No module named 'core'`. The three most prominent
+commands in the repository were the only ones that could not work in the state
+the reader was in when they read them.
+
+Expect that shape: **the most-read documents are the least re-read.** A chapter
+README gets revisited every time its chapter changes; the front page does not.
+All 46 occurrences across nine documents are module form now, held by
+`tests/docs/test_documented_commands_use_module_form.py`.
+
+**Exit status is not evidence that a stage ran.** `cd`-ing into a chapter
+folder used to break the twelve dataset-reading examples, because
+`Path("data/sim")` is cwd-relative; `core.utils.resolve_data_path` now tries
+the working directory and then the repository root. The guard over it asserts
+on *output*, and has to: ch4's `--compare-geometry` prints
+`Skipping <name> (not found)` and **exits 0**, so an exit-code check stays
+green while the comparison compares nothing. ch2, ch3 and ch6's `--data`
+handling is the same shape — a message and `return`. Same family as the
+"number at chance" signature below: a stage that does nothing rarely says so.
+
+**A grep sees the spellings you thought to look for.** `requires-python`
+claimed `>=3.8` and was false — five modules annotate with PEP 585 generics and
+carry no `from __future__ import annotations`, so 3.8 raises at *import* time.
+Grepping for built-in generics found those five and said the floor was 3.9. The
+AST check written to hold the new floor immediately added a sixth,
+`core/coords/transforms.py`, annotating `NDArray[np.float64] | None` — PEP 604,
+where `types.GenericAlias.__or__` arrives in **3.10**. That is the module
+Chapter 2 opens with, so the package could never have run on 3.9 either. Parse,
+do not grep, when the question is "what syntax does this use" — the same reason
+`test_documented_flags_exist.py` reads argparse instead of running `--help`.
+
+**A configured checker that is not run is indistinguishable from one that
+passes.** mypy's own config said `python_version = "3.8"` and would have
+flagged every one of those files. CI runs a single pytest job on 3.11 and never
+invokes mypy, ruff, black or pylint, all four of which the README tells readers
+to run. Before concluding a class of defect is covered, check the workflow file
+rather than the config.
+
+**Underselling generates no bug reports.** The chapter table advertised
+Ch4 as "Eqs. 4.1-4.69" while `docs/equation_index.yml` maps to 4.108 — hiding
+the AOA closed-form solvers and the whole GDOP/HDOP/VDOP family. Ch2, Ch5 and
+Ch8 were narrow too. A reader told something is absent does not go looking for
+it, so this can stay wrong indefinitely without a single complaint, which is
+the opposite of the failure modes the rest of this file records.
+`tests/docs/test_chapter_table_equation_ranges.py` recomputes each span.
+
+Two things left deliberately undone, because they are judgement calls rather
+than defects: **Chapter 8 has nine runnable demos and only one is named
+`example_*`**, so a reader who learned the pattern from ch2-ch7 finds almost
+nothing there; and **`plt.show()` is in 12 of 31 examples and absent from 19**,
+undocumented, blocking under a GUI backend and warning under Agg. Also, 17 of
+31 examples have no `argparse`, so `--help` runs the whole demo.
 
 ## Four guards that measurement killed, and why that was the right answer
 
