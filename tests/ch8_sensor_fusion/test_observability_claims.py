@@ -25,7 +25,7 @@ matplotlib.use("Agg")  # headless: no display during tests
 
 import numpy as np
 
-from ch8_sensor_fusion.observability_demo import (
+from ch8_sensor_fusion.example_observability import (
     generate_absolute_fixes,
     generate_odometry_measurements,
     generate_trajectory,

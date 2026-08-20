@@ -141,8 +141,8 @@ If existing code violates the style guide, propose refactoring to make it compli
 ```bash
 # From repository root - all examples are modules
 python -m ch3_estimators.example_least_squares
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf
-python -m ch8_sensor_fusion.compare_lc_tc
+python -m ch8_sensor_fusion.example_tc_fusion
+python -m ch8_sensor_fusion.example_comparison
 
 # Examples can use pre-generated datasets
 python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_nonlinear
@@ -233,9 +233,9 @@ ekf.update(measurement=z)
 ### Sensor Fusion Patterns (`ch8_sensor_fusion/`, `core/fusion/`)
 **Tightly vs Loosely Coupled:**
 - **Tightly Coupled (TC):** Direct sensor measurements in EKF update (e.g., UWB ranges → EKF)
-  - Files: `tc_uwb_imu_ekf.py` (demo), `core/fusion/tc_models.py`, `core/fusion/tightly_coupled.py`
+  - Files: `example_tc_fusion.py` (demo), `core/fusion/tc_models.py`, `core/fusion/tightly_coupled.py`
 - **Loosely Coupled (LC):** Position estimates from sub-filters → EKF
-  - Files: `lc_uwb_imu_ekf.py` (demo), `core/fusion/lc_models.py`, `core/fusion/loosely_coupled.py`
+  - Files: `example_lc_fusion.py` (demo), `core/fusion/lc_models.py`, `core/fusion/loosely_coupled.py`
 
 **Sequential vs Batch Updates:**
 - Sequential: One measurement at a time (`ekf.update(z)`)

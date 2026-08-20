@@ -95,12 +95,12 @@ python -m ch7_slam.example_bundle_adjustment
 ### Chapter 8: Sensor Fusion
 
 ```bash
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf
-python -m ch8_sensor_fusion.compare_lc_tc
-python -m ch8_sensor_fusion.observability_demo
-python -m ch8_sensor_fusion.temporal_calibration_demo
-python -m ch8_sensor_fusion.tuning_robust_demo
+python -m ch8_sensor_fusion.example_lc_fusion
+python -m ch8_sensor_fusion.example_tc_fusion
+python -m ch8_sensor_fusion.example_comparison
+python -m ch8_sensor_fusion.example_observability
+python -m ch8_sensor_fusion.example_temporal_calibration
+python -m ch8_sensor_fusion.example_robust_tuning
 ```
 
 ## Available Documentation

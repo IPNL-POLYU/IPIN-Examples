@@ -13,17 +13,17 @@
 <g id="clust1" class="cluster">
 <title>cluster_lc</title>
 <path fill="none" stroke="#999999" d="M666.68,-340C666.68,-340 3328.35,-340 3328.35,-340 3334.35,-340 3340.35,-346 3340.35,-352 3340.35,-352 3340.35,-548 3340.35,-548 3340.35,-554 3334.35,-560 3328.35,-560 3328.35,-560 666.68,-560 666.68,-560 660.68,-560 654.68,-554 654.68,-548 654.68,-548 654.68,-352 654.68,-352 654.68,-346 660.68,-340 666.68,-340"/>
-<text text-anchor="middle" x="1997.51" y="-543.2" font-family="Times,serif" font-size="16.00">Loosely Coupled (lc_uwb_imu_ekf.py)</text>
+<text text-anchor="middle" x="1997.51" y="-543.2" font-family="Times,serif" font-size="16.00">Loosely Coupled (example_lc_fusion.py)</text>
 </g>
 <g id="clust2" class="cluster">
 <title>cluster_tc</title>
 <path fill="none" stroke="#999999" d="M661.18,-94C661.18,-94 3012.35,-94 3012.35,-94 3018.35,-94 3024.35,-100 3024.35,-106 3024.35,-106 3024.35,-320 3024.35,-320 3024.35,-326 3018.35,-332 3012.35,-332 3012.35,-332 661.18,-332 661.18,-332 655.18,-332 649.18,-326 649.18,-320 649.18,-320 649.18,-106 649.18,-106 649.18,-100 655.18,-94 661.18,-94"/>
-<text text-anchor="middle" x="1836.76" y="-315.2" font-family="Times,serif" font-size="16.00">Tightly Coupled (tc_uwb_imu_ekf.py)</text>
+<text text-anchor="middle" x="1836.76" y="-315.2" font-family="Times,serif" font-size="16.00">Tightly Coupled (example_tc_fusion.py)</text>
 </g>
 <g id="clust3" class="cluster">
 <title>cluster_cmp</title>
 <path fill="none" stroke="#999999" d="M675.18,-8C675.18,-8 1450.18,-8 1450.18,-8 1456.18,-8 1462.18,-14 1462.18,-20 1462.18,-20 1462.18,-74 1462.18,-74 1462.18,-80 1456.18,-86 1450.18,-86 1450.18,-86 675.18,-86 675.18,-86 669.18,-86 663.18,-80 663.18,-74 663.18,-74 663.18,-20 663.18,-20 663.18,-14 669.18,-8 675.18,-8"/>
-<text text-anchor="middle" x="1062.68" y="-69.2" font-family="Times,serif" font-size="16.00">Comparison (compare_lc_tc.py)</text>
+<text text-anchor="middle" x="1062.68" y="-69.2" font-family="Times,serif" font-size="16.00">Comparison (example_comparison.py)</text>
 </g>
 <!-- start -->
 <g id="node1" class="node">

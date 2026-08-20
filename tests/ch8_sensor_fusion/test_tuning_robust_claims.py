@@ -27,8 +27,8 @@ matplotlib.use("Agg")  # headless: no display during tests
 
 import numpy as np
 
-from ch8_sensor_fusion.tc_uwb_imu_ekf import load_fusion_dataset
-from ch8_sensor_fusion.tuning_robust_demo import run_fusion_with_strategy
+from ch8_sensor_fusion.example_tc_fusion import load_fusion_dataset
+from ch8_sensor_fusion.example_robust_tuning import run_fusion_with_strategy
 from core.eval import compute_rmse
 
 # The demo's assumed range noise, from run_fusion_with_strategy.

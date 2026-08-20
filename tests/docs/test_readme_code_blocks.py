@@ -14,7 +14,7 @@ Widening it from Chapter 6 to every dataset README took that to 30 failures
 across 10 datasets. **But most of that 30 was not broken code.** Twenty-one of
 the blocks are illustrative fragments never meant to run standalone -- a bare
 `quat = quat / np.linalg.norm(quat)` showing a normalisation, a block opening
-`# In tc_uwb_imu_ekf.py, add parameter:`, or `Δt_{k+1} = Δt_k + w_Δt` which is
+`# In example_tc_fusion.py, add parameter:`, or `Δt_{k+1} = Δt_k + w_Δt` which is
 maths rather than Python. Executing those is the wrong check, and counting them
 made the register mean "failed to execute" when it should mean "is wrong".
 

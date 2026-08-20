@@ -669,7 +669,7 @@ def run_odometry_with_fixes_fusion(
     return history
 
 
-def plot_observability_demo(
+def plot_example_observability(
     trajectory: Dict,
     odom_only_1: Dict,
     odom_only_2: Dict,
@@ -1030,7 +1030,7 @@ def main():
     # Plot
     save_path = args.save if args.save else "ch8_sensor_fusion/figs/observability_demo.svg"
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-    plot_observability_demo(
+    plot_example_observability(
         trajectory, odom_only_1, odom_only_2, odom_with_fixes,
         translation_offset, save_path=save_path
     )

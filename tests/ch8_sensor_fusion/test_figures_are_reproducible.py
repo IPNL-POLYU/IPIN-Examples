@@ -44,13 +44,13 @@ COMMITTED = WORKSPACE_ROOT / "ch8_sensor_fusion" / "figs"
 #: Every runnable demo in the chapter, spelled as the README's transcript
 #: markers spell them so the memoised runs are shared rather than repeated.
 DEMOS = (
-    "ch8_sensor_fusion.tc_uwb_imu_ekf",
-    "ch8_sensor_fusion.lc_uwb_imu_ekf",
-    "ch8_sensor_fusion.compare_lc_tc",
-    "ch8_sensor_fusion.observability_demo",
-    "ch8_sensor_fusion.tuning_robust_demo",
-    "ch8_sensor_fusion.temporal_calibration_demo",
-    "ch8_sensor_fusion.calibration_demo",
+    "ch8_sensor_fusion.example_tc_fusion",
+    "ch8_sensor_fusion.example_lc_fusion",
+    "ch8_sensor_fusion.example_comparison",
+    "ch8_sensor_fusion.example_observability",
+    "ch8_sensor_fusion.example_robust_tuning",
+    "ch8_sensor_fusion.example_temporal_calibration",
+    "ch8_sensor_fusion.example_calibration",
     "ch8_sensor_fusion.example_anchor_outage",
 )
 

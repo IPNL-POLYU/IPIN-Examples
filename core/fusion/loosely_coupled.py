@@ -3,7 +3,7 @@
 Author: Li-Ta Hsu
 
 The counterpart to :mod:`core.fusion.tightly_coupled`, separated from the demo
-that plots it for the same reason: ``compare_lc_tc`` and
+that plots it for the same reason: ``example_comparison`` and
 ``example_anchor_outage`` both need it, and an example that other examples
 import is not an example.
 

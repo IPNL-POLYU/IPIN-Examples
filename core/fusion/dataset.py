@@ -2,7 +2,7 @@
 
 Author: Li-Ta Hsu
 
-This lived in ``ch8_sensor_fusion/tc_uwb_imu_ekf.py`` and was imported from
+This lived in ``ch8_sensor_fusion/example_tc_fusion.py`` and was imported from
 there by four of that chapter's demos, which made a demo into a library and
 Chapter 8 into the only chapter whose examples are not leaves. The loader is
 not tightly-coupled-specific -- both architectures read the same dataset -- so

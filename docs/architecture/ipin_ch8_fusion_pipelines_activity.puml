@@ -11,7 +11,7 @@ skinparam activity {
 start
 :Run a Chapter 8 fusion script;
 if (Which pipeline?) then (LC)
-  partition "Loosely Coupled (lc_uwb_imu_ekf.py)" {
+  partition "Loosely Coupled (example_lc_fusion.py)" {
     :Parse args (data dir, gating, save figs);
     :Load dataset (truth, IMU 100Hz, UWB ranges 10Hz, anchors);
     :Create LC EKF\nstate=[x,y,vx,vy,yaw]\nIMU process model;
@@ -31,7 +31,7 @@ if (Which pipeline?) then (LC)
     :Evaluate + RMSE;\nSave plots to ch8/figs;
   }
 elseif (TC)
-  partition "Tightly Coupled (tc_uwb_imu_ekf.py)" {
+  partition "Tightly Coupled (example_tc_fusion.py)" {
     :Parse args (batch_update?, gating, save figs);
     :Load dataset (truth, IMU, UWB ranges, anchors);
     :Create TC EKF\nstate=[x,y,vx,vy,yaw]\nIMU process model;
@@ -53,7 +53,7 @@ elseif (TC)
     :Evaluate + RMSE\n(+ IMU-only baseline);\nSave plots to ch8/figs;
   }
 else (Compare)
-  partition "Comparison (compare_lc_tc.py)" {
+  partition "Comparison (example_comparison.py)" {
     :Run LC + TC on same dataset;
     :Compute comparative metrics\n(RMSE, NIS, gating rates);
     :Plot side-by-side + save report/figs;

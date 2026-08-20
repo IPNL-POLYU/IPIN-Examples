@@ -276,10 +276,10 @@ This dataset is designed to demonstrate:
 **Setup**:
 ```bash
 # Run LC fusion (two-stage)
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
+python -m ch8_sensor_fusion.example_lc_fusion --data data/sim/ch8_fusion_2d_imu_uwb
 
 # Run TC fusion (single-stage)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
+python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/ch8_fusion_2d_imu_uwb
 ```
 
 **Expected Observations**:
@@ -314,9 +314,9 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
     --preset degraded_imu --output data/sim/fusion_mems
 
 # Run fusion on each
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_tactical
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_consumer
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_mems
+python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/fusion_tactical
+python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/fusion_consumer
+python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/fusion_mems
 ```
 
 **Expected Observations**:
@@ -341,7 +341,7 @@ python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_mems
 Modify fusion script to scale R by factors: 0.1, 0.5, 1.0, 2.0, 5.0
 
 ```py
-# In tc_uwb_imu_ekf.py, add parameter:
+# In example_tc_fusion.py, add parameter:
 R_scale = 1.0  # vary this: 0.1, 0.5, 1.0, 2.0, 5.0
 R = (range_noise_std ** 2) * R_scale * np.eye(4)
 ```
@@ -444,9 +444,9 @@ See `scripts/README.md` for more experimentation scenarios.
   - Innovation Monitoring: Eqs. (8.8)-(8.9)
   - LC Fusion: Eqs. (8.13)-(8.18)
 - **Related Examples**: 
-  - `ch8_sensor_fusion/lc_uwb_imu_ekf.py` - Loosely-coupled demo
-  - `ch8_sensor_fusion/tc_uwb_imu_ekf.py` - Tightly-coupled demo
-  - `ch8_sensor_fusion/tuning_robust_demo.py` - NIS analysis and robust tuning
+  - `ch8_sensor_fusion/example_lc_fusion.py` - Loosely-coupled demo
+  - `ch8_sensor_fusion/example_tc_fusion.py` - Tightly-coupled demo
+  - `ch8_sensor_fusion/example_robust_tuning.py` - NIS analysis and robust tuning
 - **Generation Script**: `scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py`
 - **Variants**: See `fusion_2d_imu_uwb_nlos/` and `fusion_2d_imu_uwb_timeoffset/`
 

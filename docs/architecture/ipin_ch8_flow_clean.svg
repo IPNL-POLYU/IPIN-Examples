@@ -75,7 +75,7 @@
 <g id="node33" class="node">
 <title>o_run</title>
 <path fill="#f7f7f7" stroke="#444444" d="M972.83,-61C972.83,-61 855.83,-61 855.83,-61 849.83,-61 843.83,-55 843.83,-49 843.83,-49 843.83,-37 843.83,-37 843.83,-31 849.83,-25 855.83,-25 855.83,-25 972.83,-25 972.83,-25 978.83,-25 984.83,-31 984.83,-37 984.83,-37 984.83,-49 984.83,-49 984.83,-55 978.83,-61 972.83,-61"/>
-<text text-anchor="middle" x="914.33" y="-40.2" font-family="Helvetica,sans-Serif" font-size="11.00">observability_demo.py</text>
+<text text-anchor="middle" x="914.33" y="-40.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_observability.py</text>
 </g>
 <!-- decide&#45;&gt;o_run -->
 <g id="edge40" class="edge">
@@ -88,7 +88,7 @@
 <g id="node4" class="node">
 <title>f_lc</title>
 <path fill="#f7f7f7" stroke="#444444" d="M1219.68,-306C1219.68,-306 1110.68,-306 1110.68,-306 1104.68,-306 1098.68,-300 1098.68,-294 1098.68,-294 1098.68,-282 1098.68,-282 1098.68,-276 1104.68,-270 1110.68,-270 1110.68,-270 1219.68,-270 1219.68,-270 1225.68,-270 1231.68,-276 1231.68,-282 1231.68,-282 1231.68,-294 1231.68,-294 1231.68,-300 1225.68,-306 1219.68,-306"/>
-<text text-anchor="middle" x="1165.18" y="-291.2" font-family="Helvetica,sans-Serif" font-size="11.00">lc_uwb_imu_ekf.py</text>
+<text text-anchor="middle" x="1165.18" y="-291.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_lc_fusion.py</text>
 <text text-anchor="middle" x="1165.18" y="-279.2" font-family="Helvetica,sans-Serif" font-size="11.00">Loosely Coupled (LC)</text>
 </g>
 <!-- f_decide&#45;&gt;f_lc -->
@@ -101,7 +101,7 @@
 <g id="node5" class="node">
 <title>f_tc</title>
 <path fill="#f7f7f7" stroke="#444444" d="M1217.18,-378C1217.18,-378 1113.18,-378 1113.18,-378 1107.18,-378 1101.18,-372 1101.18,-366 1101.18,-366 1101.18,-354 1101.18,-354 1101.18,-348 1107.18,-342 1113.18,-342 1113.18,-342 1217.18,-342 1217.18,-342 1223.18,-342 1229.18,-348 1229.18,-354 1229.18,-354 1229.18,-366 1229.18,-366 1229.18,-372 1223.18,-378 1217.18,-378"/>
-<text text-anchor="middle" x="1165.18" y="-363.2" font-family="Helvetica,sans-Serif" font-size="11.00">tc_uwb_imu_ekf.py</text>
+<text text-anchor="middle" x="1165.18" y="-363.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_tc_fusion.py</text>
 <text text-anchor="middle" x="1165.18" y="-351.2" font-family="Helvetica,sans-Serif" font-size="11.00">Tightly Coupled (TC)</text>
 </g>
 <!-- f_decide&#45;&gt;f_tc -->
@@ -114,7 +114,7 @@
 <g id="node6" class="node">
 <title>f_cmp</title>
 <path fill="#f7f7f7" stroke="#444444" d="M1218.68,-450C1218.68,-450 1111.68,-450 1111.68,-450 1105.68,-450 1099.68,-444 1099.68,-438 1099.68,-438 1099.68,-426 1099.68,-426 1099.68,-420 1105.68,-414 1111.68,-414 1111.68,-414 1218.68,-414 1218.68,-414 1224.68,-414 1230.68,-420 1230.68,-426 1230.68,-426 1230.68,-438 1230.68,-438 1230.68,-444 1224.68,-450 1218.68,-450"/>
-<text text-anchor="middle" x="1165.18" y="-435.2" font-family="Helvetica,sans-Serif" font-size="11.00">compare_lc_tc.py</text>
+<text text-anchor="middle" x="1165.18" y="-435.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_comparison.py</text>
 <text text-anchor="middle" x="1165.18" y="-423.2" font-family="Helvetica,sans-Serif" font-size="11.00">LC vs TC comparison</text>
 </g>
 <!-- f_decide&#45;&gt;f_cmp -->
@@ -127,7 +127,7 @@
 <g id="node7" class="node">
 <title>f_tune</title>
 <path fill="#f7f7f7" stroke="#444444" d="M1225.68,-522C1225.68,-522 1104.68,-522 1104.68,-522 1098.68,-522 1092.68,-516 1092.68,-510 1092.68,-510 1092.68,-498 1092.68,-498 1092.68,-492 1098.68,-486 1104.68,-486 1104.68,-486 1225.68,-486 1225.68,-486 1231.68,-486 1237.68,-492 1237.68,-498 1237.68,-498 1237.68,-510 1237.68,-510 1237.68,-516 1231.68,-522 1225.68,-522"/>
-<text text-anchor="middle" x="1165.18" y="-507.2" font-family="Helvetica,sans-Serif" font-size="11.00">tuning_robust_demo.py</text>
+<text text-anchor="middle" x="1165.18" y="-507.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_robust_tuning.py</text>
 <text text-anchor="middle" x="1165.18" y="-495.2" font-family="Helvetica,sans-Serif" font-size="11.00">Robust tuning</text>
 </g>
 <!-- f_decide&#45;&gt;f_tune -->
@@ -378,7 +378,7 @@
 <g id="node25" class="node">
 <title>c_intr</title>
 <path fill="#f7f7f7" stroke="#444444" d="M1217.18,-148C1217.18,-148 1113.18,-148 1113.18,-148 1107.18,-148 1101.18,-142 1101.18,-136 1101.18,-136 1101.18,-124 1101.18,-124 1101.18,-118 1107.18,-112 1113.18,-112 1113.18,-112 1217.18,-112 1217.18,-112 1223.18,-112 1229.18,-118 1229.18,-124 1229.18,-124 1229.18,-136 1229.18,-136 1229.18,-142 1223.18,-148 1217.18,-148"/>
-<text text-anchor="middle" x="1165.18" y="-133.2" font-family="Helvetica,sans-Serif" font-size="11.00">calibration_demo.py</text>
+<text text-anchor="middle" x="1165.18" y="-133.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_calibration.py</text>
 <text text-anchor="middle" x="1165.18" y="-121.2" font-family="Helvetica,sans-Serif" font-size="11.00">Intrinsic + Extrinsic</text>
 </g>
 <!-- c_decide&#45;&gt;c_intr -->
@@ -391,7 +391,7 @@
 <g id="node26" class="node">
 <title>c_temp</title>
 <path fill="#f7f7f7" stroke="#444444" d="M1244.18,-220C1244.18,-220 1086.18,-220 1086.18,-220 1080.18,-220 1074.18,-214 1074.18,-208 1074.18,-208 1074.18,-196 1074.18,-196 1074.18,-190 1080.18,-184 1086.18,-184 1086.18,-184 1244.18,-184 1244.18,-184 1250.18,-184 1256.18,-190 1256.18,-196 1256.18,-196 1256.18,-208 1256.18,-208 1256.18,-214 1250.18,-220 1244.18,-220"/>
-<text text-anchor="middle" x="1165.18" y="-205.2" font-family="Helvetica,sans-Serif" font-size="11.00">temporal_calibration_demo.py</text>
+<text text-anchor="middle" x="1165.18" y="-205.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_temporal_calibration.py</text>
 <text text-anchor="middle" x="1165.18" y="-193.2" font-family="Helvetica,sans-Serif" font-size="11.00">Temporal calibration</text>
 </g>
 <!-- c_decide&#45;&gt;c_temp -->

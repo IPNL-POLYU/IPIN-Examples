@@ -153,12 +153,12 @@ delete honest sentences.
 **The worst of what this found was not a broken link.** Chasing
 `tc_uwb_imu_ekf_augmented` showed the whole experiment around it was
 unrunnable: all three commands in that block passed flags
-(`--no-time-correction`, `--time-offset`, `--output`) that `tc_uwb_imu_ekf` does
+(`--no-time-correction`, `--time-offset`, `--output`) that `example_tc_fusion` does
 not have, and the results table reported RMSE, NIS and convergence for runs
 nobody could perform. Its "offline correction" row claimed 0.08-0.12 m against
 an uncorrected 0.18-0.25 m -- correction more than halving the error -- where
 the real demo measures 0.211 m to 0.185 m, 12.5%. **The kinematic bound was
-already written down in the code**: `temporal_calibration_demo.py`'s docstring
+already written down in the code**: `example_temporal_calibration.py`'s docstring
 records that a 50 ms offset at 1 m/s displaces the platform 5 cm and so cannot
 cost more, having had this exact inflation removed once before. The doc kept the
 old story. When a document and a docstring disagree about the size of an effect,
@@ -196,7 +196,7 @@ Fences carry meaning here:
 
 - ` ```python ` — a reader is expected to run this, and the guard executes it.
 - ` ```py ` — an illustrative fragment (`quat = quat / np.linalg.norm(quat)`,
-  or a block opening `# In tc_uwb_imu_ekf.py, add parameter:`). Not executed.
+  or a block opening `# In example_tc_fusion.py, add parameter:`). Not executed.
   Both fences still highlight as Python in GitHub, VS Code and mkdocs.
 
 `FRAGMENT_BLOCKS` in that file pins the ` ```py ` count per README, because the
@@ -570,11 +570,11 @@ and can be pointed anywhere.
 
 Also found and fixed: `--alpha` on the ch8 fusion runs (the flag is
 `--confidence`, and `alpha` was deprecated in favour of it, so 0.05 becomes
-0.95), `--output results.json` on `tc_uwb_imu_ekf` (it has `--save`, which takes
-a *figure* path), `--no-correction` on `temporal_calibration_demo` (it runs both
+0.95), `--output results.json` on `example_tc_fusion` (it has `--save`, which takes
+a *figure* path), `--no-correction` on `example_temporal_calibration` (it runs both
 paths in one pass -- there is nothing to switch off), `--imu-grade` and
 `--accel-bias` on the ch6 strapdown generator (`--preset`, and per-axis
-`--accel-bias-x/-y`), and `--r-scale` on `tc_uwb_imu_ekf` -- where the paragraph
+`--accel-bias-x/-y`), and `--r-scale` on `example_tc_fusion` -- where the paragraph
 directly above the block already said "modify the fusion script", so the doc
 contradicted itself in adjacent lines.
 

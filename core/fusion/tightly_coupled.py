@@ -3,8 +3,8 @@
 Author: Li-Ta Hsu
 
 The pipeline itself, separated from the demo that plots it. It was previously
-defined inside ``ch8_sensor_fusion/tc_uwb_imu_ekf.py`` and imported from there
-by ``compare_lc_tc`` and ``example_anchor_outage``; every other chapter keeps
+defined inside ``ch8_sensor_fusion/example_tc_fusion.py`` and imported from there
+by ``example_comparison`` and ``example_anchor_outage``; every other chapter keeps
 its shared implementation in ``core/`` and its examples as leaves.
 
 References: Chapter 8, Section 8.1.2 (Tightly Coupled)

@@ -272,17 +272,17 @@ So NLOS measurements should be easily detected!
 **Setup**:
 ```bash
 # Run fusion without gating (corrupted by NLOS)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+python -m ch8_sensor_fusion.example_tc_fusion \
     --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --no-gating
 
 # Run fusion with chi-square gating (α=0.05)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+python -m ch8_sensor_fusion.example_tc_fusion \
     --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --confidence 0.95
 
 # Run with stricter gating (α=0.01)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+python -m ch8_sensor_fusion.example_tc_fusion \
     --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --confidence 0.99
 ```
@@ -321,7 +321,7 @@ done
 
 # Run gated fusion on each
 for bias in 0.2 0.5 1.0 2.0; do
-    python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+    python -m ch8_sensor_fusion.example_tc_fusion \
         --data data/sim/fusion_nlos_bias_${bias} \
         --confidence 0.95
 done
@@ -447,8 +447,8 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
   - Innovation monitoring: Eqs. (8.5)-(8.7)
 - **NLOS Background**: Chapter 4, Section 4.5 (Multipath and NLOS)
 - **Related Examples**:
-  - `ch8_sensor_fusion/tc_uwb_imu_ekf.py` - Main fusion with gating support
-  - `ch8_sensor_fusion/tuning_robust_demo.py` - Robust loss comparison and NIS analysis
+  - `ch8_sensor_fusion/example_tc_fusion.py` - Main fusion with gating support
+  - `ch8_sensor_fusion/example_robust_tuning.py` - Robust loss comparison and NIS analysis
 - **Generation Script**: `scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py`
 - **Baseline**: See `fusion_2d_imu_uwb/README.md` for clean reference
 

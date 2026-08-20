@@ -24,7 +24,7 @@ matplotlib.use("Agg")  # headless: no display during tests
 import numpy as np
 
 from core.fusion import load_fusion_dataset
-from ch8_sensor_fusion.temporal_calibration_demo import run_fusion_with_time_sync
+from ch8_sensor_fusion.example_temporal_calibration import run_fusion_with_time_sync
 from core.eval import compute_position_rmse
 
 OFFSET_DATASET = "data/sim/ch8_fusion_2d_imu_uwb_timeoffset"
