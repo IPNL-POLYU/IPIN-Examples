@@ -314,7 +314,6 @@ RESULTS (IMU-only, no corrections)
 | Figure | Description |
 |--------|-------------|
 | ![IMU Strapdown Trajectory](figs/imu_strapdown_trajectory.svg) | **Trajectory comparison** showing ground truth (blue) vs. IMU-integrated path (red). Demonstrates how quickly position drifts without corrections. |
-| ![Strapdown Trajectory](figs/strapdown_trajectory.svg) | **Alternative trajectory view** for strapdown integration results. |
 | ![IMU Strapdown Attitude](figs/imu_strapdown_attitude.svg) | **Attitude (Euler angles) over time** showing roll, pitch, and yaw. Yaw drifts unboundedly due to gyroscope bias. |
 | ![IMU Strapdown Error](figs/imu_strapdown_error_time.svg) | **Position error vs. time** showing error growth. Note the quadratic growth pattern typical of double-integrated bias. |
 
@@ -365,7 +364,6 @@ Improvement:    91.7% reduction in RMSE
 | Figure | Description |
 |--------|-------------|
 | ![ZUPT Trajectory](figs/zupt_trajectory.svg) | **Trajectory comparison** showing IMU-only (red, drifts badly) vs. ZUPT-corrected (green, bounded error). |
-| ![ZUPT Trajectory with Stance](figs/zupt_trajectory_stance.svg) | **Trajectory with stance phases highlighted.** Blue markers show detected stance phases where ZUPT corrections are applied. |
 | ![ZUPT Detector Timeline](figs/zupt_detector_timeline.svg) | **ZUPT detector output over time.** Shows the windowed test statistic (Eq. 6.44) and threshold crossings that trigger ZUPT updates. |
 | ![ZUPT Error Time](figs/zupt_error_time.svg) | **Position error vs. time** comparing IMU-only (growing unboundedly) vs. ZUPT-corrected (bounded). Each ZUPT update "resets" velocity error. |
 

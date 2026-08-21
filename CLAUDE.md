@@ -960,12 +960,26 @@ astronomical one: three jobs were cancelled at the 45-minute limit having
 printed `.s` and nothing further. **If you assert equality on large binary
 blobs, compare digests** — a failure then reads as two short hex strings.
 
-What survives is portable and is the half that earned itself twice: every
-committed figure must still be produced by some demo, and every produced figure
-must be committed. That found four PNGs in `ch8_sensor_fusion/figs/` that no
-code writes, and later caught a mechanical rename moving three demos' default
-figure paths — via `is_file()`, not via bytes. See
-`tests/ch8_sensor_fusion/test_figures_are_reproducible.py`.
+What survives is portable and is the half that earned itself: every committed
+figure must still be produced by some demo, and every produced figure must be
+committed. That found four PNGs in `ch8_sensor_fusion/figs/` that no code
+writes, then caught a mechanical rename moving three demos' default figure paths
+— via `is_file()`, not via bytes — and then, widened to every chapter in
+`tests/test_every_figure_has_a_demo_behind_it.py`, three more orphans:
+`ch6_dead_reckoning/figs/strapdown_trajectory.svg` and
+`zupt_trajectory_stance.svg`, both still *displayed* in the chapter README so
+readers saw a picture the code had stopped producing, and
+`ch7_slam/figs/pose_graph_slam_results.png`.
+
+**An incomplete svg/pdf/png set is the tell, and it costs nothing to look for.**
+`save_figure` writes all three together, so a lone `.svg` or `.png` was made by
+something else. All seven orphans had that shape, and an old mtime beside their
+chapter's live figures.
+
+Where a real figure needs a flag to appear, run the flag rather than excusing
+the file — ch6's Allan component plots (`--debug`) and PDR dataset panel
+(`--data`) are fifteen files that a plain run does not write and that are
+perfectly real. That leaves the exemption list holding animations only.
 
 To check that a change left the pictures alone, do what this file already says:
 regenerate on your own machine, read `git status`, open the PNGs.

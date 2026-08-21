@@ -720,7 +720,7 @@ All demo scripts generate figures in the `ch8_sensor_fusion/figs/` directory. Th
 | `ch8_anchor_outage.svg` | `example_anchor_outage.py` | Sec. 8.1.2 |
 
 Every row names the script that writes it, and
-`tests/ch8_sensor_fusion/test_figures_are_reproducible.py` checks both
+`tests/test_every_figure_has_a_demo_behind_it.py` checks both
 directions: each figure regenerates byte-for-byte, and nothing sits in `figs/`
 that no demo produces.
 
