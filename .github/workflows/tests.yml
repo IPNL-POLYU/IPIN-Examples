@@ -82,27 +82,21 @@ jobs:
           pip install -e ".[dev]"
 
       # TEMPORARY DIAGNOSTIC -- to be reverted with the `if: false` below.
-      # Ruled out so far, by measurement on this runner: the demos (all eight
-      # exit 0 in 3-8 s), run_example itself (same eight, 36 s, rc=0), and
-      # output buffering (unbuffered, the suite still stops in the same file).
-      # What is left is that in the suite those calls happen inside pytest,
-      # after ch2-ch7 have run. Split that in two: the file alone, then its
-      # directory alone.
-      - name: Diagnostic - the ch8 figure test in isolation
+      # Round 3 was decisive: the file hangs *alone*, in a fresh pytest
+      # process, so it is not an interaction with ch2-ch7. The same eight
+      # modules take 39 s run directly and 36 s driven through run_example
+      # from a plain script. The only remaining variable is pytest itself.
+      # faulthandler prints the stack of every thread once a test exceeds the
+      # timeout, which says where it is stuck instead of leaving it to be
+      # guessed at for a fourth round.
+      - name: Diagnostic - dump the stack where it hangs
         continue-on-error: true
-        timeout-minutes: 25
+        timeout-minutes: 12
         env:
           MPLBACKEND: Agg
           PYTHONUNBUFFERED: "1"
         run: |
-          echo '=== the file alone ==='
-          start=$SECONDS
-          timeout 480 python -m pytest tests/ch8_sensor_fusion/test_figures_are_reproducible.py -q; rc=$?
-          echo "::notice::file alone exit=$rc in $((SECONDS-start))s"
-          echo '=== the ch8 directory alone ==='
-          start=$SECONDS
-          timeout 720 python -m pytest tests/ch8_sensor_fusion -q; rc=$?
-          echo "::notice::ch8 dir exit=$rc in $((SECONDS-start))s"
+          timeout 400 python -m pytest \n            tests/ch8_sensor_fusion/test_figures_are_reproducible.py \n            -q -s --faulthandler-timeout=90; echo "exit=$?"
 
       - name: Run the suite
         if: false  # TEMPORARY: skipped so the diagnostic above answers in minutes
