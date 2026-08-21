@@ -81,6 +81,21 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # TEMPORARY DIAGNOSTIC -- to be reverted. Chapter 8's demos pass locally
+      # and hang on this runner, and a pytest run cancelled at the job limit
+      # prints nothing at all. Time each one directly, before the suite, so the
+      # answer survives whatever the suite does afterwards.
+      - name: Diagnostic - time each Chapter 8 demo
+        continue-on-error: true
+        run: |
+          for m in observability_demo tuning_robust_demo temporal_calibration_demo tc_uwb_imu_ekf lc_uwb_imu_ekf compare_lc_tc calibration_demo example_anchor_outage; do
+            start=$SECONDS
+            MPLBACKEND=Agg PYTHONIOENCODING=utf-8 timeout 120 python -m ch8_sensor_fusion.$m > /tmp/$m.out 2>&1
+            rc=$?
+            echo "::notice::$m exit=$rc in $((SECONDS-start))s"
+            if [ $rc -ne 0 ]; then echo "--- tail of $m ---"; tail -25 /tmp/$m.out; fi
+          done
+
       - name: Run the suite
         env:
           MPLBACKEND: Agg
