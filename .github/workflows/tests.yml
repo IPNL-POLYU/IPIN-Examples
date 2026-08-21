@@ -81,47 +81,20 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      # TEMPORARY DIAGNOSTIC -- to be reverted.
-      # Round 1 showed all eight Chapter 8 demos exit 0 in 3-8 s on this
-      # runner when their output goes to a file. The suite still hangs, so the
-      # difference is in tests/example_runner.run_example, which pipes the
-      # output (capture_output=True) and sets IPIN_FIGS_DIR. Drive that
-      # directly, one module at a time, printing as it goes.
-      - name: Diagnostic - drive run_example itself
-        continue-on-error: true
-        timeout-minutes: 12
-        run: |
-          python - <<'EOF'
-          import time, sys
-          from tests.example_runner import run_example
-          mods = ['observability_demo', 'tuning_robust_demo',
-                  'temporal_calibration_demo', 'tc_uwb_imu_ekf',
-                  'lc_uwb_imu_ekf', 'compare_lc_tc', 'calibration_demo',
-                  'example_anchor_outage']
-          for m in mods:
-              full = 'ch8_sensor_fusion.' + m
-              print('START', full, flush=True)
-              t = time.time()
-              try:
-                  r = run_example(full)
-                  print('DONE ', full, 'rc=%s' % r.process.returncode,
-                        '%.1fs' % (time.time() - t), flush=True)
-                  if r.process.returncode:
-                      print(r.process.stderr[-1500:], flush=True)
-              except Exception as exc:
-                  print('RAISED', full, type(exc).__name__, exc,
-                        '%.1fs' % (time.time() - t), flush=True)
-          EOF
-
       - name: Run the suite
         env:
           MPLBACKEND: Agg
+          # Unbuffered, because a cancelled run is the case where the log
+          # matters most and is exactly when block buffering hides it. Two runs
+          # were cancelled at the job limit having last printed a test file that
+          # turned out to be nowhere near where they actually were.
+          PYTHONUNBUFFERED: "1"
         # -rs reports why each test skipped. The first run of this workflow
         # went green having run 21 fewer tests than a developer machine, because
         # an undeclared scikit-learn made a module skip itself. A green tick on
         # a suite that quietly shrank is worse than a red one, so the skips are
         # printed rather than merely counted.
-        run: python -m pytest -q -rs
+        run: python -m pytest -q -rs --durations=25
 
       - name: A test run must leave the working tree clean
         # This repo spent real effort on a phantom: ch7_slam/figs/*.png kept
