@@ -29,6 +29,14 @@ component plots need `--debug` and its PDR dataset panel needs `--data`. Those
 are run here rather than excused, at a cost of about 21 s, which leaves the
 exemption list holding one thing -- animations -- for one reason.
 
+**The reverse direction sees the whole session's invocations, not just this
+test's.** `run_example` writes every run of a chapter into one scratch
+`figs/` per chapter, so if any test anywhere in the suite invokes a demo with a
+flag that writes an extra figure, this check sees it. That is why running this
+file alone can pass where the full suite fails -- and it is a feature, because
+it catches figures produced by flags nobody thought to list here. It found
+`ch4_geometry_comparison` that way.
+
 **It does not compare the bytes.** `save_figure` is byte-reproducible on one
 machine and not across two: measured on the Ubuntu runner against Chapter 8's
 set, all 27 files differ, svg by ~0.1%, pdf by 2-4%, png by 5-27%. That is font
@@ -73,6 +81,33 @@ EXPECTED_WITHOUT_A_RUN = {
     "ch7_slam/figs/ch7_icp_convergence.gif",
     "ch7_slam/figs/slam_pipeline_square.gif",
     "ch8_sensor_fusion/figs/ch8_anchor_outage.gif",
+}
+
+
+#: Figures a demo writes that are deliberately not committed, predating this
+#: check. Same ratchet as the rest of the repository: only shrink it.
+#:
+#: One figure, and the reason is that it is **wrong**.
+#: `example_comparison --compare-geometry` is a documented Quick Start mode, and
+#: what it produces cannot be shipped: AOA on the collinear dataset reports an
+#: RMSE of 2.2e10 m, which on a linear axis flattens every other bar to zero
+#: height, so the figure shows one absurd spike and nothing else. The console
+#: output has the same defect and a larger one behind it -- each geometry prints
+#: a *different subset* of methods (Square and Optimal print TOA and TDOA but no
+#: AOA; Linear prints only AOA), because the missing ones had no converged
+#: solves at all. The "KEY INSIGHT: Geometry Impact on TOA RMSE" summary then
+#: omits the collinear case, which is the entire point of the comparison.
+#:
+#: CLAUDE.md records this exact shape being fixed once already for the chapter's
+#: *table* -- "the comparison table reported AOA at 5.3e9 m with zero noise".
+#: The figure kept the defect because nobody had ever committed or looked at it,
+#: which is the argument for this check rather than an exception to it.
+#:
+#: Fix the comparison, then commit the figure and delete this entry.
+KNOWN_UNCOMMITTED = {
+    "ch4_rf_point_positioning/figs/ch4_geometry_comparison.pdf",
+    "ch4_rf_point_positioning/figs/ch4_geometry_comparison.png",
+    "ch4_rf_point_positioning/figs/ch4_geometry_comparison.svg",
 }
 
 
@@ -170,7 +205,11 @@ def test_no_demo_writes_a_figure_that_is_not_committed(chapter):
     fresh = _figs_dir(chapter)
     have = {p.name for p in _committed(chapter)}
     uncommitted = sorted(
-        p.name for p in fresh.iterdir() if p.is_file() and p.name not in have
+        p.name
+        for p in fresh.iterdir()
+        if p.is_file()
+        and p.name not in have
+        and f"{chapter}/figs/{p.name}" not in KNOWN_UNCOMMITTED
     )
     assert not uncommitted, (
         f"{chapter} demos write figures that are not committed:\n  "
