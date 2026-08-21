@@ -587,81 +587,38 @@ config = data['config']     # Configuration parameters
 python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
 ```
 
-## Architecture Diagrams
+## Architecture
 
-For a visual understanding of the chapter's implementation, refer to the following diagrams:
+Every chapter has the same shape: pick an example, it calls into `core/`,
+figures land in `figs/`. The diagram and the table below are generated from
+the imports themselves by `tools/chapter_dependencies.py`, so they cannot
+drift from the code.
 
-### Component Architecture
+<!-- BEGIN GENERATED: architecture (tools/chapter_dependencies.py) -->
 
-![Component Architecture](../docs/architecture/ipin_ch8_component_clean_v2.svg)
+```mermaid
+flowchart TB
+    D["<b>optional input</b><br/>data/sim/ch8_fusion_2d_imu_uwb<br/>data/sim/ch8_fusion_2d_imu_uwb_nlos<br/>data/sim/ch8_fusion_2d_imu_uwb_timeoffset<br/><i>6 of 8 examples read one</i>"]
+    E["<b>ch8_sensor_fusion/example_*.py</b><br/>8 runnable demos"]
+    C["<b>the reusable library</b><br/>core/estimators/ · core/eval/ · core/fusion/"]
+    F["<b>ch8_sensor_fusion/figs/</b><br/>svg + pdf + png"]
+    D -. "--data" .-> E
+    E ==> C
+    C ==> F
+```
 
-This diagram shows:
-- **Example Scripts**: Seven demonstration scripts (`example_lc_fusion.py`, `example_tc_fusion.py`, `example_comparison.py`, `example_robust_tuning.py`, `example_temporal_calibration.py`, `example_calibration.py`, `example_observability.py`)
-- **Core Modules**: Reusable sensor fusion implementations in:
-  - `core/fusion/` (StampedMeasurement, TimeSyncModel, gating/robust utils)
-  - `core/estimators/` (ExtendedKalmanFilter)
-  - `core/eval/` (errors, RMSE)
-- **Fusion library**: `core/fusion/` holds the models (`lc_models.py`, `tc_models.py`), the dataset loader and both pipelines (`loosely_coupled.py`, `tightly_coupled.py`). The chapter files are demos: evaluate, plot, main.
-- **Data Sources**: Optional synthetic datasets from `data/sim/ch8_*` directories
-- **Output Figures**: Generated visualizations in `figs/`
+| Example | Core modules | Optional dataset |
+| --- | --- | --- |
+| `example_anchor_outage` | `core.eval`, `core.fusion` | `ch8_fusion_2d_imu_uwb` |
+| `example_calibration` | `core.eval` | — |
+| `example_comparison` | `core.eval`, `core.fusion` | `ch8_fusion_2d_imu_uwb` |
+| `example_lc_fusion` | `core.eval`, `core.fusion` | `ch8_fusion_2d_imu_uwb` |
+| `example_observability` | `core.estimators`, `core.eval`, `core.fusion` | — |
+| `example_robust_tuning` | `core.estimators`, `core.eval`, `core.fusion`, `core.fusion.tc_models` | `ch8_fusion_2d_imu_uwb_nlos` |
+| `example_tc_fusion` | `core.eval`, `core.fusion` | `ch8_fusion_2d_imu_uwb` |
+| `example_temporal_calibration` | `core.estimators`, `core.eval`, `core.fusion`, `core.fusion.tc_models` | `ch8_fusion_2d_imu_uwb_timeoffset` |
 
-### Execution Flow
-
-![Execution Flow](../docs/architecture/ipin_ch8_flow_clean.svg)
-
-This diagram illustrates the detailed execution pipeline for the sensor fusion demos:
-
-**Fusion Demos (IMU + UWB):**
-1. **Loosely Coupled (LC)**:
-   - Load dataset → Init EKF (state + P0)
-   - IMU propagation (high-rate)
-   - Solve UWB position fix (WLS from ranges)
-   - Innovation gating (Chi-square / NIS)
-   - EKF update (position fix)
-   - Save figures
-
-2. **Tightly Coupled (TC)**:
-   - Load dataset → Init EKF (state + P0)
-   - IMU propagation (high-rate)
-   - Per-anchor UWB updates (ranges)
-   - Optional robustness (gating / reweighting)
-   - Save figures
-
-3. **Compare LC + TC**:
-   - Run LC + TC (reuse functions)
-   - Compute errors + RMSE
-   - Overlay/summary plots
-   - Save figures
-
-4. **Robust Tuning**:
-   - Sweep robust params (gate / weights)
-   - Run TC EKF per setting
-   - RMSE / NIS trade-off plots
-   - Save figures
-
-**Calibration Demos:**
-1. **Intrinsic/Extrinsic**:
-   - Generate/load samples (stationary IMU, 2D poses)
-   - Estimate biases + extrinsics (least squares)
-   - Save figures
-
-2. **Temporal**:
-   - Load dataset
-   - Estimate time offset (TimeSyncModel)
-   - Run EKF with synced data
-   - Save figures
-
-**Observability Demo:**
-- Generate two trajectories (translation offset)
-- Compute odometry increments (same for both)
-- Add occasional absolute fixes (position)
-- Plot unobservable mode + fixes
-
-**Source Files:** The PlantUML source files for these diagrams can be found at:
-- Component overview: `docs/architecture/ipin_ch8_component_overview_v2.puml`
-- Execution flow: `docs/architecture/ipin_ch8_activity_flow.puml`
-
----
+<!-- END GENERATED: architecture -->
 
 ## File Structure
 
@@ -688,12 +645,6 @@ core/fusion/                         # The library the demos above are thin over
 ├── lc_models.py                     # LC models + WLS position solver
 ├── tightly_coupled.py               # run_tc_fusion (Sec. 8.1.2)
 └── loosely_coupled.py               # run_lc_fusion (Sec. 8.1.1)
-
-docs/architecture/
-├── ipin_ch8_component_clean_v2.svg  # Component diagram (visual)
-├── ipin_ch8_flow_clean.svg          # Execution flow diagram (visual)
-├── ipin_ch8_component_overview_v2.puml  # Component diagram (source)
-└── ipin_ch8_activity_flow.puml      # Execution flow diagram (source)
 
 data/sim/
 ├── ch8_fusion_2d_imu_uwb/           # Baseline dataset (no bias, no offset)

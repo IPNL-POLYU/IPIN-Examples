@@ -265,39 +265,32 @@ Examples completed successfully!
 Tip: Run with --data ch2_coords_san_francisco to use pre-generated dataset
 ```
 
-## Architecture Diagrams
+## Architecture
 
-To help you understand the code structure and execution flow, we provide visual diagrams:
+Every chapter has the same shape: pick an example, it calls into `core/`,
+figures land in `figs/`. The diagram and the table below are generated from
+the imports themselves by `tools/chapter_dependencies.py`, so they cannot
+drift from the code.
 
-### Component Architecture
+<!-- BEGIN GENERATED: architecture (tools/chapter_dependencies.py) -->
 
-![Chapter 2 Component View](../docs/architecture/ipin_ch2_component_clean.svg)
+```mermaid
+flowchart TB
+    D["<b>optional input</b><br/>data/sim/ch2_coords_san_francisco<br/><i>only example_coordinate_transforms reads it</i>"]
+    E["<b>ch2_coords/example_*.py</b><br/>2 runnable demos"]
+    C["<b>the reusable library</b><br/>core/coords/ · core/eval/ · core/utils/"]
+    F["<b>ch2_coords/figs/</b><br/>svg + pdf + png"]
+    D -. "--data" .-> E
+    E ==> C
+    C ==> F
+```
 
-This diagram shows:
-- **Entry points**: `README.md` → `example_coordinate_transforms.py`
-- **Core library**: `core/coords/__init__.py` re-exports `transforms.py`, `rotations.py`, `frames.py`
-- **Dataset**: Optional `data/sim/ch2_coords_san_francisco/` with pre-generated test data
-- **Dependencies**: How the example script imports the core API
+| Example | Core modules | Optional dataset |
+| --- | --- | --- |
+| `example_attitude_visualization` | `core.coords`, `core.eval` | — |
+| `example_coordinate_transforms` | `core.coords`, `core.utils` | `ch2_coords_san_francisco` |
 
-### Execution Flow
-
-![Chapter 2 Execution Flow](../docs/architecture/ipin_ch2_flow_clean.svg)
-
-This diagram illustrates the complete execution pipeline:
-1. **Entry**: Run `python -m ch2_coords.example_coordinate_transforms`
-2. **Data source**: Choose between `--data` option (loads dataset) or inline demo values
-3. **Demo pipeline**:
-   - LLH ↔ ECEF conversions (Eq. 2.9)
-   - ECEF ↔ ENU local frame (Eq. 2.10)
-   - Rotation representations: Euler ↔ R ↔ Quaternion (Eqs. 2.17, 2.21-2.23)
-   - Indoor positioning scenario (practical example)
-4. **Core functions**: All demos call `core/coords/transforms.py` and `rotations.py`
-
-**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
-- `ipin_ch2_component_overview.puml` - Component relationships
-- `ipin_ch2_activity_flow.puml` - High-level activity flow
-
----
+<!-- END GENERATED: architecture -->
 
 ## File Structure
 
@@ -311,12 +304,6 @@ core/coords/
 ├── frames.py                          # Frame type definitions
 ├── transforms.py                      # LLH/ECEF/ENU transformations
 └── rotations.py                       # Rotation representations
-
-docs/architecture/
-├── ipin_ch2_component_clean.svg       # Component architecture diagram
-├── ipin_ch2_component_overview.puml   # Component diagram source
-├── ipin_ch2_flow_clean.svg            # Execution flow diagram
-└── ipin_ch2_activity_flow.puml        # Activity flow source
 
 data/sim/ch2_coords_san_francisco/     # Optional pre-generated dataset
 ├── llh_coordinates.txt

@@ -677,56 +677,34 @@ This constraint "bends" the trajectory to close loops and eliminate accumulated 
 - **Result**: Globally consistent reconstruction across multiple views
 - **Note**: Separate example (`example_bundle_adjustment.py`)
 
-## Architecture Diagrams
+## Architecture
 
-For a visual understanding of the chapter's implementation, refer to the following diagrams:
+Every chapter has the same shape: pick an example, it calls into `core/`,
+figures land in `figs/`. The diagram and the table below are generated from
+the imports themselves by `tools/chapter_dependencies.py`, so they cannot
+drift from the code.
 
-### Component Architecture
+<!-- BEGIN GENERATED: architecture (tools/chapter_dependencies.py) -->
 
-![Component Architecture](../docs/architecture/ipin_ch7_component_clean.svg)
+```mermaid
+flowchart TB
+    D["<b>optional input</b><br/>data/sim/ch7_slam_2d_high_drift<br/>data/sim/ch7_slam_2d_square<br/><i>only example_pose_graph_slam reads it</i>"]
+    E["<b>ch7_slam/example_*.py</b><br/>4 runnable demos"]
+    C["<b>the reusable library</b><br/>core/estimators/ · core/eval/ · core/slam/ · core/utils/"]
+    F["<b>ch7_slam/figs/</b><br/>svg + pdf + png"]
+    D -. "--data" .-> E
+    E ==> C
+    C ==> F
+```
 
-This diagram shows:
-- **Example Scripts**: Two demonstration scripts (`example_pose_graph_slam.py`, `example_bundle_adjustment.py`)
-- **Core Modules**: Reusable SLAM building blocks in `core/slam/`:
-  - `se2.py` (SE(2) operations for 2D SLAM)
-  - `scan_matching.py` (ICP helpers for LiDAR scan alignment)
-  - `ndt.py` (Normal Distributions Transform, optional)
-  - `camera.py` (camera projection + distortion models)
-  - `factors.py` (factor constructors for pose graph and bundle adjustment)
-  - `types.py` (Pose2 and camera intrinsics)
-- **Nonlinear Solver**: `core/estimators/factor_graph.py` (FactorGraph with Gauss-Newton/Levenberg-Marquardt optimization)
-- **Optional Datasets**: Two pre-generated datasets in `data/sim/`:
-  - `ch7_slam_2d_square/` (square trajectory with loop closure)
-  - `ch7_slam_2d_high_drift/` (high drift scenario showing SLAM's value)
-- **Output**: Generated figures saved to `figs/` subdirectory
+| Example | Core modules | Optional dataset |
+| --- | --- | --- |
+| `example_bundle_adjustment` | `core.estimators`, `core.eval`, `core.slam` | — |
+| `example_pose_graph_slam` | `core.eval`, `core.slam`, `core.utils` | `ch7_slam_2d_high_drift`, `ch7_slam_2d_square` |
+| `example_scan_matching_visualization` | `core.eval`, `core.slam` | — |
+| `example_slam_frontend` | `core.eval`, `core.slam` | — |
 
-**Source**: PlantUML source available at [`docs/architecture/ipin_ch7_component_overview.puml`](../docs/architecture/ipin_ch7_component_overview.puml)
-
-### Execution Flow
-
-![Execution Flow](../docs/architecture/ipin_ch7_flow_clean.svg)
-
-This diagram illustrates the execution pipeline for each example script:
-
-**A) Pose Graph SLAM** (`example_pose_graph_slam.py`):
-1. Parse args / config (optional `--data_dir`)
-2. Load dataset OR generate synthetic poses + scans + loop closures
-3. Estimate relative transforms (ICP scan matching, Eq. 7.10-7.11)
-4. Build factor graph (prior + odometry factors + loop closure factors)
-5. Optimize (Gauss-Newton / Levenberg-Marquardt) → corrected trajectory
-6. Visualize + save `ch7_slam/figs/*.svg`
-
-**B) Visual Bundle Adjustment** (`example_bundle_adjustment.py`):
-1. Generate synthetic camera trajectory + 3D landmarks
-2. Simulate camera observations (project + noise, Eqs. 7.40-7.43)
-3. Perturb initial poses/landmarks (add noise to create initialization challenge)
-4. Build factor graph (reprojection factors + priors, Eq. 7.70)
-5. Optimize (Gauss-Newton / Levenberg-Marquardt) → refined poses + landmarks
-6. Visualize + save `ch7_slam/figs/*.svg`
-
-**Source**: PlantUML source available at [`docs/architecture/ipin_ch7_activity_flow.puml`](../docs/architecture/ipin_ch7_activity_flow.puml)
-
----
+<!-- END GENERATED: architecture -->
 
 ## File Structure
 
@@ -767,12 +745,6 @@ tests/core/slam/
 
 tests/ch7_slam/
 └── test_example_pose_graph_runs.py  # 5 smoke tests (subprocess)
-
-docs/architecture/
-├── ipin_ch7_component_overview.puml # Component diagram source
-├── ipin_ch7_component_clean.svg     # Component diagram (rendered)
-├── ipin_ch7_activity_flow.puml      # Execution flow source
-└── ipin_ch7_flow_clean.svg          # Execution flow (rendered)
 
 data/sim/
 ├── ch7_slam_2d_square/              # Square trajectory (+33.4% RMSE)
