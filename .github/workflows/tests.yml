@@ -89,22 +89,41 @@ jobs:
       # faulthandler prints the stack of every thread once a test exceeds the
       # timeout, which says where it is stuck instead of leaving it to be
       # guessed at for a fourth round.
-      - name: Diagnostic - capture on vs off, and dump the stack
+      - name: Diagnostic - are the figures the same bytes on this runner
         continue-on-error: true
-        timeout-minutes: 20
+        timeout-minutes: 15
         env:
           MPLBACKEND: Agg
           PYTHONUNBUFFERED: "1"
         run: |
-          F=tests/ch8_sensor_fusion/test_figures_are_reproducible.py
-          echo '=== A: capture disabled (-s) ==='
-          start=$SECONDS
-          timeout 300 python -m pytest $F -q -s; rc=$?
-          echo "::notice::A capture-off exit=$rc in $((SECONDS-start))s"
-          echo '=== B: capture on, stack dumped after 90 s ==='
-          start=$SECONDS
-          timeout 300 python -m pytest $F -q -o faulthandler_timeout=90; rc=$?
-          echo "::notice::B capture-on exit=$rc in $((SECONDS-start))s"
+          python - <<'EOF'
+          import hashlib, pathlib
+          from tests.example_runner import WORKSPACE_ROOT, run_example
+          mods = ['tc_uwb_imu_ekf', 'lc_uwb_imu_ekf', 'compare_lc_tc',
+                  'observability_demo', 'tuning_robust_demo',
+                  'temporal_calibration_demo', 'calibration_demo',
+                  'example_anchor_outage']
+          figs = None
+          for m in mods:
+              figs = run_example('ch8_sensor_fusion.' + m).figs_dir
+          committed = WORKSPACE_ROOT / 'ch8_sensor_fusion' / 'figs'
+          def sha(p):
+              return hashlib.sha256(p.read_bytes()).hexdigest()[:12]
+          same = diff = 0
+          for c in sorted(committed.iterdir()):
+              f = figs / c.name
+              if not f.is_file():
+                  print('%-40s MISSING from the run' % c.name, flush=True)
+                  continue
+              if sha(f) == sha(c):
+                  same += 1
+              else:
+                  diff += 1
+                  print('%-40s committed %s %8d B | fresh %s %8d B'
+                        % (c.name, sha(c), c.stat().st_size,
+                           sha(f), f.stat().st_size), flush=True)
+          print('identical=%d differing=%d' % (same, diff), flush=True)
+          EOF
 
       - name: Run the suite
         if: false  # TEMPORARY: skipped so the diagnostic above answers in minutes
