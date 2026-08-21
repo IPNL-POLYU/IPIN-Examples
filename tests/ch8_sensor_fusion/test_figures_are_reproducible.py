@@ -64,17 +64,56 @@ EXPECTED_WITHOUT_A_PLAIN_RUN = {"ch8_anchor_outage.gif"}
 
 
 @functools.lru_cache(maxsize=1)
-def _regenerated() -> Path:
-    """Run every Chapter 8 demo once, and return where their figures landed."""
+def _regenerated():
+    """Run every Chapter 8 demo once. Returns (figs_dir, failures).
+
+    **The failures are returned rather than raised, and that is the whole
+    point.** `functools.lru_cache` does not cache exceptions, so an earlier
+    version of this that asserted here re-ran all eight demos for *every* one
+    of the 28 parametrised tests the moment one demo misbehaved. On a CI runner
+    where a demo hit `run_example`'s 600 s deadlock guard, that turned one
+    failure into hours: the job was cancelled at the workflow's 45-minute limit
+    having printed nothing since the previous test file.
+
+    A cached failure reports once, clearly, and lets the byte comparisons fail
+    fast instead of each paying for the whole set again.
+    """
     figs_dir = None
+    failures = []
     for module in DEMOS:
-        run = run_example(module)
-        assert run.process.returncode == 0, (
-            f"{module} exited {run.process.returncode}; its figures cannot be "
-            f"checked.\n{run.process.stderr[-2000:]}"
-        )
+        try:
+            run = run_example(module)
+        except Exception as exc:                     # noqa: BLE001 - reported below
+            failures.append(f"{module}: {type(exc).__name__}: {exc}")
+            continue
+        if run.process.returncode != 0:
+            failures.append(
+                f"{module}: exited {run.process.returncode}\n"
+                f"{run.process.stderr[-1500:]}"
+            )
         figs_dir = run.figs_dir
+    return figs_dir, tuple(failures)
+
+
+def _figs_dir() -> Path:
+    """Where this session's regenerated figures landed, or skip the comparison."""
+    figs_dir, failures = _regenerated()
+    if failures or figs_dir is None:
+        pytest.skip("a Chapter 8 demo did not run; see test_every_demo_runs")
     return figs_dir
+
+
+def test_every_demo_runs():
+    """Guard the guard: a byte comparison proves nothing if nothing ran."""
+    figs_dir, failures = _regenerated()
+    assert not failures, (
+        "Chapter 8 demos that did not complete, so their figures were never "
+        "regenerated and every comparison below is vacuous:\n\n"
+        + "\n\n".join(failures)
+    )
+    assert figs_dir is not None and figs_dir.is_dir(), (
+        f"No figure directory was produced ({figs_dir})."
+    )
 
 
 def _committed_figures():
@@ -89,7 +128,7 @@ def test_committed_figure_regenerates_byte_for_byte(committed):
     if committed.name in EXPECTED_WITHOUT_A_PLAIN_RUN:
         pytest.skip(f"{committed.name} needs --animate; see the set's comment")
 
-    fresh = _regenerated() / committed.name
+    fresh = _figs_dir() / committed.name
     assert fresh.is_file(), (
         f"{committed.name} is committed under ch8_sensor_fusion/figs/ but no "
         "Chapter 8 demo wrote it. Either it is a leftover from a version of "
@@ -110,7 +149,7 @@ def test_committed_figure_regenerates_byte_for_byte(committed):
 
 def test_no_demo_writes_a_figure_that_is_not_committed():
     """The reverse direction: a demo's output must be in the repository."""
-    fresh = _regenerated()
+    fresh = _figs_dir()
     uncommitted = sorted(
         path.name
         for path in fresh.iterdir()
