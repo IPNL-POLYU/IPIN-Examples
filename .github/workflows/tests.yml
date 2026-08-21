@@ -89,14 +89,22 @@ jobs:
       # faulthandler prints the stack of every thread once a test exceeds the
       # timeout, which says where it is stuck instead of leaving it to be
       # guessed at for a fourth round.
-      - name: Diagnostic - dump the stack where it hangs
+      - name: Diagnostic - capture on vs off, and dump the stack
         continue-on-error: true
-        timeout-minutes: 12
+        timeout-minutes: 20
         env:
           MPLBACKEND: Agg
           PYTHONUNBUFFERED: "1"
         run: |
-          timeout 400 python -m pytest \n            tests/ch8_sensor_fusion/test_figures_are_reproducible.py \n            -q -s --faulthandler-timeout=90; echo "exit=$?"
+          F=tests/ch8_sensor_fusion/test_figures_are_reproducible.py
+          echo '=== A: capture disabled (-s) ==='
+          start=$SECONDS
+          timeout 300 python -m pytest $F -q -s; rc=$?
+          echo "::notice::A capture-off exit=$rc in $((SECONDS-start))s"
+          echo '=== B: capture on, stack dumped after 90 s ==='
+          start=$SECONDS
+          timeout 300 python -m pytest $F -q -o faulthandler_timeout=90; rc=$?
+          echo "::notice::B capture-on exit=$rc in $((SECONDS-start))s"
 
       - name: Run the suite
         if: false  # TEMPORARY: skipped so the diagnostic above answers in minutes
