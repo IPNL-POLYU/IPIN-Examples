@@ -941,6 +941,78 @@ pre-existing violations are listed and skipped, new ones fail. Those lists are
 the current debt register and should only shrink. Every one of them is empty
 today, as is `KNOWN_PYFLAKES` — see below.
 
+## A figure is byte-reproducible on one machine, not across two
+
+Do not build a check that regenerates a figure and compares it against the
+committed bytes. It passes locally and it cannot pass on CI. Measured on the
+Ubuntu runner against Chapter 8's committed set: **all 27 files differ.** svg by
+about 0.1%, pdf by 2-4%, png by **5-27%** — 252546 bytes against 321177 for one
+of them. That is font metrics and rasterisation, not a changed picture.
+
+This is the figure form of the float-equality rule above: exact comparison is
+right for **stored** bytes (save then load), wrong for a fresh computation
+compared against what some other machine produced. Rendering is a computation.
+
+**It hung CI three times rather than failing, and that part is worth carrying
+beyond figures.** pytest builds `bytes == bytes` failure diffs element by
+element, so a mismatch on a 300 KB PNG is not a failure report but an
+astronomical one: three jobs were cancelled at the 45-minute limit having
+printed `.s` and nothing further. **If you assert equality on large binary
+blobs, compare digests** — a failure then reads as two short hex strings.
+
+What survives is portable and is the half that earned itself twice: every
+committed figure must still be produced by some demo, and every produced figure
+must be committed. That found four PNGs in `ch8_sensor_fusion/figs/` that no
+code writes, and later caught a mechanical rename moving three demos' default
+figure paths — via `is_file()`, not via bytes. See
+`tests/ch8_sensor_fusion/test_figures_are_reproducible.py`.
+
+To check that a change left the pictures alone, do what this file already says:
+regenerate on your own machine, read `git status`, open the PNGs.
+
+## When CI hangs and your machine does not, measure on CI
+
+Narrowing that one took six rounds because each hypothesis was cheap to state
+and expensive to test. Three died: the demos are fine there (all eight exit 0 in
+3-8 s), `run_example` is fine (the same eight, 36 s), and buffering was not
+hiding the location — with `PYTHONUNBUFFERED` the run stopped in the same place,
+so the last line printed really was where it was.
+
+Two things make this cheap next time, and both are in the workflow now:
+`PYTHONUNBUFFERED`, so a cancelled run's last line means what it looks like, and
+`--durations=25`. Beyond that, a **temporary diagnostic step** that measures the
+suspect directly — before the suite, with `continue-on-error` and its own
+`timeout-minutes` — answers in minutes where a cancelled pytest run answers
+nothing. Skipping the suite step with `if: false` for one such run is worth it.
+Note that the job's shell runs with `-e`, so `cmd; rc=$?` does **not** survive a
+non-zero `cmd`; the step exits first.
+
+What finally named it was two characters of pytest progress, `.s`: the first
+test passed, so every subprocess had completed, and the stop was in the byte
+comparison after them.
+
+## A convention is what a repo-wide sweep selects on
+
+`tests/test_example_console_encoding.py` globs `ch*/example_*.py`. Chapter 8
+named seven of its eight runnable demos after what they do rather than what they
+are, so that sweep had been seeing **one** of them. Renaming the other seven
+into scope turned it red at once, on two real defects — `'²'` and `'•'` inside
+`print()`, which raise `UnicodeEncodeError` on a default Windows or Japanese
+console.
+
+So the argument for the naming convention is not tidiness. **A file outside the
+convention is a file nothing sweeps**, and the sweeps here are most of the
+safety net. `KNOWN_NON_EXAMPLE_CHAPTER_FILES` and `KNOWN_INTRA_CHAPTER_IMPORTS`
+in `tests/test_repo_conventions.py` hold both halves of it — chapter
+directories contain only `example_*.py`, and an example imports `core`, never
+the example next door. Both are empty.
+
+**`functools.lru_cache` does not cache exceptions.** A memoised helper that
+`assert`s inside itself re-runs its whole body for every test that calls it once
+anything goes wrong — 28 parametrised tests × eight subprocesses, in the
+instance that taught this. Collect failures and return them, then assert in a
+separate test, so a failure is reported once and the rest skip.
+
 ## Lint
 
 pyflakes is clean across the whole repo and `test_no_pyflakes_warnings` in
