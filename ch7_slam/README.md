@@ -715,6 +715,7 @@ ch7_slam/
 ├── example_pose_graph_slam.py       # Complete SLAM pipeline (front+back)
 ├── example_slam_frontend.py         # Front-end demonstration
 ├── example_bundle_adjustment.py     # Visual SLAM example
+├── example_scan_matching_visualization.py  # Sec. 7.3: how ICP and NDT converge
 └── figs/                            # Generated figures
     ├── slam_with_maps.png           # Full pipeline visualization
     ├── slam_frontend_demo.png       # Front-end results

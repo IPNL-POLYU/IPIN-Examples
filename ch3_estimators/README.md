@@ -471,6 +471,7 @@ ch3_estimators/
 ├── example_kalman_1d.py             # Section 3.2.1: Linear KF tracking
 ├── example_ekf_range_bearing.py     # Section 3.2.2: EKF 2D positioning
 ├── example_iekf_range_bearing.py    # Section 3.2.3: IEKF vs EKF comparison
+├── example_particle_bimodal.py      # Section 3.3: Bimodal posterior a PF can carry
 ├── example_comparison.py            # Section 3.5: Compare all estimators
 └── figs/                            # Generated figures
     ├── ch3_least_squares_examples.png
@@ -491,7 +492,7 @@ core/estimators/
 └── factor_graph.py                  # Section 3.4: FGO (GN, LM, line search)
 
 core/utils/
-├── angle_diff.py                    # Angle wrapping utilities
+├── angles.py                        # Angle wrapping utilities (angle_diff)
 ├── geometry.py                      # Geometry checks
 └── observability.py                 # Observability analysis
 

@@ -746,27 +746,24 @@ core/sensors/
 └── ins_ekf.py                     # EKF for INS (Eq. 6.16 state ordering)
 
 core/sim/
-├── trajectories.py                # Trajectory generation and ground truth
+├── imu_from_trajectory.py         # IMU measurements from a ground-truth trajectory
 └── noise_pink.py                  # 1/f pink noise for bias instability (Jan 2026)
 
 data/sim/
 ├── ch6_strapdown_basic/              # Basic IMU strapdown integration
-│   ├── time.txt                      # Timestamps
-│   ├── ground_truth_position.txt     # True position
-│   ├── accel.txt                     # Accelerometer measurements
-│   ├── gyro.txt                      # Gyroscope measurements
+│   ├── imu.npz                       # t, accel_xy (body frame), gyro_z
+│   ├── truth.npz                     # t, p_xy, v_xy, yaw
 │   └── config.json                   # Simulation parameters
 ├── ch6_foot_zupt_walk/               # Foot-mounted IMU with stance phases
-│   ├── time.txt
-│   ├── ground_truth_position.txt
-│   ├── accel.txt
-│   ├── gyro.txt
+│   ├── imu.npz                       # t, accel_xy, gyro_z
+│   ├── truth.npz                     # t, p_xy, v_xy, yaw, is_stance
 │   └── config.json
 ├── ch6_wheel_odom_square/            # Vehicle square path
 │   ├── time.txt
-│   ├── ground_truth_pose.txt         # [x, y, heading]
-│   ├── wheel_left.txt                # Left wheel ticks
-│   ├── wheel_right.txt               # Right wheel ticks
+│   ├── ground_truth_position.txt     # [x, y]
+│   ├── ground_truth_quaternion.txt   # Attitude
+│   ├── wheel_speed.txt               # Wheel speed (_clean.txt is noise-free)
+│   ├── gyro.txt                      # Yaw rate (_clean.txt is noise-free)
 │   └── config.json
 ├── ch6_pdr_corridor_walk/            # 40m x 20m corridor walk
 │   ├── time.txt
@@ -775,13 +772,15 @@ data/sim/
 │   ├── accel.txt
 │   ├── gyro.txt
 │   ├── magnetometer.txt
+│   ├── step_times.txt                # True step instants
 │   └── config.json
 └── ch6_env_sensors_heading_altitude/ # Magnetometer and barometer
     ├── time.txt
-    ├── ground_truth_heading.txt
-    ├── ground_truth_altitude.txt
-    ├── magnetometer.txt
-    ├── barometer.txt
+    ├── ground_truth_position.txt
+    ├── ground_truth_attitude.txt
+    ├── ground_truth_floor.txt
+    ├── magnetometer.txt              # _clean.txt is noise-free
+    ├── barometer.txt                 # _clean.txt is noise-free
     └── config.json
 ```
 

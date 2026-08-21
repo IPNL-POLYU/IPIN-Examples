@@ -516,6 +516,7 @@ ch5_fingerprinting/
 ├── example_probabilistic.py          # Bayesian methods demo
 ├── example_pattern_recognition.py    # Linear regression demo
 ├── example_classification.py         # Classification and hierarchical demo
+├── example_walk_posterior.py         # Sec. 5.2: posterior along a walk
 ├── example_comparison.py             # Compare all methods
 ├── figs/                             # Generated figures
 │   ├── deterministic_positioning.png
@@ -534,13 +535,19 @@ core/fingerprinting/
 
 data/sim/
 ├── ch5_wifi_fingerprint_grid/        # Default dataset (5m grid, 121 RPs)
-│   ├── fingerprints.csv              # Reference fingerprints
-│   └── metadata.json                 # Dataset configuration
+│   ├── features.npy                  # RSS per RP, (n_rp, n_ap) in dBm
+│   ├── locations.npy                 # RP coordinates, (n_rp, 2)
+│   ├── floor_ids.npy                 # Floor label per RP, (n_rp,)
+│   └── metadata.json                 # AP ids/positions, grid spacing, path-loss model
 ├── ch5_wifi_fingerprint_dense/       # Dense dataset (2m grid, 676 RPs)
-│   ├── fingerprints.csv
+│   ├── features.npy
+│   ├── locations.npy
+│   ├── floor_ids.npy
 │   └── metadata.json
 └── ch5_wifi_fingerprint_sparse/      # Sparse dataset (10m grid, 36 RPs/floor)
-    ├── fingerprints.csv
+    ├── features.npy
+    ├── locations.npy
+    ├── floor_ids.npy
     └── metadata.json
 
 tests/core/fingerprinting/

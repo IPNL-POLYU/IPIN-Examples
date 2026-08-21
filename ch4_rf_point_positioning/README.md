@@ -757,6 +757,7 @@ ch4_rf_point_positioning/
 ├── example_toa_positioning.py    # TOA/RSS positioning demo
 ├── example_tdoa_positioning.py   # TDOA positioning demo
 ├── example_aoa_positioning.py    # AOA positioning demo
+├── example_dop_geometry.py       # Sec. 4.5: how anchor geometry amplifies noise
 ├── example_comparison.py         # Compare all RF methods
 └── figs/                         # Generated figures
     ├── toa_positioning_example.png   # TOA positioning geometry and convergence
