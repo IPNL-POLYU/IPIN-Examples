@@ -140,6 +140,27 @@ others and the drift was distributed across all three:
   time-offset dataset
   told the reader twice to run `tc_uwb_imu_ekf_augmented`, which was never
   written.
+- **A tree block in `## File Structure`** -- a directory header written once,
+  then bare filenames under it (`├── angles.py`). Structurally invisible to the
+  path regex above, for the same reason as the backticked bare filename.
+  `tests/docs/test_readme_file_structure.py` covers it and found **23** claims:
+  five chapters omitting an example each, two `core/` modules under names they
+  had lost, and sixteen entries describing dataset contents that do not exist --
+  ch6's two IMU datasets documented as `time.txt`/`accel.txt`/`gyro.txt` when
+  they ship `imu.npz` and `truth.npz`, and all three ch5 fingerprint datasets as
+  `fingerprints.csv` when they ship three `.npy` arrays. That guard is
+  exhaustive both ways over `example_*.py` (a demo missing from the list is a
+  demo nobody runs) and existence-only for everything else.
+
+  **Its parser was the risky half, not its assertions.** Three regexes in a row
+  produced false findings that each looked exactly like drift: `example_[a-z_]+`
+  matches inside `test_example_pose_graph_runs.py`; a character class without
+  `-` truncates `ch7_prompts_1-6_COMPLETE.md` and reports a file that exists as
+  missing; the same class without `*` truncates the glob `ch7_prompt*_*.md`.
+  `test_the_parser_reads_the_shapes_that_fooled_it` pins all three, and mutating
+  the pattern back turns it red. When a guard has to *parse* prose rather than
+  execute it, test the parser separately -- otherwise a green means only that
+  your reader agreed with itself.
 
 Exempt: documents carrying `HISTORICAL_MARKER` (owned by
 `test_design_doc_is_historical.py`, which maps their old names to new ones) and

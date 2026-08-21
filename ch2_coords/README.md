@@ -297,7 +297,8 @@ flowchart TB
 ```
 ch2_coords/
 ├── README.md                          # This file
-└── example_coordinate_transforms.py   # Demonstration script
+├── example_coordinate_transforms.py   # LLH/ECEF/ENU transforms and rotations
+└── example_attitude_visualization.py  # Frames and the book's attitude convention
 
 core/coords/
 ├── __init__.py                        # Package exports
