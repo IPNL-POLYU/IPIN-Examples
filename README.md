@@ -41,17 +41,37 @@ IPIN-Examples/
 └── tests/                       # Unit tests, plus the guards over docs and figures
 ```
 
-## Architecture Diagram
+## Architecture
 
-For a visual overview of how chapters connect to the core library:
+Each chapter is a folder of runnable examples over one package of the shared
+`core/` library. Both the diagram and the table are generated from the imports
+themselves by `tools/chapter_dependencies.py`, so neither can drift from the code.
 
-![Repository Architecture](docs/architecture/ipin_repo_architecture_clean.svg)
+<!-- BEGIN GENERATED: repo-architecture (tools/chapter_dependencies.py) -->
 
-This diagram shows:
-- **Entry points**: README, notebooks, and scripts
-- **Chapter examples**: Learning modules (ch2-ch8)
-- **Core library**: Reusable implementations
-- **Dependencies**: How chapters import from core modules
+```mermaid
+flowchart LR
+    A0["<b>ch2_coords/</b><br/>coordinate frames"] --> B0["core/coords/"]
+    A1["<b>ch3_estimators/</b><br/>estimation"] --> B1["core/estimators/"]
+    A2["<b>ch4_rf_point_positioning/</b><br/>RF positioning"] --> B2["core/rf/"]
+    A3["<b>ch5_fingerprinting/</b><br/>fingerprinting"] --> B3["core/fingerprinting/"]
+    A4["<b>ch6_dead_reckoning/</b><br/>dead reckoning"] --> B4["core/sensors/<br/>core/sim/"]
+    A5["<b>ch7_slam/</b><br/>SLAM"] --> B5["core/estimators/<br/>core/slam/"]
+    A6["<b>ch8_sensor_fusion/</b><br/>sensor fusion"] --> B6["core/estimators/<br/>core/fusion/"]
+    S["<b>imported by nearly every chapter</b><br/>core/eval/ · core/utils/"]
+```
+
+| Chapter | Core packages it imports |
+| --- | --- |
+| [`ch2_coords/`](ch2_coords/) | `core.coords`, `core.eval`, `core.utils` |
+| [`ch3_estimators/`](ch3_estimators/) | `core.estimators`, `core.eval`, `core.utils` |
+| [`ch4_rf_point_positioning/`](ch4_rf_point_positioning/) | `core.eval`, `core.rf`, `core.utils` |
+| [`ch5_fingerprinting/`](ch5_fingerprinting/) | `core.eval`, `core.fingerprinting` |
+| [`ch6_dead_reckoning/`](ch6_dead_reckoning/) | `core.eval`, `core.sensors`, `core.sim`, `core.utils` |
+| [`ch7_slam/`](ch7_slam/) | `core.estimators`, `core.eval`, `core.slam`, `core.utils` |
+| [`ch8_sensor_fusion/`](ch8_sensor_fusion/) | `core.estimators`, `core.eval`, `core.fusion` |
+
+<!-- END GENERATED: repo-architecture -->
 
 ## Chapter Overview
 

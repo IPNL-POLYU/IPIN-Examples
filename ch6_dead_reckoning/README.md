@@ -683,84 +683,37 @@ consumer-grade IMU, seed 42):
 
 ---
 
-## Architecture Diagrams
+## Architecture
 
-For a visual understanding of the chapter's implementation, refer to the following diagrams:
+Every chapter has the same shape: pick an example, it calls into `core/`,
+figures land in `figs/`. The diagram and the table below are generated from
+the imports themselves by `tools/chapter_dependencies.py`, so they cannot
+drift from the code.
 
-### Component Architecture
+<!-- BEGIN GENERATED: architecture (tools/chapter_dependencies.py) -->
 
-![Component Architecture](../docs/architecture/ipin_ch6_component_clean.svg)
+```mermaid
+flowchart TB
+    D["<b>optional input</b><br/>data/sim/ch6_pdr_corridor_walk<br/><i>only example_pdr reads it</i>"]
+    E["<b>ch6_dead_reckoning/example_*.py</b><br/>7 runnable demos"]
+    C["<b>the reusable library</b><br/>core/eval/ · core/sensors/ · core/sim/ · core/utils/"]
+    F["<b>ch6_dead_reckoning/figs/</b><br/>svg + pdf + png"]
+    D -. "--data" .-> E
+    E ==> C
+    C ==> F
+```
 
-This diagram shows:
-- **Example Scripts**: Seven demonstration scripts (`example_imu_strapdown.py`, `example_zupt.py`, `example_wheel_odometry.py`, `example_pdr.py`, `example_environment.py`, `example_allan_variance.py`, `example_comparison.py`)
-- **Core Modules**: Reusable dead reckoning implementations in:
-  - `core/sensors/` (IMU models, strapdown integration, PDR, wheel odometry, magnetometer, barometer)
-  - `core/sim/` (trajectory generation and ground truth)
-  - `core/sensors/ins_ekf/` (INS-EKF with ZUPT updates)
-- **Optional Datasets**: Five pre-generated datasets in `data/sim/`:
-  - `ch6_strapdown_basic/` (basic IMU strapdown)
-  - `ch6_foot_zupt_walk/` (foot-mounted IMU with stance phases)
-  - `ch6_wheel_odom_square/` (vehicle square path)
-  - `ch6_pdr_corridor_walk/` (40m x 20m corridor walk)
-  - `ch6_env_sensors_heading_altitude/` (magnetometer and barometer)
-- **Output**: Generated SVG figures saved to `figs/` subdirectory
+| Example | Core modules | Optional dataset |
+| --- | --- | --- |
+| `example_allan_variance` | `core.eval`, `core.sensors`, `core.sim` | — |
+| `example_comparison` | `core.eval`, `core.sensors`, `core.sim` | — |
+| `example_environment` | `core.eval`, `core.sensors` | — |
+| `example_imu_strapdown` | `core.eval`, `core.sensors`, `core.sim` | — |
+| `example_pdr` | `core.eval`, `core.sensors`, `core.sim`, `core.utils` | `ch6_pdr_corridor_walk` |
+| `example_wheel_odometry` | `core.eval`, `core.sensors` | — |
+| `example_zupt` | `core.eval`, `core.sensors`, `core.sensors.ins_ekf`, `core.sim` | — |
 
-**Source**: PlantUML source available at [`docs/architecture/ipin_ch6_component_overview.puml`](../docs/architecture/ipin_ch6_component_overview.puml)
-
-### Execution Flow
-
-![Execution Flow](../docs/architecture/ipin_ch6_flow_clean.svg)
-
-This diagram illustrates the execution pipeline for each example script:
-
-1. **`example_imu_strapdown.py`** (Pure IMU Integration):
-   - Load dataset `ch6_strapdown_basic` (optional) OR generate trajectory truth
-   - Generate IMU measurements (noise + bias)
-   - Strapdown integrate attitude/vel/pos (pure dead reckoning, Eqs. 6.2-6.10)
-   - Compute drift + errors
-   - Plot + save `figs/*.svg`
-
-2. **`example_zupt.py`** (Zero-Velocity Update):
-   - Load dataset `ch6_foot_zupt_walk` (optional) OR simulate foot IMU
-   - Detect stance phases (ZUPT detector, Eq. 6.44)
-   - Run INS-EKF with ZUPT updates (Eq. 6.45)
-   - Compute errors (vs truth)
-   - Plot + save `figs/*.svg`
-
-3. **`example_wheel_odometry.py`** (Vehicle Dead Reckoning):
-   - Load dataset `ch6_wheel_odom_square` (optional)
-   - Integrate wheel odometry → 2D pose (Eq. 6.11 lever arm compensation)
-   - Compute errors
-   - Plot + save `figs/*.svg`
-
-4. **`example_pdr.py`** (Pedestrian Dead Reckoning):
-   - Load dataset `ch6_pdr_corridor_walk` (optional)
-   - Detect steps (Eqs. 6.46-6.47)
-   - Estimate step length (Weinberg model, Eq. 6.49)
-   - Estimate heading (gyro/magnetometer)
-   - Update 2D position (step-and-heading, Eq. 6.50)
-   - Plot + save `figs/*.svg`
-
-5. **`example_environment.py`** (Environmental Sensors):
-   - Load dataset `ch6_env_sensors_heading_altitude` (optional)
-   - Heading from magnetometer + gyro integration (Eqs. 6.51-6.53)
-   - Altitude from barometer (Eq. 6.54)
-   - Plot + save `figs/*.svg`
-
-6. **`example_allan_variance.py`** (IMU Calibration):
-   - Compute Allan deviation for accel + gyro (IEEE Std 952-1997)
-   - Extract ARW/VRW (Eq. 6.56), bias instability, rate random walk
-   - Plot + save `figs/*.svg`
-
-7. **`example_comparison.py`** (Method Comparison):
-   - Generate / load common trajectory
-   - Run strapdown / ZUPT / wheel odom / PDR
-   - Compare error-time + CDF curves
-   - Plot + save `figs/*.svg`
-
-**Source**: PlantUML source available at [`docs/architecture/ipin_ch6_activity_flow.puml`](../docs/architecture/ipin_ch6_activity_flow.puml)
-
----
+<!-- END GENERATED: architecture -->
 
 ## File Structure
 
@@ -795,12 +748,6 @@ core/sensors/
 core/sim/
 ├── trajectories.py                # Trajectory generation and ground truth
 └── noise_pink.py                  # 1/f pink noise for bias instability (Jan 2026)
-
-docs/architecture/
-├── ipin_ch6_component_overview.puml  # Component diagram source (PlantUML)
-├── ipin_ch6_component_clean.svg      # Component diagram (rendered)
-├── ipin_ch6_activity_flow.puml       # Execution flow source (PlantUML)
-└── ipin_ch6_flow_clean.svg           # Execution flow diagram (rendered)
 
 data/sim/
 ├── ch6_strapdown_basic/              # Basic IMU strapdown integration

@@ -431,54 +431,36 @@ at full weight and is dragged 1.29 m off; Geman-McClure drives it to zero.
 
 ---
 
-## Architecture Diagrams
+## Architecture
 
-To help you understand the code structure and execution flow, we provide visual diagrams:
+Every chapter has the same shape: pick an example, it calls into `core/`,
+figures land in `figs/`. The diagram and the table below are generated from
+the imports themselves by `tools/chapter_dependencies.py`, so they cannot
+drift from the code.
 
-### Component Architecture
+<!-- BEGIN GENERATED: architecture (tools/chapter_dependencies.py) -->
 
-![Chapter 3 Component View](../docs/architecture/ipin_ch3_component_clean.svg)
+```mermaid
+flowchart TB
+    D["<b>optional input</b><br/>data/sim/ch3_estimator_high_nonlinear<br/>data/sim/ch3_estimator_nonlinear<br/><i>only example_ekf_range_bearing reads it</i>"]
+    E["<b>ch3_estimators/example_*.py</b><br/>6 runnable demos"]
+    C["<b>the reusable library</b><br/>core/estimators/ · core/eval/ · core/utils/"]
+    F["<b>ch3_estimators/figs/</b><br/>svg + pdf + png"]
+    D -. "--data" .-> E
+    E ==> C
+    C ==> F
+```
 
-This diagram shows:
-- **Entry points**: `README.md` → Five example scripts
-- **Core library**: `core/estimators/` (LS/WLS/GN/LM/Robust, KF/EKF/IEKF/UKF, PF, FactorGraph) and `core/utils/` (angle_diff, geometry, observability)
-- **Datasets**: Optional `data/sim/ch3_estimator_*` for EKF/IEKF examples with pre-generated trajectories
-- **Output**: All examples save results to `ch3_estimators/figs/`
-- **Dependencies**: How each example imports from core modules
+| Example | Core modules | Optional dataset |
+| --- | --- | --- |
+| `example_comparison` | `core.estimators`, `core.eval` | — |
+| `example_ekf_range_bearing` | `core.estimators`, `core.eval`, `core.utils` | `ch3_estimator_high_nonlinear`, `ch3_estimator_nonlinear` |
+| `example_iekf_range_bearing` | `core.estimators`, `core.eval`, `core.utils` | — |
+| `example_kalman_1d` | `core.estimators`, `core.eval` | — |
+| `example_least_squares` | `core.estimators`, `core.eval` | — |
+| `example_particle_bimodal` | `core.estimators`, `core.eval` | — |
 
-### Execution Flow
-
-![Chapter 3 Execution Flow](../docs/architecture/ipin_ch3_flow_clean.svg)
-
-This diagram illustrates the complete execution pipeline for all five examples:
-
-1. **example_least_squares.py**: 
-   - Setup anchors → Simulate ranges → Build Jacobian → Solve with multiple methods (LS/WLS/GN/LM/Robust IRLS)
-   - Calls `core.estimators` (LS/WLS/GN/LM algorithms)
-
-2. **example_kalman_1d.py**: 
-   - Define linear model (F,Q,H,R) → Simulate trajectory → KF loop (predict→update)
-   - Calls `core.estimators.KalmanFilter`
-
-3. **example_ekf_range_bearing.py**: 
-   - Load dataset OR simulate → Check geometry/observability → EKF loop with angle-wrapped innovation
-   - Calls `core.estimators.ExtendedKalmanFilter` and `core.utils` (angle_diff, geometry checks)
-   - Supports `--data` option to load pre-generated nonlinear scenarios
-
-4. **example_iekf_range_bearing.py**: 
-   - Load dataset OR simulate → Run both EKF and IEKF → Compare results
-   - Demonstrates IEKF's improved accuracy in high-nonlinearity cases
-   - Supports `--data` option
-
-5. **example_comparison.py**: 
-   - Setup scenario → Generate ranges → Run all methods (EKF/UKF/PF/FGO) with timing
-   - Compares accuracy vs. computational cost trade-offs
-
-**Source diagrams:** PlantUML source files are available in `docs/architecture/`:
-- `ipin_ch3_component_overview.puml` - Component relationships
-- `ipin_ch3_activity_flow.puml` - High-level activity flow
-
----
+<!-- END GENERATED: architecture -->
 
 ## File Structure
 
@@ -512,12 +494,6 @@ core/utils/
 ├── angle_diff.py                    # Angle wrapping utilities
 ├── geometry.py                      # Geometry checks
 └── observability.py                 # Observability analysis
-
-docs/architecture/
-├── ipin_ch3_component_clean.svg     # Component architecture diagram
-├── ipin_ch3_component_overview.puml # Component diagram source
-├── ipin_ch3_flow_clean.svg          # Execution flow diagram
-└── ipin_ch3_activity_flow.puml      # Activity flow source
 
 data/sim/
 ├── ch3_estimator_nonlinear/         # Moderate nonlinearity scenario

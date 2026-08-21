@@ -476,71 +476,36 @@ pos_map = map_localize(query, model, floor_id=0)  # Likelihood from AP1, AP3, AP
 
 **Tested:** Up to 50% dropout rate, 100 queries, no crashes ✓
 
-## Architecture Diagrams
+## Architecture
 
-For a visual understanding of the chapter's implementation, refer to the following diagrams:
+Every chapter has the same shape: pick an example, it calls into `core/`,
+figures land in `figs/`. The diagram and the table below are generated from
+the imports themselves by `tools/chapter_dependencies.py`, so they cannot
+drift from the code.
 
-### Component Architecture
+<!-- BEGIN GENERATED: architecture (tools/chapter_dependencies.py) -->
 
-![Component Architecture](../docs/architecture/ipin_ch5_component_clean.svg)
+```mermaid
+flowchart TB
+    D["<b>optional input</b><br/>data/sim/ch5_wifi_fingerprint_grid<br/><i>every example reads it</i>"]
+    E["<b>ch5_fingerprinting/example_*.py</b><br/>6 runnable demos"]
+    C["<b>the reusable library</b><br/>core/eval/ · core/fingerprinting/"]
+    F["<b>ch5_fingerprinting/figs/</b><br/>svg + pdf + png"]
+    D -. "--data" .-> E
+    E ==> C
+    C ==> F
+```
 
-This diagram shows:
-- **Example Scripts**: Five demonstration scripts (`example_deterministic.py`, `example_probabilistic.py`, `example_pattern_recognition.py`, `example_classification.py`, `example_comparison.py`)
-- **Core Modules**: Reusable fingerprinting implementations in `core/fingerprinting/` (dataset, preprocessing, deterministic, probabilistic, pattern recognition, classification, types)
-- **Datasets**: Three WiFi fingerprint databases in `data/sim/`:
-  - `ch5_wifi_fingerprint_grid/` (default, 5m grid, 121 RPs)
-  - `ch5_wifi_fingerprint_dense/` (2m grid, 676 RPs)
-  - `ch5_wifi_fingerprint_sparse/` (10m grid, 36 RPs per floor)
-- **Output**: Generated figures saved to `figs/` subdirectory
+| Example | Core modules | Optional dataset |
+| --- | --- | --- |
+| `example_classification` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
+| `example_comparison` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
+| `example_deterministic` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
+| `example_pattern_recognition` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
+| `example_probabilistic` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
+| `example_walk_posterior` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
 
-**Source**: PlantUML source available at [`docs/architecture/ipin_ch5_component_overview.puml`](../docs/architecture/ipin_ch5_component_overview.puml)
-
-### Execution Flow
-
-![Execution Flow](../docs/architecture/ipin_ch5_flow_clean.svg)
-
-This diagram illustrates the execution pipeline for each example script:
-
-1. **`example_deterministic.py`** (Nearest-Neighbor):
-   - Load fingerprint DB (default: `ch5_wifi_fingerprint_grid/`)
-   - Generate test queries (floor + RSS noise)
-   - Run deterministic methods: NN (Eq. 5.1) and k-NN (Eq. 5.2)
-   - Compute errors + runtime (RMSE / median / P90)
-   - Plot + save `figs/deterministic_positioning.png`
-
-2. **`example_probabilistic.py`** (Bayesian Methods):
-   - Load fingerprint DB
-   - Fit Gaussian Naive Bayes (Eq. 5.6)
-   - Generate test queries (+ RSS noise)
-   - Compute posterior P(x_i|z) (Eq. 5.3)
-   - Estimate location: MAP (Eq. 5.4) and Posterior mean (Eq. 5.5)
-   - Evaluate errors + runtime
-   - Plot posterior + save `figs/probabilistic_positioning.png`
-
-3. **`example_pattern_recognition.py`** (Linear Regression):
-   - Load fingerprint DB
-   - Split train/test (per floor)
-   - Train linear regression localizer: x̂ = Wz + b (ridge, λ ∈ {0, 0.1, 1, 10})
-   - Evaluate RMSE + R² + time/query
-   - Plot weights + error stats, save `figs/pattern_recognition_positioning.png`
-
-4. **`example_classification.py`** (Classification + Hierarchical):
-   - Create synthetic multi-floor DB (3 floors, multiple APs)
-   - Train Random Forest + SVM classifiers
-   - Test accuracy + noise robustness
-   - Hierarchical localization: floor classification → k-NN / Bayes refinement
-   - Save `figs/classification_noise_robustness.png` and `figs/hierarchical_localization.png`
-
-5. **`example_comparison.py`** (Method Comparison):
-   - Load fingerprint DB
-   - Define scenarios: Baseline / Moderate / High noise
-   - Run method suite: Deterministic + Probabilistic + Linear Regression
-   - Aggregate metrics (RMSE / median / P90 / time)
-   - Plot + save `figs/comparison_all_methods.png`
-
-**Source**: PlantUML source available at [`docs/architecture/ipin_ch5_activity_flow.puml`](../docs/architecture/ipin_ch5_activity_flow.puml)
-
----
+<!-- END GENERATED: architecture -->
 
 ## File Structure
 
@@ -566,12 +531,6 @@ core/fingerprinting/
 ├── preprocess.py                     # Preprocessing utilities (averaging, normalization)
 ├── types.py                          # FingerprintDatabase class (allows NaN)
 └── dataset.py                        # Load/save utilities
-
-docs/architecture/
-├── ipin_ch5_component_overview.puml  # Component diagram source (PlantUML)
-├── ipin_ch5_component_clean.svg      # Component diagram (rendered)
-├── ipin_ch5_activity_flow.puml       # Execution flow source (PlantUML)
-└── ipin_ch5_flow_clean.svg           # Execution flow diagram (rendered)
 
 data/sim/
 ├── ch5_wifi_fingerprint_grid/        # Default dataset (5m grid, 121 RPs)
