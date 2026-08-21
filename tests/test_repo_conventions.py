@@ -656,3 +656,122 @@ def test_core_library_takes_its_randomness_from_the_caller(module):
         "Generator has no randn -- use standard_normal, which draws the same "
         "values from the same stream."
     )
+
+
+# Files sitting in a chapter directory that are not example_*.py, predating
+# this check. Same ratchet: only shrink it.
+#
+# Nine, every one of them Chapter 8. Chapters 2 through 7 hold *nothing* but
+# example_*.py and __init__.py -- measured, not assumed: 30 files, no
+# exceptions -- because everything shared lives in core/. Chapter 8 keeps a
+# second fusion library beside core/fusion/ (tc_models, lc_models) and names
+# seven runnable demos after what they do rather than after what they are.
+#
+# A reader who learned the pattern from six chapters runs `ls ch8*/example_*.py`
+# and finds one file where there are eight runnable demos.
+KNOWN_NON_EXAMPLE_CHAPTER_FILES: set = {
+    "ch8_sensor_fusion/calibration_demo.py",
+    "ch8_sensor_fusion/compare_lc_tc.py",
+    "ch8_sensor_fusion/lc_models.py",
+    "ch8_sensor_fusion/lc_uwb_imu_ekf.py",
+    "ch8_sensor_fusion/observability_demo.py",
+    "ch8_sensor_fusion/tc_models.py",
+    "ch8_sensor_fusion/tc_uwb_imu_ekf.py",
+    "ch8_sensor_fusion/temporal_calibration_demo.py",
+    "ch8_sensor_fusion/tuning_robust_demo.py",
+}
+
+# Chapter modules that import a sibling from their own chapter, predating this
+# check. Same ratchet: only shrink it.
+#
+# Seven files, twelve imports, all Chapter 8. Every other chapter has zero, so
+# this is the structural fact underneath the naming one above: ch8's examples
+# are not leaves. tc_uwb_imu_ekf is both a demo and the module four others
+# import load_fusion_dataset and run_tc_fusion from.
+#
+# Which is why renaming alone would make things worse rather than better: it
+# would produce examples that import examples, a shape no other chapter has.
+# The library half belongs in core/fusion/, next to the gating, adaptive and
+# tuning modules it already sits beside.
+KNOWN_INTRA_CHAPTER_IMPORTS: set = {
+    "ch8_sensor_fusion/compare_lc_tc.py",
+    "ch8_sensor_fusion/example_anchor_outage.py",
+    "ch8_sensor_fusion/lc_models.py",
+    "ch8_sensor_fusion/lc_uwb_imu_ekf.py",
+    "ch8_sensor_fusion/tc_uwb_imu_ekf.py",
+    "ch8_sensor_fusion/temporal_calibration_demo.py",
+    "ch8_sensor_fusion/tuning_robust_demo.py",
+}
+
+
+def _chapter_dirs():
+    """Every chapter directory."""
+    return sorted(p for p in REPO_ROOT.glob("ch*_*") if p.is_dir())
+
+
+@pytest.mark.parametrize("chapter", _chapter_dirs(), ids=lambda p: p.name)
+def test_chapter_directories_hold_only_examples(chapter):
+    """A chapter directory is a set of runnable examples and nothing else.
+
+    The convention is not written down anywhere, which is exactly the problem:
+    six chapters follow it exactly, so readers learn it by induction and then
+    apply it to the seventh. `ls chX/example_*.py` is how you find out what a
+    chapter offers, and it under-reports Chapter 8 by a factor of eight.
+
+    Shared code goes in core/. If a chapter file has no __main__ it is a
+    library, and a library in a chapter directory is one no other chapter can
+    reach.
+    """
+    offenders = sorted(
+        _relative(path)
+        for path in chapter.glob("*.py")
+        if path.name != "__init__.py"
+        and not path.name.startswith("example_")
+        and _relative(path) not in KNOWN_NON_EXAMPLE_CHAPTER_FILES
+    )
+
+    assert not offenders, (
+        f"{chapter.name} holds {len(offenders)} file(s) that are neither "
+        f"example_*.py nor __init__.py:\n  " + "\n  ".join(offenders)
+        + "\n\nName a runnable demo example_<what it shows>.py so `ls "
+        "chX/example_*.py` reports it. Move anything importable into core/."
+    )
+
+
+@pytest.mark.parametrize("script", _chapter_scripts(), ids=_relative)
+def test_chapter_module_does_not_import_its_sibling(script):
+    """An example is a leaf: it imports core, never the example next door.
+
+    Chapters 2 through 7 have zero intra-chapter imports between them. The
+    moment one example imports another, the second one stops being an example
+    and becomes a library that only its own chapter can use -- invisible to
+    core/, untested as library surface, and impossible to rename without
+    touching every caller.
+    """
+    relative = _relative(script)
+    package = script.parent.name
+    tree = ast.parse(script.read_text(encoding="utf-8"))
+
+    offenders = []
+    for node in ast.walk(tree):
+        if isinstance(node, ast.ImportFrom):
+            module = node.module or ""
+            if module == package or module.startswith(f"{package}."):
+                offenders.append(f"line {node.lineno}: from {module} import ...")
+        elif isinstance(node, ast.Import):
+            for alias in node.names:
+                if alias.name == package or alias.name.startswith(f"{package}."):
+                    offenders.append(f"line {node.lineno}: import {alias.name}")
+
+    if not offenders:
+        return
+
+    if relative in KNOWN_INTRA_CHAPTER_IMPORTS:
+        pytest.skip(f"known pre-existing intra-chapter import ({relative})")
+
+    assert not offenders, (
+        f"{relative} imports {len(offenders)} name(s) from its own chapter:\n  "
+        + "\n  ".join(offenders)
+        + "\n\nShared code belongs in core/, where every chapter can reach it "
+        "and where it is tested as library surface."
+    )

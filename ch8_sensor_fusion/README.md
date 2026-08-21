@@ -319,6 +319,62 @@ all on 13 epochs.
 
 *Nine-panel comparison showing trajectories, errors, NIS plots, and metrics.*
 
+### Robust Tuning Demo
+
+```bash
+python -m ch8_sensor_fusion.tuning_robust_demo
+```
+
+<!-- example-output: ch8_sensor_fusion.tuning_robust_demo -->
+```
+Method                        RMSE [m]     Accepted     Rejected
+----------------------------------------------------------------------
+Baseline (no gating)             0.722         2271            0
+Chi-Square Gating               25.664          422         1849
+Huber Loss                       0.722         2271            0
+Cauchy Loss                      0.714         2271            0
+======================================================================
+
+Key Findings:
+  * Best method: Cauchy
+  * Improvement over baseline: 1.1%
+...
+  Why chi-square gating collapses here (RMSE 25.66 m):
+```
+
+The 1.1% headline is the honest number and the interesting one is below it: a
+hard chi-square gate makes this dataset **35x worse**, because R is set from
+line-of-sight noise while half the ranges carry an NLOS bias an order of
+magnitude larger. The gate then rejects 81% of measurements, the state drifts,
+and the drift inflates the next innovation. A gate is only as good as the
+covariance it tests against; the robust losses survive the same mis-specified R
+because they scale an outlier down instead of removing it.
+
+### Temporal Calibration Demo
+
+```bash
+python -m ch8_sensor_fusion.temporal_calibration_demo
+```
+
+<!-- example-output: ch8_sensor_fusion.temporal_calibration_demo -->
+```
+Method                             RMSE [m]     Improvement
+----------------------------------------------------------------------
+Without Time Correction               0.211      (baseline)
+With TimeSyncModel                    0.185           12.5%
+======================================================================
+
+Key Findings:
+  * Uncorrected: 0.211 m RMSE; corrected: 0.185 m
+  * So a -50.0 ms offset costs 0.026 m, and TimeSyncModel recovers it: 12.5% better
+  * That is the order the kinematics predict: 1.00 m/s for 50 ms displaces the platform 0.050 m
+```
+
+Note the demo checks its own result against the kinematics rather than
+asserting it: 50 ms at 1 m/s displaces the platform 0.050 m, so the correction
+cannot be worth more than that. This is the bound `docs/` once contradicted by
+claiming the same correction more than halved the error.
+
 ## LC vs TC Comparison
 
 | Aspect | **Tightly Coupled (TC)** | **Loosely Coupled (LC)** |
@@ -366,8 +422,10 @@ Unobservable directions are identified via SVD null space analysis.
 python -m ch8_sensor_fusion.observability_demo
 ```
 
+<!-- example-output: ch8_sensor_fusion.observability_demo -->
 ```
 [A] Odometry-Only System:
+----------------------------------------------------------------------
   State dimension: 4
   Observable states: 2
   Unobservable states: 2
@@ -375,19 +433,32 @@ python -m ch8_sensor_fusion.observability_demo
   Rank: 2 / 4
 
   Unobservable modes (null space basis):
-    Mode 1: {'px': -1.0, 'py': 0.0, 'vx': 0.0, 'vy': 0.0}
+    Mode 1: {'px': -1.0, 'py': -0.0, 'vx': -0.0, 'vy': -0.0}
               (dominant: px)
-    Mode 2: {'px': 0.0, 'py': 1.0, 'vx': 0.0, 'vy': 0.0}
+    Mode 2: {'px': -0.0, 'py': 1.0, 'vx': 0.0, 'vy': -0.0}
               (dominant: py)
 
+  Singular values (first 5): [7.07106781 7.07106781 0.         0.        ]
+
 [B] Odometry + Absolute Fixes System:
+----------------------------------------------------------------------
   State dimension: 4
   Observable states: 4
   Unobservable states: 0
+  Observability matrix shape: (100, 4)
   Rank: 4 / 4
 
   System is FULLY OBSERVABLE!
 ```
+
+The two unobservable modes are exactly the position axes, and their velocity
+coefficients are zero — which is the chapter's claim made arithmetic. The block
+above is now checked against the program's real output, and pinning it is what
+found the two defects it used to hide: the coefficients printed as
+`np.float64(-0.9999999999999998)` under numpy 2, and `(dominant: ...)` named
+the second-largest component however small, so a mode of `[-1, 0, 0, 0]` was
+reported as `dominant: vy, px` — naming a velocity state, in the section
+arguing velocity is the observable half.
 
 **Key Insights:**
 - Odometry observes velocity → position unobservable (constant drift)
@@ -639,10 +710,14 @@ All demo scripts generate figures in the `ch8_sensor_fusion/figs/` directory. Th
 | `observability_demo.svg` | `observability_demo.py` | Sec. 8.2 |
 | `imu_calibration.svg` | `calibration_demo.py` | Sec. 8.4.1.3 |
 | `extrinsic_calibration.svg` | `calibration_demo.py` | Sec. 8.4.2 |
-| `temporal_calibration_test.png` | Test output | Sec. 8.5 |
-| `temporal_calibration_corrected.png` | Test output | Sec. 8.5 |
-| `imu_interpolation_test.png` | Test output | Sec. 8.5.2 |
-| `robust_loss_comparison.png` | Test output | Sec. 8.3 / Eq. 8.7 |
+| `temporal_calibration_demo.svg` | `temporal_calibration_demo.py` | Sec. 8.5 |
+| `tuning_robust_demo.svg` | `tuning_robust_demo.py` | Sec. 8.3 / Eq. 8.7 |
+| `ch8_anchor_outage.svg` | `example_anchor_outage.py` | Sec. 8.1.2 |
+
+Every row names the script that writes it, and
+`tests/ch8_sensor_fusion/test_figures_are_reproducible.py` checks both
+directions: each figure regenerates byte-for-byte, and nothing sits in `figs/`
+that no demo produces.
 
 ---
 
@@ -757,62 +832,42 @@ All demo scripts generate figures in the `ch8_sensor_fusion/figs/` directory. Th
 
 ---
 
-### 7. Temporal Calibration Test (`temporal_calibration_test.png`)
+### 7. Temporal Calibration (`temporal_calibration_demo.svg`)
 
 **Temporal calibration validation (Sec. 8.5):**
 
-This figure shows fusion results **before** temporal correction is applied:
-- UWB timestamps are offset by 50ms and drifting at 100ppm
-- Fusion accuracy is degraded due to timestamp mismatch
-- Demonstrates the importance of temporal synchronization
+Built by `temporal_calibration_demo.py`, which runs both paths in one pass:
+UWB timestamps offset by 50 ms and drifting at 100 ppm, fused with and without
+`TimeSyncModel` mapping sensor time to fusion time as
+`t_fusion = (1 + drift) * t_sensor + offset`.
+
+The measured gain is 0.211 m to 0.185 m, 12.5%, and it is bounded by kinematics
+rather than tuned: 50 ms at 1 m/s displaces the platform 0.050 m, so the
+correction cannot be worth more than that. The effect scales with speed, which
+is the reason temporal alignment matters -- not any large number this demo
+prints.
 
 ---
 
-### 8. Temporal Calibration Corrected (`temporal_calibration_corrected.png`)
-
-**Temporal calibration with correction applied:**
-
-Shows fusion results **after** `TimeSyncModel` corrects the timestamps:
-- UWB sensor time is mapped to fusion time using: `t_fusion = (1 + drift) * t_sensor + offset`
-- Improved alignment between IMU and UWB measurements
-- Reduced position error compared to uncorrected case
-
----
-
-### 9. IMU Interpolation Test (`imu_interpolation_test.png`)
-
-**Direct linear interpolation validation (Sec. 8.5.2):**
-
-This figure validates the `interpolate_imu_measurements()` function:
-- Tests interpolation at various query times between IMU samples
-- Verifies that interpolated values (accel, gyro) are correct
-- Confirms EKF can handle asynchronous UWB timestamps
-
-**Key Point:** When UWB arrives between IMU[k] and IMU[k+1], the EKF must propagate to the exact measurement time using interpolated IMU inputs.
-
----
-
-### 10. Robust Loss Comparison (`robust_loss_comparison.png`)
+### 8. Robust Loss Comparison (`tuning_robust_demo.svg`)
 
 **Robust loss functions for outlier handling (Sec. 8.3, Eq. 8.7):**
 
-This figure compares different robust loss functions:
-- **Standard (no robustness)**: All measurements weighted equally
-- **Huber loss**: Linear penalty for large residuals (soft rejection)
-- **Cauchy loss**: Heavier down-weighting of outliers
+Built by `tuning_robust_demo.py` on the NLOS dataset, comparing no gating,
+chi-square gating, Huber and Cauchy.
 
-**Key Concept (Eq. 8.7):** Robust functions return scale factors **w_R ≥ 1** that inflate R for outliers:
-- Small residual → w_R ≈ 1 (nominal covariance)
-- Large residual → w_R >> 1 (inflated covariance, reduced influence)
+**Key Concept (Eq. 8.7):** the robust functions return scale factors
+**w_R >= 1** that inflate R for outliers -- small residual gives w_R around 1,
+large residual gives w_R much greater than 1, reducing influence without
+removing the measurement.
 
-This is softer than hard chi-square gating and preserves some information from outliers.
+The figure's point is the failure, not the 1.1% win: hard chi-square gating
+scores 25.66 m against a 0.72 m baseline, because R is set from line-of-sight
+noise while half these ranges carry an NLOS bias an order of magnitude larger.
+The gate rejects 81% of measurements, the state drifts, and the drift inflates
+the next innovation. The robust losses survive the same mis-specified R.
 
 ---
-
-**Note:** 
-- SVG figures are publication-quality vector graphics suitable for documents and presentations.
-- PNG figures are raster test outputs used for validation during development.
-- The `compare_lc_tc.py` script can optionally generate a JSON report with `--report <path>`, but this is not created by default.
 
 ## References
 
