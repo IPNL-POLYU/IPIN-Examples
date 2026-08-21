@@ -196,10 +196,10 @@ def print_comparison_table(metrics: Dict) -> None:
     better_accept = "LC" if lc['acceptance_rate'] > tc['acceptance_rate'] else "TC"
     
     print("\nSummary:")
-    print(f"  • {better_rmse} has lower RMSE ({abs(lc['rmse_2d'] - tc['rmse_2d']):.3f}m difference)")
-    print(f"  • {better_accept} has higher acceptance rate "
+    print(f"  - {better_rmse} has lower RMSE ({abs(lc['rmse_2d'] - tc['rmse_2d']):.3f}m difference)")
+    print(f"  - {better_accept} has higher acceptance rate "
           f"({abs(lc['acceptance_rate'] - tc['acceptance_rate']):.1f}% difference)")
-    print(f"  • LC: {lc['n_updates']} updates, TC: {tc['n_updates']} updates "
+    print(f"  - LC: {lc['n_updates']} updates, TC: {tc['n_updates']} updates "
           f"(TC has {tc['n_updates'] - lc['n_updates']:+d} more)")
 
     # The trade-off is in the numbers above but was not being said. TC wins on
@@ -209,7 +209,7 @@ def print_comparison_table(metrics: Dict) -> None:
     # undiluted. LC solves for a position first, which needs three anchors but
     # absorbs some of the damage on the way.
     if tc['max_error'] > lc['max_error']:
-        print(f"  • ...but TC's worst case is larger: {tc['max_error']:.2f} m "
+        print(f"  - ...but TC's worst case is larger: {tc['max_error']:.2f} m "
               f"against {lc['max_error']:.2f} m, while its mean error is the")
         print(f"    smaller of the two ({tc['mean_error']:.2f} m against "
               f"{lc['mean_error']:.2f} m). Fusing raw ranges gives TC more "
