@@ -81,58 +81,14 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
-      # TEMPORARY DIAGNOSTIC -- to be reverted with the `if: false` below.
-      # Round 3 was decisive: the file hangs *alone*, in a fresh pytest
-      # process, so it is not an interaction with ch2-ch7. The same eight
-      # modules take 39 s run directly and 36 s driven through run_example
-      # from a plain script. The only remaining variable is pytest itself.
-      # faulthandler prints the stack of every thread once a test exceeds the
-      # timeout, which says where it is stuck instead of leaving it to be
-      # guessed at for a fourth round.
-      - name: Diagnostic - are the figures the same bytes on this runner
-        continue-on-error: true
-        timeout-minutes: 15
-        env:
-          MPLBACKEND: Agg
-          PYTHONUNBUFFERED: "1"
-        run: |
-          python - <<'EOF'
-          import hashlib, pathlib
-          from tests.example_runner import WORKSPACE_ROOT, run_example
-          mods = ['tc_uwb_imu_ekf', 'lc_uwb_imu_ekf', 'compare_lc_tc',
-                  'observability_demo', 'tuning_robust_demo',
-                  'temporal_calibration_demo', 'calibration_demo',
-                  'example_anchor_outage']
-          figs = None
-          for m in mods:
-              figs = run_example('ch8_sensor_fusion.' + m).figs_dir
-          committed = WORKSPACE_ROOT / 'ch8_sensor_fusion' / 'figs'
-          def sha(p):
-              return hashlib.sha256(p.read_bytes()).hexdigest()[:12]
-          same = diff = 0
-          for c in sorted(committed.iterdir()):
-              f = figs / c.name
-              if not f.is_file():
-                  print('%-40s MISSING from the run' % c.name, flush=True)
-                  continue
-              if sha(f) == sha(c):
-                  same += 1
-              else:
-                  diff += 1
-                  print('%-40s committed %s %8d B | fresh %s %8d B'
-                        % (c.name, sha(c), c.stat().st_size,
-                           sha(f), f.stat().st_size), flush=True)
-          print('identical=%d differing=%d' % (same, diff), flush=True)
-          EOF
-
       - name: Run the suite
-        if: false  # TEMPORARY: skipped so the diagnostic above answers in minutes
         env:
           MPLBACKEND: Agg
-          # Unbuffered, because a cancelled run is the case where the log
-          # matters most and is exactly when block buffering hides it. Two runs
-          # were cancelled at the job limit having last printed a test file that
-          # turned out to be nowhere near where they actually were.
+          # Unbuffered, because a cancelled run is the case where the log is
+          # the only evidence there is. Three runs were cancelled at the job
+          # limit here, and the first question each time was whether the last
+          # file printed was where the run actually stopped. It was -- but
+          # establishing that cost a CI cycle, and this makes it free.
           PYTHONUNBUFFERED: "1"
         # -rs reports why each test skipped. The first run of this workflow
         # went green having run 21 fewer tests than a developer machine, because
