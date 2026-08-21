@@ -1,33 +1,42 @@
-"""Chapter 8's committed figures must be what its demos produce, both ways.
-
-`core.eval.save_figure` writes bytes and is byte-reproducible, so a committed
-figure that differs from a fresh run means the picture changed. CLAUDE.md says
-so and treats a figure diff as a real signal -- but nothing checked it, and the
-gap showed in the direction nobody watches.
+"""Every Chapter 8 figure has a demo behind it, and every demo's figure is committed.
 
 Four PNGs sat in `ch8_sensor_fusion/figs/` that **no code produces**:
 `temporal_calibration_test.png`, `temporal_calibration_corrected.png`,
-`imu_interpolation_test.png` and `robust_loss_comparison.png`. All four are
-dated December while every live figure is dated July, and all four are PNG-only
--- `save_figure` writes svg, pdf and png together, so a lone PNG is by itself
-evidence that something else made it. The demos had been rewritten to emit one
-combined figure each; the old outputs were never deleted, and the README's
-Figure Gallery went on describing them in four numbered sections, sourcing them
-to "Test output".
+`imu_interpolation_test.png` and `robust_loss_comparison.png`. All four were
+dated December while every live figure was dated July, and all four were
+PNG-only -- `save_figure` writes svg, pdf and png together, so a lone PNG is by
+itself evidence that something else made it. The demos had been rewritten to
+emit one combined figure each; the old outputs were never deleted, and the
+README's Figure Gallery went on describing them in four numbered sections,
+sourcing them to "Test output".
 
-So the check runs in both directions:
+An extra file in `figs/` breaks nothing at run time. It only misleads readers,
+which is why it needed a check rather than a bug report. The check runs both
+ways: nothing committed that no demo writes, and nothing written that is not
+committed. It has earned itself twice -- on those four, and again when a
+mechanical rename moved three demos' default figure paths and this named the
+files.
 
-- every committed figure regenerates byte-for-byte, and
-- nothing sits in `figs/` that no demo writes.
+**It deliberately does not compare the bytes, and that was measured rather than
+assumed.** The first version asserted
+`fresh.read_bytes() == committed.read_bytes()`, which passes locally, because
+`save_figure` really is byte-reproducible on one machine. On the Ubuntu runner
+**all 27 files differ**: svg by about 0.1%, pdf by 2-4%, png by 5-27%
+(252546 B against 321177 B for one of them). That is font metrics and
+rasterisation, not a changed picture. It is the figure analogue of the rule this
+repository already learned about float equality and CI runners -- assert bit
+equality on stored bytes, never on a fresh computation compared against what
+some other machine produced.
 
-The second is the half that found the orphans, and it is the half a
-regenerate-and-compare check normally omits, because an extra file breaks
-nothing at run time. It only misleads readers.
+That version also **hung CI three times rather than failing**. pytest's
+assertion introspection on `bytes == bytes` builds the diff element by element,
+so a mismatch on a 300 KB PNG is not a failure report but an astronomical one:
+the job was cancelled at the 45-minute limit having printed `.s` and nothing
+further. If you ever assert equality on large binary blobs, compare digests.
 
-Cost is near zero: every marked transcript in the chapter README already runs
-these eight modules with no arguments, and `run_example` is memoised on
-(module, args), so this test reads the output of subprocesses
-`tests/docs/test_readme_example_output.py` has already paid for.
+To check that a change left the pictures alone, do it the way CLAUDE.md already
+says: regenerate on your own machine, read `git status`, and open the PNGs.
+That works precisely because the bytes are reproducible per-machine.
 
 Author: Li-Ta Hsu
 """
@@ -123,8 +132,8 @@ def _committed_figures():
 
 
 @pytest.mark.parametrize("committed", _committed_figures(), ids=lambda p: p.name)
-def test_committed_figure_regenerates_byte_for_byte(committed):
-    """A committed figure must be exactly what a fresh run writes."""
+def test_committed_figure_still_has_a_demo_behind_it(committed):
+    """Something in the chapter must still write every file in figs/."""
     if committed.name in EXPECTED_WITHOUT_A_PLAIN_RUN:
         pytest.skip(f"{committed.name} needs --animate; see the set's comment")
 
@@ -133,17 +142,8 @@ def test_committed_figure_regenerates_byte_for_byte(committed):
         f"{committed.name} is committed under ch8_sensor_fusion/figs/ but no "
         "Chapter 8 demo wrote it. Either it is a leftover from a version of "
         "the code that no longer exists -- four PNGs were, when this check was "
-        "written -- or a demo that should produce it has stopped. Delete it, or "
-        "restore whatever wrote it."
-    )
-    assert fresh.read_bytes() == committed.read_bytes(), (
-        f"{committed.name} differs from what the demos now produce "
-        f"({fresh.stat().st_size} bytes fresh against "
-        f"{committed.stat().st_size} committed).\n\n"
-        "save_figure is byte-reproducible, so this means the picture changed. "
-        "If that was intended, regenerate and commit the new figure -- and open "
-        "the PNG first, because this check compares bytes and cannot tell an "
-        "improvement from a defect."
+        "written -- or a demo that should produce it has been renamed or "
+        "stopped. Delete it, or point the demo back at the committed name."
     )
 
 

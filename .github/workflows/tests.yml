@@ -84,12 +84,18 @@ jobs:
       - name: Run the suite
         env:
           MPLBACKEND: Agg
+          # Unbuffered, because a cancelled run is the case where the log is
+          # the only evidence there is. Three runs were cancelled at the job
+          # limit here, and the first question each time was whether the last
+          # file printed was where the run actually stopped. It was -- but
+          # establishing that cost a CI cycle, and this makes it free.
+          PYTHONUNBUFFERED: "1"
         # -rs reports why each test skipped. The first run of this workflow
         # went green having run 21 fewer tests than a developer machine, because
         # an undeclared scikit-learn made a module skip itself. A green tick on
         # a suite that quietly shrank is worse than a red one, so the skips are
         # printed rather than merely counted.
-        run: python -m pytest -q -rs
+        run: python -m pytest -q -rs --durations=25
 
       - name: A test run must leave the working tree clean
         # This repo spent real effort on a phantom: ch7_slam/figs/*.png kept
