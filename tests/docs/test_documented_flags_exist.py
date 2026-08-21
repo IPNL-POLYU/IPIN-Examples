@@ -24,7 +24,7 @@ What it found on its first run, in five reader-facing documents:
   on it was unrunnable as written.
 - `ch5_fingerprinting.example_deterministic` likewise: it loads the shipped grid
   database and declares no flags.
-- `ch8_sensor_fusion.compare_lc_tc --alpha 0.01` -- the real flag is
+- `ch8_sensor_fusion.example_comparison --alpha 0.01` -- the real flag is
   `--confidence`, and `alpha` was deprecated in favour of it, so 0.01 became
   0.99.
 

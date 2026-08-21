@@ -12,7 +12,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ch8_sensor_fusion.tc_uwb_imu_ekf import load_fusion_dataset, run_tc_fusion
+from core.fusion import load_fusion_dataset, run_tc_fusion
 
 
 class TestBatchUpdate(unittest.TestCase):

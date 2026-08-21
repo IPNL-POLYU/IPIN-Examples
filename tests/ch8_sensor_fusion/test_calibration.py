@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 
-from ch8_sensor_fusion.calibration_demo import (
+from ch8_sensor_fusion.example_calibration import (
     estimate_imu_bias_stationary,
     calibrate_extrinsic_2d_least_squares,
     generate_synthetic_imu_stationary,

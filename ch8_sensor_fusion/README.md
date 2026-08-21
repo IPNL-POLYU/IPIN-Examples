@@ -19,25 +19,25 @@ Chapter 8 focuses on **practical aspects** of sensor fusion:
 
 ```bash
 # Tightly coupled IMU + UWB fusion (sequential mode)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf
+python -m ch8_sensor_fusion.example_tc_fusion
 
 # Tightly coupled with batch updates (recommended - matches book's "m+n" description)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --batch-update
+python -m ch8_sensor_fusion.example_tc_fusion --batch-update
 
 # Loosely coupled IMU + UWB fusion
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf
+python -m ch8_sensor_fusion.example_lc_fusion
 
 # Compare LC vs TC architectures
-python -m ch8_sensor_fusion.compare_lc_tc
+python -m ch8_sensor_fusion.example_comparison
 
 # Why tight coupling exists: an 8 s anchor outage (add --animate for the GIF)
 python -m ch8_sensor_fusion.example_anchor_outage
 
 # Advanced demos
-python -m ch8_sensor_fusion.observability_demo  # Includes Eq. 8.3 observability matrix analysis
-python -m ch8_sensor_fusion.tuning_robust_demo  # Demonstrates Eq. 8.7 robust R-inflation
-python -m ch8_sensor_fusion.temporal_calibration_demo
-python -m ch8_sensor_fusion.calibration_demo  # Section 8.4: Intrinsic & extrinsic calibration
+python -m ch8_sensor_fusion.example_observability  # Includes Eq. 8.3 observability matrix analysis
+python -m ch8_sensor_fusion.example_robust_tuning  # Demonstrates Eq. 8.7 robust R-inflation
+python -m ch8_sensor_fusion.example_temporal_calibration
+python -m ch8_sensor_fusion.example_calibration  # Section 8.4: Intrinsic & extrinsic calibration
 ```
 
 ## Anchor Outage: LC vs TC, where the difference actually shows
@@ -94,11 +94,11 @@ docstring.
 | `mahalanobis_distance_squared()` | `core/fusion/gating.py` | Eq. (8.8) | d² = y'S⁻¹y |
 | `chi_square_gate()` | `core/fusion/gating.py` | Eq. (8.9) | Accept if d² < χ²(α,m) |
 | `AdaptiveGatingManager` | `core/fusion/adaptive.py` | Sec. 8.3.2 | Adaptive gating with P inflation & NIS monitoring |
-| `interpolate_imu_measurements()` | `tc_models.py` | Sec. 8.5.2 | Direct linear interpolation of IMU |
-| `compute_observability_matrix()` | `observability_demo.py` | Eq. (8.3) | Build EKF observability matrix O_EKF |
-| `analyze_unobservable_states()` | `observability_demo.py` | Sec. 8.2 | Identify unobservable modes via SVD |
-| `estimate_imu_bias_stationary()` | `calibration_demo.py` | Sec. 8.4.1.3 | IMU intrinsic calibration (bias estimation) |
-| `calibrate_extrinsic_2d_least_squares()` | `calibration_demo.py` | Sec. 8.4.2 | 2D extrinsic calibration (lever-arm + rotation) |
+| `interpolate_imu_measurements()` | `core/fusion/tc_models.py` | Sec. 8.5.2 | Direct linear interpolation of IMU |
+| `compute_observability_matrix()` | `example_observability.py` | Eq. (8.3) | Build EKF observability matrix O_EKF |
+| `analyze_unobservable_states()` | `example_observability.py` | Sec. 8.2 | Identify unobservable modes via SVD |
+| `estimate_imu_bias_stationary()` | `example_calibration.py` | Sec. 8.4.1.3 | IMU intrinsic calibration (bias estimation) |
+| `calibrate_extrinsic_2d_least_squares()` | `example_calibration.py` | Sec. 8.4.2 | 2D extrinsic calibration (lever-arm + rotation) |
 
 **Note on Robust Loss (Eq. 8.7):** The robust functions return scale factors **w_R >= 1** that
 **inflate** R for outliers. This is the correct interpretation: outliers get larger covariance,
@@ -126,10 +126,10 @@ risk of filter divergence. See `core/fusion/adaptive.py` for implementation deta
 
 | Function | Location | Description |
 |----------|----------|-------------|
-| `create_process_model()` | `tc_models.py` | 2D IMU dead-reckoning process model |
-| `create_uwb_range_measurement_model()` | `tc_models.py` | UWB range measurement for TC |
-| `solve_uwb_position_wls()` | `lc_models.py` | WLS position solver for LC |
-| `create_lc_position_measurement_model()` | `lc_models.py` | Position measurement for LC |
+| `create_process_model()` | `core/fusion/tc_models.py` | 2D IMU dead-reckoning process model |
+| `create_uwb_range_measurement_model()` | `core/fusion/tc_models.py` | UWB range measurement for TC |
+| `solve_uwb_position_wls()` | `core/fusion/lc_models.py` | WLS position solver for LC |
+| `create_lc_position_measurement_model()` | `core/fusion/lc_models.py` | Position measurement for LC |
 
 ## Usage Examples
 
@@ -145,19 +145,19 @@ individual ranges. This matches the book's description of TC fusion handling mul
 
 ```bash
 # Basic usage (sequential mode)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf
+python -m ch8_sensor_fusion.example_tc_fusion
 
 # Batch update mode (recommended with gating)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --batch-update
+python -m ch8_sensor_fusion.example_tc_fusion --batch-update
 
 # With custom dataset
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
+python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/ch8_fusion_2d_imu_uwb
 
 # Disable gating
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --no-gating
+python -m ch8_sensor_fusion.example_tc_fusion --no-gating
 
 # Adjust gating threshold
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --confidence 0.99  # More conservative (99%)
+python -m ch8_sensor_fusion.example_tc_fusion --confidence 0.99  # More conservative (99%)
 ```
 
 **Performance Comparison (on nominal dataset):**
@@ -182,22 +182,22 @@ The LC fusion uses an improved WLS solver (`solve_uwb_position_wls`) with realis
 
 ```bash
 # Basic usage (no gating)
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --no-gating
+python -m ch8_sensor_fusion.example_lc_fusion --no-gating
 
 # With gating (requires proper tuning)
-python -m ch8_sensor_fusion.lc_uwb_imu_ekf --confidence 0.95
+python -m ch8_sensor_fusion.example_lc_fusion --confidence 0.95
 
 # Compare with TC
-python -m ch8_sensor_fusion.compare_lc_tc --save comparison.svg
+python -m ch8_sensor_fusion.example_comparison --save comparison.svg
 ```
 
 ## Expected Output
 
 ### TC Fusion Demo
 
-Running `python -m ch8_sensor_fusion.tc_uwb_imu_ekf` produces:
+Running `python -m ch8_sensor_fusion.example_tc_fusion` produces:
 
-<!-- example-output: ch8_sensor_fusion.tc_uwb_imu_ekf -->
+<!-- example-output: ch8_sensor_fusion.example_tc_fusion -->
 ```
 Tightly Coupled IMU + UWB EKF Fusion
 ======================================================================
@@ -245,9 +245,9 @@ differ.
 
 ### LC Fusion Demo
 
-Running `python -m ch8_sensor_fusion.lc_uwb_imu_ekf` produces:
+Running `python -m ch8_sensor_fusion.example_lc_fusion` produces:
 
-<!-- example-output: ch8_sensor_fusion.lc_uwb_imu_ekf -->
+<!-- example-output: ch8_sensor_fusion.example_lc_fusion -->
 ```
 Loosely Coupled IMU + UWB EKF Fusion
 ======================================================================
@@ -287,9 +287,9 @@ the filter the ranges themselves.
 
 ### LC vs TC Comparison
 
-Running `python -m ch8_sensor_fusion.compare_lc_tc` produces:
+Running `python -m ch8_sensor_fusion.example_comparison` produces:
 
-<!-- example-output: ch8_sensor_fusion.compare_lc_tc -->
+<!-- example-output: ch8_sensor_fusion.example_comparison -->
 ```
 LC vs TC Performance Comparison
 ======================================================================
@@ -322,10 +322,10 @@ all on 13 epochs.
 ### Robust Tuning Demo
 
 ```bash
-python -m ch8_sensor_fusion.tuning_robust_demo
+python -m ch8_sensor_fusion.example_robust_tuning
 ```
 
-<!-- example-output: ch8_sensor_fusion.tuning_robust_demo -->
+<!-- example-output: ch8_sensor_fusion.example_robust_tuning -->
 ```
 Method                        RMSE [m]     Accepted     Rejected
 ----------------------------------------------------------------------
@@ -353,10 +353,10 @@ because they scale an outlier down instead of removing it.
 ### Temporal Calibration Demo
 
 ```bash
-python -m ch8_sensor_fusion.temporal_calibration_demo
+python -m ch8_sensor_fusion.example_temporal_calibration
 ```
 
-<!-- example-output: ch8_sensor_fusion.temporal_calibration_demo -->
+<!-- example-output: ch8_sensor_fusion.example_temporal_calibration -->
 ```
 Method                             RMSE [m]     Improvement
 ----------------------------------------------------------------------
@@ -391,7 +391,7 @@ claiming the same correction more than halved the error.
 
 ## Observability Analysis (Equation 8.3)
 
-The `observability_demo.py` includes formal observability analysis per the book's Equation 8.3:
+The `example_observability.py` includes formal observability analysis per the book's Equation 8.3:
 
 ### EKF Observability Matrix
 
@@ -419,10 +419,10 @@ Unobservable directions are identified via SVD null space analysis.
 ### Demo Output Example
 
 ```bash
-python -m ch8_sensor_fusion.observability_demo
+python -m ch8_sensor_fusion.example_observability
 ```
 
-<!-- example-output: ch8_sensor_fusion.observability_demo -->
+<!-- example-output: ch8_sensor_fusion.example_observability -->
 ```
 [A] Odometry-Only System:
 ----------------------------------------------------------------------
@@ -468,7 +468,7 @@ arguing velocity is the observable half.
 
 ## Calibration (Section 8.4)
 
-The book emphasizes that **calibration is a prerequisite for accurate sensor fusion**. The `calibration_demo.py` demonstrates both intrinsic and extrinsic calibration techniques.
+The book emphasizes that **calibration is a prerequisite for accurate sensor fusion**. The `example_calibration.py` demonstrates both intrinsic and extrinsic calibration techniques.
 
 ### Intrinsic Calibration: IMU Bias Estimation
 
@@ -478,7 +478,7 @@ The book emphasizes that **calibration is a prerequisite for accurate sensor fus
 
 **Method:**
 ```py
-from ch8_sensor_fusion.calibration_demo import estimate_imu_bias_stationary
+from ch8_sensor_fusion.example_calibration import estimate_imu_bias_stationary
 
 # Collect stationary IMU data
 calibration = estimate_imu_bias_stationary(accel_samples, gyro_samples)
@@ -489,7 +489,7 @@ print(f"Gyro bias: {calibration['gyro_bias']}")    # [rad/s]
 
 **Demo Output:**
 ```bash
-python -m ch8_sensor_fusion.calibration_demo
+python -m ch8_sensor_fusion.example_calibration
 ```
 
 ```
@@ -520,7 +520,7 @@ where:
 
 **Method:**
 ```py
-from ch8_sensor_fusion.calibration_demo import calibrate_extrinsic_2d_least_squares
+from ch8_sensor_fusion.example_calibration import calibrate_extrinsic_2d_least_squares
 
 # Collect synchronized position data from both sensors
 R, t = calibrate_extrinsic_2d_least_squares(p_sensor1, p_sensor2)
@@ -531,7 +531,7 @@ print(f"Lever-arm: {t} m")
 
 **Demo Output:**
 
-<!-- example-output: ch8_sensor_fusion.calibration_demo -->
+<!-- example-output: ch8_sensor_fusion.example_calibration -->
 ```
 Extrinsic Calibration Results
 ======================================================================
@@ -566,13 +566,13 @@ Three synthetic datasets are provided:
 
 | Example Script | Dataset | Description |
 |----------------|---------|-------------|
-| `lc_uwb_imu_ekf.py`, `tc_uwb_imu_ekf.py` | `data/sim/ch8_fusion_2d_imu_uwb/` | Baseline (no bias, no offset) |
-| `tuning_robust_demo.py` | `data/sim/ch8_fusion_2d_imu_uwb_nlos/` | NLOS bias on anchors 1,2 |
-| `temporal_calibration_demo.py` | `data/sim/ch8_fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift |
+| `example_lc_fusion.py`, `example_tc_fusion.py` | `data/sim/ch8_fusion_2d_imu_uwb/` | Baseline (no bias, no offset) |
+| `example_robust_tuning.py` | `data/sim/ch8_fusion_2d_imu_uwb_nlos/` | NLOS bias on anchors 1,2 |
+| `example_temporal_calibration.py` | `data/sim/ch8_fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift |
 
 **Load dataset manually:**
 ```python
-from ch8_sensor_fusion.lc_uwb_imu_ekf import load_fusion_dataset
+from ch8_sensor_fusion.example_lc_fusion import load_fusion_dataset
 
 data = load_fusion_dataset("data/sim/ch8_fusion_2d_imu_uwb")
 truth = data['truth']       # Ground truth trajectory
@@ -596,12 +596,12 @@ For a visual understanding of the chapter's implementation, refer to the followi
 ![Component Architecture](../docs/architecture/ipin_ch8_component_clean_v2.svg)
 
 This diagram shows:
-- **Example Scripts**: Seven demonstration scripts (`lc_uwb_imu_ekf.py`, `tc_uwb_imu_ekf.py`, `compare_lc_tc.py`, `tuning_robust_demo.py`, `temporal_calibration_demo.py`, `calibration_demo.py`, `observability_demo.py`)
+- **Example Scripts**: Seven demonstration scripts (`example_lc_fusion.py`, `example_tc_fusion.py`, `example_comparison.py`, `example_robust_tuning.py`, `example_temporal_calibration.py`, `example_calibration.py`, `example_observability.py`)
 - **Core Modules**: Reusable sensor fusion implementations in:
   - `core/fusion/` (StampedMeasurement, TimeSyncModel, gating/robust utils)
   - `core/estimators/` (ExtendedKalmanFilter)
   - `core/eval/` (errors, RMSE)
-- **Chapter Models**: Fusion-specific models in `lc_models.py` (LC models + WLS solver) and `tc_models.py` (TC models + interpolation)
+- **Fusion library**: `core/fusion/` holds the models (`lc_models.py`, `tc_models.py`), the dataset loader and both pipelines (`loosely_coupled.py`, `tightly_coupled.py`). The chapter files are demos: evaluate, plot, main.
 - **Data Sources**: Optional synthetic datasets from `data/sim/ch8_*` directories
 - **Output Figures**: Generated visualizations in `figs/`
 
@@ -668,21 +668,26 @@ This diagram illustrates the detailed execution pipeline for the sensor fusion d
 ```
 ch8_sensor_fusion/
 ├── README.md                        # This file (student documentation)
-├── tc_models.py                     # TC fusion EKF models
-├── tc_uwb_imu_ekf.py                # TC demo
-├── lc_models.py                     # LC fusion EKF models
-├── lc_uwb_imu_ekf.py                # LC demo
-├── compare_lc_tc.py                 # LC vs TC comparison
-├── observability_demo.py            # Observability analysis (Eq. 8.3)
-├── tuning_robust_demo.py            # Robust estimation demo (Eq. 8.7)
-├── temporal_calibration_demo.py     # Time sync demo (Sec. 8.5)
-├── calibration_demo.py              # Calibration demo (Sec. 8.4)
+├── example_tc_fusion.py                # TC demo
+├── example_lc_fusion.py                # LC demo
+├── example_comparison.py                 # LC vs TC comparison
+├── example_observability.py            # Observability analysis (Eq. 8.3)
+├── example_robust_tuning.py            # Robust estimation demo (Eq. 8.7)
+├── example_temporal_calibration.py     # Time sync demo (Sec. 8.5)
+├── example_calibration.py              # Calibration demo (Sec. 8.4)
+├── example_anchor_outage.py         # 8 s anchor outage: LC vs TC (Sec. 8.1.2)
 └── figs/                            # Generated figures
 
-core/fusion/
+core/fusion/                         # The library the demos above are thin over
+├── types.py                         # StampedMeasurement, TimeSyncModel
 ├── tuning.py                        # Innovation, scaling (Eqs. 8.5-8.7)
 ├── gating.py                        # Chi-square gating (Eqs. 8.8-8.9)
-└── adaptive.py                      # Adaptive gating manager (Sec. 8.3.2)
+├── adaptive.py                      # Adaptive gating manager (Sec. 8.3.2)
+├── dataset.py                       # load_fusion_dataset
+├── tc_models.py                     # TC process/measurement models, IMU interpolation
+├── lc_models.py                     # LC models + WLS position solver
+├── tightly_coupled.py               # run_tc_fusion (Sec. 8.1.2)
+└── loosely_coupled.py               # run_lc_fusion (Sec. 8.1.1)
 
 docs/architecture/
 ├── ipin_ch8_component_clean_v2.svg  # Component diagram (visual)
@@ -704,14 +709,14 @@ All demo scripts generate figures in the `ch8_sensor_fusion/figs/` directory. Th
 
 | Figure | Source Script | Book Section |
 |--------|---------------|--------------|
-| `tc_uwb_imu_results.svg` | `tc_uwb_imu_ekf.py` | Sec. 8.1.2 |
-| `lc_uwb_imu_results.svg` | `lc_uwb_imu_ekf.py` | Sec. 8.1.1 |
-| `lc_tc_comparison.svg` | `compare_lc_tc.py` | Sec. 8.1.3 |
-| `observability_demo.svg` | `observability_demo.py` | Sec. 8.2 |
-| `imu_calibration.svg` | `calibration_demo.py` | Sec. 8.4.1.3 |
-| `extrinsic_calibration.svg` | `calibration_demo.py` | Sec. 8.4.2 |
-| `temporal_calibration_demo.svg` | `temporal_calibration_demo.py` | Sec. 8.5 |
-| `tuning_robust_demo.svg` | `tuning_robust_demo.py` | Sec. 8.3 / Eq. 8.7 |
+| `tc_uwb_imu_results.svg` | `example_tc_fusion.py` | Sec. 8.1.2 |
+| `lc_uwb_imu_results.svg` | `example_lc_fusion.py` | Sec. 8.1.1 |
+| `lc_tc_comparison.svg` | `example_comparison.py` | Sec. 8.1.3 |
+| `observability_demo.svg` | `example_observability.py` | Sec. 8.2 |
+| `imu_calibration.svg` | `example_calibration.py` | Sec. 8.4.1.3 |
+| `extrinsic_calibration.svg` | `example_calibration.py` | Sec. 8.4.2 |
+| `temporal_calibration_demo.svg` | `example_temporal_calibration.py` | Sec. 8.5 |
+| `tuning_robust_demo.svg` | `example_robust_tuning.py` | Sec. 8.3 / Eq. 8.7 |
 | `ch8_anchor_outage.svg` | `example_anchor_outage.py` | Sec. 8.1.2 |
 
 Every row names the script that writes it, and
@@ -836,7 +841,7 @@ that no demo produces.
 
 **Temporal calibration validation (Sec. 8.5):**
 
-Built by `temporal_calibration_demo.py`, which runs both paths in one pass:
+Built by `example_temporal_calibration.py`, which runs both paths in one pass:
 UWB timestamps offset by 50 ms and drifting at 100 ppm, fused with and without
 `TimeSyncModel` mapping sensor time to fusion time as
 `t_fusion = (1 + drift) * t_sensor + offset`.
@@ -853,7 +858,7 @@ prints.
 
 **Robust loss functions for outlier handling (Sec. 8.3, Eq. 8.7):**
 
-Built by `tuning_robust_demo.py` on the NLOS dataset, comparing no gating,
+Built by `example_robust_tuning.py` on the NLOS dataset, comparing no gating,
 chi-square gating, Huber and Cauchy.
 
 **Key Concept (Eq. 8.7):** the robust functions return scale factors

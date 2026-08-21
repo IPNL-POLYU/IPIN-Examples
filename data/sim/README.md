@@ -83,11 +83,11 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 
 | Example Script | Dataset | Command |
 |----------------|---------|---------|
-| `lc_uwb_imu_ekf.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.lc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb` |
-| `tc_uwb_imu_ekf.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb` |
-| `compare_lc_tc.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.compare_lc_tc --data data/sim/ch8_fusion_2d_imu_uwb` |
-| `tuning_robust_demo.py` | `ch8_fusion_2d_imu_uwb_nlos/` | `python -m ch8_sensor_fusion.tuning_robust_demo --data data/sim/ch8_fusion_2d_imu_uwb_nlos` |
-| `temporal_calibration_demo.py` | `ch8_fusion_2d_imu_uwb_timeoffset/` | `python -m ch8_sensor_fusion.temporal_calibration_demo --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset` |
+| `example_lc_fusion.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.example_lc_fusion --data data/sim/ch8_fusion_2d_imu_uwb` |
+| `example_tc_fusion.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/ch8_fusion_2d_imu_uwb` |
+| `example_comparison.py` | `ch8_fusion_2d_imu_uwb/` | `python -m ch8_sensor_fusion.example_comparison --data data/sim/ch8_fusion_2d_imu_uwb` |
+| `example_robust_tuning.py` | `ch8_fusion_2d_imu_uwb_nlos/` | `python -m ch8_sensor_fusion.example_robust_tuning --data data/sim/ch8_fusion_2d_imu_uwb_nlos` |
+| `example_temporal_calibration.py` | `ch8_fusion_2d_imu_uwb_timeoffset/` | `python -m ch8_sensor_fusion.example_temporal_calibration --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset` |
 
 ### Quick Reference: Dataset → Example Mapping
 
@@ -110,9 +110,9 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 | `ch6_env_sensors_heading_altitude/` | *(manual loading)* | CH6 |
 | `ch7_slam_2d_square/` | `ch7_slam/example_pose_graph_slam.py` | CH7 |
 | `ch7_slam_2d_high_drift/` | `ch7_slam/example_pose_graph_slam.py` | CH7 |
-| `ch8_fusion_2d_imu_uwb/` | `ch8_sensor_fusion/lc_uwb_imu_ekf.py`, `tc_uwb_imu_ekf.py` | CH8 |
-| `ch8_fusion_2d_imu_uwb_nlos/` | `ch8_sensor_fusion/tuning_robust_demo.py` | CH8 |
-| `ch8_fusion_2d_imu_uwb_timeoffset/` | `ch8_sensor_fusion/temporal_calibration_demo.py` | CH8 |
+| `ch8_fusion_2d_imu_uwb/` | `ch8_sensor_fusion/example_lc_fusion.py`, `example_tc_fusion.py` | CH8 |
+| `ch8_fusion_2d_imu_uwb_nlos/` | `ch8_sensor_fusion/example_robust_tuning.py` | CH8 |
+| `ch8_fusion_2d_imu_uwb_timeoffset/` | `ch8_sensor_fusion/example_temporal_calibration.py` | CH8 |
 
 ---
 

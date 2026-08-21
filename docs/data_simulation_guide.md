@@ -321,13 +321,13 @@ Modify the fusion script to scale R by factors: 0.1, 0.5, 1.0, 2.0, 5.0
 
 ```text
 R is not exposed as a flag -- the line above says to modify the script, and
-that is still the way to do it. In ch8_sensor_fusion/tc_models.py, scale the
+that is still the way to do it. In core/fusion/tc_models.py, scale the
 measurement covariance where it is built, then run:
 
-    python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/ch8_fusion_2d_imu_uwb
+    python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/ch8_fusion_2d_imu_uwb
 
 once per factor (0.1, 0.5, 1.0, 2.0, 5.0), reading the NIS consistency it
-prints. ch8_sensor_fusion/tuning_robust_demo.py does the neighbouring
+prints. ch8_sensor_fusion/example_robust_tuning.py does the neighbouring
 experiment -- robust weighting rather than R scaling -- without edits.
 ```
 
@@ -406,17 +406,17 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
 
 ```bash
 # No gating (baseline - corrupted by NLOS)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+python -m ch8_sensor_fusion.example_tc_fusion \
     --data data/sim/fusion_nlos_1m \
     --no-gating
 
 # Chi-square gating (α=0.05, 95% confidence)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+python -m ch8_sensor_fusion.example_tc_fusion \
     --data data/sim/fusion_nlos_1m \
     --confidence 0.95
 
 # Stricter gating (α=0.01, 99% confidence)
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+python -m ch8_sensor_fusion.example_tc_fusion \
     --data data/sim/fusion_nlos_1m \
     --confidence 0.99
 ```

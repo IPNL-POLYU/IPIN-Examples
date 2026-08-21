@@ -315,9 +315,9 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
 **Run Experiments**:
 ```bash
 # Test on all three datasets
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_low_noise
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_med_noise
-python -m ch8_sensor_fusion.tc_uwb_imu_ekf --data data/sim/fusion_high_noise
+python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/fusion_low_noise
+python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/fusion_med_noise
+python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/fusion_high_noise
 
 # Compare results
 python tools/compare_fusion_variants.py \
@@ -358,12 +358,12 @@ for bias in 0.2 0.5 1.0 2.0; do
     
     # Without gating. There is no --output: the run prints its RMSE and
     # acceptance counts, and --save takes a figure path, not a JSON one.
-    python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+    python -m ch8_sensor_fusion.example_tc_fusion \
         --data data/sim/fusion_nlos_bias_${bias} \
         --no-gating
 
     # With gating (default)
-    python -m ch8_sensor_fusion.tc_uwb_imu_ekf \
+    python -m ch8_sensor_fusion.example_tc_fusion \
         --data data/sim/fusion_nlos_bias_${bias}
 done
 ```
@@ -396,7 +396,7 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
 # One run does both. The demo fuses the dataset twice -- once ignoring the
 # offset, once correcting it with TimeSyncModel -- and prints the pair, so
 # there is nothing to switch off and no --no-correction to do it with.
-python -m ch8_sensor_fusion.temporal_calibration_demo \
+python -m ch8_sensor_fusion.example_temporal_calibration \
     --data data/sim/fusion_time_offset_50ms
 ```
 

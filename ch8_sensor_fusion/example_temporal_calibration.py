@@ -21,7 +21,7 @@ it is large on a walking pedestrian.
 Chi-square gating is off here for that reason. R is set from the
 line-of-sight range noise, so the filter is over-confident, a 95% gate rejects
 about half its measurements and the starved state drifts. That failure mode is
-real and worth studying, but it belongs to tuning_robust_demo; here it only
+real and worth studying, but it belongs to example_robust_tuning; here it only
 buries the subject.
 
 Key Concepts:
@@ -48,8 +48,8 @@ from core.eval import (
     save_figure,
 )
 from core.fusion import StampedMeasurement, TimeSyncModel
-from ch8_sensor_fusion.tc_uwb_imu_ekf import load_fusion_dataset
-from ch8_sensor_fusion.tc_models import (
+from core.fusion import load_fusion_dataset
+from core.fusion.tc_models import (
     tc_process_model,
     tc_process_jacobian,
     tc_process_noise_covariance,
@@ -79,7 +79,7 @@ def run_fusion_with_time_sync(
             drifts to ~17.8 m RMSE. That has nothing to do with temporal
             calibration and is 600x the effect this file exists to show, so
             with the gate on the demo cannot demonstrate its own topic. See
-            tuning_robust_demo, which is where that failure mode belongs.
+            example_robust_tuning, which is where that failure mode belongs.
         gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
         verbose: Print progress
     

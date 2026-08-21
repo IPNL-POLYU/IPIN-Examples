@@ -6,13 +6,13 @@ package "ch8_sensor_fusion/" as CH8 {
   [Fusion scripts\nLC / TC / Compare / Tune / Temporal] as FUSION
   [Calibration scripts\n(calibration + temporal)] as CALGRP
 
-  [lc_uwb_imu_ekf.py\nLC fusion demo\n(tags: fusion, eval)] as LC
-  [tc_uwb_imu_ekf.py\nTC fusion demo\n(tags: fusion, eval)] as TC
-  [compare_lc_tc.py\ncomparison\n(tags: eval)] as CMP
-  [tuning_robust_demo.py\nrobust tuning\n(tags: fusion, eval, ekf)] as TUNE
-  [temporal_calibration_demo.py\ntemporal calibration\n(tags: fusion, eval, ekf)] as TEMP
-  [calibration_demo.py\nintrinsic/extrinsic\n(tags: standalone)] as CAL
-  [observability_demo.py\nobservability\n(tags: ekf)] as OBS
+  [example_lc_fusion.py\nLC fusion demo\n(tags: fusion, eval)] as LC
+  [example_tc_fusion.py\nTC fusion demo\n(tags: fusion, eval)] as TC
+  [example_comparison.py\ncomparison\n(tags: eval)] as CMP
+  [example_robust_tuning.py\nrobust tuning\n(tags: fusion, eval, ekf)] as TUNE
+  [example_temporal_calibration.py\ntemporal calibration\n(tags: fusion, eval, ekf)] as TEMP
+  [example_calibration.py\nintrinsic/extrinsic\n(tags: standalone)] as CAL
+  [example_observability.py\nobservability\n(tags: ekf)] as OBS
 
   [lc_models.py\nLC models + WLS solver] as LCM
   [tc_models.py\nTC models + interpolation] as TCM

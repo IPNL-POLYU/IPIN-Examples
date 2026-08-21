@@ -2055,9 +2055,9 @@
   chapter: 8
   description: "Definition of local observability: h(theta_1, u; x_0) = h(theta_2, u; x_0) => theta_1 = theta_2"
   files:
-    - path: "ch8_sensor_fusion/observability_demo.py"
+    - path: "ch8_sensor_fusion/example_observability.py"
       object: "generate_odometry_measurements"
-    - path: "ch8_sensor_fusion/observability_demo.py"
+    - path: "ch8_sensor_fusion/example_observability.py"
       object: "generate_absolute_fixes"
   tests:
     - "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityIntegration"
@@ -2068,7 +2068,7 @@
   chapter: 8
   description: "Least-squares cost V(theta) = 0.5 * eps(theta)^T P_v eps(theta)"
   files:
-    - path: "ch8_sensor_fusion/observability_demo.py"
+    - path: "ch8_sensor_fusion/example_observability.py"
       object: "compute_observability_matrix"
   tests:
     - "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityMatrix"
@@ -2079,9 +2079,9 @@
   chapter: 8
   description: "EKF observability matrix O_EKF = [H_0; H_1*Phi(t1,t0); ...; H_T*Phi(tT,t0)]"
   files:
-    - path: "ch8_sensor_fusion/observability_demo.py"
+    - path: "ch8_sensor_fusion/example_observability.py"
       object: "compute_observability_matrix"
-    - path: "ch8_sensor_fusion/observability_demo.py"
+    - path: "ch8_sensor_fusion/example_observability.py"
       object: "analyze_unobservable_states"
   tests:
     - "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityMatrix"
@@ -2093,7 +2093,7 @@
   chapter: 8
   description: "FGO observability matrix O_FGO = [J_t0; J_t1; ...; J_tT]"
   files:
-    - path: "ch8_sensor_fusion/observability_demo.py"
+    - path: "ch8_sensor_fusion/example_observability.py"
       object: "compute_fgo_observability_matrix"
   tests:
     - "tests/ch8_sensor_fusion/test_observability.py::TestFGOObservabilityMatrix"
@@ -2110,7 +2110,7 @@
   files:
     - path: "core/fusion/tuning.py"
       object: "innovation"
-    - path: "ch8_sensor_fusion/tuning_robust_demo.py"
+    - path: "ch8_sensor_fusion/example_robust_tuning.py"
       object: "main"
   tests:
     - "tests/core/fusion/test_fusion_tuning.py::TestInnovation"
@@ -2123,7 +2123,7 @@
   files:
     - path: "core/fusion/tuning.py"
       object: "innovation_covariance"
-    - path: "ch8_sensor_fusion/tuning_robust_demo.py"
+    - path: "ch8_sensor_fusion/example_robust_tuning.py"
       object: "main"
   tests:
     - "tests/core/fusion/test_fusion_tuning.py::TestInnovationCovariance"
@@ -2140,7 +2140,7 @@
       object: "huber_R_scale"
     - path: "core/fusion/tuning.py"
       object: "cauchy_R_scale"
-    - path: "ch8_sensor_fusion/tuning_robust_demo.py"
+    - path: "ch8_sensor_fusion/example_robust_tuning.py"
       object: "main"
   tests:
     - "tests/core/fusion/test_fusion_tuning.py::TestEq87CovarianceInflation"
@@ -2177,7 +2177,7 @@
       object: "chi_square_bounds"
     - path: "core/fusion/adaptive.py"
       object: "AdaptiveGatingManager"
-    - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
+    - path: "ch8_sensor_fusion/example_tc_fusion.py"
       object: "main"
   tests:
     - "tests/core/fusion/test_fusion_gating.py::TestChiSquareGate"
@@ -2193,15 +2193,15 @@
   chapter: 8
   description: "TC EKF fusing raw UWB ranges, 5-D state [px, py, vx, vy, yaw]"
   files:
-    - path: "ch8_sensor_fusion/tc_models.py"
+    - path: "core/fusion/tc_models.py"
       object: "create_process_model"
-    - path: "ch8_sensor_fusion/tc_models.py"
+    - path: "core/fusion/tc_models.py"
       object: "create_uwb_range_measurement_model"
-    - path: "ch8_sensor_fusion/tc_models.py"
+    - path: "core/fusion/tc_models.py"
       object: "tc_uwb_measurement_model"
-    - path: "ch8_sensor_fusion/tc_models.py"
+    - path: "core/fusion/tc_models.py"
       object: "tc_uwb_measurement_jacobian"
-    - path: "ch8_sensor_fusion/tc_uwb_imu_ekf.py"
+    - path: "ch8_sensor_fusion/example_tc_fusion.py"
       object: "main"
   tests:
     - "tests/ch8_sensor_fusion/test_batch_update.py"
@@ -2212,13 +2212,13 @@
   chapter: 8
   description: "LC EKF fusing pre-solved UWB position fixes"
   files:
-    - path: "ch8_sensor_fusion/lc_models.py"
+    - path: "core/fusion/lc_models.py"
       object: "solve_uwb_position_wls"
-    - path: "ch8_sensor_fusion/lc_models.py"
+    - path: "core/fusion/lc_models.py"
       object: "create_lc_process_model"
-    - path: "ch8_sensor_fusion/lc_models.py"
+    - path: "core/fusion/lc_models.py"
       object: "create_lc_position_measurement_model"
-    - path: "ch8_sensor_fusion/lc_uwb_imu_ekf.py"
+    - path: "ch8_sensor_fusion/example_lc_fusion.py"
       object: "main"
   tests:
     - "tests/ch8_sensor_fusion/test_lc_models.py"
@@ -2229,7 +2229,7 @@
   chapter: 8
   description: "Head-to-head evaluation of the two coupling strategies"
   files:
-    - path: "ch8_sensor_fusion/compare_lc_tc.py"
+    - path: "ch8_sensor_fusion/example_comparison.py"
       object: "main"
   tests:
     - "tests/ch8_sensor_fusion/test_batch_update.py"
@@ -2245,7 +2245,7 @@
   chapter: 8
   description: "Target-based and motion-based calibration demonstrations"
   files:
-    - path: "ch8_sensor_fusion/calibration_demo.py"
+    - path: "ch8_sensor_fusion/example_calibration.py"
       object: "main"
   tests:
     - "tests/ch8_sensor_fusion/test_calibration.py"
@@ -2260,9 +2260,9 @@
       object: "TimeSyncModel"
     - path: "core/fusion/types.py"
       object: "StampedMeasurement"
-    - path: "ch8_sensor_fusion/tc_models.py"
+    - path: "core/fusion/tc_models.py"
       object: "interpolate_imu_measurements"
-    - path: "ch8_sensor_fusion/temporal_calibration_demo.py"
+    - path: "ch8_sensor_fusion/example_temporal_calibration.py"
       object: "main"
   tests:
     - "tests/ch8_sensor_fusion/test_temporal_interpolation.py"

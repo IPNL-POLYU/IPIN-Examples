@@ -521,7 +521,7 @@ def main():
             true_val = imu_data['true_accel_bias'][i]
             est_val = calibration['accel_bias'][i]
             error = abs(est_val - true_val)
-            print(f"Accel Bias {axis} [m/s²]       {est_val:>15.4f} {true_val:>15.4f} {error:>10.5f}")
+            print(f"Accel Bias {axis} [m/s^2]       {est_val:>15.4f} {true_val:>15.4f} {error:>10.5f}")
         
         print("")
         for i, axis in enumerate(['X', 'Y', 'Z']):

@@ -10,7 +10,7 @@ import unittest
 
 import numpy as np
 
-from ch8_sensor_fusion.observability_demo import (
+from ch8_sensor_fusion.example_observability import (
     compute_fgo_observability_matrix,
     compute_observability_matrix,
     analyze_unobservable_states,

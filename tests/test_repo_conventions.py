@@ -661,47 +661,38 @@ def test_core_library_takes_its_randomness_from_the_caller(module):
 # Files sitting in a chapter directory that are not example_*.py, predating
 # this check. Same ratchet: only shrink it.
 #
-# Nine, every one of them Chapter 8. Chapters 2 through 7 hold *nothing* but
-# example_*.py and __init__.py -- measured, not assumed: 30 files, no
-# exceptions -- because everything shared lives in core/. Chapter 8 keeps a
-# second fusion library beside core/fusion/ (tc_models, lc_models) and names
-# seven runnable demos after what they do rather than after what they are.
+# Empty. Nine were listed, all Chapter 8: seven runnable demos named after what
+# they do rather than what they are, and two library modules that have since
+# moved to core/fusion/. Chapter 8 now holds nothing but example_*.py and
+# __init__.py, the same as the six chapters that already did.
 #
-# A reader who learned the pattern from six chapters runs `ls ch8*/example_*.py`
-# and finds one file where there are eight runnable demos.
-KNOWN_NON_EXAMPLE_CHAPTER_FILES: set = {
-    "ch8_sensor_fusion/calibration_demo.py",
-    "ch8_sensor_fusion/compare_lc_tc.py",
-    "ch8_sensor_fusion/lc_models.py",
-    "ch8_sensor_fusion/lc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/observability_demo.py",
-    "ch8_sensor_fusion/tc_models.py",
-    "ch8_sensor_fusion/tc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/temporal_calibration_demo.py",
-    "ch8_sensor_fusion/tuning_robust_demo.py",
-}
+# `ls ch8_sensor_fusion/example_*.py` reported one file when this was written.
+# It reports eight now, which is how many runnable demos the chapter has.
+KNOWN_NON_EXAMPLE_CHAPTER_FILES: set = set()
 
 # Chapter modules that import a sibling from their own chapter, predating this
 # check. Same ratchet: only shrink it.
 #
 # Seven files, twelve imports, all Chapter 8. Every other chapter has zero, so
 # this is the structural fact underneath the naming one above: ch8's examples
-# are not leaves. tc_uwb_imu_ekf is both a demo and the module four others
+# are not leaves. example_tc_fusion is both a demo and the module four others
 # import load_fusion_dataset and run_tc_fusion from.
 #
 # Which is why renaming alone would make things worse rather than better: it
 # would produce examples that import examples, a shape no other chapter has.
 # The library half belongs in core/fusion/, next to the gating, adaptive and
 # tuning modules it already sits beside.
-KNOWN_INTRA_CHAPTER_IMPORTS: set = {
-    "ch8_sensor_fusion/compare_lc_tc.py",
-    "ch8_sensor_fusion/example_anchor_outage.py",
-    "ch8_sensor_fusion/lc_models.py",
-    "ch8_sensor_fusion/lc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/tc_uwb_imu_ekf.py",
-    "ch8_sensor_fusion/temporal_calibration_demo.py",
-    "ch8_sensor_fusion/tuning_robust_demo.py",
-}
+# Empty. Seven files carried twelve of these, all Chapter 8, and they are gone:
+# tc_models and lc_models now live in core/fusion/ alongside the gating,
+# adaptive and tuning modules they always sat beside, and load_fusion_dataset,
+# run_tc_fusion and run_lc_fusion moved to core/fusion/dataset.py,
+# tightly_coupled.py and loosely_coupled.py. The two EKF demos went from
+# 658 and 474 lines to 255 and 210, which is what an example is supposed to
+# weigh: evaluate, plot, main.
+#
+# Verified by the chapter's own gate rather than by reading: all eight README
+# transcripts and all 27 committed figure files are unchanged, byte for byte.
+KNOWN_INTRA_CHAPTER_IMPORTS: set = set()
 
 
 def _chapter_dirs():

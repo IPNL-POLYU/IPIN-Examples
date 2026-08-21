@@ -153,12 +153,12 @@ delete honest sentences.
 **The worst of what this found was not a broken link.** Chasing
 `tc_uwb_imu_ekf_augmented` showed the whole experiment around it was
 unrunnable: all three commands in that block passed flags
-(`--no-time-correction`, `--time-offset`, `--output`) that `tc_uwb_imu_ekf` does
+(`--no-time-correction`, `--time-offset`, `--output`) that `example_tc_fusion` does
 not have, and the results table reported RMSE, NIS and convergence for runs
 nobody could perform. Its "offline correction" row claimed 0.08-0.12 m against
 an uncorrected 0.18-0.25 m -- correction more than halving the error -- where
 the real demo measures 0.211 m to 0.185 m, 12.5%. **The kinematic bound was
-already written down in the code**: `temporal_calibration_demo.py`'s docstring
+already written down in the code**: `example_temporal_calibration.py`'s docstring
 records that a 50 ms offset at 1 m/s displaces the platform 5 cm and so cannot
 cost more, having had this exact inflation removed once before. The doc kept the
 old story. When a document and a docstring disagree about the size of an effect,
@@ -196,7 +196,7 @@ Fences carry meaning here:
 
 - ` ```python ` — a reader is expected to run this, and the guard executes it.
 - ` ```py ` — an illustrative fragment (`quat = quat / np.linalg.norm(quat)`,
-  or a block opening `# In tc_uwb_imu_ekf.py, add parameter:`). Not executed.
+  or a block opening `# In example_tc_fusion.py, add parameter:`). Not executed.
   Both fences still highlight as Python in GitHub, VS Code and mkdocs.
 
 `FRAGMENT_BLOCKS` in that file pins the ` ```py ` count per README, because the
@@ -570,11 +570,11 @@ and can be pointed anywhere.
 
 Also found and fixed: `--alpha` on the ch8 fusion runs (the flag is
 `--confidence`, and `alpha` was deprecated in favour of it, so 0.05 becomes
-0.95), `--output results.json` on `tc_uwb_imu_ekf` (it has `--save`, which takes
-a *figure* path), `--no-correction` on `temporal_calibration_demo` (it runs both
+0.95), `--output results.json` on `example_tc_fusion` (it has `--save`, which takes
+a *figure* path), `--no-correction` on `example_temporal_calibration` (it runs both
 paths in one pass -- there is nothing to switch off), `--imu-grade` and
 `--accel-bias` on the ch6 strapdown generator (`--preset`, and per-axis
-`--accel-bias-x/-y`), and `--r-scale` on `tc_uwb_imu_ekf` -- where the paragraph
+`--accel-bias-x/-y`), and `--r-scale` on `example_tc_fusion` -- where the paragraph
 directly above the block already said "modify the fusion script", so the doc
 contradicted itself in adjacent lines.
 
@@ -940,6 +940,78 @@ written. **A dataset audit will not find these** — the examples do not read
 pre-existing violations are listed and skipped, new ones fail. Those lists are
 the current debt register and should only shrink. Every one of them is empty
 today, as is `KNOWN_PYFLAKES` — see below.
+
+## A figure is byte-reproducible on one machine, not across two
+
+Do not build a check that regenerates a figure and compares it against the
+committed bytes. It passes locally and it cannot pass on CI. Measured on the
+Ubuntu runner against Chapter 8's committed set: **all 27 files differ.** svg by
+about 0.1%, pdf by 2-4%, png by **5-27%** — 252546 bytes against 321177 for one
+of them. That is font metrics and rasterisation, not a changed picture.
+
+This is the figure form of the float-equality rule above: exact comparison is
+right for **stored** bytes (save then load), wrong for a fresh computation
+compared against what some other machine produced. Rendering is a computation.
+
+**It hung CI three times rather than failing, and that part is worth carrying
+beyond figures.** pytest builds `bytes == bytes` failure diffs element by
+element, so a mismatch on a 300 KB PNG is not a failure report but an
+astronomical one: three jobs were cancelled at the 45-minute limit having
+printed `.s` and nothing further. **If you assert equality on large binary
+blobs, compare digests** — a failure then reads as two short hex strings.
+
+What survives is portable and is the half that earned itself twice: every
+committed figure must still be produced by some demo, and every produced figure
+must be committed. That found four PNGs in `ch8_sensor_fusion/figs/` that no
+code writes, and later caught a mechanical rename moving three demos' default
+figure paths — via `is_file()`, not via bytes. See
+`tests/ch8_sensor_fusion/test_figures_are_reproducible.py`.
+
+To check that a change left the pictures alone, do what this file already says:
+regenerate on your own machine, read `git status`, open the PNGs.
+
+## When CI hangs and your machine does not, measure on CI
+
+Narrowing that one took six rounds because each hypothesis was cheap to state
+and expensive to test. Three died: the demos are fine there (all eight exit 0 in
+3-8 s), `run_example` is fine (the same eight, 36 s), and buffering was not
+hiding the location — with `PYTHONUNBUFFERED` the run stopped in the same place,
+so the last line printed really was where it was.
+
+Two things make this cheap next time, and both are in the workflow now:
+`PYTHONUNBUFFERED`, so a cancelled run's last line means what it looks like, and
+`--durations=25`. Beyond that, a **temporary diagnostic step** that measures the
+suspect directly — before the suite, with `continue-on-error` and its own
+`timeout-minutes` — answers in minutes where a cancelled pytest run answers
+nothing. Skipping the suite step with `if: false` for one such run is worth it.
+Note that the job's shell runs with `-e`, so `cmd; rc=$?` does **not** survive a
+non-zero `cmd`; the step exits first.
+
+What finally named it was two characters of pytest progress, `.s`: the first
+test passed, so every subprocess had completed, and the stop was in the byte
+comparison after them.
+
+## A convention is what a repo-wide sweep selects on
+
+`tests/test_example_console_encoding.py` globs `ch*/example_*.py`. Chapter 8
+named seven of its eight runnable demos after what they do rather than what they
+are, so that sweep had been seeing **one** of them. Renaming the other seven
+into scope turned it red at once, on two real defects — `'²'` and `'•'` inside
+`print()`, which raise `UnicodeEncodeError` on a default Windows or Japanese
+console.
+
+So the argument for the naming convention is not tidiness. **A file outside the
+convention is a file nothing sweeps**, and the sweeps here are most of the
+safety net. `KNOWN_NON_EXAMPLE_CHAPTER_FILES` and `KNOWN_INTRA_CHAPTER_IMPORTS`
+in `tests/test_repo_conventions.py` hold both halves of it — chapter
+directories contain only `example_*.py`, and an example imports `core`, never
+the example next door. Both are empty.
+
+**`functools.lru_cache` does not cache exceptions.** A memoised helper that
+`assert`s inside itself re-runs its whole body for every test that calls it once
+anything goes wrong — 28 parametrised tests × eight subprocesses, in the
+instance that taught this. Collect failures and return them, then assert in a
+separate test, so a failure is reported once and the rest skip.
 
 ## Lint
 

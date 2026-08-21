@@ -29,7 +29,7 @@
 <g id="node1" class="node">
 <title>s_lc</title>
 <path fill="#f7f7f7" stroke="#444444" d="M1058,-751C1058,-751 961,-751 961,-751 955,-751 949,-745 949,-739 949,-739 949,-719 949,-719 949,-713 955,-707 961,-707 961,-707 1058,-707 1058,-707 1064,-707 1070,-713 1070,-719 1070,-719 1070,-739 1070,-739 1070,-745 1064,-751 1058,-751"/>
-<text text-anchor="middle" x="1009.5" y="-738.2" font-family="Helvetica,sans-Serif" font-size="11.00">lc_uwb_imu_ekf.py</text>
+<text text-anchor="middle" x="1009.5" y="-738.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_lc_fusion.py</text>
 <text text-anchor="middle" x="1009.5" y="-726.2" font-family="Helvetica,sans-Serif" font-size="11.00">LC fusion demo</text>
 <text text-anchor="middle" x="1009.5" y="-714.2" font-family="Helvetica,sans-Serif" font-size="11.00">(tags: fusion, eval)</text>
 </g>
@@ -50,7 +50,7 @@
 <g id="node2" class="node">
 <title>s_tc</title>
 <path fill="#f7f7f7" stroke="#444444" d="M1058,-619C1058,-619 961,-619 961,-619 955,-619 949,-613 949,-607 949,-607 949,-587 949,-587 949,-581 955,-575 961,-575 961,-575 1058,-575 1058,-575 1064,-575 1070,-581 1070,-587 1070,-587 1070,-607 1070,-607 1070,-613 1064,-619 1058,-619"/>
-<text text-anchor="middle" x="1009.5" y="-606.2" font-family="Helvetica,sans-Serif" font-size="11.00">tc_uwb_imu_ekf.py</text>
+<text text-anchor="middle" x="1009.5" y="-606.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_tc_fusion.py</text>
 <text text-anchor="middle" x="1009.5" y="-594.2" font-family="Helvetica,sans-Serif" font-size="11.00">TC fusion demo</text>
 <text text-anchor="middle" x="1009.5" y="-582.2" font-family="Helvetica,sans-Serif" font-size="11.00">(tags: fusion, eval)</text>
 </g>
@@ -71,7 +71,7 @@
 <g id="node3" class="node">
 <title>s_cmp</title>
 <path fill="#f7f7f7" stroke="#444444" d="M685,-685C685,-685 597,-685 597,-685 591,-685 585,-679 585,-673 585,-673 585,-653 585,-653 585,-647 591,-641 597,-641 597,-641 685,-641 685,-641 691,-641 697,-647 697,-653 697,-653 697,-673 697,-673 697,-679 691,-685 685,-685"/>
-<text text-anchor="middle" x="641" y="-672.2" font-family="Helvetica,sans-Serif" font-size="11.00">compare_lc_tc.py</text>
+<text text-anchor="middle" x="641" y="-672.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_comparison.py</text>
 <text text-anchor="middle" x="641" y="-660.2" font-family="Helvetica,sans-Serif" font-size="11.00">comparison</text>
 <text text-anchor="middle" x="641" y="-648.2" font-family="Helvetica,sans-Serif" font-size="11.00">(tags: eval)</text>
 </g>
@@ -93,7 +93,7 @@
 <g id="node4" class="node">
 <title>s_tune</title>
 <path fill="#f7f7f7" stroke="#444444" d="M901,-508C901,-508 780,-508 780,-508 774,-508 768,-502 768,-496 768,-496 768,-476 768,-476 768,-470 774,-464 780,-464 780,-464 901,-464 901,-464 907,-464 913,-470 913,-476 913,-476 913,-496 913,-496 913,-502 907,-508 901,-508"/>
-<text text-anchor="middle" x="840.5" y="-495.2" font-family="Helvetica,sans-Serif" font-size="11.00">tuning_robust_demo.py</text>
+<text text-anchor="middle" x="840.5" y="-495.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_robust_tuning.py</text>
 <text text-anchor="middle" x="840.5" y="-483.2" font-family="Helvetica,sans-Serif" font-size="11.00">robust tuning</text>
 <text text-anchor="middle" x="840.5" y="-471.2" font-family="Helvetica,sans-Serif" font-size="11.00">(tags: fusion, eval, ekf)</text>
 </g>
@@ -120,7 +120,7 @@
 <g id="node5" class="node">
 <title>s_temp</title>
 <path fill="#f7f7f7" stroke="#444444" d="M720,-598C720,-598 562,-598 562,-598 556,-598 550,-592 550,-586 550,-586 550,-566 550,-566 550,-560 556,-554 562,-554 562,-554 720,-554 720,-554 726,-554 732,-560 732,-566 732,-566 732,-586 732,-586 732,-592 726,-598 720,-598"/>
-<text text-anchor="middle" x="641" y="-585.2" font-family="Helvetica,sans-Serif" font-size="11.00">temporal_calibration_demo.py</text>
+<text text-anchor="middle" x="641" y="-585.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_temporal_calibration.py</text>
 <text text-anchor="middle" x="641" y="-573.2" font-family="Helvetica,sans-Serif" font-size="11.00">temporal calibration</text>
 <text text-anchor="middle" x="641" y="-561.2" font-family="Helvetica,sans-Serif" font-size="11.00">(tags: fusion, eval, ekf)</text>
 </g>
@@ -140,7 +140,7 @@
 <g id="node6" class="node">
 <title>s_cal</title>
 <path fill="#f7f7f7" stroke="#444444" d="M693,-896C693,-896 589,-896 589,-896 583,-896 577,-890 577,-884 577,-884 577,-864 577,-864 577,-858 583,-852 589,-852 589,-852 693,-852 693,-852 699,-852 705,-858 705,-864 705,-864 705,-884 705,-884 705,-890 699,-896 693,-896"/>
-<text text-anchor="middle" x="641" y="-883.2" font-family="Helvetica,sans-Serif" font-size="11.00">calibration_demo.py</text>
+<text text-anchor="middle" x="641" y="-883.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_calibration.py</text>
 <text text-anchor="middle" x="641" y="-871.2" font-family="Helvetica,sans-Serif" font-size="11.00">intrinsic/extrinsic</text>
 <text text-anchor="middle" x="641" y="-859.2" font-family="Helvetica,sans-Serif" font-size="11.00">(tags: standalone)</text>
 </g>
@@ -148,7 +148,7 @@
 <g id="node7" class="node">
 <title>s_obs</title>
 <path fill="#f7f7f7" stroke="#444444" d="M366,-636C366,-636 249,-636 249,-636 243,-636 237,-630 237,-624 237,-624 237,-604 237,-604 237,-598 243,-592 249,-592 249,-592 366,-592 366,-592 372,-592 378,-598 378,-604 378,-604 378,-624 378,-624 378,-630 372,-636 366,-636"/>
-<text text-anchor="middle" x="307.5" y="-623.2" font-family="Helvetica,sans-Serif" font-size="11.00">observability_demo.py</text>
+<text text-anchor="middle" x="307.5" y="-623.2" font-family="Helvetica,sans-Serif" font-size="11.00">example_observability.py</text>
 <text text-anchor="middle" x="307.5" y="-611.2" font-family="Helvetica,sans-Serif" font-size="11.00">observability</text>
 <text text-anchor="middle" x="307.5" y="-599.2" font-family="Helvetica,sans-Serif" font-size="11.00">(tags: ekf)</text>
 </g>

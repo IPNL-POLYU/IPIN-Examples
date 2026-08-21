@@ -303,7 +303,7 @@ With appropriate process/measurement models (Ch8, Eqs. 8.19-8.21).
 ```bash
 # Runs the fusion twice on this dataset -- once ignoring the offset, once
 # correcting it with TimeSyncModel -- and prints both RMSEs.
-python -m ch8_sensor_fusion.temporal_calibration_demo --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset
+python -m ch8_sensor_fusion.example_temporal_calibration --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset
 ```
 
 **Expected Observations**:
@@ -345,7 +345,7 @@ done
 # Compare corrected against uncorrected on each. The demo runs both and
 # prints the pair, so one invocation per dataset is enough.
 for offset in -0.2 -0.1 -0.05 -0.02 0.0 0.02 0.05 0.1 0.2; do
-    python -m ch8_sensor_fusion.temporal_calibration_demo \
+    python -m ch8_sensor_fusion.example_temporal_calibration \
         --data data/sim/fusion_timeoffset_${offset}
 done
 ```
@@ -517,8 +517,8 @@ python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py \
   - Ch8, Section 8.5: Asynchronous fusion
   - Ch8, Section 8.1: Multi-rate fusion fundamentals
 - **Related Examples**:
-  - `ch8_sensor_fusion/tc_uwb_imu_ekf.py` - Main fusion (supports offline correction)
-  - `ch8_sensor_fusion/temporal_calibration_demo.py` - Dedicated temporal calibration demo
+  - `ch8_sensor_fusion/example_tc_fusion.py` - Main fusion (supports offline correction)
+  - `ch8_sensor_fusion/example_temporal_calibration.py` - Dedicated temporal calibration demo
 - **Generation Script**: `scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py`
 - **Baseline**: See `fusion_2d_imu_uwb/README.md` for synchronized reference
 

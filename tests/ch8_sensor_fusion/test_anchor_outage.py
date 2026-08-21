@@ -27,7 +27,7 @@ from ch8_sensor_fusion.example_anchor_outage import (
     apply_anchor_outage,
     run_outage_scenario,
 )
-from ch8_sensor_fusion.lc_uwb_imu_ekf import load_fusion_dataset
+from core.fusion import load_fusion_dataset
 from core.eval import save_animation
 
 

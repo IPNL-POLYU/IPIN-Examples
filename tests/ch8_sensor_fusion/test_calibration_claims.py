@@ -24,7 +24,7 @@ matplotlib.use("Agg")  # headless: no display during tests
 
 import numpy as np
 
-from ch8_sensor_fusion.calibration_demo import (
+from ch8_sensor_fusion.example_calibration import (
     calibrate_extrinsic_2d_least_squares,
     generate_synthetic_extrinsic_data,
 )

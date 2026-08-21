@@ -29,7 +29,7 @@
 <g id="node1" class="node">
 <title>lc</title>
 <path fill="#ffffff" stroke="black" d="M357,-172.15C357,-172.15 226,-172.15 226,-172.15 220,-172.15 214,-166.15 214,-160.15 214,-160.15 214,-148.15 214,-148.15 214,-142.15 220,-136.15 226,-136.15 226,-136.15 357,-136.15 357,-136.15 363,-136.15 369,-142.15 369,-148.15 369,-148.15 369,-160.15 369,-160.15 369,-166.15 363,-172.15 357,-172.15"/>
-<text text-anchor="middle" x="291.5" y="-157.55" font-family="Times,serif" font-size="12.00">lc_uwb_imu_ekf.py</text>
+<text text-anchor="middle" x="291.5" y="-157.55" font-family="Times,serif" font-size="12.00">example_lc_fusion.py</text>
 <text text-anchor="middle" x="291.5" y="-144.55" font-family="Times,serif" font-size="12.00">Loosely coupled fusion</text>
 </g>
 <!-- lc_m -->
@@ -92,7 +92,7 @@
 <g id="node2" class="node">
 <title>tc</title>
 <path fill="#ffffff" stroke="black" d="M354.5,-118.15C354.5,-118.15 228.5,-118.15 228.5,-118.15 222.5,-118.15 216.5,-112.15 216.5,-106.15 216.5,-106.15 216.5,-94.15 216.5,-94.15 216.5,-88.15 222.5,-82.15 228.5,-82.15 228.5,-82.15 354.5,-82.15 354.5,-82.15 360.5,-82.15 366.5,-88.15 366.5,-94.15 366.5,-94.15 366.5,-106.15 366.5,-106.15 366.5,-112.15 360.5,-118.15 354.5,-118.15"/>
-<text text-anchor="middle" x="291.5" y="-103.55" font-family="Times,serif" font-size="12.00">tc_uwb_imu_ekf.py</text>
+<text text-anchor="middle" x="291.5" y="-103.55" font-family="Times,serif" font-size="12.00">example_tc_fusion.py</text>
 <text text-anchor="middle" x="291.5" y="-90.55" font-family="Times,serif" font-size="12.00">Tightly coupled fusion</text>
 </g>
 <!-- tc_m -->
@@ -132,7 +132,7 @@
 <g id="node3" class="node">
 <title>cmp</title>
 <path fill="#ffffff" stroke="black" d="M158,-118.15C158,-118.15 28,-118.15 28,-118.15 22,-118.15 16,-112.15 16,-106.15 16,-106.15 16,-94.15 16,-94.15 16,-88.15 22,-82.15 28,-82.15 28,-82.15 158,-82.15 158,-82.15 164,-82.15 170,-88.15 170,-94.15 170,-94.15 170,-106.15 170,-106.15 170,-112.15 164,-118.15 158,-118.15"/>
-<text text-anchor="middle" x="93" y="-103.55" font-family="Times,serif" font-size="12.00">compare_lc_tc.py</text>
+<text text-anchor="middle" x="93" y="-103.55" font-family="Times,serif" font-size="12.00">example_comparison.py</text>
 <text text-anchor="middle" x="93" y="-90.55" font-family="Times,serif" font-size="12.00">Runs both + compares</text>
 </g>
 <!-- cmp&#45;&gt;lc -->

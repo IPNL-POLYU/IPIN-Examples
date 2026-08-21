@@ -4,7 +4,7 @@
 
 This guide documents the **direct comparison tool** for Loosely Coupled (LC) and Tightly Coupled (TC) sensor fusion architectures in Chapter 8.
 
-**Tool**: `ch8_sensor_fusion/compare_lc_tc.py`  
+**Tool**: `ch8_sensor_fusion/example_comparison.py`  
 **Purpose**: Run both fusion approaches side-by-side on identical data for fair comparison
 
 ---
@@ -15,15 +15,15 @@ This guide documents the **direct comparison tool** for Loosely Coupled (LC) and
 
 ```bash
 # Basic usage (baseline dataset)
-python -m ch8_sensor_fusion.compare_lc_tc
+python -m ch8_sensor_fusion.example_comparison
 
 # Save outputs
-python -m ch8_sensor_fusion.compare_lc_tc \
+python -m ch8_sensor_fusion.example_comparison \
     --save ch8_sensor_fusion/figs/comparison.svg \
     --report ch8_sensor_fusion/figs/comparison.json
 
 # Test on NLOS dataset
-python -m ch8_sensor_fusion.compare_lc_tc \
+python -m ch8_sensor_fusion.example_comparison \
     --data data/sim/ch8_fusion_2d_imu_uwb_nlos
 ```
 
@@ -254,13 +254,13 @@ Test how gating affects both architectures:
 
 ```bash
 # Strict gating (99% confidence)
-python -m ch8_sensor_fusion.compare_lc_tc --confidence 0.99
+python -m ch8_sensor_fusion.example_comparison --confidence 0.99
 
 # Loose gating (90% confidence)
-python -m ch8_sensor_fusion.compare_lc_tc --confidence 0.9
+python -m ch8_sensor_fusion.example_comparison --confidence 0.9
 
 # No gating (accept all)
-python -m ch8_sensor_fusion.compare_lc_tc --no-gating
+python -m ch8_sensor_fusion.example_comparison --no-gating
 ```
 
 **Expected**: TC benefits more from strict gating (can reject bad individual ranges)
@@ -270,7 +270,7 @@ python -m ch8_sensor_fusion.compare_lc_tc --no-gating
 Compare robustness to NLOS bias:
 
 ```bash
-python -m ch8_sensor_fusion.compare_lc_tc \
+python -m ch8_sensor_fusion.example_comparison \
     --data data/sim/ch8_fusion_2d_imu_uwb_nlos \
     --save nlos_comparison.svg
 ```
@@ -282,7 +282,7 @@ python -m ch8_sensor_fusion.compare_lc_tc \
 Compare sensitivity to temporal misalignment:
 
 ```bash
-python -m ch8_sensor_fusion.compare_lc_tc \
+python -m ch8_sensor_fusion.example_comparison \
     --data data/sim/ch8_fusion_2d_imu_uwb_timeoffset \
     --save timeoffset_comparison.svg
 ```
@@ -293,7 +293,7 @@ python -m ch8_sensor_fusion.compare_lc_tc \
 
 ```bash
 for dataset in ch8_fusion_2d_imu_uwb ch8_fusion_2d_imu_uwb_nlos ch8_fusion_2d_imu_uwb_timeoffset; do
-    python -m ch8_sensor_fusion.compare_lc_tc \
+    python -m ch8_sensor_fusion.example_comparison \
         --data data/sim/$dataset \
         --save figs/${dataset}_comparison.svg \
         --report figs/${dataset}_comparison.json

@@ -5,9 +5,9 @@ skinparam roundcorner 12
 skinparam componentStyle rectangle
 
 package "ch8_sensor_fusion (scripts)" {
-  [lc_uwb_imu_ekf.py\n(Loosely coupled)] as LC
-  [tc_uwb_imu_ekf.py\n(Tightly coupled)] as TC
-  [compare_lc_tc.py\n(Compare LC vs TC)] as CMP
+  [example_lc_fusion.py\n(Loosely coupled)] as LC
+  [example_tc_fusion.py\n(Tightly coupled)] as TC
+  [example_comparison.py\n(Compare LC vs TC)] as CMP
 }
 
 package "ch8_sensor_fusion (models)" {
