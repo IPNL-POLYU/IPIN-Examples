@@ -81,7 +81,31 @@ jobs:
           python -m pip install --upgrade pip
           pip install -e ".[dev]"
 
+      # TEMPORARY DIAGNOSTIC -- to be reverted with the `if: false` below.
+      # Ruled out so far, by measurement on this runner: the demos (all eight
+      # exit 0 in 3-8 s), run_example itself (same eight, 36 s, rc=0), and
+      # output buffering (unbuffered, the suite still stops in the same file).
+      # What is left is that in the suite those calls happen inside pytest,
+      # after ch2-ch7 have run. Split that in two: the file alone, then its
+      # directory alone.
+      - name: Diagnostic - the ch8 figure test in isolation
+        continue-on-error: true
+        timeout-minutes: 25
+        env:
+          MPLBACKEND: Agg
+          PYTHONUNBUFFERED: "1"
+        run: |
+          echo '=== the file alone ==='
+          start=$SECONDS
+          timeout 480 python -m pytest tests/ch8_sensor_fusion/test_figures_are_reproducible.py -q; rc=$?
+          echo "::notice::file alone exit=$rc in $((SECONDS-start))s"
+          echo '=== the ch8 directory alone ==='
+          start=$SECONDS
+          timeout 720 python -m pytest tests/ch8_sensor_fusion -q; rc=$?
+          echo "::notice::ch8 dir exit=$rc in $((SECONDS-start))s"
+
       - name: Run the suite
+        if: false  # TEMPORARY: skipped so the diagnostic above answers in minutes
         env:
           MPLBACKEND: Agg
           # Unbuffered, because a cancelled run is the case where the log
