@@ -158,6 +158,14 @@ def test_the_deleted_diagram_directory_stays_deleted():
         "diagrams from the code; a hand-maintained copy alongside them is the "
         "drift this replaced."
     )
-    stragglers = sorted(REPO_ROOT.rglob("*.puml"))
-    stragglers = [p for p in stragglers if ".claude" not in p.parts]
+    # Relative to REPO_ROOT, not absolute: a git worktree of this repository
+    # lives under `.claude/worktrees/`, so every absolute path contains
+    # `.claude` and an absolute-path filter excludes the whole tree -- the
+    # assertion then passes for any input, which is the one failure mode a
+    # ratchet must not have.
+    stragglers = [
+        p.relative_to(REPO_ROOT)
+        for p in sorted(REPO_ROOT.rglob("*.puml"))
+        if ".claude" not in p.relative_to(REPO_ROOT).parts
+    ]
     assert not stragglers, f"PlantUML sources nothing renders: {stragglers}"
