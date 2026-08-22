@@ -27,7 +27,7 @@ import numpy as np
 from matplotlib.gridspec import GridSpec
 
 from core.estimators import ExtendedKalmanFilter
-from core.eval import save_figure
+from core.eval import save_figure, show_figures_if_requested
 
 
 def generate_trajectory(
@@ -822,7 +822,7 @@ def plot_example_observability(
         paths = save_figure(fig, Path(save_path).parent, Path(save_path).stem)
         print(f"\nSaved figure: {paths[0]}")
 
-    plt.show()
+    show_figures_if_requested()
 
 
 def main():

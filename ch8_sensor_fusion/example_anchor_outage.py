@@ -69,7 +69,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from core.fusion import load_fusion_dataset, run_lc_fusion, run_tc_fusion
-from core.eval import resolve_figs_dir, save_animation, save_figure
+from core.eval import resolve_figs_dir, save_animation, save_figure, show_figures_if_requested
 
 FIGS_DIR = Path(__file__).parent / "figs"
 DEFAULT_DATA = "data/sim/ch8_fusion_2d_imu_uwb"
@@ -397,6 +397,7 @@ def main() -> None:
 
     plt.close("all")
     print(f"\nFigures written to {resolve_figs_dir(args.out_dir)}")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

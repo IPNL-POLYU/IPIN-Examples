@@ -766,3 +766,57 @@ def test_chapter_module_does_not_import_its_sibling(script):
         + "\n\nShared code belongs in core/, where every chapter can reach it "
         "and where it is tested as library surface."
     )
+
+
+# Examples calling plt.show() directly, predating this check. Same ratchet:
+# only shrink it.
+#
+# Empty. Nineteen of the thirty-eight examples ended in a bare `plt.show()` and
+# nineteen did not, undocumented either way, so a reader could not predict
+# whether running one would open a window. The ones that did **block** under a
+# GUI backend until the window is closed -- which makes running several in
+# sequence an exercise in clicking, and cost this repository's own first
+# usability walkthrough several minutes of believing an example had hung -- and
+# warn under Agg.
+#
+# `core.eval.show_figures_if_requested` is the one place that decides, reading
+# IPIN_SHOW_FIGURES, so the answer is the same for all of them and is written
+# down once. The figures are saved either way.
+KNOWN_DIRECT_PLT_SHOW: set = set()
+
+
+@pytest.mark.parametrize("script", _chapter_scripts(), ids=_relative)
+def test_examples_do_not_call_plt_show_directly(script):
+    """Whether a demo opens a window is one decision, not thirty-eight.
+
+    A bare ``plt.show()`` blocks under a GUI backend and warns under Agg, and
+    doing it in some examples and not others leaves a reader unable to predict
+    either. Call ``core.eval.show_figures_if_requested()`` instead; it honours
+    ``IPIN_SHOW_FIGURES`` and does nothing by default.
+    """
+    relative = _relative(script)
+    tree = ast.parse(script.read_text(encoding="utf-8"))
+
+    offenders = [
+        f"line {node.lineno}"
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call)
+        and isinstance(node.func, ast.Attribute)
+        and node.func.attr == "show"
+        and isinstance(node.func.value, ast.Name)
+        and node.func.value.id == "plt"
+    ]
+
+    if not offenders:
+        return
+
+    if relative in KNOWN_DIRECT_PLT_SHOW:
+        pytest.skip(f"known pre-existing plt.show ({relative})")
+
+    assert not offenders, (
+        f"{relative} calls plt.show() directly at {', '.join(offenders)}.\n\n"
+        "Use core.eval.show_figures_if_requested(), which opens the windows "
+        "only when IPIN_SHOW_FIGURES is set. A bare plt.show() blocks under a "
+        "GUI backend, and having it in some examples and not others means a "
+        "reader cannot predict what running one does."
+    )

@@ -49,7 +49,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Ellipse
 
-from core.eval import resolve_figs_dir, save_animation, save_figure
+from core.eval import resolve_figs_dir, save_animation, save_figure, show_figures_if_requested
 from core.rf.dop import compute_dop, compute_geometry_matrix
 from core.rf.positioning import TOAPositioner
 
@@ -331,6 +331,7 @@ def main() -> None:
 
     plt.close("all")
     print(f"\nFigures written to {resolve_figs_dir(args.out_dir)}")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

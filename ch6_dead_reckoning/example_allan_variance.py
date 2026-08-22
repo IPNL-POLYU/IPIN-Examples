@@ -17,13 +17,13 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+import argparse
 import time
-import sys
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import resolve_figs_dir, save_figure
+from core.eval import resolve_figs_dir, save_figure, show_figures_if_requested
 from core.sensors import (
     allan_variance,
     characterize_imu_noise,
@@ -407,8 +407,21 @@ def plot_allan_deviation(taus, adev, noise_params, sensor_type, grade, figs_dir)
 
 def main():
     """Main execution."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help="Also plot the individual noise components behind each curve.",
+    )
+    args = parser.parse_args()
+
     # Check for debug mode
-    debug_mode = '--debug' in sys.argv
+    debug_mode = args.debug
     
     print("\n" + "="*70)
     print("Chapter 6: Allan Variance for IMU Noise Characterization")
@@ -581,6 +594,7 @@ def main():
         print("\nTo see component breakdown: python example_allan_variance.py --debug")
     print("="*70)
     print()
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

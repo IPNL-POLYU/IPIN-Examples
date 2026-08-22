@@ -19,7 +19,7 @@ References: Chapter 8, Section 8.4 (Calibration Techniques)
 import argparse
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import save_figure, show_figures_if_requested
 from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
@@ -350,7 +350,7 @@ def plot_imu_calibration(
         written = save_figure(fig, save_path.parent, save_path.stem)
         print(f"Saved figure: {written[0]}")
     
-    plt.show()
+    show_figures_if_requested()
 
 
 def plot_extrinsic_calibration(
@@ -448,7 +448,7 @@ Rotation Matrix (Estimated):
         written = save_figure(fig, save_path.parent, save_path.stem)
         print(f"Saved figure: {written[0]}")
     
-    plt.show()
+    show_figures_if_requested()
 
 
 def main():

@@ -48,6 +48,7 @@ from core.eval import (
     resolve_figs_dir,
     save_figure,
     set_axes_equal_3d,
+    show_figures_if_requested,
 )
 
 FIGS_DIR = Path(__file__).parent / "figs"
@@ -346,7 +347,7 @@ def main() -> None:
     print(f"Figures written to {resolve_figs_dir(args.out_dir)}")
 
     if not args.no_show:
-        plt.show()
+        show_figures_if_requested()
     else:
         plt.close("all")
 

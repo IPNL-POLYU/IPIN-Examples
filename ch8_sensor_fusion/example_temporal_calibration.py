@@ -46,6 +46,7 @@ from core.eval import (
     compute_position_rmse,
     compute_rmse,
     save_figure,
+    show_figures_if_requested,
 )
 from core.fusion import StampedMeasurement, TimeSyncModel
 from core.fusion import load_fusion_dataset
@@ -482,7 +483,7 @@ def plot_temporal_calibration(
         paths = save_figure(fig, Path(save_path).parent, Path(save_path).stem)
         print(f"\nSaved figure: {paths[0]}")
 
-    plt.show()
+    show_figures_if_requested()
 
 
 def main():

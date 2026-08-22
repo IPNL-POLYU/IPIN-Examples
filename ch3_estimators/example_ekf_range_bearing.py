@@ -28,7 +28,7 @@ from typing import Dict
 import numpy as np
 import matplotlib.pyplot as plt
 from core.estimators import ExtendedKalmanFilter
-from core.eval import save_figure
+from core.eval import save_figure, show_figures_if_requested
 from core.utils import angle_diff, resolve_data_path
 from core.utils.geometry import check_anchor_geometry
 from core.utils.observability import check_range_only_observability_2d
@@ -300,7 +300,7 @@ def run_with_dataset(data_dir: str) -> None:
                         "ch3_ekf_range_bearing")
     print(f"Plot saved: {paths[0]}")
 
-    plt.show()
+    show_figures_if_requested()
     
     print("\n" + "=" * 70)
     print("EXAMPLE COMPLETED")
@@ -554,7 +554,7 @@ def example_2d_range_bearing_positioning():
     paths = save_figure(fig, Path(__file__).parent / "figs",
                         "ch3_ekf_range_bearing")
     print(f"Plot saved as: {paths[0]}")
-    plt.show()
+    show_figures_if_requested()
     
     print("\nTip: Run with --data ch3_estimator_nonlinear to use pre-generated dataset")
 

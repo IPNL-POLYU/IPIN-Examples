@@ -161,8 +161,28 @@ so `core` is only importable once the package is installed. That is why every
 command in this repository is written as `python -m`.
 
 Examples find their datasets from any working directory, so `cd`-ing into a
-chapter folder first is fine. Each one prints its results and writes its
-figures to `ch*_*/figs/`; set `IPIN_FIGS_DIR` to send them somewhere else.
+chapter folder first is fine. Every example takes `--help`, which prints what
+it demonstrates and which book equations it implements without running
+anything:
+
+```bash
+python -m ch3_estimators.example_least_squares --help
+```
+
+### Figures
+
+Each example prints its results and writes its figures to `ch*_*/figs/`. Two
+environment variables change that, and neither is per-example — they mean the
+same thing everywhere:
+
+| Variable | Effect |
+|---|---|
+| `IPIN_FIGS_DIR` | Write the figures somewhere else instead of `ch*_*/figs/`. |
+| `IPIN_SHOW_FIGURES` | Also open them in a window. Off by default, because with a GUI backend that **blocks** until you close it. |
+
+```bash
+IPIN_SHOW_FIGURES=1 python -m ch6_dead_reckoning.example_zupt
+```
 
 ## Code Style
 

@@ -12,12 +12,13 @@ Author: Li-Ta Hsu
 Date: December 2024
 """
 
+import argparse
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import plot_error_cdf, save_figure
+from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
     load_fingerprint_database,
     LinearRegressionLocalizer,
@@ -116,6 +117,13 @@ def evaluate_model(model, test_db, floor_id=None):
 
 def main():
     """Run pattern recognition fingerprinting examples."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("="*70)
     print("Chapter 5: Pattern Recognition (Linear Regression)")
     print("="*70)
@@ -320,6 +328,7 @@ def main():
     print("  - W: weight matrix (2x8 for 2D position, 8 APs)")
     print("  - b: bias vector (2,)")
     print("  - Training: Ridge regression (closed-form solution)")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

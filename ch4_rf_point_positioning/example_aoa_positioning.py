@@ -22,12 +22,13 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from core.eval import save_figure
+from core.eval import save_figure, show_figures_if_requested
 from core.rf import (
     AOAPositioner,
     aoa_angle_vector,
@@ -412,7 +413,7 @@ def visualize_aoa_geometry():
     paths = save_figure(fig, Path(__file__).parent / "figs", "ch4_aoa_geometry")
     print(f"\nFigure saved: {paths[0]}")
 
-    plt.show()
+    show_figures_if_requested()
 
     error = np.linalg.norm(est_pos - true_position)
     print(f"\nTrue position (E, N): {true_position}")
@@ -676,6 +677,13 @@ def demo_ove_vs_ple_3d():
 
 def main():
     """Run all AOA positioning examples."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("\n" + "=" * 70)
     print("Chapter 4: AOA Positioning Examples")
     print("=" * 70)

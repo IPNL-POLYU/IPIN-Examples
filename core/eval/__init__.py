@@ -31,6 +31,7 @@ from .plots import (
     resolve_figs_dir,
     save_animation,
     save_figure,
+    show_figures_if_requested,
     set_axes_equal_3d,
 )
 
@@ -56,6 +57,7 @@ __all__ = [
     "resolve_figs_dir",
     "save_animation",
     "save_figure",
+    "show_figures_if_requested",
     "set_axes_equal_3d",
 ]
 

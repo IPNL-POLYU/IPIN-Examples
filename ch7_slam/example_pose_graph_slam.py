@@ -52,7 +52,7 @@ from matplotlib.transforms import blended_transform_factory
 from pathlib import Path
 from typing import List, Tuple, Dict, Optional
 
-from core.eval import save_animation, save_figure
+from core.eval import save_animation, save_figure, show_figures_if_requested
 from core.slam import (
     se2_compose,
     se2_relative,
@@ -1519,14 +1519,7 @@ def plot_slam_results(
     paths = save_figure(fig, figs_dir, "slam_with_maps")
     print(f"\n[OK] Saved figure: {paths[0]}")
 
-    # Only show interactively if not in automated mode
-    import os
-    if os.environ.get("DISPLAY") or os.environ.get("MPLBACKEND") != "Agg":
-        try:
-            plt.show(block=False)
-            plt.pause(0.1)
-        except:
-            pass  # Silently skip if display not available
+    show_figures_if_requested()
 
 
 def run_with_inline_data(
@@ -2026,6 +2019,7 @@ Examples:
             n_laps=args.laps,
             animate=args.animate,
         )
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

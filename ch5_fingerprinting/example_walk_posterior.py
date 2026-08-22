@@ -38,7 +38,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import PowerNorm
 
-from core.eval import resolve_figs_dir, save_animation, save_figure
+from core.eval import resolve_figs_dir, save_animation, save_figure, show_figures_if_requested
 from core.fingerprinting import (
     fit_gaussian_naive_bayes,
     load_fingerprint_database,
@@ -325,6 +325,7 @@ def main() -> None:
 
     plt.close("all")
     print(f"\nFigures written to {resolve_figs_dir(args.out_dir)}")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

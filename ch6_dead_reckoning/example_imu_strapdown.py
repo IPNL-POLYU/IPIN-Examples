@@ -16,13 +16,14 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+import argparse
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
 # Import Chapter 6 sensor algorithms
-from core.eval import resolve_figs_dir, save_figure
+from core.eval import resolve_figs_dir, save_figure, show_figures_if_requested
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -330,6 +331,13 @@ def plot_results(t, pos_true, pos_est, vel_true, vel_est, quat_true, quat_est, f
 
 def main():
     """Main execution function."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("\n" + "="*60)
     print("Chapter 6: IMU Strapdown Integration (Pure, No Corrections)")
     print("="*60)
@@ -431,6 +439,7 @@ def main():
     print("             Solutions: ZUPT, wheel fusion, GPS, etc.")
     print("="*60)
     print()
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":
