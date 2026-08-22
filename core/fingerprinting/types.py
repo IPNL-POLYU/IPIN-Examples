@@ -137,7 +137,7 @@ class FingerprintDatabase:
         # Check for NaN values in locations (not allowed)
         if np.any(np.isnan(self.locations)):
             raise ValueError("locations contain NaN values (not allowed)")
-        
+
         # Note: NaN values in features are allowed (represent missing AP readings)
 
     @property

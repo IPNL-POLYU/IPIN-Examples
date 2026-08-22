@@ -298,7 +298,7 @@ class TestEdgeCases(unittest.TestCase):
     def test_zero_bias_equivalence(self) -> None:
         """Test that zero bias is equivalent to no bias."""
         gyro_raw = np.array([0.1, 0.05, -0.02])
-        
+
         result1 = correct_gyro(gyro_raw, np.zeros(3))
         result2 = correct_gyro(gyro_raw, np.zeros(3), None)
 

@@ -76,7 +76,7 @@ class SlamFrontend2D:
         >>> print(f"Estimated: {result['pose_est']}")
         >>> print(f"Converged: {result['match_quality'].converged}")
     """
-    
+
     def __init__(
         self,
         submap_voxel_size: float = 0.1,
@@ -119,7 +119,7 @@ class SlamFrontend2D:
         self.max_icp_residual = max_icp_residual
         self._initial_pose = initial_pose
         self.max_correspondence_distance = max_correspondence_distance
-    
+
     def step(
         self,
         step_index: int,
@@ -162,35 +162,35 @@ class SlamFrontend2D:
             raise ValueError(f"odom_delta must have shape (3,), got {odom_delta.shape}")
         if scan.ndim != 2 or scan.shape[1] != 2:
             raise ValueError(f"scan must have shape (N, 2), got {scan.shape}")
-        
+
         # Handle first step (initialization)
         if not self.initialized:
             return self._initialize_first_step(step_index, scan)
-        
+
         # 1. PREDICTION: Apply odometry delta to previous pose
         pose_pred = se2_compose(self.pose_est, odom_delta)
-        
+
         # 2. CORRECTION: Scan-to-map alignment via ICP
         pose_est, match_quality = self._scan_to_map_alignment(
             scan, pose_pred
         )
-        
+
         # 3. MAP UPDATE: Add scan to submap with estimated pose
         self.submap.add_scan(pose_est, scan)
-        
+
         # Update state
         self.pose_est = pose_est
-        
+
         # Compute correction magnitude
         correction_magnitude = np.linalg.norm(pose_est[:2] - pose_pred[:2])
-        
+
         return {
             'pose_pred': pose_pred,
             'pose_est': pose_est,
             'match_quality': match_quality,
             'correction_magnitude': correction_magnitude,
         }
-    
+
     def _initialize_first_step(
         self,
         step_index: int,
@@ -210,12 +210,12 @@ class SlamFrontend2D:
             self.pose_est = np.array(self._initial_pose, dtype=float)
         else:
             self.pose_est = np.array([0.0, 0.0, 0.0])
-        
+
         # Add first scan to submap
         self.submap.add_scan(self.pose_est, scan)
-        
+
         self.initialized = True
-        
+
         # Return initialization result
         match_quality = MatchQuality(
             residual=0.0,
@@ -223,14 +223,14 @@ class SlamFrontend2D:
             n_correspondences=len(scan),
             iters=0,
         )
-        
+
         return {
             'pose_pred': self.pose_est.copy(),
             'pose_est': self.pose_est.copy(),
             'match_quality': match_quality,
             'correction_magnitude': 0.0,
         }
-    
+
     def _scan_to_map_alignment(
         self,
         scan: np.ndarray,
@@ -254,7 +254,7 @@ class SlamFrontend2D:
         """
         # Get downsampled submap points
         submap_points = self.submap.get_points(voxel_size=self.voxel_size)
-        
+
         # Check if submap has enough points for ICP
         if len(submap_points) < self.min_map_points:
             # Not enough map points, use prediction
@@ -265,7 +265,7 @@ class SlamFrontend2D:
                 iters=0,
             )
             return pose_pred, match_quality
-        
+
         # Check if scan has enough points
         if len(scan) < 5:
             # Too few scan points, use prediction
@@ -276,7 +276,7 @@ class SlamFrontend2D:
                 iters=0,
             )
             return pose_pred, match_quality
-        
+
         # Run ICP: align scan (in robot frame) to submap (in map frame)
         # initial_pose is the transformation from robot frame to map frame
         try:
@@ -297,7 +297,7 @@ class SlamFrontend2D:
                 iters=0,
             )
             return pose_pred, match_quality
-        
+
         # Check match quality
         if converged and residual < self.max_icp_residual:
             # Good match: use ICP result
@@ -317,7 +317,7 @@ class SlamFrontend2D:
                 iters=iters,
             )
             return pose_pred, match_quality
-    
+
     def get_current_pose(self) -> Optional[np.ndarray]:
         """Get current pose estimate.
         
@@ -325,7 +325,7 @@ class SlamFrontend2D:
             Current pose [x, y, yaw] or None if not initialized.
         """
         return self.pose_est.copy() if self.initialized else None
-    
+
     def get_submap_points(
         self,
         voxel_size: Optional[float] = None
@@ -339,7 +339,7 @@ class SlamFrontend2D:
             Submap points in map frame, shape (M, 2).
         """
         return self.submap.get_points(voxel_size=voxel_size)
-    
+
     def reset(self) -> None:
         """Reset front-end state (clear submap and pose estimate)."""
         self.submap.clear()

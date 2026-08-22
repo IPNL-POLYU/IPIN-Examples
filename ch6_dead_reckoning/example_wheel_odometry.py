@@ -58,22 +58,22 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
     """
     t = np.arange(0, duration, dt)
     N = len(t)
-    
+
     pos_true = np.zeros((N, 3))
     vel_true = np.zeros((N, 3))
     quat_true = np.zeros((N, 4))
     wheel_speed_true = np.zeros((N, 3))  # Speed frame: [0, v_forward, 0] (book convention)
     gyro_true = np.zeros((N, 3))
-    
+
     if shape == 'square':
         # Square: 20m sides, 5 m/s speed, 90° turns
         side_length = 20.0
         v_drive = 5.0  # m/s
-        
+
         side_time = side_length / v_drive  # 4 seconds per side
         turn_time = 2.0  # 2 seconds for 90° turn
         segment_time = side_time + turn_time  # 6 seconds per segment
-        
+
         current_pos = np.array([0.0, 0.0, 0.0])
         # Initial heading: 0° = East in ENU frame (see docs/ch6_frame_conventions.md)
         # NOTE FOR STUDENTS: This choice is arbitrary for simulation purposes.
@@ -81,36 +81,36 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
         # (magnetometer, GPS velocity, manual calibration). The wheel odometry
         # algorithm works identically regardless of initial heading!
         current_heading = 0.0  # Start facing East (0° in ENU)
-        
+
         for k in range(N):
             t_cycle = t[k] % (segment_time * 4)  # 4 sides
             segment = int(t_cycle / segment_time)
             t_seg = t_cycle - segment * segment_time
-            
+
             if t_seg < side_time:  # Driving straight
                 wheel_speed_true[k] = np.array([0, v_drive, 0])  # Book: y=forward
                 gyro_true[k, 2] = 0
             else:  # Turning
                 wheel_speed_true[k] = np.array([0, 0, 0])  # Stop to turn
                 gyro_true[k, 2] = np.pi/2 / turn_time  # 90°/2s
-            
+
             # Update state
             if k > 0:
                 current_heading += gyro_true[k, 2] * dt
                 v_map = wheel_speed_true[k, 1] * np.array([np.cos(current_heading), np.sin(current_heading), 0])
                 current_pos += v_map * dt
-            
+
             pos_true[k] = current_pos
             vel_true[k, :2] = wheel_speed_true[k, 1] * np.array([np.cos(current_heading), np.sin(current_heading)])
-            
+
             # Quaternion (yaw only)
             quat_true[k] = np.array([np.cos(current_heading/2), 0, 0, np.sin(current_heading/2)])
-    
+
     else:  # circle
         omega = 2*np.pi / duration  # One full circle
         radius = 15.0
         v_drive = radius * omega
-        
+
         for k in range(N):
             angle = omega * t[k]
             pos_true[k] = np.array([radius*np.cos(angle), radius*np.sin(angle), 0])
@@ -118,7 +118,7 @@ def generate_vehicle_trajectory(shape='square', duration=80.0, dt=0.01):
             wheel_speed_true[k] = np.array([0, v_drive, 0])  # Book: y=forward
             gyro_true[k, 2] = omega
             quat_true[k] = np.array([np.cos(angle/2), 0, 0, np.sin(angle/2)])
-    
+
     return t, pos_true, vel_true, quat_true, wheel_speed_true, gyro_true
 
 
@@ -149,17 +149,17 @@ def add_wheel_noise(wheel_speed_true, gyro_true, add_slip=False,
     noise_std = 0.05  # m/s
     wheel_noise = rng.standard_normal((N, 3)) * noise_std
     gyro_noise = rng.standard_normal((N, 3)) * np.deg2rad(0.5)
-    
+
     wheel_meas = wheel_speed_true * (1 + scale_error) + wheel_noise
     gyro_meas = gyro_true + gyro_noise
-    
+
     # Add wheel slip during turns
     if add_slip and slip_intervals:
         for start, end in slip_intervals:
             mask = (np.arange(N)*0.01 >= start) & (np.arange(N)*0.01 < end)
             # During slip, wheel speed overestimates actual motion
             wheel_meas[mask, 1] *= 1.3  # 30% overestimate (y-component)
-    
+
     return wheel_meas, gyro_meas
 
 
@@ -167,13 +167,13 @@ def run_wheel_odometry(t, wheel_speed, gyro, initial_state, lever_arm):
     """Run wheel dead reckoning with lever arm."""
     N = len(t)
     dt = t[1] - t[0]
-    
+
     p = initial_state.p.copy()
     q = initial_state.q.copy()
-    
+
     pos_est = np.zeros((N, 3))
     pos_est[0] = p
-    
+
     for k in range(1, N):
         # Wheel odometry update (Eqs. 6.11-6.15)
         p = wheel_odom_update(
@@ -185,7 +185,7 @@ def run_wheel_odometry(t, wheel_speed, gyro, initial_state, lever_arm):
             dt=dt,
             C_S_A=C_SPEED_TO_BODY,
         )
-        
+
         # Update quaternion
         q_new = q.copy()
         dq = 0.5 * dt * np.array([
@@ -196,18 +196,18 @@ def run_wheel_odometry(t, wheel_speed, gyro, initial_state, lever_arm):
         ])
         q = q_new + dq
         q = q / np.linalg.norm(q)
-        
+
         pos_est[k] = p
-    
+
     return pos_est
 
 
 def plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir):
     """Generate plots."""
-    
+
     error_odom = np.linalg.norm(pos_odom - pos_true, axis=1)
     error_slip = np.linalg.norm(pos_odom_slip - pos_true, axis=1)
-    
+
     # Figure 1: Trajectory
     fig1, ax = plt.subplots(figsize=(10, 10))
     ax.plot(pos_true[:, 0], pos_true[:, 1], 'k-', linewidth=3, label='True Trajectory')
@@ -223,7 +223,7 @@ def plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir):
     plt.tight_layout()
     paths = save_figure(fig1, figs_dir, 'wheel_odom_trajectory')
     print(f"  [OK] Saved: {paths[0]}")
-    
+
     # Figure 2: Error
     fig2, ax = plt.subplots(figsize=(12, 6))
     ax.plot(t, error_odom, 'b-', linewidth=2, label='No Slip')
@@ -237,7 +237,7 @@ def plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir):
     plt.tight_layout()
     paths = save_figure(fig2, figs_dir, 'wheel_odom_error')
     print(f"  [OK] Saved: {paths[0]}")
-    
+
     plt.close('all')
     return error_odom, error_slip
 
@@ -259,25 +259,25 @@ def main():
     print("="*70)
     print("\nDemonstrates bounded drift and sensitivity to wheel slip.")
     print("Key equations: 6.11-6.15 (lever arm, frame transform, position)\n")
-    
+
     duration = 80.0
     dt = 0.01
-    
+
     print("Configuration:")
     print(f"  Duration:        {duration} s")
     print("  Trajectory:      20m square with turns")
     print("  Lever Arm:       [1.5, 0, -0.3] m\n")
-    
+
     print("Generating trajectory...")
     t, pos_true, vel_true, quat_true, wheel_true, gyro_true = generate_vehicle_trajectory('square', duration, dt)
-    
+
     total_dist = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
     print(f"  Total distance:  {total_dist:.1f} m")
-    
+
     # Add noise (no slip)
     print("\nAdding wheel encoder noise...")
     wheel_meas, gyro_meas = add_wheel_noise(wheel_true, gyro_true, add_slip=False)
-    
+
     # Add noise WITH slip during turns
     print("Adding wheel encoder noise + slip...")
     # Slip while the vehicle is actually driving. The previous windows --
@@ -289,30 +289,30 @@ def main():
     # advertised "sensitivity to wheel slip".
     slip_intervals = [(2, 4), (8, 10), (14, 16), (20, 22)]  # On the straights
     wheel_slip, gyro_slip = add_wheel_noise(wheel_true, gyro_true, add_slip=True, slip_intervals=slip_intervals)
-    
+
     # Initial state
     initial = NavStateQPVP(q=quat_true[0], v=vel_true[0], p=pos_true[0])
     lever_arm = np.array([1.5, 0, -0.3])  # Sensor offset from vehicle center
-    
+
     print("\nRunning wheel odometry (no slip)...")
     start = time.time()
     pos_odom = run_wheel_odometry(t, wheel_meas, gyro_meas, initial, lever_arm)
     print(f"  Time: {time.time()-start:.3f} s")
-    
+
     print("\nRunning wheel odometry (with slip)...")
     start = time.time()
     pos_odom_slip = run_wheel_odometry(t, wheel_slip, gyro_slip, initial, lever_arm)
     print(f"  Time: {time.time()-start:.3f} s")
-    
+
     figs_dir = Path(__file__).parent / 'figs'
     figs_dir.mkdir(exist_ok=True)
-    
+
     print("\nGenerating plots...")
     error_odom, error_slip = plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir)
-    
+
     rmse_odom = np.sqrt(np.mean(error_odom**2))
     rmse_slip = np.sqrt(np.mean(error_slip**2))
-    
+
     print("\n" + "="*70)
     print("RESULTS")
     print("="*70)

@@ -489,7 +489,7 @@ def main():
     ).parse_args()
 
     overall_start = time.time()
-    
+
     print("=" * 70)
     print("CHAPTER 3: COMPARISON OF STATE ESTIMATORS")
     print("=" * 70)
@@ -510,13 +510,13 @@ def main():
     print("=" * 70)
 
     results = {}
-    
+
     print("\n[1/4] Extended Kalman Filter (EKF)")
     results['EKF'], results['EKF_time'] = run_ekf(dt, n_steps, anchors, measurements, Q, range_std)
-    
+
     print("\n[2/4] Unscented Kalman Filter (UKF)")
     results['UKF'], results['UKF_time'] = run_ukf(dt, n_steps, anchors, measurements, Q, range_std)
-    
+
     print("\n[3/4] Particle Filter (PF)")
     results['PF'], results['PF_time'], n_particles = run_pf(
         dt, n_steps, anchors, measurements, Q, range_std

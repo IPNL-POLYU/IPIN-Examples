@@ -1179,6 +1179,44 @@ lines). Two traps found doing it:
   single constant, so one file compiled differently while printing exactly the
   same thing. Compare output, not code objects.
 
+### The other four linters are configured and the repo does not pass them
+
+pyflakes is the exception, not the rule. The README used to tell readers to run
+`black .`, `ruff check .`, `mypy .` and `pylint`, as though the repository
+passed. Measured over `core/`, the chapters, `scripts/`, `tools/` and `tests/`:
+**ruff 5836, black 237 of 288 files, mypy 404 errors in `core/` alone.** A
+reader following that section got thousands of complaints and could only
+conclude they had broken something. The README says what is true now, which is
+the cheap half of the fix and the one that had to happen first.
+
+**83% of ruff's number was whitespace.** 4737 W293 (a blank line containing
+spaces) plus 131 W291. `ruff --fix` cleared 3961 of them and every changed line
+was checked to differ only by trailing whitespace before the change was
+believed — 3961 removed lines against 3961 added, zero differing by anything
+else. That took the count to 1879 at no semantic risk.
+
+**Ruff refused the other 907, and was right to.** They sit inside docstrings,
+where whitespace is string content rather than layout — and here that content is
+*printed*, since every example now passes `description=__doc__` to argparse. A
+tool declining an unsafe fix is not an obstacle to route around with
+`--unsafe-fixes`.
+
+What remains is mostly not lint: 727 are `List[int]`-for-`list[int]` style
+modernisations that only became legal when the floor moved to 3.10. The ~200
+after that are the ones with content, and **B905 is the group to read first** —
+41 `zip()` calls with no `strict=`, which truncate to the shorter argument
+without saying so.
+
+`tests/test_lint_debt_only_shrinks.py` records the count **per rule**, not as a
+total: a total lets ten fixed W293 pay for ten new B905, which is the opposite
+of what a ratchet is for. It fails in both directions — a rule that grows, and a
+baseline left above the real count, because a stale number hides the debt it
+exists to expose.
+
+Black is untouched deliberately. It would reformat 237 files, which is a diff
+nobody can review and a `git blame` nobody can read, for no defect fixed. Worth
+doing when no other session is mid-flight, in its own commit, and not before.
+
 ## Parallel sessions
 
 Several agents often work this repo at once, on separate worktrees off `main`.

@@ -47,7 +47,7 @@ class AdaptiveGatingManager:
     References:
         Chapter 8, Section 8.3.2: Filter Tuning and Consistency Checking
     """
-    
+
     def __init__(
         self,
         dof: int,
@@ -79,7 +79,7 @@ class AdaptiveGatingManager:
         self.R_scale_factor = R_scale_factor
         self.min_R_scale = min_R_scale
         self.max_R_scale = max_R_scale
-        
+
         # State tracking
         self.consecutive_rejects = 0
         self.nis_history = []  # Rolling window of NIS values
@@ -88,7 +88,7 @@ class AdaptiveGatingManager:
         self.total_accepts = 0
         self.total_rejects = 0
         self.total_adaptations = 0
-    
+
     def update(
         self,
         nis_value: float,
@@ -106,12 +106,12 @@ class AdaptiveGatingManager:
                 action: Recommended action ('inflate_P', 'scale_R', None)
         """
         self.total_measurements += 1
-        
+
         # Track NIS for consistency monitoring
         self.nis_history.append(nis_value)
         if len(self.nis_history) > self.nis_window_size:
             self.nis_history.pop(0)
-        
+
         # Track consecutive rejects
         if gated_accept:
             self.consecutive_rejects = 0
@@ -121,7 +121,7 @@ class AdaptiveGatingManager:
             self.consecutive_rejects += 1
             self.total_rejects += 1
             action = None
-        
+
         # Check for consecutive reject limit
         if self.consecutive_rejects >= self.consecutive_reject_limit:
             # Apply covariance inflation to prevent filter starvation
@@ -130,12 +130,12 @@ class AdaptiveGatingManager:
             self.total_adaptations += 1
             # Force accept this measurement with inflated uncertainty
             gated_accept = True
-        
+
         # Check NIS consistency (only if we have enough history)
         if len(self.nis_history) >= self.nis_window_size:
             mean_nis = np.mean(self.nis_history)
             expected_nis = self.dof  # E[χ²(m)] = m
-            
+
             # If mean NIS >> expected, filter is overconfident
             if mean_nis > self.nis_scale_threshold * expected_nis:
                 if action is None:  # Don't override P inflation
@@ -151,9 +151,9 @@ class AdaptiveGatingManager:
                     self.current_R_scale / self.R_scale_factor,
                     self.min_R_scale
                 )
-        
+
         return gated_accept, action
-    
+
     def inflate_covariance(self, P: np.ndarray) -> np.ndarray:
         """Apply covariance inflation: P <- λP.
         
@@ -166,7 +166,7 @@ class AdaptiveGatingManager:
             Inflated covariance P_inflated = λ * P
         """
         return self.P_inflation_factor * P
-    
+
     def get_R_scale(self) -> float:
         """Get current R scale factor based on NIS monitoring.
         
@@ -174,7 +174,7 @@ class AdaptiveGatingManager:
             Scale factor w_R >= 1.0 to apply to measurement covariance R
         """
         return self.current_R_scale
-    
+
     def get_stats(self) -> dict:
         """Get diagnostic statistics for logging.
         
@@ -186,9 +186,9 @@ class AdaptiveGatingManager:
             if self.total_measurements > 0
             else 0.0
         )
-        
+
         mean_nis = np.mean(self.nis_history) if self.nis_history else 0.0
-        
+
         return {
             'total_measurements': self.total_measurements,
             'total_accepts': self.total_accepts,
@@ -200,7 +200,7 @@ class AdaptiveGatingManager:
             'current_R_scale': self.current_R_scale,
             'total_adaptations': self.total_adaptations,
         }
-    
+
     def reset(self):
         """Reset all tracking state (e.g., for new episode)."""
         self.consecutive_rejects = 0

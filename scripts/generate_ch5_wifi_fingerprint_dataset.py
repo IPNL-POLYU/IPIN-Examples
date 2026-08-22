@@ -48,16 +48,16 @@ def log_distance_path_loss(
     """
     if d < 0.1:
         d = 0.1  # Avoid singularity
-    
+
     # Path loss
     path_loss = -10 * n * np.log10(d / d0)
-    
+
     # Shadow fading (log-normal)
     shadow = np.random.randn() * sigma
-    
+
     # RSS
     rss = P0 + path_loss + shadow
-    
+
     return rss
 
 
@@ -89,13 +89,13 @@ def generate_wifi_fingerprint_database(
         FingerprintDatabase with multi-floor RSS fingerprints.
     """
     np.random.seed(seed)
-    
+
     width, height = area_size
-    
+
     # Generate reference point grid per floor
     x_coords = np.arange(0, width + grid_spacing / 2, grid_spacing)
     y_coords = np.arange(0, height + grid_spacing / 2, grid_spacing)
-    
+
     print(f"\n{'='*60}")
     print("Generating Wi-Fi Fingerprint Database")
     print(f"{'='*60}")
@@ -106,7 +106,7 @@ def generate_wifi_fingerprint_database(
     print(f"Total reference points: {len(x_coords) * len(y_coords) * n_floors}")
     print(f"Access points: {n_aps}")
     print(f"Samples per RP: {n_samples_per_rp} {'(multi-sample DB)' if n_samples_per_rp > 1 else '(single-sample DB)'}")
-    
+
     # Generate AP positions (strategic placement on walls/ceiling)
     # APs at corners, mid-walls, and center ceiling of first floor
     ap_positions = np.array([
@@ -119,47 +119,47 @@ def generate_wifi_fingerprint_database(
         [0, height/2, 2.5],    # Mid-wall 3
         [width, height/2, 2.5],# Mid-wall 4
     ])[:n_aps]
-    
+
     ap_ids = [f"AP{i+1}" for i in range(n_aps)]
-    
+
     print("\nAP Positions:")
     for i, pos in enumerate(ap_positions):
         print(f"  {ap_ids[i]}: ({pos[0]:.1f}, {pos[1]:.1f}, {pos[2]:.1f})m")
-    
+
     # Generate reference points and RSS measurements
     locations_list = []
     features_list = []
     floor_ids_list = []
-    
+
     print("\nGenerating fingerprints...")
-    
+
     for floor_id in range(n_floors):
         floor_z = floor_id * floor_height + 1.5  # Height of device (1.5m from floor)
-        
+
         print(f"  Floor {floor_id}: z = {floor_z}m", end=" ")
-        
+
         for x in x_coords:
             for y in y_coords:
                 # Reference point location (2D)
                 rp_location = np.array([x, y])
-                
+
                 # Collect multiple samples at this RP if requested
                 rp_samples = []  # Will be list of S samples, each of shape (N,)
-                
+
                 for sample_idx in range(n_samples_per_rp):
                     # RSS measurements from all APs for this sample
                     rss_vector = []
-                    
+
                     for ap_pos in ap_positions:
                         # 3D distance from RP to AP
                         rp_3d = np.array([x, y, floor_z])
                         distance_3d = np.linalg.norm(rp_3d - ap_pos)
-                        
+
                         # Floor attenuation factor (if AP on different floor)
                         ap_floor = int(ap_pos[2] / floor_height)
                         floor_diff = abs(floor_id - ap_floor)
                         floor_attenuation = floor_diff * 15.0  # 15 dB per floor
-                        
+
                         # Compute RSS with path-loss model
                         # Each sample gets independent shadow fading
                         rss = log_distance_path_loss(
@@ -168,14 +168,14 @@ def generate_wifi_fingerprint_database(
                             n=2.5,  # Indoor path-loss exponent
                             sigma=4.0,  # Shadow fading (varies per sample)
                         )
-                        
+
                         # Apply floor attenuation
                         rss -= floor_attenuation
-                        
+
                         rss_vector.append(rss)
-                    
+
                     rp_samples.append(np.array(rss_vector))
-                
+
                 # Store
                 locations_list.append(rp_location)
                 if n_samples_per_rp == 1:
@@ -185,14 +185,14 @@ def generate_wifi_fingerprint_database(
                     # Multiple samples: store as (S, N)
                     features_list.append(np.array(rp_samples))
                 floor_ids_list.append(floor_id)
-        
+
         print(f"OK ({len([f for f in floor_ids_list if f == floor_id])} RPs)")
-    
+
     # Convert to arrays
     locations = np.array(locations_list)
     features = np.array(features_list)
     floor_ids = np.array(floor_ids_list, dtype=int)
-    
+
     print(f"\n{'='*60}")
     print("Database Summary:")
     print(f"  Total reference points: {len(locations)}")
@@ -208,7 +208,7 @@ def generate_wifi_fingerprint_database(
     print(f"  RSS range: [{features.min():.1f}, {features.max():.1f}] dBm")
     print(f"  RSS mean: {features.mean():.1f} dBm")
     print(f"  RSS std: {features.std():.1f} dBm")
-    
+
     # Create database
     db = FingerprintDatabase(
         locations=locations,
@@ -240,14 +240,14 @@ def generate_wifi_fingerprint_database(
             "generator": "scripts/generate_ch5_wifi_fingerprint_dataset.py",
         },
     )
-    
+
     return db
 
 
 def main():
     """Main CLI entry point."""
     import argparse
-    
+
     parser = argparse.ArgumentParser(
         description="Generate Ch5 Wi-Fi Fingerprint Database",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -283,7 +283,7 @@ Learning Focus:
 Book Reference: Chapter 5, Sections 5.1-5.3
         """,
     )
-    
+
     # Preset or custom
     parser.add_argument(
         "--preset",
@@ -299,7 +299,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
              "data/sim/ch5_wifi_fingerprint_grid without a preset. Given "
              "explicitly it always wins -- a preset does not override it.",
     )
-    
+
     # Area parameters
     area_group = parser.add_argument_group("Area Parameters")
     area_group.add_argument(
@@ -311,7 +311,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     area_group.add_argument(
         "--grid-spacing", type=float, default=5.0, help="Grid spacing in meters (default: 5.0)"
     )
-    
+
     # Building parameters
     building_group = parser.add_argument_group("Building Parameters")
     building_group.add_argument(
@@ -320,26 +320,26 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     building_group.add_argument(
         "--floor-height", type=float, default=3.0, help="Floor height in meters (default: 3.0)"
     )
-    
+
     # AP parameters
     ap_group = parser.add_argument_group("Access Point Parameters")
     ap_group.add_argument(
         "--n-aps", type=int, default=8, help="Number of access points (default: 8)"
     )
-    
+
     # Survey parameters
     survey_group = parser.add_argument_group("Survey Parameters")
     survey_group.add_argument(
-        "--n-samples", type=int, default=1, 
+        "--n-samples", type=int, default=1,
         help="Number of RSS samples per RP (default: 1). "
              "Use >1 for multi-sample DB to estimate μ and σ per Eq. 5.6"
     )
-    
+
     # Other
     parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
-    
+
     args = parser.parse_args()
-    
+
     # Apply preset if specified
     if args.preset == "baseline":
         area_size = (50.0, 50.0)
@@ -383,7 +383,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         n_aps = args.n_aps
         n_samples = args.n_samples
         output_dir = args.output or "data/sim/ch5_wifi_fingerprint_grid"
-    
+
     # Generate database
     db = generate_wifi_fingerprint_database(
         area_size=area_size,
@@ -394,24 +394,24 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         n_samples_per_rp=n_samples,
         seed=args.seed,
     )
-    
+
     # Save to disk
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     print(f"\n{'='*60}")
     print("Saving database...")
     save_fingerprint_database(db, output_path)
     print(f"OK Saved to: {output_path}")
-    
+
     # Validate
     from core.fingerprinting import load_fingerprint_database, validate_database
-    
+
     print(f"\n{'='*60}")
     print("Validating database...")
     db_loaded = load_fingerprint_database(output_path)
     stats = validate_database(db_loaded)
-    
+
     print("\nValidation Results:")
     print("  OK Database loaded successfully")
     print("  OK All validation checks passed")
@@ -419,7 +419,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         print(f"  Floor coverage: {stats['floor_coverage']}")
     if 'feature_variance_min' in stats and 'feature_variance_max' in stats:
         print(f"  Feature variance: min={stats['feature_variance_min']:.2f}, max={stats['feature_variance_max']:.2f}")
-    
+
     # Per-floor statistics
     print("\nPer-Floor Statistics:")
     for floor_id in sorted(np.unique(db.floor_ids)):
@@ -428,7 +428,7 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         rss_mean = db.features[mask].mean()
         rss_std = db.features[mask].std()
         print(f"  Floor {floor_id}: {n_rps} RPs, RSS mean={rss_mean:.1f} dBm, std={rss_std:.1f} dBm")
-    
+
     print(f"\n{'='*60}")
     print("SUCCESS: Dataset generation complete!")
     print(f"{'='*60}\n")

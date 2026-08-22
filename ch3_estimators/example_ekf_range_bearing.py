@@ -72,7 +72,7 @@ def load_estimator_dataset(data_dir: str) -> Dict:
         Dictionary with time, ground truth, and measurements
     """
     path = Path(data_dir)
-    
+
     data = {
         't': np.loadtxt(path / 'time.txt'),
         'beacons': np.loadtxt(path / 'beacons.txt'),
@@ -80,11 +80,11 @@ def load_estimator_dataset(data_dir: str) -> Dict:
         'range_meas': np.loadtxt(path / 'range_measurements.txt'),
         'bearing_meas': np.loadtxt(path / 'bearing_measurements.txt'),
     }
-    
+
     # Load config
     with open(path / 'config.json') as f:
         data['config'] = json.load(f)
-    
+
     return data
 
 
@@ -98,20 +98,20 @@ def run_with_dataset(data_dir: str) -> None:
     print("CHAPTER 3: EXTENDED KALMAN FILTER EXAMPLE")
     print(f"Using dataset: {data_dir}")
     print("=" * 70)
-    
+
     # Load dataset
     data = load_estimator_dataset(data_dir)
     config = data['config']
-    
+
     t = data['t']
     landmarks = data['beacons']
     true_states = data['true_states']
     range_meas = data['range_meas']
     bearing_meas = data['bearing_meas']
-    
+
     dt = t[1] - t[0] if len(t) > 1 else 0.5
     n_steps = len(t) - 1
-    
+
     # Check observability and geometry
     print("\nGeometry Check:")
     initial_pos = true_states[0, :2]
@@ -120,20 +120,20 @@ def run_with_dataset(data_dir: str) -> None:
         print(f"  WARNING: {msg}")
     else:
         print("  [OK] Landmark geometry is valid")
-    
+
     is_obs, obs_msg = check_range_only_observability_2d(landmarks, initial_pos, warn=False)
     if is_obs:
         print("  [OK] Position is observable from range measurements")
     else:
         print(f"  WARNING: {obs_msg}")
-    
+
     print("\nDataset Info:")
     print(f"  Duration: {t[-1]:.1f} s ({n_steps} steps)")
     print(f"  Time step: {dt:.2f} s")
     print(f"  Landmarks: {len(landmarks)}")
     print(f"  Range noise: {config.get('measurements', {}).get('range_noise_std', 'N/A')} m")
     print(f"  Bearing noise: {np.rad2deg(config.get('measurements', {}).get('bearing_noise_std', 0)):.2f}°")
-    
+
     # Process model: constant velocity
     def process_model(x, u, dt_val):
         F = np.array([
@@ -143,7 +143,7 @@ def run_with_dataset(data_dir: str) -> None:
             [0, 0, 0, 1]
         ])
         return F @ x
-    
+
     def process_jacobian(x, u, dt_val):
         return np.array([
             [1, 0, dt_val, 0],
@@ -151,7 +151,7 @@ def run_with_dataset(data_dir: str) -> None:
             [0, 0, 1, 0],
             [0, 0, 0, 1]
         ])
-    
+
     # Measurement model: range and bearing to landmarks
     def measurement_model(x):
         meas = []
@@ -162,7 +162,7 @@ def run_with_dataset(data_dir: str) -> None:
             theta = np.arctan2(dy, dx)
             meas.extend([r, theta])
         return np.array(meas)
-    
+
     def measurement_jacobian(x):
         H = []
         for lm in landmarks:
@@ -170,7 +170,7 @@ def run_with_dataset(data_dir: str) -> None:
             dy = lm[1] - x[1]
             r = np.sqrt(dx**2 + dy**2)
             r_sq = max(r**2, 1e-12)  # Prevent division by zero
-            
+
             # Use standardized singularity handling
             if r < 1e-6:
                 # Singularity: at landmark position
@@ -181,12 +181,12 @@ def run_with_dataset(data_dir: str) -> None:
                 # Bearing Jacobian: ∂θ/∂[x,y] = [dy/r², -dx/r²]
                 H.append([dy/r_sq, -dx/r_sq, 0, 0])
         return np.array(H)
-    
+
     # Noise covariances
     q = config.get('process', {}).get('noise_std', 0.5)
     range_std = config.get('measurements', {}).get('range_noise_std', 0.5)
     bearing_std = config.get('measurements', {}).get('bearing_noise_std', 0.05)
-    
+
     def Q_func(dt_val):
         return q * np.array([
             [dt_val**3/3, 0, dt_val**2/2, 0],
@@ -194,17 +194,17 @@ def run_with_dataset(data_dir: str) -> None:
             [dt_val**2/2, 0, dt_val, 0],
             [0, dt_val**2/2, 0, dt_val]
         ])
-    
+
     def R_func():
         R_diag = []
         for _ in landmarks:
             R_diag.extend([range_std**2, bearing_std**2])
         return np.diag(R_diag)
-    
+
     # Initial estimate
     x0_est = np.array([true_states[0, 0], true_states[0, 1], 0.0, 0.0])
     P0 = np.diag([2.0, 2.0, 2.0, 2.0])
-    
+
     # Create innovation function with angle wrapping for bearings
     innovation_func = create_range_bearing_innovation_func(len(landmarks))
 
@@ -217,40 +217,40 @@ def run_with_dataset(data_dir: str) -> None:
         Q_func, R_func, x0_est, P0,
         innovation_func=innovation_func
     )
-    
+
     estimates = [x0_est.copy()]
     covariances = [P0.copy()]
-    
+
     for k in range(n_steps):
         # Form measurement from dataset
         z = []
         for i in range(len(landmarks)):
             z.extend([range_meas[k+1, i], bearing_meas[k+1, i]])
         z = np.array(z)
-        
+
         ekf.predict(dt=dt)
         ekf.update(z)
         x_est, P_est = ekf.get_state()
         estimates.append(x_est.copy())
         covariances.append(P_est.copy())
-    
+
     estimates = np.array(estimates)
-    
+
     # Compute errors
     position_errors = np.linalg.norm(estimates[:, :2] - true_states[:, :2], axis=1)
     velocity_errors = np.linalg.norm(estimates[:, 2:] - true_states[:, 2:], axis=1)
-    
+
     print("\nResults:")
     print(f"  Final position error: {position_errors[-1]:.4f} m")
     print(f"  Mean position error: {np.mean(position_errors[5:]):.4f} m")
     print(f"  RMSE position: {np.sqrt(np.mean(position_errors**2)):.4f} m")
     print(f"  Final velocity error: {velocity_errors[-1]:.4f} m/s")
-    
+
     # Visualization
     print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle('EKF Range-Bearing Positioning (Dataset)', fontsize=14, fontweight='bold')
-    
+
     # Trajectory
     ax = axes[0, 0]
     ax.scatter(landmarks[:, 0], landmarks[:, 1], s=200, c="red", marker="^",
@@ -265,7 +265,7 @@ def run_with_dataset(data_dir: str) -> None:
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.axis("equal")
-    
+
     # Position error
     ax = axes[0, 1]
     ax.plot(t, position_errors, "r-", linewidth=2)
@@ -273,7 +273,7 @@ def run_with_dataset(data_dir: str) -> None:
     ax.set_ylabel("Position Error [m]")
     ax.set_title("Position Estimation Error")
     ax.grid(True, alpha=0.3)
-    
+
     # X/Y positions
     ax = axes[1, 0]
     ax.plot(t, true_states[:, 0], "g-", linewidth=2, label="True X")
@@ -285,7 +285,7 @@ def run_with_dataset(data_dir: str) -> None:
     ax.set_title("X and Y Positions")
     ax.legend()
     ax.grid(True, alpha=0.3)
-    
+
     # Velocity error
     ax = axes[1, 1]
     ax.plot(t, velocity_errors, "r-", linewidth=2)
@@ -293,7 +293,7 @@ def run_with_dataset(data_dir: str) -> None:
     ax.set_ylabel("Velocity Error [m/s]")
     ax.set_title("Velocity Estimation Error")
     ax.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
 
     paths = save_figure(fig, Path(__file__).parent / "figs",
@@ -301,7 +301,7 @@ def run_with_dataset(data_dir: str) -> None:
     print(f"Plot saved: {paths[0]}")
 
     show_figures_if_requested()
-    
+
     print("\n" + "=" * 70)
     print("EXAMPLE COMPLETED")
     print("=" * 70)
@@ -347,7 +347,7 @@ def example_2d_range_bearing_positioning():
         print(f"  WARNING: {msg}")
     else:
         print("  [OK] Landmark geometry is valid")
-    
+
     is_obs, obs_msg = check_range_only_observability_2d(landmarks, true_x0[:2], warn=False)
     if is_obs:
         print("  [OK] Position is observable from range measurements")
@@ -555,7 +555,7 @@ def example_2d_range_bearing_positioning():
                         "ch3_ekf_range_bearing")
     print(f"Plot saved as: {paths[0]}")
     show_figures_if_requested()
-    
+
     print("\nTip: Run with --data ch3_estimator_nonlinear to use pre-generated dataset")
 
 
@@ -580,9 +580,9 @@ Examples:
         "--data", type=str, default=None,
         help="Dataset name or path (e.g., 'ch3_estimator_nonlinear' or full path)"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.data:
         # Run with dataset
         data_path = resolve_data_path(args.data)
@@ -597,7 +597,7 @@ Examples:
                     if d.is_dir() and d.name.startswith("ch3"):
                         print(f"  - {d.name}")
             return
-        
+
         run_with_dataset(str(data_path))
     else:
         print("\n" + "=" * 70)

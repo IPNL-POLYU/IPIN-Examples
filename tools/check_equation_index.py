@@ -55,9 +55,9 @@ def parse_equation_index(index_path: Path) -> List[Dict]:
     if not index_path.exists():
         print(f"Error: equation_index.yml not found at {index_path}")
         return []
-    
+
     content = index_path.read_text(encoding="utf-8")
-    
+
     if HAS_YAML:
         # Parse with PyYAML
         entries = yaml.safe_load(content)
@@ -86,7 +86,7 @@ def find_equation_references_in_code(root: Path) -> Dict[str, List[Tuple[str, in
         Dict mapping equation IDs to list of (file_path, line_number) tuples
     """
     equation_refs: Dict[str, List[Tuple[str, int]]] = {}
-    
+
     # Patterns to search for
     patterns = [
         r'Eq\.\s*\((\d+\.\d+)\)',           # Eq. (2.1)
@@ -94,14 +94,14 @@ def find_equation_references_in_code(root: Path) -> Dict[str, List[Tuple[str, in
         r'Equation\s*\((\d+\.\d+)\)',       # Equation (2.1)
     ]
     combined_pattern = '|'.join(patterns)
-    
+
     # Search in core/ and ch*/ directories
     search_dirs = [root / "core"] + list(root.glob("ch*_*"))
-    
+
     for search_dir in search_dirs:
         if not search_dir.is_dir():
             continue
-            
+
         for py_file in search_dir.rglob("*.py"):
             try:
                 content = py_file.read_text(encoding="utf-8")
@@ -116,7 +116,7 @@ def find_equation_references_in_code(root: Path) -> Dict[str, List[Tuple[str, in
                             equation_refs[eq_id].append((rel_path, line_num))
             except Exception as e:
                 print(f"Warning: Could not read {py_file}: {e}")
-    
+
     return equation_refs
 
 
@@ -331,31 +331,31 @@ def main():
         help="Fail if any equations in code are not in index"
     )
     args = parser.parse_args()
-    
+
     # Find project root
     try:
         root = find_project_root()
     except RuntimeError as e:
         print(f"Error: {e}")
         return 1
-    
+
     print(f"Project root: {root}")
     print()
-    
+
     # Parse equation index
     index_path = root / "docs" / "equation_index.yml"
     entries = parse_equation_index(index_path)
     indexed_equations = extract_equations_from_index(entries)
-    
+
     print(f"Equations in index: {len(indexed_equations)}")
-    
+
     # Find equation references in code
     code_refs = find_equation_references_in_code(root)
     code_equations = set(code_refs.keys())
-    
+
     print(f"Equations referenced in code: {len(code_equations)}")
     print()
-    
+
     # Check for equations in code but not in index
     missing_from_index = code_equations - indexed_equations
     if missing_from_index:
@@ -369,7 +369,7 @@ def main():
     else:
         print("[OK] All equations in code are documented in index")
         print()
-    
+
     # Check for equations in index but not referenced in code
     # (This is informational - some equations may be documented but not yet implemented)
     extra_in_index = indexed_equations - code_equations
@@ -378,7 +378,7 @@ def main():
         for eq in sorted(extra_in_index):
             print(f"   - {eq}")
         print()
-    
+
     # Check file paths
     path_errors = check_file_paths(entries, root)
     if path_errors:
@@ -424,7 +424,7 @@ def main():
     print(f"  Object ref errors:     {len(object_errors)}")
     print(f"  Verified equations:    {len(verified)}/{implemented} implemented")
     print()
-    
+
     # Determine exit code
     if args.strict and (missing_from_index or path_errors or object_errors or unverified):
         print("[FAILED] (strict mode)")

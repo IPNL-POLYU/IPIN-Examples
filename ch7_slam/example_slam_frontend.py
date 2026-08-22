@@ -57,24 +57,24 @@ def generate_wall_scan(pose: np.ndarray, wall_x: float = 5.0) -> np.ndarray:
     """
     # Wall points in map frame
     wall_points = np.array([[wall_x, y] for y in np.linspace(-2, 2, 20)])
-    
+
     # Transform to robot frame
     x, y, yaw = pose
     cos_yaw = np.cos(yaw)
     sin_yaw = np.sin(yaw)
-    
+
     diff = wall_points - np.array([x, y])
     x_local = cos_yaw * diff[:, 0] + sin_yaw * diff[:, 1]
     y_local = -sin_yaw * diff[:, 0] + cos_yaw * diff[:, 1]
-    
+
     scan = np.column_stack([x_local, y_local])
-    
+
     # Add small noise
     scan += np.random.normal(0, 0.02, scan.shape)
-    
+
     # Filter points behind robot
     scan = scan[scan[:, 0] > 0]
-    
+
     return scan
 
 

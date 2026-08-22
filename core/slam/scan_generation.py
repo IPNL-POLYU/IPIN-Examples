@@ -60,43 +60,43 @@ def ray_segment_intersection(
     d = np.array(ray_direction, dtype=float)
     s_start = np.array(segment_start, dtype=float)
     s_end = np.array(segment_end, dtype=float)
-    
+
     # Segment direction
     s_dir = s_end - s_start
     s_len_sq = np.dot(s_dir, s_dir)
-    
+
     # Check for degenerate segment (zero length)
     if s_len_sq < 1e-10:
         return None, float('inf')
-    
+
     # Solve for intersection using Cramer's rule
     # Ray: o + t*d, Segment: s_start + u*s_dir
     # o + t*d = s_start + u*s_dir
     # t*d - u*s_dir = s_start - o
-    
+
     # Matrix form: [d | -s_dir] * [t; u] = s_start - o
     diff = s_start - o
-    
+
     # Determinant
     det = d[0] * (-s_dir[1]) - d[1] * (-s_dir[0])
     det = d[0] * s_dir[1] - d[1] * s_dir[0]
-    
+
     # Check if ray and segment are parallel
     if abs(det) < 1e-10:
         return None, float('inf')
-    
+
     # Solve for t and u
     t = (diff[0] * s_dir[1] - diff[1] * s_dir[0]) / det
     u = (diff[0] * d[1] - diff[1] * d[0]) / det
-    
+
     # Check validity: t >= 0 (ray goes forward), 0 <= u <= 1 (point on segment)
     if t < 0 or u < 0 or u > 1:
         return None, float('inf')
-    
+
     # Compute intersection point
     intersection = o + t * d
     distance = t  # Distance along ray (meaningful if d is normalized)
-    
+
     return intersection, distance
 
 
@@ -149,17 +149,17 @@ def generate_scan_with_occlusion(
     """
     x, y, yaw = pose
     scan_points = []
-    
+
     # Cast rays in all directions
     for ray_idx in range(num_rays):
         # Ray angle in global frame
         angle = yaw + (2 * np.pi * ray_idx / num_rays)
         ray_dir = np.array([np.cos(angle), np.sin(angle)])
-        
+
         # Find closest intersection with all walls
         min_distance = max_range
         closest_point = None
-        
+
         for wall_start, wall_end in walls:
             intersection, distance = ray_segment_intersection(
                 ray_origin=[x, y],
@@ -167,11 +167,11 @@ def generate_scan_with_occlusion(
                 segment_start=wall_start,
                 segment_end=wall_end,
             )
-            
+
             if intersection is not None and distance < min_distance:
                 min_distance = distance
                 closest_point = intersection
-        
+
         # If we hit a wall within range, add the point
         if closest_point is not None and min_distance < max_range:
             # Add measurement noise
@@ -181,22 +181,22 @@ def generate_scan_with_occlusion(
                 noisy_point = np.array([x, y]) + noisy_distance * ray_dir
             else:
                 noisy_point = closest_point
-            
+
             # Transform to robot's local frame
             diff = noisy_point - np.array([x, y])
             cos_yaw = np.cos(yaw)
             sin_yaw = np.sin(yaw)
             x_local = cos_yaw * diff[0] + sin_yaw * diff[1]
             y_local = -sin_yaw * diff[0] + cos_yaw * diff[1]
-            
+
             # Filter by range
             range_check = np.sqrt(x_local**2 + y_local**2)
             if min_range <= range_check <= max_range:
                 scan_points.append([x_local, y_local])
-    
+
     if not scan_points:
         return np.zeros((0, 2))
-    
+
     return np.array(scan_points)
 
 
@@ -234,34 +234,34 @@ def generate_dense_wall_scan(
     x, y, yaw = pose
     cos_yaw = np.cos(yaw)
     sin_yaw = np.sin(yaw)
-    
+
     all_points = []
-    
+
     for wall_start, wall_end in walls:
         # Generate dense points along the wall
         t = np.linspace(0, 1, points_per_wall)
         wall_points = wall_start + np.outer(t, wall_end - wall_start)
-        
+
         # Transform to robot frame
         diff = wall_points - np.array([x, y])
         x_local = cos_yaw * diff[:, 0] + sin_yaw * diff[:, 1]
         y_local = -sin_yaw * diff[:, 0] + cos_yaw * diff[:, 1]
-        
+
         # Filter by range
         ranges = np.sqrt(x_local**2 + y_local**2)
         valid = ranges < max_range
-        
+
         if np.any(valid):
             local_points = np.column_stack([x_local[valid], y_local[valid]])
             all_points.append(local_points)
-    
+
     if not all_points:
         return np.zeros((0, 2))
-    
+
     scan = np.vstack(all_points)
-    
+
     # Add measurement noise
     if noise_std > 0:
         scan += _rng(rng).normal(0, noise_std, scan.shape)
-    
+
     return scan

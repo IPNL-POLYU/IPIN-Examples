@@ -76,22 +76,22 @@ def load_slam_dataset(data_dir: str) -> Dict:
         Dictionary with poses, landmarks, loop closures, and scans
     """
     path = resolve_data_path(data_dir)
-    
+
     data = {
         'true_poses': np.loadtxt(path / 'ground_truth_poses.txt'),
         'odom_poses': np.loadtxt(path / 'odometry_poses.txt'),
         'landmarks': np.loadtxt(path / 'landmarks.txt'),
         'loop_closures': np.loadtxt(path / 'loop_closures.txt'),
     }
-    
+
     # Load scans from npz
     scans_npz = np.load(path / 'scans.npz')
     data['scans'] = [scans_npz[f'scan_{i}'] for i in range(len(data['true_poses']))]
-    
+
     # Load config
     with open(path / 'config.json') as f:
         data['config'] = json.load(f)
-    
+
     return data
 
 
@@ -107,38 +107,38 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     print(f"Using dataset: {data_dir}")
     print("=" * 70)
     print()
-    
+
     # Load dataset
     data = load_slam_dataset(data_dir)
     config = data['config']
-    
+
     true_poses = [data['true_poses'][i] for i in range(len(data['true_poses']))]
     odom_poses = [data['odom_poses'][i] for i in range(len(data['odom_poses']))]
     landmarks = data['landmarks']
     scans = data['scans']
     loop_closure_data = data['loop_closures']
-    
+
     n_poses = len(true_poses)
-    
+
     print("Dataset Info:")
     print(f"  Trajectory: {config.get('trajectory', {}).get('type', 'unknown')}")
     print(f"  Poses: {n_poses}")
     print(f"  Landmarks: {len(landmarks)}")
     print(f"  Loop closures: {len(loop_closure_data)}")
-    
+
     # Compute initial drift
     initial_drift = np.linalg.norm(odom_poses[0][:2] - true_poses[0][:2])
     final_drift = np.linalg.norm(odom_poses[-1][:2] - true_poses[-1][:2])
     print(f"\n  Initial drift: {initial_drift:.3f} m")
     print(f"  Final drift (without SLAM): {final_drift:.3f} m")
-    
+
     # ------------------------------------------------------------------------
     # Run SLAM Front-End: Prediction -> Scan-to-Map -> Map Update
     # ------------------------------------------------------------------------
     print("\n" + "-" * 70)
     print("Front-end: init -> predict -> scan-to-map -> update map")
     print("-" * 70)
-    
+
     # Initialize front-end (use first odometry pose as initial pose)
     frontend = SlamFrontend2D(
         submap_voxel_size=0.15,
@@ -148,44 +148,44 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
         max_correspondence_distance=1.0,
         initial_pose=odom_poses[0].copy(),  # Start from odometry's first pose
     )
-    
+
     # Run front-end for each timestep
     frontend_poses = []
     pred_poses = []
     match_qualities = []
     corrections = []
-    
+
     for i in range(n_poses):
         # Compute odometry delta
         if i == 0:
             odom_delta = np.array([0.0, 0.0, 0.0])
         else:
             odom_delta = se2_relative(odom_poses[i - 1], odom_poses[i])
-        
+
         # Run front-end step
         result = frontend.step(i, odom_delta, scans[i])
-        
+
         # Store results
         frontend_poses.append(result['pose_est'])
         pred_poses.append(result['pose_pred'])
         match_qualities.append(result['match_quality'])
-        
+
         # Compute correction magnitude (if not first step)
         if i > 0:
             correction = np.linalg.norm(result['pose_est'][:2] - result['pose_pred'][:2])
             corrections.append(correction)
-    
+
     # Compute front-end statistics
     n_converged = sum(1 for mq in match_qualities if mq.converged)
     converged_qualities = [mq for mq in match_qualities if mq.converged]
     avg_residual = np.mean([mq.residual for mq in converged_qualities]) if converged_qualities else 0.0
     avg_correction = np.mean(corrections) if corrections else 0.0
-    
+
     print(f"\n  Processed {n_poses} steps")
     print(f"  Frontend converged ratio: {100*n_converged/n_poses:.1f}%")
     print(f"  Frontend avg residual: {avg_residual:.4f} m")
     print(f"  Frontend avg correction: {avg_correction:.4f} m")
-    
+
     # Verify frontend_poses differs from odom_poses
     max_trans_diff = 0.0
     max_yaw_diff = 0.0
@@ -198,20 +198,20 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
         yaw_diff = abs(wrap_angle(frontend_poses[i][2] - odom_poses[i][2]))
         max_trans_diff = max(max_trans_diff, trans_diff)
         max_yaw_diff = max(max_yaw_diff, yaw_diff)
-    
+
     print(f"\n  max|frontend - odom| translation: {max_trans_diff:.4f} m")
     print(f"  max|frontend - odom| yaw: {np.degrees(max_yaw_diff):.2f} deg")
-    
+
     if max_trans_diff < 1e-6 and max_yaw_diff < 1e-6:
         print("  [WARNING] Frontend poses identical to odometry - ICP not working!")
-    
+
     # Detect loop closures
     print("\n" + "-" * 70)
     if use_loop_oracle:
         print("Loop Closure Detection (ORACLE MODE - distance-based)...")
     else:
         print("Loop Closure Detection (observation-based)...")
-    
+
     # Default: observation-based detector with no distance gating
     loop_closures = detect_loop_closures(
         poses=frontend_poses,  # Use front-end estimates
@@ -220,32 +220,32 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
         distance_threshold=None,  # No distance gating (observation-based is primary)
         min_time_separation=20  # Lower to find more candidates
     )
-    
+
     mode_str = "oracle" if use_loop_oracle else "observation-based"
     print(f"\n  Detected {len(loop_closures)} loop closures ({mode_str})")
     print()
-    
+
     # Also show what the dataset provided (for reference)
     if loop_closure_data.ndim == 1:
         loop_closure_data = loop_closure_data.reshape(1, -1)
     print(f"  [Reference: Dataset provided {len(loop_closure_data)} ground truth loop closure indices]")
-    
+
     # Build pose graph
     print("\n" + "-" * 70)
     print("Building pose graph...")
-    
+
     # CRITICAL: Initialize graph from front-end poses (NOT odometry, NOT ground truth)
     # This ensures the front-end's scan-to-map corrections are preserved
     initial_poses = frontend_poses  # Must be frontend_poses, not odom_poses!
     print("  Graph initial: frontend_poses (scan-to-map corrected trajectory)")
-    
+
     # Prepare odometry measurements from front-end estimates
     odometry_measurements = []
     for i in range(n_poses - 1):
         # Use front-end pose deltas (scan-to-map corrected)
         rel_pose = se2_relative(initial_poses[i], initial_poses[i + 1])
         odometry_measurements.append((i, i + 1, rel_pose))
-    
+
     # Prepare loop closure measurements and information matrices
     loop_measurements = []
     loop_info_matrices = []
@@ -253,16 +253,16 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
         loop_measurements.append((i, j, rel_pose))
         # Use individual covariance from loop closure (reflects ICP quality)
         loop_info_matrices.append(np.linalg.inv(cov))
-    
+
     # Odometry information (moderate uncertainty)
     odom_info = np.linalg.inv(np.diag([0.1, 0.1, 0.02]))
-    
+
     # Loop closure information (use first one as representative, or average)
     if len(loop_info_matrices) > 0:
         loop_info = loop_info_matrices[0]
     else:
         loop_info = np.linalg.inv(np.diag([0.05, 0.05, 0.01]))
-    
+
     # Create pose graph with front-end estimates as initial values
     # CRITICAL: Set prior to actual first pose (trajectory may not start at origin)
     first_pose = initial_poses[0].copy()
@@ -274,21 +274,21 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
         odometry_information=odom_info,
         loop_information=loop_info,
     )
-    
+
     print(f"  Pose graph: {len(graph.variables)} variables, {len(graph.factors)} factors")
     print(f"  Factors: 1 prior + {len(odometry_measurements)} odometry + {len(loop_measurements)} loop closures")
-    
+
     # Optimize
     print("\n" + "-" * 70)
     print("Optimizing pose graph...")
-    
+
     initial_error = graph.compute_error()
     print(f"  Initial error: {initial_error:.6f}")
-    
+
     optimized_vars, error_history = graph.optimize(
         method="gauss_newton", max_iterations=50, tol=1e-6
     )
-    
+
     final_error = error_history[-1]
     print(f"  Final error: {final_error:.6f}")
     print(f"  Iterations: {len(error_history) - 1}")
@@ -296,42 +296,42 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
         print(f"  Error reduction: {(1 - final_error / initial_error) * 100:.2f}%")
     else:
         print("  Error reduction: N/A (initial error near zero)")
-    
+
     optimized_poses = [optimized_vars[i] for i in range(n_poses)]
-    
+
     # Evaluate
     print("\n" + "-" * 70)
     print("Results:")
-    
+
     odom_errors = np.array([np.linalg.norm(odom_poses[i][:2] - true_poses[i][:2]) for i in range(n_poses)])
     frontend_errors = np.array([np.linalg.norm(frontend_poses[i][:2] - true_poses[i][:2]) for i in range(n_poses)])
     opt_errors = np.array([np.linalg.norm(optimized_poses[i][:2] - true_poses[i][:2]) for i in range(n_poses)])
-    
+
     odom_rmse = np.sqrt(np.mean(odom_errors**2))
     frontend_rmse = np.sqrt(np.mean(frontend_errors**2))
     opt_rmse = np.sqrt(np.mean(opt_errors**2))
-    
+
     print(f"  Odometry RMSE: {odom_rmse:.4f} m (baseline)")
     print(f"  Frontend RMSE: {frontend_rmse:.4f} m (scan-to-map corrected)")
     print(f"  Optimized RMSE: {opt_rmse:.4f} m (backend with {len(loop_closures)} loop closures)")
-    
+
     if odom_rmse > 0:
         frontend_improvement = (1 - frontend_rmse / odom_rmse) * 100
         full_improvement = (1 - opt_rmse / odom_rmse) * 100
         print(f"  Frontend improvement: {frontend_improvement:+.2f}%")
         print(f"  Full pipeline improvement: {full_improvement:+.2f}%")
-    
+
     final_loop_error = np.linalg.norm(optimized_poses[-1][:2] - optimized_poses[0][:2])
     print(f"  Final loop closure error: {final_loop_error:.4f} m")
-    
+
     # Visualize
     print("\n" + "-" * 70)
     print("Generating plots...")
     plot_slam_results(
-        true_poses, odom_poses, frontend_poses, optimized_poses, 
+        true_poses, odom_poses, frontend_poses, optimized_poses,
         landmarks, loop_closures, scans
     )
-    
+
     print("\n" + "=" * 70)
     print("SLAM PIPELINE COMPLETE!")
     print("=" * 70)
@@ -349,7 +349,7 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
         print(f"  - Frontend improvement: {frontend_improvement:+.2f}%")
         print(f"  - Full pipeline improvement: {full_improvement:+.2f}%")
     print()
-    
+
     # Machine-readable summary for automated testing
     import json
     summary = {
@@ -450,28 +450,28 @@ def generate_corridor_loop_trajectory(
         List of poses [x, y, yaw] representing the trajectory.
     """
     poses = []
-    
+
     # Start/end positions (avoid being too close to end walls)
     x_start = 2.0
     x_end = corridor_length - 2.0  # Stay away from far wall
     travel_dist = x_end - x_start
-    
+
     # Outbound leg: Move East (heading = 0)
     for i in range(n_poses_out):
         x = x_start + (i / n_poses_out) * travel_dist
         y = 0.0  # Center of corridor
         poses.append(np.array([x, y, 0.0]))
-    
+
     # At far end - no turn needed, we'll reverse direction but keep same heading
     # Robot will "back up" - this is artificial but ensures scan consistency
-    
+
     # Return leg: Move West BACKWARDS (still heading = 0, same scans!)
     # This simulates the robot revisiting the same positions
     for i in range(1, n_poses_back + 1):
         x = x_end - (i / n_poses_back) * travel_dist
         y = 0.0  # Same Y as outbound
         poses.append(np.array([x, y, 0.0]))  # Same heading - scans will match!
-    
+
     return poses
 
 
@@ -493,32 +493,32 @@ def generate_smooth_square_trajectory(
         List of poses [x, y, yaw] representing the trajectory.
     """
     poses = []
-    
+
     # Side 1: Move East (heading = 0)
     for i in range(n_poses_per_side):
         x = (i / n_poses_per_side) * side_length
         poses.append(np.array([x, 0.0, 0.0]))
-    
+
     # Corner 1: Smooth turn to North
     for i in range(5):
         yaw = (i + 1) * (np.pi / 2) / 5
         poses.append(np.array([side_length, 0.0, yaw]))
-    
+
     # Side 2: Move North (heading = pi/2)
     for i in range(1, n_poses_per_side):
         y = (i / n_poses_per_side) * side_length
         poses.append(np.array([side_length, y, np.pi / 2]))
-    
+
     # Corner 2: Smooth turn to West
     for i in range(5):
         yaw = np.pi / 2 + (i + 1) * (np.pi / 2) / 5
         poses.append(np.array([side_length, side_length, yaw]))
-    
+
     # Side 3: Move West (heading = pi)
     for i in range(1, n_poses_per_side):
         x = side_length - (i / n_poses_per_side) * side_length
         poses.append(np.array([x, side_length, np.pi]))
-    
+
     # Corner 3: Smooth turn to South
     for i in range(5):
         yaw = np.pi + (i + 1) * (np.pi / 2) / 5
@@ -526,17 +526,17 @@ def generate_smooth_square_trajectory(
         if yaw > np.pi:
             yaw = yaw - 2 * np.pi
         poses.append(np.array([0.0, side_length, yaw]))
-    
+
     # Side 4: Move South (heading = -pi/2)
     for i in range(1, n_poses_per_side):
         y = side_length - (i / n_poses_per_side) * side_length
         poses.append(np.array([0.0, y, -np.pi / 2]))
-    
+
     # Corner 4: Smooth turn back to East (close loop)
     for i in range(5):
         yaw = -np.pi / 2 + (i + 1) * (np.pi / 2) / 5
         poses.append(np.array([0.0, 0.0, yaw]))
-    
+
     return poses
 
 
@@ -561,7 +561,7 @@ def generate_square_loop_trajectory(
         Start and end poses are identical (closed loop).
     """
     poses = []
-    
+
     # Generate multiple laps
     for lap in range(n_laps):
         # Side 1: Move East (heading = 0)
@@ -569,28 +569,28 @@ def generate_square_loop_trajectory(
             t = i / n_poses_per_side
             x = t * side_length
             poses.append(np.array([x, 0.0, 0.0]))
-        
+
         # Side 2: Move North (heading = pi/2)
         for i in range(n_poses_per_side):
             t = i / n_poses_per_side
             y = t * side_length
             poses.append(np.array([side_length, y, np.pi / 2]))
-        
+
         # Side 3: Move West (heading = pi)
         for i in range(n_poses_per_side):
             t = i / n_poses_per_side
             x = side_length - t * side_length
             poses.append(np.array([x, side_length, np.pi]))
-        
+
         # Side 4: Move South (heading = -pi/2)
         for i in range(n_poses_per_side):
             t = i / n_poses_per_side
             y = side_length - t * side_length
             poses.append(np.array([0.0, y, -np.pi / 2]))
-    
+
     # Close the loop: add final pose at origin with original heading
     poses.append(np.array([0.0, 0.0, 0.0]))
-    
+
     return poses
 
 
@@ -618,10 +618,10 @@ def create_room_walls(
     # Wall boundaries
     min_coord = -wall_offset
     max_coord = side_length + wall_offset
-    
+
     walls = []
     landmarks_list = []
-    
+
     # Outer walls (room boundary)
     # South wall
     walls.append((np.array([min_coord, min_coord]), np.array([max_coord, min_coord])))
@@ -631,7 +631,7 @@ def create_room_walls(
     walls.append((np.array([min_coord, min_coord]), np.array([min_coord, max_coord])))
     # East wall
     walls.append((np.array([max_coord, min_coord]), np.array([max_coord, max_coord])))
-    
+
     # Room corners as landmarks
     landmarks_list.extend([
         [min_coord, min_coord],  # SW
@@ -639,12 +639,12 @@ def create_room_walls(
         [max_coord, max_coord],  # NE
         [min_coord, max_coord],  # NW
     ])
-    
+
     # =========================================================================
     # Internal features to break symmetry (CRITICAL for loop closure!)
     # Each corner should look different in range histograms
     # =========================================================================
-    
+
     # Feature 1: Pillar near SW corner at (1.5, 1.5) - makes SW distinctive
     pillar1 = [
         (np.array([1.5, 1.5]), np.array([2.2, 1.5])),  # South side
@@ -654,7 +654,7 @@ def create_room_walls(
     ]
     walls.extend(pillar1)
     landmarks_list.extend([[1.5, 1.5], [2.2, 2.2]])  # Pillar corners
-    
+
     # Feature 2: Off-center pillar at (2.0, 5.0) - breaks N-S symmetry
     pillar2 = [
         (np.array([1.8, 4.8]), np.array([2.5, 4.8])),
@@ -664,7 +664,7 @@ def create_room_walls(
     ]
     walls.extend(pillar2)
     landmarks_list.extend([[1.8, 4.8], [2.5, 5.5]])  # Pillar corners
-    
+
     # Feature 3: L-shaped obstacle near NE corner - makes NE distinctive
     l_shape = [
         (np.array([5.8, 5.8]), np.array([6.8, 5.8])),  # Horizontal
@@ -672,11 +672,11 @@ def create_room_walls(
     ]
     walls.extend(l_shape)
     landmarks_list.extend([[5.8, 5.8], [6.8, 7.2]])
-    
+
     # Feature 4: Short wall segment on west side - makes west side distinctive
     walls.append((np.array([0.8, 3.5]), np.array([2.0, 3.5])))
     landmarks_list.extend([[0.8, 3.5], [2.0, 3.5]])
-    
+
     # Feature 5: Obstacle near SE corner - makes SE distinctive
     se_obstacle = [
         (np.array([5.5, 0.8]), np.array([7.0, 0.8])),
@@ -684,9 +684,9 @@ def create_room_walls(
     ]
     walls.extend(se_obstacle)
     landmarks_list.extend([[5.5, 0.8], [7.0, 2.0]])
-    
+
     landmarks = np.array(landmarks_list)
-    
+
     return walls, landmarks
 
 
@@ -712,7 +712,7 @@ def create_corridor_walls(
         List of (start_point, end_point) tuples defining walls.
     """
     half_width = width / 2
-    
+
     walls = [
         # Bottom wall (y = -half_width)
         (np.array([0.0, -half_width]), np.array([length, -half_width])),
@@ -723,7 +723,7 @@ def create_corridor_walls(
         # Right end wall (x = length)
         (np.array([length, -half_width]), np.array([length, half_width])),
     ]
-    
+
     return walls
 
 
@@ -857,7 +857,7 @@ def detect_loop_closures(
         print("  Loop closure: candidate from descriptor similarity (observation-based)")
         print("  Using frontend_poses for initial guess (scan-to-map corrected trajectory)")
         print()
-        
+
         detector = LoopClosureDetector2D(
             n_bins=32,
             max_range=10.0,
@@ -880,9 +880,9 @@ def detect_loop_closures(
             icp_max_iterations=50,
             icp_tolerance=1e-4,
         )
-        
+
         loop_closures_obj = detector.detect(scans, poses)
-        
+
         # Convert to old format
         loop_closures = []
         for lc in loop_closures_obj:
@@ -890,9 +890,9 @@ def detect_loop_closures(
             print(f"  Verified: {lc.j} <-> {lc.i}, "
                   f"desc_sim={lc.descriptor_similarity:.3f}, "
                   f"icp_residual={lc.icp_residual:.4f}, iters={lc.icp_iterations}")
-        
+
         return loop_closures
-    
+
     else:
         # LEGACY: Distance-based oracle detection (for debugging/comparison ONLY)
         # This mode is NOT realistic - in real SLAM, you don't know ground truth positions
@@ -905,24 +905,24 @@ def detect_loop_closures(
         print("  Use observation-based detection (default) for realistic behavior.")
         print("  " + "=" * 60)
         print()
-        
+
         loop_closures = []
         n_poses = len(poses)
-        
+
         if distance_threshold is None:
             distance_threshold = 3.0  # Default for legacy mode
-        
+
         for i in range(n_poses):
             for j in range(i + min_time_separation, n_poses):
                 # Check distance (ORACLE - uses position knowledge!)
                 dist = np.linalg.norm(poses[i][:2] - poses[j][:2])
-                
+
                 if dist < distance_threshold:
                     # Potential loop closure - verify with ICP
                     try:
                         # Initial guess: transform from pose_i to pose_j
                         initial_guess = se2_relative(poses[i], poses[j])
-                        
+
                         # ICP(source=scans[i], target=scans[j]) returns transform from i to j
                         rel_pose, iters, residual, converged = icp_point_to_point(
                             source_scan=scans[i],
@@ -931,23 +931,23 @@ def detect_loop_closures(
                             max_iterations=50,
                             tolerance=1e-4,
                         )
-                        
+
                         # RMS per correspondence in metres, as in the
                         # observation-based path above. This read 1.0 when
                         # icp_point_to_point returned a sum of squared errors.
                         if converged and residual < 0.10:
                             # Compute covariance (simplified)
                             cov = np.diag([0.05, 0.05, 0.01])
-                            
+
                             # Return (from_id=i, to_id=j, rel_pose=i_to_j)
                             loop_closures.append((i, j, rel_pose, cov))
-                            
+
                             print(f"  Loop closure: {i} <-> {j}, residual={residual:.4f}, iters={iters}")
-                    
+
                     except Exception:
                         # ICP failed, skip this pair
                         pass
-        
+
         return loop_closures
 
 
@@ -968,19 +968,19 @@ def build_map_from_poses(
         Map point cloud as Nx2 array.
     """
     from core.slam import se2_apply
-    
+
     all_points = []
     for pose, scan in zip(poses, scans):
         if len(scan) > 0:
             # Transform scan to global frame
             transformed = se2_apply(pose, scan)
             all_points.append(transformed)
-    
+
     if not all_points:
         return np.zeros((0, 2))
-    
+
     map_points = np.vstack(all_points)
-    
+
     # Optional voxel grid downsampling
     if downsample_voxel > 0:
         # Quantize to voxels
@@ -992,7 +992,7 @@ def build_map_from_poses(
             mask = inverse == i
             downsampled[i] = np.mean(map_points[mask], axis=0)
         return downsampled
-    
+
     return map_points
 
 
@@ -1028,28 +1028,28 @@ def create_slam_animation(
         fps: Frames per second
     """
     from core.slam import se2_apply
-    
+
     n_poses = len(true_poses)
-    
+
     # Compute errors at each timestep
-    odom_errors = [np.linalg.norm(odom_poses[i][:2] - true_poses[i][:2]) 
+    odom_errors = [np.linalg.norm(odom_poses[i][:2] - true_poses[i][:2])
                    for i in range(n_poses)]
-    frontend_errors = [np.linalg.norm(frontend_poses[i][:2] - true_poses[i][:2]) 
+    frontend_errors = [np.linalg.norm(frontend_poses[i][:2] - true_poses[i][:2])
                        for i in range(n_poses)]
-    optimized_errors = [np.linalg.norm(optimized_poses[i][:2] - true_poses[i][:2]) 
+    optimized_errors = [np.linalg.norm(optimized_poses[i][:2] - true_poses[i][:2])
                         for i in range(n_poses)]
-    
+
     # Find when each loop closure is detected (use the larger index)
     loop_closure_times = {max(lc[0], lc[1]): (lc[0], lc[1]) for lc in loop_closures}
-    
+
     # Create figure with 3 panels
     fig = plt.figure(figsize=(16, 5))
     fig.suptitle(f"SLAM Pipeline Animation ({trajectory_type} trajectory)", fontsize=14)
-    
+
     ax1 = fig.add_subplot(1, 3, 1)  # Map + Trajectory
     ax2 = fig.add_subplot(1, 3, 2)  # Constraint graph
     ax3 = fig.add_subplot(1, 3, 3)  # Error plot
-    
+
     # Compute bounds for consistent axes
     all_x = [p[0] for p in true_poses]
     all_y = [p[1] for p in true_poses]
@@ -1057,7 +1057,7 @@ def create_slam_animation(
     y_margin = (max(all_y) - min(all_y)) * 0.2
     xlim = (min(all_x) - x_margin - 2, max(all_x) + x_margin + 2)
     ylim = (min(all_y) - y_margin - 2, max(all_y) + y_margin + 2)
-    
+
     # Initialize plot elements
     # Panel 1: Map + Trajectory
     map_scatter = ax1.scatter([], [], s=1, c='blue', alpha=0.3, label='Map')
@@ -1069,7 +1069,7 @@ def create_slam_animation(
     ax1.annotate('', xy=(0, 0), xytext=(0, 0),
                  arrowprops=dict(arrowstyle='->', color='purple', lw=2),
                  visible=False)
-    
+
     ax1.set_xlim(xlim)
     ax1.set_ylim(ylim)
     ax1.set_xlabel('X (m)')
@@ -1078,7 +1078,7 @@ def create_slam_animation(
     ax1.legend(loc='upper right', fontsize=8)
     ax1.set_aspect('equal')
     ax1.grid(True, alpha=0.3)
-    
+
     # Panel 2: Constraint graph
     ax2.set_xlim(xlim)
     ax2.set_ylim(ylim)
@@ -1087,17 +1087,17 @@ def create_slam_animation(
     ax2.set_title('Pose Graph Constraints')
     ax2.set_aspect('equal')
     ax2.grid(True, alpha=0.3)
-    
+
     # Initialize trajectory line for Panel 2 (will show poses during optimization)
     graph_traj_line, = ax2.plot([], [], 'b-', linewidth=1.5, alpha=0.6, label='Trajectory')
-    
+
     # Add legend entries for constraint types
     # These will be shown when constraints appear
     ax2.plot([], [], 'gray', linewidth=1, alpha=0.5, label='Odometry edges')
-    ax2.plot([], [], color='magenta', linestyle='--', linewidth=2.5, alpha=0.8, 
+    ax2.plot([], [], color='magenta', linestyle='--', linewidth=2.5, alpha=0.8,
              label='Loop closure constraints')
     ax2.legend(loc='upper right', fontsize=8)
-    
+
     # Panel 3: Error plot
     ax3.set_xlim(0, n_poses)
     ax3.set_ylim(0, max(odom_errors) * 1.2)
@@ -1105,35 +1105,35 @@ def create_slam_animation(
     ax3.set_ylabel('Position Error (m)')
     ax3.set_title('Position Error vs Time')
     ax3.grid(True, alpha=0.3)
-    
+
     odom_error_line, = ax3.plot([], [], 'r-', label='Odometry', alpha=0.7)
     frontend_error_line, = ax3.plot([], [], 'b-', label='Frontend', linewidth=2)
     ax3.legend(loc='upper left', fontsize=8)
-    
+
     # Storage for accumulated map points
     accumulated_map = []
     loop_edges = []
-    
+
     # Phase 1: Front-end frames (one per pose)
     # Phase 2: Optimization frames (interpolate frontend -> optimized)
     n_opt_frames = 20  # Frames for optimization animation
     total_frames = n_poses + n_opt_frames
-    
+
     def init():
         return []
-    
+
     def update(frame):
         artists = []
-        
+
         if frame < n_poses:
             # Phase 1: Front-end animation
             i = frame
-            
+
             # Accumulate map points
             if i < len(scans):
                 scan_global = se2_apply(frontend_poses[i], scans[i])
                 accumulated_map.append(scan_global)
-            
+
             # Update map scatter
             if accumulated_map:
                 all_map = np.vstack(accumulated_map)
@@ -1142,37 +1142,37 @@ def create_slam_animation(
                     indices = np.random.choice(len(all_map), 2000, replace=False)
                     all_map = all_map[indices]
                 map_scatter.set_offsets(all_map)
-            
+
             # Update current scan (highlighted)
             if i < len(scans):
                 scan_global = se2_apply(frontend_poses[i], scans[i])
                 current_scan_scatter.set_offsets(scan_global)
-            
+
             # Update trajectories (up to current pose)
             true_xy = np.array([[p[0], p[1]] for p in true_poses[:i+1]])
             odom_xy = np.array([[p[0], p[1]] for p in odom_poses[:i+1]])
             frontend_xy = np.array([[p[0], p[1]] for p in frontend_poses[:i+1]])
-            
+
             if len(true_xy) > 0:
                 true_line.set_data(true_xy[:, 0], true_xy[:, 1])
                 odom_line.set_data(odom_xy[:, 0], odom_xy[:, 1])
                 frontend_line.set_data(frontend_xy[:, 0], frontend_xy[:, 1])
                 # Update Panel 2 trajectory
                 graph_traj_line.set_data(frontend_xy[:, 0], frontend_xy[:, 1])
-            
+
             # Update current pose marker
             current_pose_marker.set_data([frontend_poses[i][0]], [frontend_poses[i][1]])
-            
+
             # Update error plot
             odom_error_line.set_data(range(i+1), odom_errors[:i+1])
             frontend_error_line.set_data(range(i+1), frontend_errors[:i+1])
-            
+
             # Draw odometry edge (constraint)
             if i > 0:
                 ax2.plot([frontend_poses[i-1][0], frontend_poses[i][0]],
                         [frontend_poses[i-1][1], frontend_poses[i][1]],
                         'gray', linewidth=1, alpha=0.5)
-            
+
             # Check for loop closure at this timestep
             if i in loop_closure_times:
                 lc_i, lc_j = loop_closure_times[i]
@@ -1182,60 +1182,60 @@ def create_slam_animation(
                                [frontend_poses[lc_i][1], frontend_poses[lc_j][1]],
                                color='magenta', linestyle='--', linewidth=2.5, alpha=0.8)[0]
                 loop_edges.append(line)
-                
+
                 # Draw dots at loop closure poses
                 ax2.scatter([frontend_poses[lc_i][0], frontend_poses[lc_j][0]],
                            [frontend_poses[lc_i][1], frontend_poses[lc_j][1]],
-                           c='magenta', s=100, edgecolors='white', linewidths=2, 
+                           c='magenta', s=100, edgecolors='white', linewidths=2,
                            zorder=10, alpha=0.9)
-                
+
                 # Mark on error plot (Panel 3)
                 ax3.axvline(x=i, color='magenta', linestyle='--', alpha=0.5)
-            
+
             # Update title with progress
             ax1.set_title(f'Map + Trajectory (pose {i+1}/{n_poses})')
-            
+
         else:
             # Phase 2: Optimization animation
             opt_frame = frame - n_poses
             alpha = opt_frame / (n_opt_frames - 1)  # 0 to 1
-            
+
             # Interpolate from frontend to optimized
             interp_poses = []
             for j in range(n_poses):
                 interp_pose = (1 - alpha) * frontend_poses[j] + alpha * optimized_poses[j]
                 interp_poses.append(interp_pose)
-            
+
             # Rebuild map with interpolated poses
             interp_map = []
             for j in range(n_poses):
                 if j < len(scans):
                     scan_global = se2_apply(interp_poses[j], scans[j])
                     interp_map.append(scan_global)
-            
+
             if interp_map:
                 all_map = np.vstack(interp_map)
                 if len(all_map) > 2000:
                     indices = np.random.choice(len(all_map), 2000, replace=False)
                     all_map = all_map[indices]
                 map_scatter.set_offsets(all_map)
-            
+
             # Update trajectories
             interp_xy = np.array([[p[0], p[1]] for p in interp_poses])
             frontend_line.set_data(interp_xy[:, 0], interp_xy[:, 1])
-            
+
             # Update Panel 2 trajectory during optimization
             graph_traj_line.set_data(interp_xy[:, 0], interp_xy[:, 1])
-            
+
             # Hide current scan marker
             current_scan_scatter.set_offsets(np.empty((0, 2)))
             current_pose_marker.set_data([], [])
-            
+
             # Update error (interpolate)
-            interp_errors = [(1 - alpha) * frontend_errors[j] + alpha * optimized_errors[j] 
+            interp_errors = [(1 - alpha) * frontend_errors[j] + alpha * optimized_errors[j]
                             for j in range(n_poses)]
             frontend_error_line.set_data(range(n_poses), interp_errors)
-            
+
             # Update title
             if opt_frame == 0:
                 ax1.set_title('Optimization: Initial')
@@ -1243,18 +1243,18 @@ def create_slam_animation(
             elif opt_frame == n_opt_frames - 1:
                 ax1.set_title('Optimization: Complete!')
                 ax2.set_title(f'Pose Graph ({len(loop_closures)} loop closures)')
-                
+
                 # Add optimized trajectory as dashed line
                 opt_xy = np.array([[p[0], p[1]] for p in optimized_poses])
-                ax1.plot(opt_xy[:, 0], opt_xy[:, 1], 'c--', linewidth=2, 
+                ax1.plot(opt_xy[:, 0], opt_xy[:, 1], 'c--', linewidth=2,
                         label='Optimized', alpha=0.8)
                 ax1.legend(loc='upper right', fontsize=8)
             else:
                 progress = int(alpha * 100)
                 ax1.set_title(f'Optimization: {progress}%')
-        
+
         return artists
-    
+
     # Save as GIF. This went through a hand-rolled FuncAnimation + PillowWriter
     # and wrote to `output_path` verbatim, which meant it ignored IPIN_FIGS_DIR
     # and could only ever write inside the repository -- the one thing the
@@ -1369,7 +1369,7 @@ def plot_slam_results(
 
     ax_traj.set_xlabel("X [m]", fontsize=12)
     ax_traj.set_ylabel("Y [m]", fontsize=12)
-    ax_traj.set_title("4 Trajectories: Truth / Odom / Front-end / Optimized", 
+    ax_traj.set_title("4 Trajectories: Truth / Odom / Front-end / Optimized",
                       fontsize=13, fontweight="bold")
     ax_traj.legend(fontsize=10)
     ax_traj.grid(True, alpha=0.3)
@@ -1378,16 +1378,16 @@ def plot_slam_results(
     # --- Plot 2 & 3: Map Point Clouds (if scans provided) ---
     if scans is not None and len(scans) > 0:
         print("   Building map point clouds...")
-        
+
         # Build map from front-end poses (before backend optimization)
         map_before = build_map_from_poses(frontend_poses, scans, downsample_voxel=0.15)
-        
+
         # Build map from optimized poses (after backend optimization)
         map_after = build_map_from_poses(optimized_poses, scans, downsample_voxel=0.15)
-        
+
         print(f"   Map before (front-end): {len(map_before)} points")
         print(f"   Map after (backend):    {len(map_after)} points")
-        
+
         # Plot map before optimization
         ax_map_before.scatter(
             landmarks[:, 0],
@@ -1407,9 +1407,9 @@ def plot_slam_results(
                 alpha=0.3,
                 label="Map Points (Front-end)",
             )
-        ax_map_before.plot(frontend_xy[:, 0], frontend_xy[:, 1], "orange", 
+        ax_map_before.plot(frontend_xy[:, 0], frontend_xy[:, 1], "orange",
                           linestyle="-.", linewidth=1.5, alpha=0.6)
-        ax_map_before.scatter(frontend_xy[0, 0], frontend_xy[0, 1], c="orange", 
+        ax_map_before.scatter(frontend_xy[0, 0], frontend_xy[0, 1], c="orange",
                              marker="o", s=80, zorder=5)
         ax_map_before.set_xlabel("X [m]", fontsize=12)
         ax_map_before.set_ylabel("Y [m]", fontsize=12)
@@ -1417,7 +1417,7 @@ def plot_slam_results(
         ax_map_before.legend(fontsize=9, loc="upper right")
         ax_map_before.grid(True, alpha=0.3)
         ax_map_before.axis("equal")
-        
+
         # Plot map after optimization
         ax_map_after.scatter(
             landmarks[:, 0],
@@ -1439,9 +1439,9 @@ def plot_slam_results(
             )
         ax_map_after.plot(opt_xy[:, 0], opt_xy[:, 1], "b-", linewidth=1.5, alpha=0.6)
         ax_map_after.scatter(opt_xy[0, 0], opt_xy[0, 1], c="blue", marker="o", s=80, zorder=5)
-        
+
         # Loop closures NOT shown in static map (only in animation)
-        
+
         ax_map_after.set_xlabel("X [m]", fontsize=12)
         ax_map_after.set_ylabel("Y [m]", fontsize=12)
         ax_map_after.set_title("Map After Backend (Optimized)", fontsize=13, fontweight="bold")
@@ -1471,7 +1471,7 @@ def plot_slam_results(
         timesteps, odom_errors, "r--", linewidth=2, label="Odometry Error", alpha=0.7
     )
     ax_error.plot(
-        timesteps, frontend_errors, "orange", linestyle="-.", linewidth=1.5, 
+        timesteps, frontend_errors, "orange", linestyle="-.", linewidth=1.5,
         label="Front-end Error", alpha=0.7
     )
     ax_error.plot(
@@ -1504,7 +1504,7 @@ def plot_slam_results(
         "Loop Closure → Backend Optimization",
         fontsize=14, fontweight="bold", y=0.98
     )
-    
+
     # Save to figs directory with deterministic filename. Resolved from this
     # file rather than the working directory: the tests run the example from
     # the repo root, but nothing here should depend on that.
@@ -1555,7 +1555,7 @@ def run_with_inline_data(
 
     # Set random seed for reproducibility
     np.random.seed(42)
-    
+
     # Configuration
     side_length = 8.0  # meters
 
@@ -1571,7 +1571,7 @@ def run_with_inline_data(
             n_laps=n_laps,
         )
         n_poses = len(true_poses)
-        
+
         # Verify closed loop
         start_pose = true_poses[0]
         end_pose = true_poses[-1]
@@ -1581,20 +1581,20 @@ def run_with_inline_data(
         closure_yaw = abs(wrap_angle(end_pose[2] - start_pose[2]))
         print(f"   Generated {n_poses} poses (square, {n_laps} laps)")
         print(f"   Loop closure check: dist={closure_dist:.3f}m, yaw={np.degrees(closure_yaw):.1f}deg")
-        
+
         # Compute trajectory bounds
         all_x = [p[0] for p in true_poses]
         all_y = [p[1] for p in true_poses]
         x_range = max(all_x) - min(all_x)
         y_range = max(all_y) - min(all_y)
         print(f"   Trajectory bounds: x_range={x_range:.2f}m, y_range={y_range:.2f}m")
-        
+
         # Create room walls with asymmetric features
         print("\n2. Creating room environment...")
         walls, landmarks = create_room_walls(side_length=side_length, wall_offset=1.5)
         print(f"   Created {len(walls)} wall segments (room with asymmetric features)")
         print(f"   Landmarks: {len(landmarks)} points (derived from wall endpoints)")
-        
+
     else:  # corridor
         print("1. Generating corridor loop trajectory...")
         print("   Trajectory: corridor (out-and-back)")
@@ -1603,19 +1603,19 @@ def run_with_inline_data(
         )
         n_poses = len(true_poses)
         print(f"   Generated {n_poses} poses (corridor out-and-back)")
-        
+
         # Compute trajectory bounds
         all_x = [p[0] for p in true_poses]
         all_y = [p[1] for p in true_poses]
         x_range = max(all_x) - min(all_x)
         y_range = max(all_y) - min(all_y)
         print(f"   Trajectory bounds: x_range={x_range:.2f}m, y_range={y_range:.2f}m")
-        
+
         # Create corridor walls
         print("\n2. Creating corridor environment...")
         walls = create_corridor_walls(length=20.0, width=4.0)
         print(f"   Created {len(walls)} wall segments (parallel walls)")
-        
+
         # Landmarks at corners for visualization
         landmarks = np.array([
             [-1.0, -2.0], [20.0, -2.0], [20.0, 2.0], [-1.0, 2.0],
@@ -1629,7 +1629,7 @@ def run_with_inline_data(
     odom_poses = add_odometry_noise(
         true_poses, translation_noise=0.06, rotation_noise=0.015
     )
-    
+
     # Compute drift statistics
     initial_drift = np.linalg.norm(odom_poses[0][:2] - true_poses[0][:2])
     final_drift = np.linalg.norm(odom_poses[-1][:2] - true_poses[-1][:2])
@@ -1665,7 +1665,7 @@ def run_with_inline_data(
     print("\n" + "-" * 70)
     print("Front-end: init -> predict -> scan-to-map -> update map")
     print("-" * 70)
-    
+
     # Initialize front-end with submap for scan-to-map alignment
     # Use first odometry pose as initial pose (trajectory starts at origin for square)
     frontend = SlamFrontend2D(
@@ -1682,46 +1682,46 @@ def run_with_inline_data(
         max_correspondence_distance=1.0,  # Eq. (7.11) gate; see below
         initial_pose=odom_poses[0].copy(),  # Start from odometry's first pose
     )
-    
+
     # Run front-end for each timestep
     frontend_poses = []
     pred_poses = []
     match_qualities = []
     corrections = []
-    
+
     for i in range(n_poses):
         # Compute odometry delta from noisy odometry poses
         if i == 0:
             odom_delta = np.array([0.0, 0.0, 0.0])
         else:
             odom_delta = se2_relative(odom_poses[i - 1], odom_poses[i])
-        
+
         # Run front-end step: predict -> scan-to-map ICP -> update map
         result = frontend.step(i, odom_delta, scans[i])
-        
+
         # Store results
         frontend_poses.append(result['pose_est'])
         pred_poses.append(result['pose_pred'])
         match_qualities.append(result['match_quality'])
-        
+
         # Compute correction magnitude (difference between prediction and estimate)
         if i > 0:
             correction_xy = np.linalg.norm(
                 result['pose_est'][:2] - result['pose_pred'][:2]
             )
             corrections.append(correction_xy)
-    
+
     # Compute front-end statistics
     n_converged = sum(1 for mq in match_qualities if mq.converged)
     converged_qualities = [mq for mq in match_qualities if mq.converged]
     avg_residual = np.mean([mq.residual for mq in converged_qualities]) if converged_qualities else 0.0
     avg_correction = np.mean(corrections) if corrections else 0.0
-    
+
     print(f"\n  Processed {n_poses} steps")
     print(f"  Frontend converged ratio: {100*n_converged/n_poses:.1f}%")
     print(f"  Frontend avg residual: {avg_residual:.4f} m")
     print(f"  Frontend avg correction: {avg_correction:.4f} m")
-    
+
     # Verify frontend_poses differs from odom_poses (NOT identical)
     max_trans_diff = 0.0
     max_yaw_diff = 0.0
@@ -1734,10 +1734,10 @@ def run_with_inline_data(
         yaw_diff = abs(wrap_angle(frontend_poses[i][2] - odom_poses[i][2]))
         max_trans_diff = max(max_trans_diff, trans_diff)
         max_yaw_diff = max(max_yaw_diff, yaw_diff)
-    
+
     print(f"\n  max|frontend - odom| translation: {max_trans_diff:.4f} m")
     print(f"  max|frontend - odom| yaw: {np.degrees(max_yaw_diff):.2f} deg")
-    
+
     if max_trans_diff < 1e-6 and max_yaw_diff < 1e-6:
         print("  [WARNING] Frontend poses identical to odometry - ICP not working!")
 
@@ -1758,7 +1758,7 @@ def run_with_inline_data(
         print("\n7. Detecting loop closures (ORACLE MODE - distance-based)...")
     else:
         print("\n7. Detecting loop closures (observation-based)...")
-    
+
     loop_closures = detect_loop_closures(
         frontend_poses,  # Use front-end estimates as initial guess
         scans,
@@ -1772,7 +1772,7 @@ def run_with_inline_data(
     # 8. Build Pose Graph
     # ------------------------------------------------------------------------
     print("\n8. Building pose graph...")
-    
+
     # CRITICAL: Initialize graph from front-end poses (NOT odometry, NOT ground truth)
     # This ensures the front-end's scan-to-map corrections are preserved
     initial_poses = frontend_poses  # Must be frontend_poses, not odom_poses!
@@ -1851,7 +1851,7 @@ def run_with_inline_data(
     print(f"   Odometry RMSE: {odom_rmse:.4f} m (baseline)")
     print(f"   Frontend RMSE: {frontend_rmse:.4f} m (scan-to-map corrected)")
     print(f"   Optimized RMSE: {opt_rmse:.4f} m (backend with {len(loop_closures)} loop closures)")
-    
+
     if odom_rmse > 0:
         frontend_improvement = (1 - frontend_rmse / odom_rmse) * 100
         full_improvement = (1 - opt_rmse / odom_rmse) * 100
@@ -1867,10 +1867,10 @@ def run_with_inline_data(
     # ------------------------------------------------------------------------
     print("\n11. Visualizing results...")
     plot_slam_results(
-        true_poses, odom_poses, frontend_poses, optimized_poses, 
+        true_poses, odom_poses, frontend_poses, optimized_poses,
         landmarks, loop_closures, scans
     )
-    
+
     # Generate animation if requested
     if animate:
         print("\n12. Generating SLAM animation...")
@@ -1903,16 +1903,16 @@ def run_with_inline_data(
     print("  2. Loop Closure: Observation-based detection via scan descriptors")
     print("  3. Backend: Pose graph optimization with loop constraints")
     print("\nNote: This is a complete SLAM pipeline - all stages executed.")
-    
+
     # Machine-readable summary for automated testing
     import json
-    
+
     # Compute trajectory bounds for validation
     all_x = [p[0] for p in true_poses]
     all_y = [p[1] for p in true_poses]
     x_range = max(all_x) - min(all_x)
     y_range = max(all_y) - min(all_y)
-    
+
     # Check loop closure (start vs end pose)
     start_pose = true_poses[0]
     end_pose = true_poses[-1]
@@ -1920,7 +1920,7 @@ def run_with_inline_data(
     # Wrap: a closed loop returns to its start heading, which differs by
     # a multiple of 2pi. Unwrapped, a perfect closure reports 360 deg.
     closure_yaw = abs(wrap_angle(end_pose[2] - start_pose[2]))
-    
+
     summary = {
         "mode": "inline",
         "trajectory": trajectory_type,
@@ -1993,9 +1993,9 @@ Examples:
         "--animate", action="store_true", default=False,
         help="Generate animated GIF showing SLAM pipeline evolution"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.data:
         # Run with dataset
         data_path = resolve_data_path(args.data)
@@ -2010,7 +2010,7 @@ Examples:
                     if d.is_dir() and d.name.startswith("ch7"):
                         print(f"  - {d.name}")
             return
-        
+
         run_with_dataset(str(data_path), use_loop_oracle=args.loop_oracle)
     else:
         run_with_inline_data(

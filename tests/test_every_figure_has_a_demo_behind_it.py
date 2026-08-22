@@ -126,7 +126,9 @@ def _regenerated(chapter):
     """
     figs_dir = None
     failures = []
-    invocations = [(p.stem, ()) for p in sorted((WORKSPACE_ROOT / chapter).glob("example_*.py"))]
+    invocations = [
+        (p.stem, ()) for p in sorted((WORKSPACE_ROOT / chapter).glob("example_*.py"))
+    ]
     invocations += list(EXTRA_RUNS.get(chapter, ()))
     for module, args in invocations:
         spelled = f"{chapter}.{module}"
@@ -174,9 +176,9 @@ def test_every_demo_runs(chapter):
         "regenerated and every comparison for this chapter is vacuous:\n\n"
         + "\n\n".join(failures)
     )
-    assert figs_dir is not None and figs_dir.is_dir(), (
-        f"{chapter} produced no figure directory ({figs_dir})."
-    )
+    assert (
+        figs_dir is not None and figs_dir.is_dir()
+    ), f"{chapter} produced no figure directory ({figs_dir})."
 
 
 @pytest.mark.parametrize("case", _all_committed(), ids=_figure_id)

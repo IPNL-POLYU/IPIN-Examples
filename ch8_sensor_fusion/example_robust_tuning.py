@@ -93,12 +93,12 @@ def run_fusion_with_strategy(
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
         if strategy in ['huber', 'cauchy']:
             print(f"  Robust threshold: {robust_threshold}")
-    
+
     truth = dataset['truth']
     imu = dataset['imu']
     uwb = dataset['uwb']
     anchors = dataset['uwb_anchors']
-    
+
     # Initial state: [px, py, vx, vy, yaw] (follows StateIndex convention)
     x0 = np.array([
         truth['p_xy'][0, 0],   # px
@@ -107,17 +107,17 @@ def run_fusion_with_strategy(
         truth['v_xy'][0, 1],   # vy
         truth['yaw'][0]        # yaw
     ])
-    
+
     # P0: covariances for [px, py, vx, vy, yaw]
     P0 = np.diag([0.1, 0.1, 0.5, 0.5, 0.1])**2
-    
+
     # Process noise
     accel_noise_std = 0.1
     gyro_noise_std = 0.01
-    
+
     # Measurement noise (scaled)
     uwb_range_noise_std = 0.05 * R_scale
-    
+
     # Initialize EKF
     ekf = ExtendedKalmanFilter(
         process_model=tc_process_model,
@@ -129,12 +129,12 @@ def run_fusion_with_strategy(
         x0=x0,
         P0=P0
     )
-    
+
     # Prepare measurements
     from core.fusion import StampedMeasurement
-    
+
     measurements: List[StampedMeasurement] = []
-    
+
     # Add IMU
     for i in range(len(imu['t'])):
         measurements.append(StampedMeasurement(
@@ -144,7 +144,7 @@ def run_fusion_with_strategy(
             R=np.eye(3),
             meta={}
         ))
-    
+
     # Add UWB (per anchor)
     for i in range(len(uwb['t'])):
         for j in range(anchors.shape[0]):
@@ -156,10 +156,10 @@ def run_fusion_with_strategy(
                     R=np.array([[uwb_range_noise_std**2]]),
                     meta={'anchor_id': j, 'anchor_pos': anchors[j]}
                 ))
-    
+
     # Sort by timestamp
     measurements.sort(key=lambda m: m.t)
-    
+
     # Run fusion
     history = {
         't': [],
@@ -170,36 +170,36 @@ def run_fusion_with_strategy(
         'gated': [],
         'robust_scales': [],  # Renamed from robust_weights for clarity
     }
-    
+
     n_uwb_accepted = 0
     n_uwb_rejected = 0
     t_prev = measurements[0].t
-    
+
     for meas in measurements:
         dt = meas.t - t_prev
-        
+
         if meas.sensor == 'imu':
             # Propagate
             u = meas.z
             ekf.predict(u=u, dt=dt)
-        
+
         elif meas.sensor == 'uwb':
             # UWB range update
             anchor_pos = meas.meta['anchor_pos']
-            
+
             # Predict range to this anchor
             state_pos = ekf.state[:2]
             z_pred = np.array([np.linalg.norm(state_pos - anchor_pos)])
-            
+
             # Innovation
             y = innovation(meas.z, z_pred)
-            
+
             # Jacobian for this anchor
             H_single = tc_uwb_measurement_jacobian(ekf.state, np.array([anchor_pos]))
-            
+
             # Base R
             R_base = np.array([[uwb_range_noise_std**2]])
-            
+
             # Apply robust covariance inflation if requested (Eq. 8.7)
             # Outliers get INFLATED covariance (R_scale >= 1)
             R_scale = 1.0
@@ -211,15 +211,15 @@ def run_fusion_with_strategy(
                 R_robust = R_scale * R_base  # Eq. 8.7: R <- w_R * R
             else:
                 R_robust = R_base
-            
+
             # Innovation covariance
             S = innovation_covariance(H_single, ekf.covariance, R_robust)
-            
+
             # Gating
             accept = True
             if use_gating or strategy == 'gating':
                 accept = chi_square_gate(y, S, confidence=gate_confidence)
-            
+
             if accept:
                 # Perform update
                 K = ekf.covariance @ H_single.T @ np.linalg.inv(S)
@@ -228,32 +228,32 @@ def run_fusion_with_strategy(
                 n_uwb_accepted += 1
             else:
                 n_uwb_rejected += 1
-            
+
             # Log
             history['innovations'].append(float(np.abs(y[0])))
             history['nis'].append(mahalanobis_distance_squared(y, S))
             history['gated'].append(accept)
             history['robust_scales'].append(R_scale)
-        
+
         # Record state
         history['t'].append(meas.t)
         history['x_est'].append(ekf.state.copy())
         history['P_trace'].append(np.trace(ekf.covariance))
-        
+
         t_prev = meas.t
-    
+
     # Convert to arrays
     history['t'] = np.array(history['t'])
     history['x_est'] = np.array(history['x_est'])
     history['P_trace'] = np.array(history['P_trace'])
     history['n_uwb_accepted'] = n_uwb_accepted
     history['n_uwb_rejected'] = n_uwb_rejected
-    
+
     if verbose:
         print(f"  Accepted: {n_uwb_accepted}")
         print(f"  Rejected: {n_uwb_rejected}")
         print(f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%")
-    
+
     return history
 
 
@@ -277,17 +277,17 @@ def plot_tuning_comparison(
     """
     truth = dataset['truth']
     anchors = dataset['uwb_anchors']
-    
+
     fig = plt.figure(figsize=(18, 12))
     gs = GridSpec(3, 3, figure=fig, hspace=0.3, wspace=0.3)
-    
+
     # Color scheme
     color_truth = 'black'
     color_baseline = 'tab:red'
     color_gating = 'tab:blue'
     color_huber = 'tab:orange'
     color_cauchy = 'tab:green'
-    
+
     # Helper function for errors
     def get_errors(history):
         p_true_interp = np.column_stack([
@@ -296,7 +296,7 @@ def plot_tuning_comparison(
         ])
         errors = history['x_est'][:, :2] - p_true_interp
         return np.linalg.norm(errors, axis=1)
-    
+
     # 1. Baseline trajectory
     ax1 = fig.add_subplot(gs[0, 0])
     ax1.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
@@ -312,7 +312,7 @@ def plot_tuning_comparison(
     ax1.legend(fontsize=8)
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
-    
+
     # 2. Gating trajectory
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
@@ -340,7 +340,7 @@ def plot_tuning_comparison(
     ax2.legend(fontsize=8)
     ax2.grid(True, alpha=0.3)
     ax2.axis('equal')
-    
+
     # 3. Robust losses comparison
     ax3 = fig.add_subplot(gs[0, 2])
     ax3.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
@@ -359,14 +359,14 @@ def plot_tuning_comparison(
     ax3.legend(fontsize=8)
     ax3.grid(True, alpha=0.3)
     ax3.axis('equal')
-    
+
     # 4. Position errors comparison
     ax4 = fig.add_subplot(gs[1, 0])
     error_baseline = get_errors(baseline)
     error_gating = get_errors(gating)
     error_huber = get_errors(huber)
     error_cauchy = get_errors(cauchy)
-    
+
     ax4.plot(baseline['t'], error_baseline, color=color_baseline,
             linewidth=1, alpha=0.7, label='Baseline')
     ax4.plot(gating['t'], error_gating, color=color_gating,
@@ -380,13 +380,13 @@ def plot_tuning_comparison(
     ax4.set_title('Position Error Comparison')
     ax4.legend()
     ax4.grid(True, alpha=0.3)
-    
+
     # 5. NIS comparison
     ax5 = fig.add_subplot(gs[1, 1])
     if len(baseline['nis']) > 0:
         nis_baseline = np.array(baseline['nis'])
         nis_gating = np.array(gating['nis'])
-        
+
         # Log axis and dots rather than a linear axis and lines. NIS here
         # spans four decades -- baseline median 28, gating reaching 1e4 --
         # against a 3.84 gate, so a linear axis clipped at 20 sent almost
@@ -421,19 +421,19 @@ def plot_tuning_comparison(
         )
         ax5.legend(fontsize=7, loc='upper left')
         ax5.grid(True, alpha=0.3)
-    
+
     # 6. Robust covariance scales
     ax6 = fig.add_subplot(gs[1, 2])
     if len(huber['robust_scales']) > 0:
         scales_huber = np.array(huber['robust_scales'])
         scales_cauchy = np.array(cauchy['robust_scales'])
-        
+
         step = max(1, len(scales_huber) // 500)
         ax6.plot(scales_huber[::step], color=color_huber,
                 linewidth=0.5, alpha=0.7, label='Huber')
         ax6.plot(scales_cauchy[::step], color=color_cauchy,
                 linewidth=0.5, alpha=0.7, label='Cauchy')
-        
+
         ax6.axhline(1.0, color='gray', linestyle='--', linewidth=1, alpha=0.5,
                    label='No inflation (inlier)')
         ax6.set_xlabel('UWB Update Index')
@@ -442,7 +442,7 @@ def plot_tuning_comparison(
         ax6.set_ylim([0.5, max(10, np.percentile(scales_cauchy, 95))])
         ax6.legend()
         ax6.grid(True, alpha=0.3)
-    
+
     # 7. RMSE bar chart
     ax7 = fig.add_subplot(gs[2, 0])
     rmses = [
@@ -453,18 +453,18 @@ def plot_tuning_comparison(
     ]
     methods = ['Baseline', 'Gating', 'Huber', 'Cauchy']
     colors = [color_baseline, color_gating, color_huber, color_cauchy]
-    
+
     bars = ax7.bar(methods, rmses, color=colors, alpha=0.7)
     ax7.set_ylabel('RMSE [m]')
     ax7.set_title('RMSE Comparison')
     ax7.grid(True, alpha=0.3, axis='y')
-    
+
     # Add value labels
     for bar, rmse in zip(bars, rmses):
         height = bar.get_height()
         ax7.text(bar.get_x() + bar.get_width()/2., height,
                 f'{rmse:.2f}m', ha='center', va='bottom', fontsize=9)
-    
+
     # 8. Acceptance rate
     ax8 = fig.add_subplot(gs[2, 1])
     acceptance_rates = [
@@ -473,46 +473,46 @@ def plot_tuning_comparison(
         100 * huber['n_uwb_accepted'] / (huber['n_uwb_accepted'] + huber['n_uwb_rejected']),
         100 * cauchy['n_uwb_accepted'] / (cauchy['n_uwb_accepted'] + cauchy['n_uwb_rejected'])
     ]
-    
+
     bars = ax8.bar(methods, acceptance_rates, color=colors, alpha=0.7)
     ax8.set_ylabel('Acceptance Rate [%]')
     ax8.set_title('Measurement Acceptance Rate')
     ax8.set_ylim([0, 105])
     ax8.grid(True, alpha=0.3, axis='y')
-    
+
     # Add value labels
     for bar, rate in zip(bars, acceptance_rates):
         height = bar.get_height()
         ax8.text(bar.get_x() + bar.get_width()/2., height,
                 f'{rate:.1f}%', ha='center', va='bottom', fontsize=9)
-    
+
     # 9. Innovation distribution
     ax9 = fig.add_subplot(gs[2, 2])
     if len(baseline['innovations']) > 0:
         innov_baseline = np.array(baseline['innovations'])
         innov_gating = np.array(gating['innovations'])[np.array(gating['gated'])]
-        
+
         ax9.hist(innov_baseline, bins=50, alpha=0.5, color=color_baseline,
                 label='Baseline (all)', density=True)
         ax9.hist(innov_gating, bins=50, alpha=0.5, color=color_gating,
                 label='Gating (accepted)', density=True)
-        
+
         ax9.set_xlabel('Innovation Magnitude [m]')
         ax9.set_ylabel('Density')
         ax9.set_title('Innovation Distribution')
         ax9.legend()
         ax9.grid(True, alpha=0.3)
-    
+
     fig.suptitle('Tuning & Robust Loss Comparison (NLOS Dataset)',
                 fontsize=16, fontweight='bold')
-    
+
     if save_path:
         # save_figure takes a directory and a stem, and writes svg/pdf/png
         # together; callers still pass a single path, so split it here.
         save_path = Path(save_path)
         written = save_figure(fig, save_path.parent, save_path.stem)
         print(f"\nSaved figure: {written[0]}")
-    
+
     show_figures_if_requested()
 
 
@@ -539,11 +539,11 @@ def main():
         default=42,
         help="Random seed"
     )
-    
+
     args = parser.parse_args()
-    
+
     np.random.seed(args.seed)
-    
+
     print("\n" + "="*70)
     print("Tuning and Robust Loss Demo (Chapter 8)")
     print("="*70)
@@ -555,39 +555,39 @@ def main():
     print("\n  Note: Outliers get INFLATED covariance (w_R >= 1), reducing their")
     print("        influence in the Kalman gain without complete rejection.")
     print("")
-    
+
     # Load NLOS dataset
     print(f"Loading NLOS dataset from: {args.data}")
     dataset = load_fusion_dataset(args.data)
-    
+
     print("\nDataset info:")
     print(f"  IMU samples: {len(dataset['imu']['t'])}")
     print(f"  UWB epochs: {len(dataset['uwb']['t'])}")
     print(f"  NLOS anchors: {dataset['config']['uwb']['nlos_anchors']}")
     print(f"  NLOS bias: {dataset['config']['uwb']['nlos_bias_m']}m")
     print("")
-    
+
     # Run different strategies
     print("[1/4] Running baseline (no gating, no robust)...")
     baseline = run_fusion_with_strategy(
         dataset, strategy='baseline', use_gating=False, verbose=True
     )
-    
+
     print("[2/4] Running with chi-square gating...")
     gating = run_fusion_with_strategy(
         dataset, strategy='gating', use_gating=True, gate_confidence=0.95, verbose=True
     )
-    
+
     print("[3/4] Running with Huber robust loss...")
     huber = run_fusion_with_strategy(
         dataset, strategy='huber', robust_threshold=1.5, verbose=True
     )
-    
+
     print("[4/4] Running with Cauchy robust loss...")
     cauchy = run_fusion_with_strategy(
         dataset, strategy='cauchy', robust_threshold=2.5, verbose=True
     )
-    
+
     # Compute RMSE
     def compute_final_rmse(history):
         truth = dataset['truth']
@@ -602,12 +602,12 @@ def main():
         # table used to report 12.74 m for a gating run the figure's own bar
         # chart labelled 18.02 m.
         return compute_rmse(np.linalg.norm(errors, axis=1))
-    
+
     rmse_baseline = compute_final_rmse(baseline)
     rmse_gating = compute_final_rmse(gating)
     rmse_huber = compute_final_rmse(huber)
     rmse_cauchy = compute_final_rmse(cauchy)
-    
+
     print("\n" + "="*70)
     print("Results Summary")
     print("="*70)
@@ -622,13 +622,13 @@ def main():
     print(f"{'Cauchy Loss':<25} {rmse_cauchy:>12.3f} "
           f"{cauchy['n_uwb_accepted']:>12d} {cauchy['n_uwb_rejected']:>12d}")
     print("="*70)
-    
+
     best_method = min(
         [('Gating', rmse_gating), ('Huber', rmse_huber), ('Cauchy', rmse_cauchy)],
         key=lambda x: x[1]
     )[0]
     improvement = 100 * (rmse_baseline - min(rmse_gating, rmse_huber, rmse_cauchy)) / rmse_baseline
-    
+
     # Why gating fails here, measured rather than asserted. For a filter whose
     # covariance is right, NIS follows chi-square with 1 DOF: median 0.45, and
     # 95% of samples below the 3.84 gate. Reading the baseline -- which never
@@ -662,7 +662,7 @@ def main():
     print("      losses survive the same mis-specified R because they scale "
           "an outlier's influence down instead of removing it.")
     print("")
-    
+
     # Plot
     save_path = args.save if args.save else "ch8_sensor_fusion/figs/tuning_robust_demo.svg"
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)

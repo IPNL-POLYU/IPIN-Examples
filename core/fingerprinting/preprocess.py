@@ -220,7 +220,7 @@ def normalize_fingerprint(
                 pass
             else:
                 raise ValueError(f"ref_mean shape {ref_mean.shape} incompatible with z shape {z.shape}")
-        
+
         if ref_std is None:
             ref_std = np.nanstd(z, ddof=1)
             if ref_std == 0 or np.isnan(ref_std):
@@ -264,7 +264,7 @@ def normalize_fingerprint(
             ref_min = np.asarray(ref_min)
             if ref_min.ndim > 0 and ref_min.shape != z.shape:
                 raise ValueError(f"ref_min shape {ref_min.shape} incompatible with z shape {z.shape}")
-        
+
         if ref_max is None:
             ref_max = np.nanmax(z)
         else:

@@ -51,7 +51,7 @@ def load_rf_dataset(data_dir: str) -> Dict:
         Dictionary with beacons, positions, measurements, and config
     """
     path = Path(data_dir)
-    
+
     data = {
         'beacons': np.loadtxt(path / 'beacons.txt'),
         'positions': np.loadtxt(path / 'ground_truth_positions.txt'),
@@ -62,10 +62,10 @@ def load_rf_dataset(data_dir: str) -> Dict:
         'gdop_tdoa': np.loadtxt(path / 'gdop_tdoa.txt'),
         'gdop_aoa': np.loadtxt(path / 'gdop_aoa.txt'),
     }
-    
+
     with open(path / 'config.json') as f:
         data['config'] = json.load(f)
-    
+
     return data
 
 
@@ -84,15 +84,15 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
         print("Chapter 4: RF Positioning Methods Comparison")
         print(f"Using dataset: {data_dir}")
         print("=" * 70)
-    
+
     # Load dataset
     data = load_rf_dataset(data_dir)
     config = data['config']
-    
+
     beacons = data['beacons']
     positions = data['positions']
     n_points = len(positions)
-    
+
     if verbose:
         print("\nDataset Info:")
         print(f"  Geometry: {config.get('geometry', {}).get('type', 'unknown')}")
@@ -100,18 +100,18 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
         print(f"  Test points: {n_points}")
         print(f"  TOA noise: {config.get('measurements', {}).get('toa_noise_std_m', 'N/A')} m")
         print(f"  AOA noise: {config.get('measurements', {}).get('aoa_noise_std_deg', 'N/A')}°")
-    
+
     results = {
         'TOA': {'errors': [], 'converged': 0},
         'TDOA': {'errors': [], 'converged': 0},
         'AOA': {'errors': [], 'converged': 0},
     }
-    
+
     # Run TOA positioning
     if verbose:
         print("\n--- Running TOA Positioning ---")
     toa_positioner = TOAPositioner(beacons, method="iterative_ls")
-    
+
     for i in tqdm(range(n_points), desc="TOA", disable=not verbose):
         try:
             est_pos, info = toa_positioner.solve(
@@ -124,12 +124,12 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
                 results['TOA']['converged'] += 1
         except Exception:
             pass
-    
+
     # Run TDOA positioning
     if verbose:
         print("\n--- Running TDOA Positioning ---")
     tdoa_positioner = TDOAPositioner(beacons, reference_idx=0)
-    
+
     for i in tqdm(range(n_points), desc="TDOA", disable=not verbose):
         try:
             est_pos, info = tdoa_positioner.solve(
@@ -142,12 +142,12 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
                 results['TDOA']['converged'] += 1
         except Exception:
             pass
-    
+
     # Run AOA positioning
     if verbose:
         print("\n--- Running AOA Positioning ---")
     aoa_positioner = AOAPositioner(beacons)
-    
+
     for i in tqdm(range(n_points), desc="AOA", disable=not verbose):
         try:
             est_pos, info = aoa_positioner.solve(
@@ -160,11 +160,11 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
                 results['AOA']['converged'] += 1
         except Exception:
             pass
-    
+
     # Convert to numpy arrays
     for method in results:
         results[method]['errors'] = np.array(results[method]['errors'])
-    
+
     # Add GDOP info
     results['gdop'] = {
         'TOA': data['gdop_toa'],
@@ -175,7 +175,7 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
     results['beacons'] = beacons
     results['positions'] = positions
     results['config'] = config
-    
+
     # Print summary
     if verbose:
         print("\n" + "=" * 70)
@@ -183,7 +183,7 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
         print("=" * 70)
         print(f"{'Method':<10} {'RMSE (m)':<12} {'Mean (m)':<12} {'Max (m)':<12} {'Converged':<12} {'GDOP (mean)':<12}")
         print("-" * 70)
-        
+
         for method in ['TOA', 'TDOA', 'AOA']:
             errors = results[method]['errors']
             if len(errors) > 0:
@@ -192,13 +192,13 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
                 max_err = np.max(errors)
             else:
                 rmse = mean_err = max_err = np.nan
-            
+
             gdop_mean = np.mean(results['gdop'][method])
             conv_rate = results[method]['converged'] / n_points * 100
-            
+
             print(f"{method:<10} {rmse:<12.3f} {mean_err:<12.3f} {max_err:<12.3f} "
                   f"{conv_rate:<12.1f}% {gdop_mean:<12.2f}")
-    
+
     return results
 
 
@@ -211,30 +211,30 @@ def compare_geometries(verbose: bool = True) -> Dict:
         print("=" * 70)
         print("Chapter 4: Beacon Geometry Comparison")
         print("=" * 70)
-    
+
     geometries = [
         ('ch4_rf_2d_square', 'Square (4 corners)'),
         ('ch4_rf_2d_optimal', 'Optimal (circular)'),
         ('ch4_rf_2d_linear', 'Linear (poor)'),
     ]
-    
+
     all_results = {}
-    
+
     for dataset_name, geometry_label in geometries:
         data_path = resolve_data_path(Path("data/sim") / dataset_name)
         if not data_path.exists():
             if verbose:
                 print(f"\nSkipping {dataset_name} (not found)")
             continue
-        
+
         if verbose:
             print(f"\n{'='*70}")
             print(f"Geometry: {geometry_label}")
             print(f"{'='*70}")
-        
+
         results = run_with_dataset(str(data_path), verbose=False)
         all_results[geometry_label] = results
-        
+
         # Print summary for this geometry
         if verbose:
             for method in ['TOA', 'TDOA', 'AOA']:
@@ -243,7 +243,7 @@ def compare_geometries(verbose: bool = True) -> Dict:
                     rmse = np.sqrt(np.mean(errors**2))
                     gdop = np.mean(results['gdop'][method])
                     print(f"  {method}: RMSE={rmse:.3f}m, GDOP={gdop:.2f}")
-    
+
     if verbose and len(all_results) > 0:
         print("\n" + "=" * 70)
         print("KEY INSIGHT: Geometry Impact on TOA RMSE")
@@ -254,7 +254,7 @@ def compare_geometries(verbose: bool = True) -> Dict:
                 gdop = np.mean(res['gdop']['TOA'])
                 print(f"  {geom}: {rmse:.3f}m (GDOP={gdop:.2f})")
         print("\nGeometry can cause 10x variation in positioning accuracy!")
-    
+
     return all_results
 
 
@@ -622,13 +622,13 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     """Plot results from dataset-based comparison."""
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle("RF Positioning: Dataset Analysis", fontsize=16, fontweight="bold")
-    
+
     beacons = results['beacons']
     positions = results['positions']
-    
+
     # 1. Beacon geometry and test points
     ax1 = axes[0, 0]
-    ax1.scatter(beacons[:, 0], beacons[:, 1], s=200, c='red', marker='^', 
+    ax1.scatter(beacons[:, 0], beacons[:, 1], s=200, c='red', marker='^',
                 label='Beacons', zorder=10, edgecolors='black', linewidths=2)
     ax1.scatter(positions[:, 0], positions[:, 1], s=20, c='blue', alpha=0.5, label='Test Points')
     for i, b in enumerate(beacons):
@@ -639,7 +639,7 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
-    
+
     # 2. Error CDF
     ax2 = axes[0, 1]
     colors = {'TOA': 'blue', 'TDOA': 'red', 'AOA': 'green'}
@@ -655,7 +655,7 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim(left=0)
-    
+
     # 3. GDOP distribution
     ax3 = axes[1, 0]
     gdop_data = [results['gdop']['TOA'], results['gdop']['TDOA'], results['gdop']['AOA']]
@@ -666,7 +666,7 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     ax3.set_ylabel('GDOP')
     ax3.set_title('Geometric Dilution of Precision')
     ax3.grid(True, alpha=0.3, axis='y')
-    
+
     # 4. Error vs GDOP scatter
     ax4 = axes[1, 1]
     for method, color in colors.items():
@@ -681,9 +681,9 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     ax4.set_title('Error vs GDOP (lower GDOP = better geometry)')
     ax4.legend()
     ax4.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
-    
+
     if output_file:
         paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
         print(f"\n[OK] Figure saved: {paths[0]}")
@@ -787,22 +787,22 @@ Examples:
         "--output", type=str, default=None,
         help="Output file for figure (default: ch4_rf_point_positioning/figs/ch4_rf_comparison.png)"
     )
-    
+
     args = parser.parse_args()
-    
+
     overall_start = time.time()
-    
+
     if args.compare_geometry:
         # Compare different geometries
         all_results = compare_geometries(verbose=True)
-        
+
         if len(all_results) > 0:
             # Plot comparison
             fig, ax = plt.subplots(figsize=(10, 6))
             methods = ['TOA', 'TDOA', 'AOA']
             x = np.arange(len(all_results))
             width = 0.25
-            
+
             for i, method in enumerate(methods):
                 rmse_vals = []
                 for geom, res in all_results.items():
@@ -810,19 +810,19 @@ Examples:
                     rmse = np.sqrt(np.mean(errors**2)) if len(errors) > 0 else 0
                     rmse_vals.append(rmse)
                 ax.bar(x + i*width, rmse_vals, width, label=method)
-            
+
             ax.set_ylabel('RMSE (m)')
             ax.set_title('Positioning Error by Beacon Geometry')
             ax.set_xticks(x + width)
             ax.set_xticklabels(all_results.keys())
             ax.legend()
             ax.grid(True, alpha=0.3, axis='y')
-            
+
             output_file = args.output or "ch4_rf_point_positioning/figs/ch4_geometry_comparison.png"
             paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
             print(f"\n[OK] Figure saved: {paths[0]}")
             show_figures_if_requested()
-    
+
     elif args.data:
         # Run with dataset
         data_path = resolve_data_path(args.data)
@@ -837,14 +837,14 @@ Examples:
                     if d.is_dir() and d.name.startswith("ch4"):
                         print(f"  - {d.name}")
             return
-        
+
         results = run_with_dataset(str(data_path), verbose=True)
-        
+
         output_file = args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
         plot_dataset_results(results, output_file)
         show_figures_if_requested()
-    
+
     else:
         # Run with inline data (original behavior)
         print("\n" + "=" * 70)

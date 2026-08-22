@@ -418,7 +418,7 @@ def icp_point_to_point(
         # Step 5: Check convergence
         # Convergence when delta pose is very small
         pose_change = np.linalg.norm(delta_pose)
-        
+
         if pose_change < tolerance:
             # Converged! Apply final delta and return. The success flag
             # is the literal below; there is no separate state to track.

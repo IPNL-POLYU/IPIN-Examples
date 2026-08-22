@@ -50,7 +50,7 @@ def run_both_fusions(
         print("\n" + "="*70)
         print("Running LC vs TC Comparison")
         print("="*70)
-    
+
     # Run LC fusion
     if verbose:
         print("\n[1/2] Running Loosely Coupled Fusion...")
@@ -60,7 +60,7 @@ def run_both_fusions(
         gate_confidence=gate_confidence,
         verbose=verbose
     )
-    
+
     # Run TC fusion
     if verbose:
         print("\n[2/2] Running Tightly Coupled Fusion...")
@@ -70,7 +70,7 @@ def run_both_fusions(
         gate_confidence=gate_confidence,
         verbose=verbose
     )
-    
+
     return lc_results, tc_results
 
 
@@ -90,26 +90,26 @@ def compute_comparative_metrics(
         Dictionary with comparative metrics
     """
     truth = dataset['truth']
-    
+
     # Interpolate truth to estimated timestamps
     def interpolate_truth(t_est):
         return np.column_stack([
             np.interp(t_est, truth['t'], truth['p_xy'][:, 0]),
             np.interp(t_est, truth['t'], truth['p_xy'][:, 1])
         ])
-    
+
     # LC metrics
     p_true_lc = interpolate_truth(lc_results['t'])
     p_est_lc = lc_results['x_est'][:, :2]
     errors_lc = compute_position_errors(p_true_lc, p_est_lc)
     rmse_lc = compute_position_rmse(errors_lc)
-    
+
     # TC metrics
     p_true_tc = interpolate_truth(tc_results['t'])
     p_est_tc = tc_results['x_est'][:, :2]
     errors_tc = compute_position_errors(p_true_tc, p_est_tc)
     rmse_tc = compute_position_rmse(errors_tc)
-    
+
     metrics = {
         'lc': {
             'rmse_2d': rmse_lc,
@@ -122,9 +122,9 @@ def compute_comparative_metrics(
             'n_rejected': lc_results['n_uwb_rejected'],
             'n_failed': lc_results['n_uwb_failed'],
             'acceptance_rate': (
-                100 * lc_results['n_uwb_accepted'] / 
+                100 * lc_results['n_uwb_accepted'] /
                 (lc_results['n_uwb_accepted'] + lc_results['n_uwb_rejected'])
-                if (lc_results['n_uwb_accepted'] + lc_results['n_uwb_rejected']) > 0 
+                if (lc_results['n_uwb_accepted'] + lc_results['n_uwb_rejected']) > 0
                 else 0.0
             ),
         },
@@ -138,14 +138,14 @@ def compute_comparative_metrics(
             'n_updates': tc_results['n_uwb_accepted'],
             'n_rejected': tc_results['n_uwb_rejected'],
             'acceptance_rate': (
-                100 * tc_results['n_uwb_accepted'] / 
+                100 * tc_results['n_uwb_accepted'] /
                 (tc_results['n_uwb_accepted'] + tc_results['n_uwb_rejected'])
-                if (tc_results['n_uwb_accepted'] + tc_results['n_uwb_rejected']) > 0 
+                if (tc_results['n_uwb_accepted'] + tc_results['n_uwb_rejected']) > 0
                 else 0.0
             ),
         }
     }
-    
+
     return metrics
 
 
@@ -160,11 +160,11 @@ def print_comparison_table(metrics: Dict) -> None:
     print("="*70)
     print(f"{'Metric':<25} {'LC Fusion':>15} {'TC Fusion':>15} {'Difference':>12}")
     print("-"*70)
-    
+
     # Position accuracy
     lc = metrics['lc']
     tc = metrics['tc']
-    
+
     print(f"{'RMSE 2D (m)':<25} {lc['rmse_2d']:>15.3f} {tc['rmse_2d']:>15.3f} "
           f"{lc['rmse_2d'] - tc['rmse_2d']:>+11.3f}")
     print(f"{'RMSE X (m)':<25} {lc['rmse_x']:>15.3f} {tc['rmse_x']:>15.3f} "
@@ -177,9 +177,9 @@ def print_comparison_table(metrics: Dict) -> None:
           f"{lc['mean_error'] - tc['mean_error']:>+11.3f}")
     print(f"{'Final Error (m)':<25} {lc['final_error']:>15.3f} {tc['final_error']:>15.3f} "
           f"{lc['final_error'] - tc['final_error']:>+11.3f}")
-    
+
     print("-"*70)
-    
+
     # Update statistics
     print(f"{'UWB Updates Accepted':<25} {lc['n_updates']:>15d} {tc['n_updates']:>15d} "
           f"{lc['n_updates'] - tc['n_updates']:>+11d}")
@@ -189,13 +189,13 @@ def print_comparison_table(metrics: Dict) -> None:
         print(f"{'LC Solver Failures':<25} {lc['n_failed']:>15d} {'N/A':>15} {'':>12}")
     print(f"{'Acceptance Rate (%)':<25} {lc['acceptance_rate']:>15.1f} {tc['acceptance_rate']:>15.1f} "
           f"{lc['acceptance_rate'] - tc['acceptance_rate']:>+11.1f}")
-    
+
     print("="*70)
-    
+
     # Summary
     better_rmse = "LC" if lc['rmse_2d'] < tc['rmse_2d'] else "TC"
     better_accept = "LC" if lc['acceptance_rate'] > tc['acceptance_rate'] else "TC"
-    
+
     print("\nSummary:")
     print(f"  - {better_rmse} has lower RMSE ({abs(lc['rmse_2d'] - tc['rmse_2d']):.3f}m difference)")
     print(f"  - {better_accept} has higher acceptance rate "
@@ -239,21 +239,21 @@ def plot_comparison(
     """
     truth = dataset['truth']
     anchors = dataset['uwb_anchors']
-    
+
     # Create figure with custom layout
     fig = plt.figure(figsize=(18, 12))
     gs = GridSpec(3, 3, figure=fig, hspace=0.3, wspace=0.3)
-    
+
     # Color scheme
     color_truth = 'black'
     color_lc = 'tab:blue'
     color_tc = 'tab:orange'
-    
+
     # ========== Row 1: Trajectories ==========
-    
+
     # 1. LC Trajectory
     ax1 = fig.add_subplot(gs[0, 0])
-    ax1.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1], 
+    ax1.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
             color=color_truth, linewidth=2, label='Ground Truth', zorder=3)
     ax1.plot(lc_results['x_est'][:, 0], lc_results['x_est'][:, 1],
             color=color_lc, linewidth=1.5, alpha=0.7, label='LC Estimate', zorder=2)
@@ -270,7 +270,7 @@ def plot_comparison(
     ax1.legend(loc='upper right', fontsize=8)
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
-    
+
     # 2. TC Trajectory
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
@@ -287,7 +287,7 @@ def plot_comparison(
     ax2.legend(loc='upper right', fontsize=8)
     ax2.grid(True, alpha=0.3)
     ax2.axis('equal')
-    
+
     # 3. Overlay Comparison
     ax3 = fig.add_subplot(gs[0, 2])
     ax3.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
@@ -304,35 +304,35 @@ def plot_comparison(
     ax3.legend(loc='upper right', fontsize=8)
     ax3.grid(True, alpha=0.3)
     ax3.axis('equal')
-    
+
     # ========== Row 2: Position Errors ==========
-    
+
     # Compute errors
     def interpolate_truth(t_est):
         return np.column_stack([
             np.interp(t_est, truth['t'], truth['p_xy'][:, 0]),
             np.interp(t_est, truth['t'], truth['p_xy'][:, 1])
         ])
-    
+
     p_true_lc = interpolate_truth(lc_results['t'])
     errors_lc = lc_results['x_est'][:, :2] - p_true_lc
     error_norm_lc = np.linalg.norm(errors_lc, axis=1)
-    
+
     p_true_tc = interpolate_truth(tc_results['t'])
     errors_tc = tc_results['x_est'][:, :2] - p_true_tc
     error_norm_tc = np.linalg.norm(errors_tc, axis=1)
-    
+
     # 4. LC Position Error
     ax4 = fig.add_subplot(gs[1, 0])
     ax4.plot(lc_results['t'], error_norm_lc, color=color_lc, linewidth=1)
-    ax4.axhline(metrics['lc']['rmse_2d'], color='red', linestyle='--', 
+    ax4.axhline(metrics['lc']['rmse_2d'], color='red', linestyle='--',
                linewidth=1.5, label=f'RMSE: {metrics["lc"]["rmse_2d"]:.2f}m')
     ax4.set_xlabel('Time [s]')
     ax4.set_ylabel('Position Error [m]')
     ax4.set_title('LC Position Error')
     ax4.legend()
     ax4.grid(True, alpha=0.3)
-    
+
     # 5. TC Position Error
     ax5 = fig.add_subplot(gs[1, 1])
     ax5.plot(tc_results['t'], error_norm_tc, color=color_tc, linewidth=1)
@@ -343,10 +343,10 @@ def plot_comparison(
     ax5.set_title('TC Position Error')
     ax5.legend()
     ax5.grid(True, alpha=0.3)
-    
+
     # 6. Error Comparison
     ax6 = fig.add_subplot(gs[1, 2])
-    ax6.plot(lc_results['t'], error_norm_lc, color=color_lc, 
+    ax6.plot(lc_results['t'], error_norm_lc, color=color_lc,
             linewidth=1, alpha=0.7, label='LC')
     ax6.plot(tc_results['t'], error_norm_tc, color=color_tc,
             linewidth=1, alpha=0.7, label='TC')
@@ -357,9 +357,9 @@ def plot_comparison(
     ax6.set_title('Position Error Comparison')
     ax6.legend()
     ax6.grid(True, alpha=0.3)
-    
+
     # ========== Row 3: NIS and Statistics ==========
-    
+
     # 7. LC NIS
     ax7 = fig.add_subplot(gs[2, 0])
     if len(lc_results['nis']) > 0:
@@ -370,19 +370,19 @@ def plot_comparison(
         if np.any(~accepted_lc):
             ax7.plot(np.arange(len(nis_lc))[~accepted_lc], nis_lc[~accepted_lc],
                     'rx', markersize=4, label='Rejected')
-        
+
         # Chi-square bounds for m=2 DOF (position)
         from core.fusion import chi_square_bounds
         lower, upper = chi_square_bounds(dof=2, confidence=0.95)
         ax7.axhline(upper, color='r', linestyle='--', linewidth=1.5, label='95% bounds')
         ax7.axhline(lower, color='r', linestyle='--', linewidth=1.5)
-        
+
         ax7.set_xlabel('UWB Update Index')
         ax7.set_ylabel('NIS (2 DOF)')
         ax7.set_title(f'LC NIS ({metrics["lc"]["acceptance_rate"]:.1f}% accepted)')
         ax7.legend(fontsize=8)
         ax7.grid(True, alpha=0.3)
-    
+
     # 8. TC NIS
     ax8 = fig.add_subplot(gs[2, 1])
     if len(tc_results['nis']) > 0:
@@ -393,22 +393,22 @@ def plot_comparison(
         if np.any(~accepted_tc):
             ax8.plot(np.arange(len(nis_tc))[~accepted_tc], nis_tc[~accepted_tc],
                     'rx', markersize=4, label='Rejected')
-        
+
         # Chi-square bounds for m=1 DOF (range)
         from core.fusion import chi_square_bounds
         lower, upper = chi_square_bounds(dof=1, confidence=0.95)
         ax8.axhline(upper, color='r', linestyle='--', linewidth=1.5, label='95% bounds')
         ax8.axhline(lower, color='r', linestyle='--', linewidth=1.5)
-        
+
         ax8.set_xlabel('UWB Update Index')
         ax8.set_ylabel('NIS (1 DOF)')
         ax8.set_title(f'TC NIS ({metrics["tc"]["acceptance_rate"]:.1f}% accepted)')
         ax8.legend(fontsize=8)
         ax8.grid(True, alpha=0.3)
-    
+
     # 9. Metrics Comparison Bar Chart
     ax9 = fig.add_subplot(gs[2, 2])
-    
+
     metric_names = ['RMSE\n[m]', 'Max Err\n[m]', 'Updates\n[×100]', 'Accept\n[%]']
     lc_values = [
         metrics['lc']['rmse_2d'],
@@ -422,36 +422,36 @@ def plot_comparison(
         metrics['tc']['n_updates'] / 100,
         metrics['tc']['acceptance_rate']
     ]
-    
+
     x = np.arange(len(metric_names))
     width = 0.35
-    
+
     ax9.bar(x - width/2, lc_values, width, label='LC', color=color_lc, alpha=0.8)
     ax9.bar(x + width/2, tc_values, width, label='TC', color=color_tc, alpha=0.8)
-    
+
     ax9.set_ylabel('Value')
     ax9.set_title('Performance Metrics Comparison')
     ax9.set_xticks(x)
     ax9.set_xticklabels(metric_names, fontsize=9)
     ax9.legend()
     ax9.grid(True, alpha=0.3, axis='y')
-    
+
     # Add value labels on bars
     for i, (lc_val, tc_val) in enumerate(zip(lc_values, tc_values)):
         ax9.text(i - width/2, lc_val, f'{lc_val:.1f}', ha='center', va='bottom', fontsize=8)
         ax9.text(i + width/2, tc_val, f'{tc_val:.1f}', ha='center', va='bottom', fontsize=8)
-    
+
     # Overall title
-    fig.suptitle('Loosely Coupled vs Tightly Coupled Fusion Comparison', 
+    fig.suptitle('Loosely Coupled vs Tightly Coupled Fusion Comparison',
                 fontsize=16, fontweight='bold')
-    
+
     if save_path:
         # save_figure takes a directory and a stem, and writes svg/pdf/png
         # together; callers still pass a single path, so split it here.
         save_path = Path(save_path)
         written = save_figure(fig, save_path.parent, save_path.stem)
         print(f"\nSaved comparison figure: {written[0]}")
-    
+
     show_figures_if_requested()
 
 
@@ -489,7 +489,7 @@ def save_comparison_report(
                            if metrics['tc']['n_updates'] > 0 else 0.0,
         }
     }
-    
+
     # The figure written by --save goes through save_figure and so honours
     # IPIN_FIGS_DIR; this JSON went out with a bare open() and did not, so the
     # same run could scatter its two outputs across two directories. Resolve
@@ -535,14 +535,14 @@ def main():
         default=None,
         help="Path to save comparison report (JSON)"
     )
-    
+
     args = parser.parse_args()
-    
+
     # Load dataset
     print(f"\nLoading dataset from: {args.data}")
     dataset = load_fusion_dataset(args.data)
     dataset['path'] = args.data
-    
+
     # Run both fusions
     lc_results, tc_results = run_both_fusions(
         dataset,
@@ -550,17 +550,17 @@ def main():
         gate_confidence=args.confidence,
         verbose=True
     )
-    
+
     # Compute metrics
     metrics = compute_comparative_metrics(dataset, lc_results, tc_results)
-    
+
     # Print comparison table
     print_comparison_table(metrics)
-    
+
     # Save report if requested
     if args.report:
         save_comparison_report(dataset, lc_results, tc_results, metrics, args.report)
-    
+
     # Generate comparison plots
     save_path = args.save if args.save else "ch8_sensor_fusion/figs/lc_tc_comparison.svg"
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)

@@ -360,14 +360,14 @@ class IMUNoiseParams:
         - Print diagnostics should use units.format_* functions
         - Never use bare np.deg2rad() for bias conversions!
     """
-    
+
     gyro_bias_rad_s: float
     gyro_arw_rad_sqrt_s: float
     gyro_rrw_rad_s_sqrt_s: float
     accel_bias_mps2: float
     accel_vrw_mps_sqrt_s: float
     grade: str = 'unknown'
-    
+
     @classmethod
     def consumer_grade(cls) -> "IMUNoiseParams":
         """
@@ -388,7 +388,7 @@ class IMUNoiseParams:
             mg_to_mps2,
             mps_per_sqrt_hour_to_mps_per_sqrt_sec,
         )
-        
+
         return cls(
             gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(10.0),  # 10 deg/hr
             gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.1),  # 0.1 deg/√hr
@@ -397,7 +397,7 @@ class IMUNoiseParams:
             accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.01),  # 0.01 m/s/√hr
             grade='consumer',
         )
-    
+
     @classmethod
     def tactical_grade(cls) -> "IMUNoiseParams":
         """
@@ -414,7 +414,7 @@ class IMUNoiseParams:
             mg_to_mps2,
             mps_per_sqrt_hour_to_mps_per_sqrt_sec,
         )
-        
+
         return cls(
             gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(1.0),  # 1 deg/hr
             gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.01),  # 0.01 deg/√hr
@@ -423,7 +423,7 @@ class IMUNoiseParams:
             accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.001),  # 0.001 m/s/√hr
             grade='tactical',
         )
-    
+
     @classmethod
     def navigation_grade(cls) -> "IMUNoiseParams":
         """
@@ -440,7 +440,7 @@ class IMUNoiseParams:
             mg_to_mps2,
             mps_per_sqrt_hour_to_mps_per_sqrt_sec,
         )
-        
+
         return cls(
             gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(0.01),  # 0.01 deg/hr
             gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.001),  # 0.001 deg/√hr
@@ -449,7 +449,7 @@ class IMUNoiseParams:
             accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.0001),  # 0.0001 m/s/√hr
             grade='navigation',
         )
-    
+
     def format_specs(self) -> str:
         """
         Format IMU specifications for human-readable display.
@@ -472,7 +472,7 @@ class IMUNoiseParams:
             format_accel_bias,
             format_vrw,
         )
-        
+
         lines = [
             f"IMU Specifications ({self.grade} grade):",
             f"  Gyro Bias:  {format_gyro_bias(self.gyro_bias_rad_s)}",

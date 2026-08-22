@@ -345,8 +345,8 @@ def generate_dataset(
     print(f"  Outlier rate: {outlier_rate*100:.1f}%")
 
     # Compute measurement statistics
-    true_ranges = np.array([[np.linalg.norm(states[i, :2] - beacons[j]) 
-                             for j in range(len(beacons))] 
+    true_ranges = np.array([[np.linalg.norm(states[i, :2] - beacons[j])
+                             for j in range(len(beacons))]
                             for i in range(len(states))])
     range_errors = ranges - true_ranges
     range_rmse = np.sqrt(np.mean(range_errors**2))

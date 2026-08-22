@@ -102,8 +102,8 @@ class ParticleFilter(StateEstimator):
         # Weighted covariance: P = Σ wᵢ (xᵢ - x̂)(xᵢ - x̂)ᵀ
         diff = self.particles - self.state
         self.covariance = (
-            self.weights[:, np.newaxis, np.newaxis] 
-            * diff[:, :, np.newaxis] 
+            self.weights[:, np.newaxis, np.newaxis]
+            * diff[:, :, np.newaxis]
             * diff[:, np.newaxis, :]
         ).sum(axis=0)
 
@@ -257,7 +257,7 @@ def check_particle_filter_1d():
     for _ in range(n_steps):
         true_state = np.array([[1.0, dt], [0.0, 1.0]]) @ true_state
         true_state += np.random.multivariate_normal([0, 0], 0.1 * np.array([[dt**3/3, dt**2/2], [dt**2/2, dt]]))
-        
+
         # Generate measurement
         z = true_state[0] + np.random.normal(0, 0.5)
 

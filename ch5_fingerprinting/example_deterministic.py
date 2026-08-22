@@ -41,7 +41,7 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
         Tuple of (query_fingerprints, true_locations, floor_ids).
     """
     np.random.seed(seed)
-    
+
     if floor_id is not None:
         # Single floor
         mask = db.get_floor_mask(floor_id)
@@ -53,19 +53,19 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
         rp_locs = db.locations
         rp_features = db.features
         floor_ids_out = np.random.choice(db.floor_list, n_queries)
-    
+
     # Generate random locations within convex hull of RPs
     min_x, max_x = rp_locs[:, 0].min(), rp_locs[:, 0].max()
     min_y, max_y = rp_locs[:, 1].min(), rp_locs[:, 1].max()
-    
+
     true_locs = np.column_stack([
         np.random.uniform(min_x, max_x, n_queries),
         np.random.uniform(min_y, max_y, n_queries),
     ])
-    
+
     # Generate fingerprints by interpolating from nearby RPs
     query_fingerprints = []
-    
+
     for i, (true_loc, fid) in enumerate(zip(true_locs, floor_ids_out)):
         # Find k nearest RPs for interpolation
         if floor_id is not None:
@@ -75,25 +75,25 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
             floor_rps = db.locations[floor_mask]
             floor_features = db.features[floor_mask]
             dists = np.linalg.norm(floor_rps - true_loc, axis=1)
-        
+
         k_nearest = min(4, len(dists))
         nearest_idx = np.argpartition(dists, k_nearest)[:k_nearest]
-        
+
         # Weighted average of nearby RPs' RSS
         weights = 1.0 / (dists[nearest_idx] + 1e-3)
         weights /= weights.sum()
-        
+
         if floor_id is not None:
             query_fp = np.sum(weights[:, None] * rp_features[nearest_idx], axis=0)
         else:
             query_fp = np.sum(weights[:, None] * floor_features[nearest_idx], axis=0)
-        
+
         # Add measurement noise
         if noise_std > 0:
             query_fp += np.random.randn(len(query_fp)) * noise_std
-        
+
         query_fingerprints.append(query_fp)
-    
+
     return np.array(query_fingerprints), true_locs, floor_ids_out
 
 
@@ -156,22 +156,22 @@ def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kw
         Dictionary with errors, computation time, etc.
     """
     print(f"\n  Evaluating {method_name}...")
-    
+
     errors = []
     times = []
-    
+
     for query, true_loc in zip(queries, true_locs):
         t_start = time.perf_counter()
         est_loc = method_fn(query, **kwargs)
         t_end = time.perf_counter()
-        
+
         error = np.linalg.norm(est_loc - true_loc)
         errors.append(error)
         times.append((t_end - t_start) * 1000)  # ms
-    
+
     errors = np.array(errors)
     times = np.array(times)
-    
+
     results = {
         "method": method_name,
         "errors": errors,
@@ -185,12 +185,12 @@ def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kw
         "mean_time_ms": np.mean(times),
         "ops_per_query": per_query_operations(**kwargs),
     }
-    
+
     print(f"    RMSE: {results['rmse']:.2f}m")
     print(f"    Median: {results['median_error']:.2f}m")
     print(f"    90th percentile: {results['p90']:.2f}m")
     print(f"    Avg time: {results['mean_time_ms']:.3f}ms")
-    
+
     return results
 
 
@@ -206,35 +206,35 @@ def main():
     print("="*70)
     print("Chapter 5: Deterministic Fingerprinting (NN and k-NN)")
     print("="*70)
-    
+
     # Load database
     print("\n1. Loading fingerprint database...")
     db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
     db = load_fingerprint_database(db_path)
-    
+
     print(f"   Database: {db}")
     print(f"   Location range: x=[{db.locations[:, 0].min():.1f}, {db.locations[:, 0].max():.1f}]m, "
           f"y=[{db.locations[:, 1].min():.1f}, {db.locations[:, 1].max():.1f}]m")
-    
+
     # Generate test queries
     print("\n2. Generating test queries...")
     n_queries = 200
     floor_id = 0  # Test on floor 0
     noise_std = 2.0  # 2 dBm measurement noise
-    
+
     queries, true_locs, floor_ids = generate_test_queries(
         db, n_queries=n_queries, floor_id=floor_id, noise_std=noise_std
     )
-    
+
     print(f"   Generated {n_queries} test queries on floor {floor_id}")
     print(f"   RSS noise std: {noise_std} dBm")
-    
+
     # Evaluate methods
     print("\n3. Evaluating positioning methods...")
     print("   (Equations 5.1 and 5.2 from Chapter 5)")
-    
+
     results = []
-    
+
     # NN - Euclidean
     results.append(evaluate_positioning_method(
         "NN (Euclidean)",
@@ -242,7 +242,7 @@ def main():
         queries, true_locs,
         db=db, metric="euclidean", floor_id=floor_id
     ))
-    
+
     # NN - Manhattan
     results.append(evaluate_positioning_method(
         "NN (Manhattan)",
@@ -250,7 +250,7 @@ def main():
         queries, true_locs,
         db=db, metric="manhattan", floor_id=floor_id
     ))
-    
+
     # k-NN with varying k
     for k in [3, 5, 7]:
         results.append(evaluate_positioning_method(
@@ -259,7 +259,7 @@ def main():
             queries, true_locs,
             db=db, k=k, metric="euclidean", weighting="inverse_distance", floor_id=floor_id
         ))
-    
+
     # k-NN uniform weights
     results.append(evaluate_positioning_method(
         "k-NN (k=5, uniform)",
@@ -267,23 +267,23 @@ def main():
         queries, true_locs,
         db=db, k=5, metric="euclidean", weighting="uniform", floor_id=floor_id
     ))
-    
+
     # Print summary table
     print("\n" + "="*70)
     print("RESULTS SUMMARY")
     print("="*70)
     print(f"{'Method':<25} {'RMSE (m)':<12} {'Median (m)':<12} {'90th % (m)':<12} {'Time (ms)':<12}")
     print("-"*70)
-    
+
     for r in results:
         print(f"{r['method']:<25} {r['rmse']:<12.2f} {r['median_error']:<12.2f} "
               f"{r['p90']:<12.2f} {r['mean_time_ms']:<12.3f}")
-    
+
     # Visualize results
     print("\n4. Generating visualizations...")
-    
+
     fig = plt.figure(figsize=(16, 10))
-    
+
     # Plot 1: Reference points and test queries
     ax1 = plt.subplot(2, 3, 1)
     floor_mask = db.get_floor_mask(floor_id)
@@ -297,7 +297,7 @@ def main():
     ax1.legend()
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
-    
+
     # Plot 2: Error CDF
     ax2 = plt.subplot(2, 3, 2)
     plot_error_cdf(
@@ -309,7 +309,7 @@ def main():
     ax2.legend(fontsize=8)
     worst = max(np.max(r['errors']) for r in results)
     ax2.set_xlim(0, min(20, worst))
-    
+
     # Plot 3: Error histogram
     ax3 = plt.subplot(2, 3, 3)
     for i, r in enumerate(results[:3]):  # Show first 3 methods
@@ -319,7 +319,7 @@ def main():
     ax3.set_title('Error Distribution (First 3 Methods)')
     ax3.legend(fontsize=8)
     ax3.grid(True, alpha=0.3, axis='y')
-    
+
     # Plot 4: Box plot comparison
     ax4 = plt.subplot(2, 3, 4)
     error_data = [r['errors'] for r in results]
@@ -332,7 +332,7 @@ def main():
     ax4.tick_params(axis='x', rotation=45)
     ax4.grid(True, alpha=0.3, axis='y')
     plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
-    
+
     # Plot 5: RMSE vs k for k-NN
     ax5 = plt.subplot(2, 3, 5)
     knn_results = [r for r in results if 'k-NN' in r['method'] and 'inv-dist' in r['method']]
@@ -344,7 +344,7 @@ def main():
     ax5.set_title('Effect of k on k-NN Performance')
     ax5.grid(True, alpha=0.3)
     ax5.set_xticks(k_values)
-    
+
     # Plot 6: Cost vs accuracy, counted rather than timed
     #
     # This panel used to plot measured milliseconds, which churned the committed
@@ -362,16 +362,16 @@ def main():
     ax6.set_ylabel('RMSE (m)')
     ax6.set_title('Accuracy is Free: Cost is the Database Scan')
     ax6.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
 
     # Save figure (svg + pdf + png via the shared layer)
     paths = save_figure(fig, Path(__file__).parent / "figs",
                         "deterministic_positioning")
     print(f"   Saved: {paths[0]}")
-    
+
     show_figures_if_requested()
-    
+
     print("\n" + "="*70)
     print("Example complete!")
     print("="*70)

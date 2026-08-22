@@ -60,26 +60,26 @@ def mahalanobis_distance_squared(
     """
     y = np.asarray(y)
     S = np.asarray(S)
-    
+
     if y.ndim != 1:
         raise ValueError(f"Innovation y must be 1D, got shape {y.shape}")
     if S.ndim != 2:
         raise ValueError(f"Covariance S must be 2D, got shape {S.shape}")
-    
+
     m = len(y)
     if S.shape != (m, m):
         raise ValueError(
             f"Innovation dimension {m} incompatible with S shape {S.shape}"
         )
-    
+
     # Eq. (8.8): d_k^2 = y_k^T S_k^{-1} y_k
     try:
         S_inv = np.linalg.inv(S)
     except np.linalg.LinAlgError as e:
         raise ValueError(f"Innovation covariance S is singular: {e}")
-    
+
     d_squared = y.T @ S_inv @ y
-    
+
     return float(d_squared)
 
 
@@ -164,25 +164,25 @@ def chi_square_gate(
     elif confidence is None:
         # Default to 95% confidence
         confidence = 0.95
-    
+
     if not (0 < confidence < 1):
         raise ValueError(
             f"Confidence level must be in (0, 1), got {confidence}"
         )
-    
+
     # Compute squared Mahalanobis distance (Eq. 8.8)
     d_squared = mahalanobis_distance_squared(y, S)
-    
+
     # Degrees of freedom = measurement dimension
     m = len(y)
-    
+
     # Chi-square critical value at confidence level α
     # Book notation: α is the upper quantile
     chi2_critical = chi_square_threshold(dof=m, confidence=confidence)
-    
+
     # Eq. (8.9): Accept if d_k^2 < χ²(m, α)
     accept = d_squared < chi2_critical
-    
+
     return bool(accept)
 
 
@@ -244,14 +244,14 @@ def chi_square_threshold(
     elif confidence is None:
         # Default to 95% confidence
         confidence = 0.95
-    
+
     if dof < 1:
         raise ValueError(f"Degrees of freedom must be positive, got {dof}")
     if not (0 < confidence < 1):
         raise ValueError(
             f"Confidence level must be in (0, 1), got {confidence}"
         )
-    
+
     # Book notation: α is the upper quantile (confidence level)
     # scipy.stats.chi2.ppf(confidence, dof) gives the α-quantile
     return float(stats.chi2.ppf(confidence, dof))
@@ -319,19 +319,19 @@ def chi_square_bounds(
     elif confidence is None:
         # Default to 95% confidence
         confidence = 0.95
-    
+
     if dof < 1:
         raise ValueError(f"Degrees of freedom must be positive, got {dof}")
     if not (0 < confidence < 1):
         raise ValueError(
             f"Confidence level must be in (0, 1), got {confidence}"
         )
-    
+
     # Two-sided interval: [(1-conf)/2, (1+conf)/2]
     # This is the central 'confidence' interval
     lower = float(stats.chi2.ppf((1.0 - confidence) / 2.0, dof))
     upper = float(stats.chi2.ppf((1.0 + confidence) / 2.0, dof))
-    
+
     return lower, upper
 
 

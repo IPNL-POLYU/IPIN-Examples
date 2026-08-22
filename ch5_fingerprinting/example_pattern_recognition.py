@@ -39,36 +39,36 @@ def split_train_test(db, test_ratio=0.3, floor_id=None, seed=42):
         Tuple of (train_db, test_db).
     """
     np.random.seed(seed)
-    
+
     if floor_id is not None:
         mask = db.get_floor_mask(floor_id)
         indices = np.where(mask)[0]
     else:
         indices = np.arange(len(db.locations))
-    
+
     # Shuffle and split
     np.random.shuffle(indices)
     n_test = int(len(indices) * test_ratio)
     test_idx = indices[:n_test]
     train_idx = indices[n_test:]
-    
+
     # Create train database
     from core.fingerprinting import FingerprintDatabase
-    
+
     train_db = FingerprintDatabase(
         locations=db.locations[train_idx],
         features=db.features[train_idx],
         floor_ids=db.floor_ids[train_idx],
         meta=db.meta.copy(),
     )
-    
+
     test_db = FingerprintDatabase(
         locations=db.locations[test_idx],
         features=db.features[test_idx],
         floor_ids=db.floor_ids[test_idx],
         meta=db.meta.copy(),
     )
-    
+
     return train_db, test_db
 
 
@@ -91,18 +91,18 @@ def evaluate_model(model, test_db, floor_id=None):
     else:
         features = test_db.features
         locations = test_db.locations
-    
+
     # Batch prediction
     t_start = time.perf_counter()
     est_locs = model.predict_batch(features)
     t_end = time.perf_counter()
-    
+
     # Compute errors
     errors = np.linalg.norm(est_locs - locations, axis=1)
-    
+
     # Compute R²
     r2 = model.score(test_db, floor_id=floor_id)
-    
+
     results = {
         "errors": errors,
         "rmse": np.sqrt(np.mean(errors**2)),
@@ -111,7 +111,7 @@ def evaluate_model(model, test_db, floor_id=None):
         "r2": r2,
         "time_per_query_ms": ((t_end - t_start) / len(features)) * 1000,
     }
-    
+
     return results
 
 
@@ -127,29 +127,29 @@ def main():
     print("="*70)
     print("Chapter 5: Pattern Recognition (Linear Regression)")
     print("="*70)
-    
+
     # Load database
     print("\n1. Loading fingerprint database...")
     db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
     db = load_fingerprint_database(db_path)
     print(f"   Database: {db}")
-    
+
     # Split train/test
     print("\n2. Splitting into train/test sets...")
     floor_id = 0
     train_db, test_db = split_train_test(db, test_ratio=0.3, floor_id=floor_id)
-    
+
     print(f"   Floor {floor_id} - Train: {train_db.n_reference_points} RPs, "
           f"Test: {test_db.n_reference_points} RPs")
-    
+
     # Train models with different regularization
     print("\n3. Training Linear Regression models...")
     print("   Model: x_hat = Wz + b (ridge regression)")
-    
+
     reg_values = [0.0, 0.1, 1.0, 10.0]
     models = {}
     train_results = {}
-    
+
     for reg_val in reg_values:
         print(f"\n   Training with regularization lambda={reg_val}...")
         t_start = time.time()
@@ -157,11 +157,11 @@ def main():
             train_db, floor_id=floor_id, regularization=reg_val
         )
         t_end = time.time()
-        
+
         models[reg_val] = model
         print(f"   Training time: {(t_end - t_start)*1000:.2f}ms")
         print(f"   Model: {model}")
-        
+
         # Evaluate on train set
         train_result = evaluate_model(model, train_db, floor_id=floor_id)
         train_results[reg_val] = train_result
@@ -169,11 +169,11 @@ def main():
             f"   Train RMSE: {train_result['rmse']:.2f}m, "
             f"R^2={train_result['r2']:.3f}"
         )
-    
+
     # Evaluate on test set
     print("\n4. Evaluating on test set...")
     test_results = {}
-    
+
     for reg_val in reg_values:
         model = models[reg_val]
         test_result = evaluate_model(model, test_db, floor_id=floor_id)
@@ -181,7 +181,7 @@ def main():
         print(f"\n   lambda={reg_val}: Test RMSE={test_result['rmse']:.2f}m, "
               f"R^2={test_result['r2']:.3f}, "
               f"Time={test_result['time_per_query_ms']:.3f}ms")
-    
+
     # Print summary
     print("\n" + "="*70)
     print("RESULTS SUMMARY")
@@ -189,18 +189,18 @@ def main():
     print(f"{'lambda':<10} {'Train RMSE':<15} {'Test RMSE':<15} "
           f"{'Test R^2':<12} {'Time (ms)':<12}")
     print("-"*70)
-    
+
     for reg_val in reg_values:
         tr = train_results[reg_val]
         te = test_results[reg_val]
         print(f"{reg_val:<10.1f} {tr['rmse']:<15.2f} {te['rmse']:<15.2f} "
               f"{te['r2']:<12.3f} {te['time_per_query_ms']:<12.3f}")
-    
+
     # Visualizations
     print("\n5. Generating visualizations...")
-    
+
     fig = plt.figure(figsize=(16, 10))
-    
+
     # Plot 1: Weight matrix visualization
     ax1 = plt.subplot(2, 4, 1)
     model = models[1.0]  # Use λ=1.0 model
@@ -211,14 +211,14 @@ def main():
     ax1.set_yticks([0, 1])
     ax1.set_yticklabels(['x', 'y'])
     plt.colorbar(im, ax=ax1, label='Weight')
-    
+
     # Plot 2: Prediction vs Ground Truth
     ax2 = plt.subplot(2, 4, 2)
     mask = test_db.get_floor_mask(floor_id)
     test_features = test_db.features[mask]
     test_locs = test_db.locations[mask]
     pred_locs = model.predict_batch(test_features)
-    
+
     ax2.scatter(test_locs[:, 0], pred_locs[:, 0], alpha=0.5, s=30, label='x')
     ax2.scatter(test_locs[:, 1], pred_locs[:, 1], alpha=0.5, s=30, label='y')
     lim_min = min(test_locs.min(), pred_locs.min())
@@ -230,7 +230,7 @@ def main():
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     ax2.axis('equal')
-    
+
     # Plot 3: Spatial error distribution
     ax3 = plt.subplot(2, 4, 3)
     errors_2d = np.linalg.norm(pred_locs - test_locs, axis=1)
@@ -242,7 +242,7 @@ def main():
     plt.colorbar(scatter, ax=ax3, label='Error (m)')
     ax3.grid(True, alpha=0.3)
     ax3.axis('equal')
-    
+
     # Plot 4: Error CDF for different λ
     ax4 = plt.subplot(2, 4, 4)
     plot_error_cdf(
@@ -252,7 +252,7 @@ def main():
         title_fontweight="normal",
     )
     ax4.set_xlim(0, 15)
-    
+
     # Plot 5: Train vs Test RMSE
     ax5 = plt.subplot(2, 4, 5)
     train_rmse = [train_results[r]['rmse'] for r in reg_values]
@@ -268,7 +268,7 @@ def main():
     ax5.set_xticklabels([f'{r}' for r in reg_values])
     ax5.legend()
     ax5.grid(True, alpha=0.3, axis='y')
-    
+
     # Plot 6: R² vs λ
     ax6 = plt.subplot(2, 4, 6)
     test_r2 = [test_results[r]['r2'] for r in reg_values]
@@ -281,7 +281,7 @@ def main():
     ax6.axhline(y=1.0, color='k', linestyle='--', alpha=0.3, label='Perfect')
     ax6.axhline(y=0.0, color='k', linestyle='--', alpha=0.3)
     ax6.legend()
-    
+
     # Plot 7: Overfitting analysis
     ax7 = plt.subplot(2, 4, 7)
     train_rmse = np.array([train_results[r]['rmse'] for r in reg_values])
@@ -294,25 +294,25 @@ def main():
     ax7.set_xscale('log')
     ax7.grid(True, alpha=0.3)
     ax7.axhline(y=0, color='k', linestyle='--', alpha=0.5)
-    
+
     # Plot 8: Box plot of errors
     ax8 = plt.subplot(2, 4, 8)
     error_data = [test_results[r]['errors'] for r in reg_values]
-    bp = ax8.boxplot(error_data, tick_labels=[f'λ={r}' for r in reg_values], 
+    bp = ax8.boxplot(error_data, tick_labels=[f'λ={r}' for r in reg_values],
                     patch_artist=True)
     for patch in bp['boxes']:
         patch.set_facecolor('lightgreen')
     ax8.set_ylabel('Positioning Error (m)')
     ax8.set_title('Error Distribution by λ')
     ax8.grid(True, alpha=0.3, axis='y')
-    
+
     plt.tight_layout()
 
     # Save (svg + pdf + png via the shared layer)
     paths = save_figure(fig, Path(__file__).parent / "figs",
                         "pattern_recognition_positioning")
     print(f"   Saved: {paths[0]}")
-    
+
     print("\n" + "="*70)
     print("Example complete!")
     print("="*70)

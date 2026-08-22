@@ -32,7 +32,7 @@ class ConstantVelocity1D:
         >>> x_next
         array([0.1, 1.0])  # position moved by velocity*dt
     """
-    
+
     @staticmethod
     def f(x: np.ndarray, u: Optional[np.ndarray] = None, dt: float = 1.0) -> np.ndarray:
         """
@@ -48,13 +48,13 @@ class ConstantVelocity1D:
         """
         if x.shape != (2,):
             raise ValueError(f"State must be 2D [pos, vel], got shape {x.shape}")
-        
+
         position, velocity = x
         return np.array([
             position + velocity * dt,
             velocity
         ])
-    
+
     @staticmethod
     def F(dt: float) -> np.ndarray:
         """
@@ -70,7 +70,7 @@ class ConstantVelocity1D:
             [1.0, dt],
             [0.0, 1.0]
         ])
-    
+
     @staticmethod
     def Q(dt: float, q: float = 1.0) -> np.ndarray:
         """
@@ -109,7 +109,7 @@ class ConstantVelocity2D:
         >>> x_next[:2]  # New position
         array([0.5, 0.25])
     """
-    
+
     @staticmethod
     def f(x: np.ndarray, u: Optional[np.ndarray] = None, dt: float = 1.0) -> np.ndarray:
         """
@@ -125,7 +125,7 @@ class ConstantVelocity2D:
         """
         if x.shape != (4,):
             raise ValueError(f"State must be 4D [px,py,vx,vy], got shape {x.shape}")
-        
+
         px, py, vx, vy = x
         return np.array([
             px + vx * dt,
@@ -133,7 +133,7 @@ class ConstantVelocity2D:
             vx,
             vy
         ])
-    
+
     @staticmethod
     def F(dt: float) -> np.ndarray:
         """
@@ -151,7 +151,7 @@ class ConstantVelocity2D:
             [0.0, 0.0, 1.0, 0.0],
             [0.0, 0.0, 0.0, 1.0]
         ])
-    
+
     @staticmethod
     def Q(dt: float, q: float = 1.0) -> np.ndarray:
         """
@@ -193,7 +193,7 @@ class ConstantAcceleration2D:
         >>> x_next[:4]  # Position and velocity after 1 second
         array([0.5, 0.125, 1, 0.5])  # Moved due to acceleration
     """
-    
+
     @staticmethod
     def f(x: np.ndarray, u: Optional[np.ndarray] = None, dt: float = 1.0) -> np.ndarray:
         """
@@ -209,7 +209,7 @@ class ConstantAcceleration2D:
         """
         if x.shape != (6,):
             raise ValueError(f"State must be 6D [px,py,vx,vy,ax,ay], got shape {x.shape}")
-        
+
         px, py, vx, vy, ax, ay = x
         return np.array([
             px + vx * dt + 0.5 * ax * dt**2,
@@ -219,7 +219,7 @@ class ConstantAcceleration2D:
             ax,
             ay
         ])
-    
+
     @staticmethod
     def F(dt: float) -> np.ndarray:
         """
@@ -239,7 +239,7 @@ class ConstantAcceleration2D:
             [0, 0, 0,  0,  1,         0        ],
             [0, 0, 0,  0,  0,         1        ]
         ])
-    
+
     @staticmethod
     def Q(dt: float, q: float = 1.0) -> np.ndarray:
         """
@@ -257,18 +257,18 @@ class ConstantAcceleration2D:
         dt3 = dt**3
         dt4 = dt**4
         dt5 = dt**5
-        
+
         Q_1d = q * np.array([
             [dt5/20, dt4/8, dt3/6],
             [dt4/8,  dt3/3, dt2/2],
             [dt3/6,  dt2/2, dt   ]
         ])
-        
+
         # Block diagonal for x and y
         Q = np.zeros((6, 6))
         Q[0:3, 0:3] = Q_1d  # x direction
         Q[3:6, 3:6] = Q_1d  # y direction
-        
+
         return Q
 
 
@@ -304,23 +304,23 @@ def create_process_noise_continuous_white_acceleration(
     """
     if dim not in [1, 2, 3]:
         raise ValueError(f"Dimension must be 1, 2, or 3, got {dim}")
-    
+
     # 1D block
     Q_1d = q * np.array([
         [dt**3 / 3, dt**2 / 2],
         [dt**2 / 2, dt]
     ])
-    
+
     if dim == 1:
         return Q_1d
-    
+
     # Create block diagonal matrix
     n = 2 * dim  # State dimension
     Q = np.zeros((n, n))
-    
+
     for i in range(dim):
         Q[2*i:2*i+2, 2*i:2*i+2] = Q_1d
-    
+
     return Q
 
 
@@ -345,15 +345,15 @@ def validate_motion_model_inputs(
     """
     if not isinstance(x, np.ndarray):
         raise TypeError(f"{model_name}: state must be numpy array, got {type(x)}")
-    
+
     if x.ndim != 1:
         raise ValueError(f"{model_name}: state must be 1D, got shape {x.shape}")
-    
+
     if x.shape[0] != expected_dim:
         raise ValueError(
             f"{model_name}: state dimension must be {expected_dim}, got {x.shape[0]}"
         )
-    
+
     if dt is not None:
         if not isinstance(dt, (int, float)):
             raise TypeError(f"{model_name}: dt must be numeric, got {type(dt)}")

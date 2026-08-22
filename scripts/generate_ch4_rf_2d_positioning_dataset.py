@@ -202,10 +202,10 @@ def generate_measurements(
         for j, beacon in enumerate(beacons):
             true_range = toa_range(beacon, pos)
             noise = rng.normal(0, toa_noise)
-            
+
             # Add NLOS bias if applicable
             bias = nlos_bias if (nlos_beacons and j in nlos_beacons) else 0.0
-            
+
             toa_ranges[i, j] = true_range + noise + bias
 
         # TDOA range differences (relative to first beacon)

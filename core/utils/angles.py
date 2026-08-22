@@ -62,7 +62,7 @@ def wrap_angle_array(angles: np.ndarray) -> np.ndarray:
     return np.arctan2(np.sin(angles), np.cos(angles))
 
 
-def angle_diff(angle1: Union[float, np.ndarray], 
+def angle_diff(angle1: Union[float, np.ndarray],
                angle2: Union[float, np.ndarray]) -> Union[float, np.ndarray]:
     """
     Compute the shortest angular difference between two angles.

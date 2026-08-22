@@ -91,21 +91,21 @@ def run_fusion_with_time_sync(
         print("\nRunning fusion:")
         print(f"  Temporal correction: {'ENABLED' if apply_correction else 'DISABLED'}")
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
-    
+
     truth = dataset['truth']
     imu = dataset['imu']
     uwb = dataset['uwb']
     anchors = dataset['uwb_anchors']
     config = dataset['config']
-    
+
     # Get time offset and drift from config
     time_offset = config['temporal_calibration']['time_offset_sec']
     clock_drift = config['temporal_calibration']['clock_drift']
-    
+
     if verbose and apply_correction:
         print(f"  Time offset: {time_offset*1000:.1f} ms")
         print(f"  Clock drift: {clock_drift*1e6:.1f} ppm")
-    
+
     # Create TimeSyncModel for UWB (IMU is reference)
     # The config specifies the sensor's time parameters:
     #   t_sensor = (t_fusion - offset) / (1 + drift)
@@ -116,7 +116,7 @@ def run_fusion_with_time_sync(
         uwb_time_sync = TimeSyncModel(offset=time_offset, drift=clock_drift)
     else:
         uwb_time_sync = TimeSyncModel(offset=0.0, drift=0.0)
-    
+
     # Initial state: [px, py, vx, vy, yaw] (follows StateIndex convention)
     x0 = np.array([
         truth['p_xy'][0, 0],   # px
@@ -125,15 +125,15 @@ def run_fusion_with_time_sync(
         truth['v_xy'][0, 1],   # vy
         truth['yaw'][0]        # yaw
     ])
-    
+
     # P0: covariances for [px, py, vx, vy, yaw]
     P0 = np.diag([0.1, 0.1, 0.5, 0.5, 0.1])**2
-    
+
     # Process and measurement noise
     accel_noise_std = 0.1
     gyro_noise_std = 0.01
     uwb_range_noise_std = 0.05
-    
+
     # Initialize EKF
     ekf = ExtendedKalmanFilter(
         process_model=tc_process_model,
@@ -145,15 +145,15 @@ def run_fusion_with_time_sync(
         x0=x0,
         P0=P0
     )
-    
+
     # Prepare IMU data arrays (for interpolation)
     t_imu_all = imu['t']
     accel_xy_all = imu['accel_xy']
     gyro_z_all = imu['gyro_z']
-    
+
     # Prepare UWB measurements with corrected timestamps
     uwb_measurements: List[StampedMeasurement] = []
-    
+
     # Add UWB (apply time sync correction if requested)
     for i in range(len(uwb['t'])):
         # Convert UWB sensor time to fusion time
@@ -161,7 +161,7 @@ def run_fusion_with_time_sync(
             t_fusion = uwb_time_sync.to_fusion_time(uwb['t'][i])
         else:
             t_fusion = uwb['t'][i]  # Use raw (incorrect) time
-        
+
         for j in range(anchors.shape[0]):
             if not np.isnan(uwb['ranges'][i, j]):
                 uwb_measurements.append(StampedMeasurement(
@@ -171,13 +171,13 @@ def run_fusion_with_time_sync(
                     R=np.array([[uwb_range_noise_std**2]]),
                     meta={'anchor_id': j, 'anchor_pos': anchors[j]}
                 ))
-    
+
     # Sort UWB by timestamp
     uwb_measurements.sort(key=lambda m: m.t)
-    
+
     # Run fusion with asynchronous measurement handling (Section 8.5.2)
     from core.fusion import chi_square_gate, innovation, innovation_covariance
-    
+
     history = {
         't': [],
         'x_est': [],
@@ -186,18 +186,18 @@ def run_fusion_with_time_sync(
         'nis': [],
         'gated': [],
     }
-    
+
     n_uwb_accepted = 0
     n_uwb_rejected = 0
-    
+
     # Current state time (starts at initial time)
     t_state = t_imu_all[0]
     imu_idx = 0
-    
+
     # Process IMU and UWB measurements with proper timing
     for uwb_meas in uwb_measurements:
         t_uwb = uwb_meas.t
-        
+
         # Propagate through IMU samples up to (but not past) UWB time
         while imu_idx < len(t_imu_all) - 1 and t_imu_all[imu_idx + 1] <= t_uwb:
             # Propagate using this IMU sample
@@ -210,11 +210,11 @@ def run_fusion_with_time_sync(
             ekf.predict(u=u, dt=dt)
             t_state = t_imu_all[imu_idx + 1]
             imu_idx += 1
-        
+
         # Check if UWB measurement time is within IMU data range
         if t_uwb < t_imu_all[0] or t_uwb > t_imu_all[-1]:
             continue  # Skip UWB measurements outside IMU range
-        
+
         # Now propagate from t_state to t_uwb using interpolated IMU
         if t_uwb > t_state:
             try:
@@ -226,29 +226,29 @@ def run_fusion_with_time_sync(
             except ValueError:
                 # If interpolation fails, skip this measurement
                 continue
-        
+
         # UWB range update
         anchor_pos = uwb_meas.meta['anchor_pos']
-        
+
         # Predict range
         state_pos = ekf.state[:2]
         z_pred = np.array([np.linalg.norm(state_pos - anchor_pos)])
-        
+
         # Innovation
         y = innovation(uwb_meas.z, z_pred)
-        
+
         # Jacobian
         H_single = tc_uwb_measurement_jacobian(ekf.state, np.array([anchor_pos]))
-        
+
         # Innovation covariance
         R = np.array([[uwb_range_noise_std**2]])
         S = innovation_covariance(H_single, ekf.covariance, R)
-        
+
         # Gating
         accept = True
         if use_gating:
             accept = chi_square_gate(y, S, confidence=gate_confidence)
-        
+
         if accept:
             # Perform update
             K = ekf.covariance @ H_single.T @ np.linalg.inv(S)
@@ -257,17 +257,17 @@ def run_fusion_with_time_sync(
             n_uwb_accepted += 1
         else:
             n_uwb_rejected += 1
-        
+
         # Log
         history['innovations'].append(float(np.abs(y[0])))
         history['nis'].append(float(y @ np.linalg.inv(S) @ y))
         history['gated'].append(accept)
-        
+
         # Record state at UWB measurement time
         history['t'].append(t_uwb)
         history['x_est'].append(ekf.state.copy())
         history['P_trace'].append(np.trace(ekf.covariance))
-    
+
     # Propagate through remaining IMU samples
     while imu_idx < len(t_imu_all) - 1:
         dt = t_imu_all[imu_idx + 1] - t_state
@@ -279,20 +279,20 @@ def run_fusion_with_time_sync(
         ekf.predict(u=u, dt=dt)
         t_state = t_imu_all[imu_idx + 1]
         imu_idx += 1
-    
+
     # Convert to arrays
     history['t'] = np.array(history['t'])
     history['x_est'] = np.array(history['x_est'])
     history['P_trace'] = np.array(history['P_trace'])
     history['n_uwb_accepted'] = n_uwb_accepted
     history['n_uwb_rejected'] = n_uwb_rejected
-    
+
     if verbose:
         print(f"  Accepted: {n_uwb_accepted}")
         print(f"  Rejected: {n_uwb_rejected}")
         if n_uwb_accepted + n_uwb_rejected > 0:
             print(f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%")
-    
+
     return history
 
 
@@ -315,18 +315,18 @@ def plot_temporal_calibration(
     truth = dataset['truth']
     anchors = dataset['uwb_anchors']
     config = dataset['config']
-    
+
     time_offset_ms = config['temporal_calibration']['time_offset_sec'] * 1000
     clock_drift_ppm = config['temporal_calibration']['clock_drift'] * 1e6
-    
+
     fig = plt.figure(figsize=(16, 10))
     gs = GridSpec(2, 3, figure=fig, hspace=0.3, wspace=0.3)
-    
+
     # Color scheme
     color_truth = 'black'
     color_no_corr = 'tab:red'
     color_with_corr = 'tab:green'
-    
+
     # Helper function for errors
     def get_errors(history):
         p_true_interp = np.column_stack([
@@ -335,7 +335,7 @@ def plot_temporal_calibration(
         ])
         errors = history['x_est'][:, :2] - p_true_interp
         return np.linalg.norm(errors, axis=1)
-    
+
     # 1. Trajectory without correction
     ax1 = fig.add_subplot(gs[0, 0])
     ax1.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
@@ -351,7 +351,7 @@ def plot_temporal_calibration(
     ax1.legend(fontsize=8)
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
-    
+
     # 2. Trajectory with correction
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
@@ -367,7 +367,7 @@ def plot_temporal_calibration(
     ax2.legend(fontsize=8)
     ax2.grid(True, alpha=0.3)
     ax2.axis('equal')
-    
+
     # 3. Overlay comparison
     ax3 = fig.add_subplot(gs[0, 2])
     ax3.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
@@ -386,12 +386,12 @@ def plot_temporal_calibration(
     ax3.legend(fontsize=8)
     ax3.grid(True, alpha=0.3)
     ax3.axis('equal')
-    
+
     # 4. Position error comparison
     ax4 = fig.add_subplot(gs[1, 0])
     error_no_corr = get_errors(no_correction)
     error_with_corr = get_errors(with_correction)
-    
+
     ax4.plot(no_correction['t'], error_no_corr, color=color_no_corr,
             linewidth=1.5, label='No Correction')
     ax4.plot(with_correction['t'], error_with_corr, color=color_with_corr,
@@ -401,39 +401,39 @@ def plot_temporal_calibration(
     ax4.set_title('Position Error vs Time')
     ax4.legend()
     ax4.grid(True, alpha=0.3)
-    
+
     # 5. NIS comparison
     ax5 = fig.add_subplot(gs[1, 1])
     if len(no_correction['nis']) > 0:
         nis_no_corr = np.array(no_correction['nis'])
         nis_with_corr = np.array(with_correction['nis'])
-        
+
         # Downsample for visibility
         step = max(1, len(nis_no_corr) // 500)
         ax5.plot(nis_no_corr[::step], color=color_no_corr,
                 linewidth=0.5, alpha=0.5, label='No Correction')
         ax5.plot(nis_with_corr[::step], color=color_with_corr,
                 linewidth=0.5, alpha=0.5, label='With Correction')
-        
+
         # Chi-square bound
         from core.fusion import chi_square_threshold
         threshold = chi_square_threshold(dof=1, confidence=0.95)
         ax5.axhline(threshold, color='r', linestyle='--',
                    linewidth=1.5, label=f'95% bound (chi^2={threshold:.2f})')
-        
+
         ax5.set_xlabel('UWB Update Index')
         ax5.set_ylabel('NIS (1 DOF)')
         ax5.set_title('Innovation Consistency (NIS)')
         ax5.set_ylim([0, min(20, np.percentile(nis_no_corr, 99))])
         ax5.legend()
         ax5.grid(True, alpha=0.3)
-    
+
     # 6. Metrics comparison
     ax6 = fig.add_subplot(gs[1, 2])
-    
+
     rmse_no_corr = compute_rmse(error_no_corr)
     rmse_with_corr = compute_rmse(error_with_corr)
-    
+
     metrics = ['RMSE\n[m]', 'Max Error\n[m]', 'Accept\nRate [%]']
     no_corr_vals = [
         rmse_no_corr,
@@ -445,22 +445,22 @@ def plot_temporal_calibration(
         np.max(error_with_corr),
         100 * with_correction['n_uwb_accepted'] / (with_correction['n_uwb_accepted'] + with_correction['n_uwb_rejected'])
     ]
-    
+
     x = np.arange(len(metrics))
     width = 0.35
-    
+
     bars1 = ax6.bar(x - width/2, no_corr_vals, width,
                     label='No Correction', color=color_no_corr, alpha=0.7)
     bars2 = ax6.bar(x + width/2, with_corr_vals, width,
                     label='With Correction', color=color_with_corr, alpha=0.7)
-    
+
     ax6.set_ylabel('Value')
     ax6.set_title('Metrics Comparison')
     ax6.set_xticks(x)
     ax6.set_xticklabels(metrics, fontsize=9)
     ax6.legend()
     ax6.grid(True, alpha=0.3, axis='y')
-    
+
     # Add value labels
     for bar, val in zip(bars1, no_corr_vals):
         height = bar.get_height()
@@ -470,10 +470,10 @@ def plot_temporal_calibration(
         height = bar.get_height()
         ax6.text(bar.get_x() + bar.get_width()/2., height,
                 f'{val:.1f}', ha='center', va='bottom', fontsize=8)
-    
+
     fig.suptitle(f'Temporal Calibration Demo (offset={time_offset_ms:.0f}ms, drift={clock_drift_ppm:.0f}ppm)',
                 fontsize=16, fontweight='bold')
-    
+
     if save_path:
         # Via save_figure, not plt.savefig: it writes the book's svg/pdf
         # alongside the png and strips the timestamps and random element ids
@@ -509,11 +509,11 @@ def main():
         default=42,
         help="Random seed"
     )
-    
+
     args = parser.parse_args()
-    
+
     np.random.seed(args.seed)
-    
+
     print("\n" + "="*70)
     print("Temporal Calibration Demo (Chapter 8)")
     print("="*70)
@@ -523,21 +523,21 @@ def main():
     print("  -> TimeSyncModel corrects for offset and drift.")
     print("  -> Formula: t_fusion = (1 + drift) * t_sensor + offset")
     print("")
-    
+
     # Load time-offset dataset
     print(f"Loading time-offset dataset from: {args.data}")
     dataset = load_fusion_dataset(args.data)
-    
+
     time_offset_ms = dataset['config']['temporal_calibration']['time_offset_sec'] * 1000
     clock_drift_ppm = dataset['config']['temporal_calibration']['clock_drift'] * 1e6
-    
+
     print("\nDataset info:")
     print(f"  IMU samples: {len(dataset['imu']['t'])}")
     print(f"  UWB epochs: {len(dataset['uwb']['t'])}")
     print(f"  Time offset: {time_offset_ms:.1f} ms")
     print(f"  Clock drift: {clock_drift_ppm:.1f} ppm")
     print("")
-    
+
     # Run without correction
     print("[1/2] Running fusion WITHOUT time sync correction...")
     # Gating off: it is not this demo's subject, and with it on the filter
@@ -545,13 +545,13 @@ def main():
     no_correction = run_fusion_with_time_sync(
         dataset, apply_correction=False, use_gating=False, verbose=True
     )
-    
+
     # Run with correction
     print("[2/2] Running fusion WITH time sync correction...")
     with_correction = run_fusion_with_time_sync(
         dataset, apply_correction=True, use_gating=False, verbose=True
     )
-    
+
     # Compute RMSE
     def compute_final_rmse(history):
         truth = dataset['truth']
@@ -561,10 +561,10 @@ def main():
         ])
         errors = history['x_est'][:, :2] - p_true_interp
         return compute_position_rmse(errors)
-    
+
     rmse_no_corr = compute_final_rmse(no_correction)
     rmse_with_corr = compute_final_rmse(with_correction)
-    
+
     print("\n" + "="*70)
     print("Results Summary")
     print("="*70)
@@ -574,9 +574,9 @@ def main():
     print(f"{'With TimeSyncModel':<30} {rmse_with_corr:>12.3f} "
           f"{100*(rmse_no_corr-rmse_with_corr)/rmse_no_corr:>14.1f}%")
     print("="*70)
-    
+
     improvement = 100 * (rmse_no_corr - rmse_with_corr) / rmse_no_corr
-    
+
     # "The offset causes X m RMSE" was the old wording, and it was wrong: it
     # reported the *total* error, most of which had nothing to do with timing.
     # What the offset costs is the difference between the two runs, and the
@@ -599,7 +599,7 @@ def main():
     print("    not centimetres -- that is why temporal alignment matters, "
           "rather than any large number printed by this demo.")
     print("")
-    
+
     # Plot
     save_path = args.save if args.save else "ch8_sensor_fusion/figs/temporal_calibration_demo.svg"
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
