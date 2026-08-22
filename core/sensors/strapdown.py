@@ -334,7 +334,7 @@ def gravity_vector(
 
     # Compute gravity magnitude (Eq. 6.8 if latitude provided)
     g_mag = gravity_magnitude(lat_rad=lat_rad, default_g=g)
-    
+
     # Use frame convention to determine gravity direction
     g_map = frame.gravity_vector(g_mag)
     return g_map

@@ -96,9 +96,9 @@ def gravity_magnitude_eq6_8(lat_rad: float) -> float:
     sin_lat_sq = sin_lat * sin_lat
     sin_2lat = np.sin(2.0 * lat_rad)
     sin_2lat_sq = sin_2lat * sin_2lat
-    
+
     g = 9.7803 * (1.0 + 0.0053024 * sin_lat_sq - 0.000005 * sin_2lat_sq)
-    
+
     return g
 
 

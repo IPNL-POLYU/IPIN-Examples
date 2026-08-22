@@ -70,11 +70,11 @@ def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
     # Find valid (non-NaN) dimensions in both z and f
     valid_mask = ~(np.isnan(z) | np.isnan(f))
     n_valid = np.sum(valid_mask)
-    
+
     # If no overlapping valid dimensions, return infinity
     if n_valid == 0:
         return np.inf
-    
+
     # Extract valid dimensions
     z_valid = z[valid_mask]
     f_valid = f[valid_mask]
@@ -150,10 +150,10 @@ def pairwise_distances(
         )
 
     M = F.shape[0]
-    
+
     # Check if there are any NaN values
     has_missing = np.any(np.isnan(z)) or np.any(np.isnan(F))
-    
+
     if not has_missing:
         # Fast path: no missing values, use vectorized computation
         if metric == "euclidean":
@@ -164,12 +164,12 @@ def pairwise_distances(
             raise ValueError(
                 f"Unsupported metric: '{metric}'. Use 'euclidean' or 'manhattan'."
             )
-    
+
     # Slow path: handle missing values per RP
     distances = np.zeros(M)
     for i in range(M):
         distances[i] = distance(z, F[i], metric=metric)
-    
+
     return distances
 
 

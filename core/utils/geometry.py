@@ -49,13 +49,13 @@ def normalize_jacobian_singularities(
     """
     ranges = np.asarray(ranges).reshape(-1, 1)  # Ensure column vector
     diff = np.asarray(diff)
-    
+
     # Clamp ranges to epsilon to avoid division by zero
     ranges_safe = np.maximum(ranges, epsilon)
-    
+
     # Compute normalized Jacobian
     H = diff / ranges_safe
-    
+
     # Zero out rows where range is below epsilon (true singularity)
     singular_mask = (ranges < epsilon).flatten()
     if np.any(singular_mask):
@@ -65,7 +65,7 @@ def normalize_jacobian_singularities(
             "Setting Jacobian rows to zero. Check anchor-receiver geometry.",
             RuntimeWarning
         )
-    
+
     return H
 
 
@@ -115,15 +115,15 @@ def check_anchor_geometry(
         DOP analysis (Chapter 4), Observability (Chapter 8)
     """
     anchors = np.asarray(anchors)
-    
+
     if anchors.ndim != 2:
         return False, f"Anchors must be 2D array (N, d), got shape {anchors.shape}"
-    
+
     n_anchors, dim = anchors.shape
-    
+
     if dim not in [2, 3]:
         return False, f"Only 2D or 3D positioning supported, got dim={dim}"
-    
+
     # Check 1: Sufficient number of anchors
     min_required = min_anchors_2d if dim == 2 else min_anchors_3d
     if n_anchors < min_required:
@@ -131,38 +131,38 @@ def check_anchor_geometry(
             f"Insufficient anchors: need at least {min_required} for {dim}D positioning, "
             f"got {n_anchors}"
         )
-    
+
     # Check 2: Anchors not degenerate (colinear in 2D, coplanar in 3D)
     # Compute centered anchor matrix
     anchors_centered = anchors - np.mean(anchors, axis=0)
-    
+
     # Check rank via SVD
     singular_values = np.linalg.svd(anchors_centered, compute_uv=False)
     rank = np.sum(singular_values > EPSILON_COLINEAR * singular_values[0])
-    
+
     if rank < dim:
         if dim == 2:
             msg = f"Anchors are colinear (rank {rank} < 2). Positioning will fail."
         else:
             msg = f"Anchors are coplanar (rank {rank} < 3). 3D positioning will fail."
-        
+
         if warn_degenerate:
             warnings.warn(msg, RuntimeWarning)
         return False, msg
-    
+
     # Check 3: If position provided, check if it's surrounded by anchors
     if position is not None:
         position = np.asarray(position)
         if position.shape != (dim,):
             return False, f"Position dimension mismatch: expected {dim}, got {position.shape}"
-        
+
         # Check if position is within convex hull (rough approximation)
         # For 2D: check if position is within bounding box extended by 20%
         if dim == 2:
             min_bounds = anchors.min(axis=0)
             max_bounds = anchors.max(axis=0)
             margin = 0.2 * (max_bounds - min_bounds)
-            
+
             if np.any(position < min_bounds - margin) or np.any(position > max_bounds + margin):
                 msg = (
                     f"Position {position} is far outside anchor region "
@@ -171,7 +171,7 @@ def check_anchor_geometry(
                 if warn_degenerate:
                     warnings.warn(msg, RuntimeWarning)
                 # Don't fail, just warn - extrapolation can still work
-    
+
     return True, ""
 
 
@@ -204,10 +204,10 @@ def compute_gdop_2d(anchors: np.ndarray, position: np.ndarray) -> float:
         DOP analysis (core/rf/dop.py), Chapter 4
     """
     from core.rf.dop import compute_geometry_matrix, compute_dop
-    
+
     H = compute_geometry_matrix(anchors, position, measurement_type="toa")
     dop = compute_dop(H)
-    
+
     return dop.get("GDOP", np.inf)
 
 

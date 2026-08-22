@@ -93,7 +93,7 @@ class LoopClosureDetector2D:
         >>> 
         >>> print(f"Found {len(loop_closures)} loop closures")
     """
-    
+
     def __init__(
         self,
         n_bins: int = 32,
@@ -135,7 +135,7 @@ class LoopClosureDetector2D:
         self.max_icp_residual = max_icp_residual
         self.icp_max_iterations = icp_max_iterations
         self.icp_tolerance = icp_tolerance
-    
+
     def detect(
         self,
         scans: List[np.ndarray],
@@ -169,41 +169,41 @@ class LoopClosureDetector2D:
             ...     print(f"Loop: {lc.j} -> {lc.i}, sim={lc.descriptor_similarity:.3f}")
         """
         n_scans = len(scans)
-        
+
         if n_scans < self.min_time_separation + 1:
             # Not enough scans for loop closure
             return []
-        
+
         # 1. Compute descriptors for all scans
         descriptors = batch_compute_descriptors(
             scans, n_bins=self.n_bins, max_range=self.max_range
         )
-        
+
         loop_closures = []
-        
+
         # 2. For each query scan (starting after min_time_separation)
         for i in range(self.min_time_separation, n_scans):
             # Find candidates using descriptor similarity
             candidates = self._find_candidates(
                 i, descriptors, poses
             )
-            
+
             if len(candidates) == 0:
                 continue
-            
+
             # Verify candidates with ICP
             for candidate in candidates:
                 j = candidate.j
-                
+
                 # Run ICP to verify geometric consistency
                 verified = self._verify_candidate(
                     scans[i], scans[j], poses[i] if poses else None, poses[j] if poses else None
                 )
-                
+
                 if verified is not None:
                     # Accept loop closure
                     rel_pose, covariance, residual, iters = verified
-                    
+
                     loop_closure = LoopClosure(
                         i=i,
                         j=j,
@@ -214,9 +214,9 @@ class LoopClosureDetector2D:
                         icp_iterations=iters,
                     )
                     loop_closures.append(loop_closure)
-        
+
         return loop_closures
-    
+
     def _find_candidates(
         self,
         query_idx: int,
@@ -237,30 +237,30 @@ class LoopClosureDetector2D:
             List of candidates, sorted by descriptor similarity (descending).
         """
         query_desc = descriptors[query_idx]
-        
+
         candidates = []
-        
+
         # Compute similarity to all previous scans (respecting time separation)
         for j in range(0, query_idx - self.min_time_separation):
             match_desc = descriptors[j]
-            
+
             # Primary filter: Descriptor similarity
             similarity = compute_descriptor_similarity(
                 query_desc, match_desc, method="cosine"
             )
-            
+
             if similarity < self.min_descriptor_similarity:
                 continue
-            
+
             # Secondary filter: Position distance (optional)
             if self.max_distance is not None and poses is not None:
                 distance = np.linalg.norm(poses[query_idx][:2] - poses[j][:2])
-                
+
                 if distance > self.max_distance:
                     continue
             else:
                 distance = None
-            
+
             candidates.append(
                 LoopClosureCandidate(
                     i=query_idx,
@@ -269,11 +269,11 @@ class LoopClosureDetector2D:
                     distance=distance,
                 )
             )
-        
+
         # Sort by descriptor similarity (descending) and limit to top K
         candidates.sort(key=lambda c: c.descriptor_similarity, reverse=True)
         return candidates[: self.max_candidates]
-    
+
     def _verify_candidate(
         self,
         scan_i: np.ndarray,
@@ -296,14 +296,14 @@ class LoopClosureDetector2D:
         # Check scan sizes
         if len(scan_i) < 5 or len(scan_j) < 5:
             return None
-        
+
         # Initial guess for ICP: transform from j (earlier) to i (later)
         # This is se2_relative(pose_j, pose_i) = inv(pose_j) @ pose_i
         if pose_i is not None and pose_j is not None:
             initial_guess = se2_relative(pose_j, pose_i)
         else:
             initial_guess = np.array([0.0, 0.0, 0.0])
-        
+
         # Run ICP to find transform from j to i
         # ICP(source, target) returns transform that aligns source to target
         # So ICP(scan_j, scan_i) returns transform from frame_j to frame_i
@@ -317,15 +317,15 @@ class LoopClosureDetector2D:
             )
         except Exception:
             return None
-        
+
         # Check verification criteria
         if not converged:
             return None
-        
+
         if residual > self.max_icp_residual:
             return None
-        
+
         # Estimate covariance (simple diagonal, could be improved)
         covariance = np.diag([0.05, 0.05, 0.01])
-        
+
         return rel_pose, covariance, residual, iters

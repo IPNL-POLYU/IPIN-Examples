@@ -553,7 +553,7 @@ def create_reprojection_factor(
         if pose.shape[0] == 3:  # SE(2): [x, y, yaw]
             # Transform landmark from map frame to camera frame
             x_cam, y_cam, yaw_cam = pose
-            
+
             # Handle both 2D and 3D landmarks
             if landmark.shape[0] == 2:
                 lx, ly = landmark

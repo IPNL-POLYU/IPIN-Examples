@@ -95,7 +95,7 @@ def evaluate_classification_accuracy(db: FingerprintDatabase, rng=None):
         zone_type="rp",
         n_estimators=100
     )
-    
+
     print("  2. SVM (RBF kernel)")
     svm_classifier = fit_classifier(
         db,
@@ -104,7 +104,7 @@ def evaluate_classification_accuracy(db: FingerprintDatabase, rng=None):
         kernel="rbf",
         C=1.0
     )
-    
+
     # Two measurements, because only the second one is an accuracy.
     #
     # `zone_type="rp"` makes every RP its own class, and the database holds one
@@ -172,20 +172,20 @@ def evaluate_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifie
     print("\n" + "=" * 70)
     print("Test 2: Robustness to Noise")
     print("=" * 70)
-    
+
     # Add noise to database features
     noise_levels = [0, 2, 4, 6, 8]  # dBm
     n_queries = 50
-    
+
     rf_errors = []
     svm_errors = []
     knn_errors = []
-    
+
     for noise_std in noise_levels:
         rf_errs = []
         svm_errs = []
         knn_errs = []
-        
+
         for _ in range(n_queries):
             # Random RP
             rp_idx = rng.integers(0, db.n_reference_points)
@@ -218,7 +218,7 @@ def evaluate_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifie
         print(f"    Random Forest RMSE: {rf_errors[-1]:.2f} m")
         print(f"    SVM RMSE:          {svm_errors[-1]:.2f} m")
         print(f"    k-NN (k=5) RMSE:   {knn_errors[-1]:.2f} m")
-    
+
     # Plot
     fig, ax = plt.subplots(figsize=(10, 6))
     ax.plot(noise_levels, rf_errors, 'o-', label='Random Forest', linewidth=2)
@@ -229,7 +229,7 @@ def evaluate_noisy_queries(db: FingerprintDatabase, rf_classifier, svm_classifie
     ax.set_title('Classification vs k-NN: Robustness to Noise', fontsize=14)
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
-    
+
     # Save figure (svg + pdf + png via the shared layer)
     plt.tight_layout()
     paths = save_figure(fig, Path(__file__).parent / "figs",
@@ -251,24 +251,24 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     print("\n" + "=" * 70)
     print("Test 3: Hierarchical Localization (Coarse -> Fine)")
     print("=" * 70)
-    
+
     # Generate test queries on each floor
     n_queries = 100
     queries = []
     true_locs = []
     true_floors = []
-    
+
     for _ in range(n_queries):
         rp_idx = rng.integers(0, db.n_reference_points)
         query = db.get_mean_features()[rp_idx] + rng.standard_normal(db.n_features) * 3.0
         queries.append(query)
         true_locs.append(db.locations[rp_idx])
         true_floors.append(db.floor_ids[rp_idx])
-    
+
     queries = np.array(queries)
     true_locs = np.array(true_locs)
     true_floors = np.array(true_floors)
-    
+
     # Method 1: Direct k-NN (no hierarchy)
     print("\n--- Method 1: Direct k-NN (no floor constraint) ---")
     direct_errors = []
@@ -277,7 +277,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
         direct_errors.append(np.linalg.norm(pred - true_locs[i]))
     direct_rmse = np.sqrt(np.mean(np.array(direct_errors) ** 2))
     print(f"  RMSE: {direct_rmse:.2f} m")
-    
+
     # Method 2: Hierarchical (floor -> k-NN)
     print("\n--- Method 2: Hierarchical (Floor -> k-NN) ---")
     hier_errors = []
@@ -316,7 +316,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
             print("  The subset figure is the accuracy of the queries the coarse")
             print("  step got right, so it flatters the method whenever that step")
             print("  fails. Quote the all-queries number as the method's error.")
-    
+
     # Method 3: Hierarchical (RF -> MAP)
     print("\n--- Method 3: Hierarchical (RF -> MAP) ---")
     hier_rf_errors = []
@@ -330,7 +330,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
         hier_rf_errors.append(np.linalg.norm(pred - true_locs[i]))
     hier_rf_rmse = np.sqrt(np.mean(np.array(hier_rf_errors) ** 2))
     print(f"  RMSE: {hier_rf_rmse:.2f} m")
-    
+
     # Method 4: Hierarchical (floor -> Posterior Mean)
     print("\n--- Method 4: Hierarchical (Floor -> Posterior Mean) ---")
     hier_pm_errors = []
@@ -345,7 +345,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
         hier_pm_errors.append(np.linalg.norm(pred - true_locs[i]))
     hier_pm_rmse = np.sqrt(np.mean(np.array(hier_pm_errors) ** 2))
     print(f"  RMSE: {hier_pm_rmse:.2f} m")
-    
+
     # Summary. The verdict below is computed from the numbers rather than
     # written next to them, so it cannot drift out of agreement with the run.
     #
@@ -395,10 +395,10 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
         print("  already draws its neighbours from the right floor, so adding")
         print("  the constraint removes nothing. The hierarchy buys accuracy")
         print("  only where it changes which RPs the fine step can see.")
-    
+
     # Plot error distributions
     fig, axes = plt.subplots(2, 2, figsize=(12, 10))
-    
+
     # Error CDFs
     ax = axes[0, 0]
     plot_error_cdf(
@@ -413,7 +413,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
         title_fontweight="normal",
     )
     ax.legend(fontsize=9)
-    
+
     # Box plots
     ax = axes[0, 1]
     ax.boxplot(
@@ -424,7 +424,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     ax.set_ylabel('Positioning Error (m)', fontsize=11)
     ax.set_title('Error Distribution (Box Plot)', fontsize=12)
     ax.grid(True, alpha=0.3, axis='y')
-    
+
     # RMSE comparison
     ax = axes[1, 0]
     methods = ['Direct\nk-NN', 'Hier\nFloor->kNN', 'Hier\nRF->MAP', 'Hier\nFloor->PM']
@@ -444,7 +444,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
             va='bottom',
             fontsize=10
         )
-    
+
     # Floor classification confusion matrix (for hierarchical methods)
     ax = axes[1, 1]
     ax.text(
@@ -464,10 +464,10 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
         transform=ax.transAxes
     )
     ax.axis('off')
-    
+
     plt.suptitle('Hierarchical Localization Performance', fontsize=14, y=0.995)
     plt.tight_layout()
-    
+
     # Save figure (svg + pdf + png via the shared layer)
     paths = save_figure(fig, Path(__file__).parent / "figs",
                         "hierarchical_localization")
@@ -492,7 +492,7 @@ def main():
     print("  1. Pattern recognition classifiers (Random Forest, SVM)")
     print("  2. Classification accuracy vs deterministic/probabilistic methods")
     print("  3. Hierarchical coarse-to-fine localization")
-    
+
     # One generator for the whole run, so every query set below is a
     # consecutive draw from a single seeded stream.
     rng = np.random.default_rng(DEFAULT_SEED)
@@ -500,13 +500,13 @@ def main():
 
     # Test 1: Classification accuracy
     rf_classifier, svm_classifier = evaluate_classification_accuracy(db, rng=rng)
-    
+
     # Test 2: Robustness to noise
     evaluate_noisy_queries(db, rf_classifier, svm_classifier, rng=rng)
-    
+
     # Test 3: Hierarchical localization
     evaluate_hierarchical_localization(db, rng=rng)
-    
+
     print("\n" + "=" * 70)
     print("All demonstrations completed successfully!")
     print("=" * 70)

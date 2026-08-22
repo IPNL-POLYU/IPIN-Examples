@@ -92,24 +92,24 @@ def generate_circular_trajectory(
     """
     t = np.arange(0, duration, dt)
     N = len(t)
-    
+
     # Angular velocity for circular motion
     omega = speed / radius  # rad/s
-    
+
     # Position (center at origin)
     theta = omega * t
     p_xy = np.zeros((N, 2))
     p_xy[:, 0] = radius * np.cos(theta)  # x = r cos(θ)
     p_xy[:, 1] = radius * np.sin(theta)  # y = r sin(θ)
-    
+
     # Velocity (tangent to circle)
     v_xy = np.zeros((N, 2))
     v_xy[:, 0] = -radius * omega * np.sin(theta)  # vx = -rω sin(θ)
     v_xy[:, 1] = radius * omega * np.cos(theta)   # vy = rω cos(θ)
-    
+
     # Heading (tangent direction)
     yaw = theta + np.pi / 2  # perpendicular to radius
-    
+
     return t, p_xy, v_xy, yaw
 
 
@@ -150,7 +150,7 @@ def generate_imu_measurements(
     """
     N = len(t)
     dt = np.diff(t, prepend=t[0] - (t[1] - t[0]))
-    
+
     # Compute true accelerations (derivative of velocity) in the MAP frame,
     # then rotate into the BODY frame -- an accelerometer measures specific
     # force along its own axes, and the README's Eq. (6.19) integrates it as
@@ -167,25 +167,25 @@ def generate_imu_measurements(
         cos_y * accel_map_true[:, 0] + sin_y * accel_map_true[:, 1],
         -sin_y * accel_map_true[:, 0] + cos_y * accel_map_true[:, 1],
     ])
-    
+
     # Compute true yaw rate (derivative of yaw)
     yaw_unwrapped = np.unwrap(yaw)
     gyro_z_true = np.gradient(yaw_unwrapped) / dt
-    
+
     # Add noise and bias
     accel_bias = np.array([accel_bias_x, accel_bias_y])
     accel_xy = (
-        accel_xy_true 
+        accel_xy_true
         + accel_bias
         + np.random.randn(N, 2) * accel_noise_std
     )
-    
+
     gyro_z = (
-        gyro_z_true 
-        + gyro_bias 
+        gyro_z_true
+        + gyro_bias
         + np.random.randn(N) * gyro_noise_std
     )
-    
+
     return t, accel_xy, gyro_z
 
 
@@ -224,34 +224,34 @@ def generate_ch6_strapdown_dataset(
         gyro_bias: Z-axis gyro bias (rad/s).
     """
     np.random.seed(seed)
-    
+
     print(f"\n{'='*70}")
     print("Generating Ch6 IMU Strapdown Dataset")
     print(f"{'='*70}")
-    
+
     # Create output directory
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     # 1. Generate ground truth trajectory
     print("\n1. Generating circular trajectory...")
     print(f"   Radius: {radius} m")
     print(f"   Speed: {speed} m/s")
     print(f"   Duration: {duration} s")
     print(f"   IMU rate: {1/dt:.0f} Hz")
-    
+
     t, p_xy, v_xy, yaw = generate_circular_trajectory(
         radius=radius,
         speed=speed,
         dt=dt,
         duration=duration
     )
-    
+
     print(f"   Generated {len(t)} samples")
     omega = speed / radius
     period = 2 * np.pi / omega
     print(f"   Circular motion: omega={omega:.3f} rad/s, period={period:.1f}s")
-    
+
     # Save ground truth
     np.savez(
         output_path / "truth.npz",
@@ -261,14 +261,14 @@ def generate_ch6_strapdown_dataset(
         yaw=yaw
     )
     print("   Saved: truth.npz")
-    
+
     # 2. Generate IMU measurements
     print("\n2. Generating IMU measurements...")
     print(f"   Accel noise: {accel_noise_std} m/s²")
     print(f"   Gyro noise: {gyro_noise_std} rad/s")
     print(f"   Accel bias: [{accel_bias_x}, {accel_bias_y}] m/s²")
     print(f"   Gyro bias: {gyro_bias} rad/s")
-    
+
     t_imu, accel_xy, gyro_z = generate_imu_measurements(
         t, v_xy, yaw,
         accel_noise_std=accel_noise_std,
@@ -277,7 +277,7 @@ def generate_ch6_strapdown_dataset(
         accel_bias_y=accel_bias_y,
         gyro_bias=gyro_bias
     )
-    
+
     np.savez(
         output_path / "imu.npz",
         t=t_imu,
@@ -286,10 +286,10 @@ def generate_ch6_strapdown_dataset(
     )
     print(f"   Generated {len(t_imu)} IMU samples")
     print("   Saved: imu.npz")
-    
+
     # 3. Save configuration
     print("\n3. Saving configuration...")
-    
+
     config = {
         "dataset_info": {
             "description": "IMU strapdown integration dataset for Ch6",
@@ -316,12 +316,12 @@ def generate_ch6_strapdown_dataset(
             "units": "meters"
         }
     }
-    
+
     with open(output_path / "config.json", "w") as f:
         json.dump(config, f, indent=2)
-    
+
     print("   Saved: config.json")
-    
+
     # Summary
     print(f"\n{'='*70}")
     print("Dataset generation complete!")
@@ -366,7 +366,7 @@ Examples:
 
 Available presets: """ + ", ".join(PRESETS.keys())
     )
-    
+
     # Preset configuration
     parser.add_argument(
         '--preset',
@@ -374,7 +374,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         choices=PRESETS.keys(),
         help='Use preset configuration (overrides individual parameters)'
     )
-    
+
     # Output
     parser.add_argument(
         '--output',
@@ -382,14 +382,14 @@ Available presets: """ + ", ".join(PRESETS.keys())
         default='data/sim/ch6_strapdown_basic',
         help='Output directory (default: data/sim/ch6_strapdown_basic)'
     )
-    
+
     parser.add_argument(
         '--seed',
         type=int,
         default=42,
         help='Random seed for reproducibility (default: 42)'
     )
-    
+
     # Trajectory parameters
     traj_group = parser.add_argument_group('Trajectory Parameters')
     traj_group.add_argument(
@@ -416,7 +416,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         default=0.01,
         help='Time step in seconds (default: 0.01, i.e., 100 Hz)'
     )
-    
+
     # IMU parameters
     imu_group = parser.add_argument_group('IMU Parameters')
     imu_group.add_argument(
@@ -451,21 +451,21 @@ Available presets: """ + ", ".join(PRESETS.keys())
         default=0.0,
         help='Gyroscope Z-axis bias in rad/s (default: 0.0)'
     )
-    
+
     # Parse arguments
     args = parser.parse_args()
-    
+
     # If preset is specified, override with preset values
     if args.preset:
         preset_config = PRESETS[args.preset]
         print(f"\nUsing preset: '{args.preset}'")
         print(f"Description: {preset_config['description']}\n")
-        
+
         # Override parameters with preset values
         for key, value in preset_config.items():
             if key != 'description' and hasattr(args, key):
                 setattr(args, key, value)
-    
+
     # Validate parameters
     if args.duration <= 0:
         parser.error("Duration must be positive")
@@ -477,7 +477,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         parser.error("Radius must be positive")
     if args.accel_noise_std < 0 or args.gyro_noise_std < 0:
         parser.error("Noise parameters must be non-negative")
-    
+
     # Generate dataset
     generate_ch6_strapdown_dataset(
         output_dir=args.output,

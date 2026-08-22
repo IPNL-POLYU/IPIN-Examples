@@ -31,7 +31,7 @@ __all__ = [
     'ConstantVelocity1D',
     'ConstantAcceleration2D',
     'create_process_noise_continuous_white_acceleration',
-    
+
     # Measurement models
     'RangeMeasurement2D',
     'RangeBearingMeasurement2D',

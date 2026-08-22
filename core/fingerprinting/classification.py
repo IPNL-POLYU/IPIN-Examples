@@ -28,7 +28,7 @@ try:
     from sklearn.ensemble import RandomForestClassifier
     from sklearn.svm import SVC
     from sklearn.preprocessing import LabelEncoder
-    
+
     SKLEARN_AVAILABLE = True
 except ImportError:
     SKLEARN_AVAILABLE = False
@@ -59,14 +59,14 @@ class ClassificationLocalizer:
     References:
         Chapter 5, Section 5.2: Pattern Recognition Approaches
     """
-    
+
     classifier: object  # scikit-learn classifier
     locations: np.ndarray
     class_to_location: dict  # Maps class_id -> location
     floor_ids: np.ndarray
     label_encoder: object  # LabelEncoder
     meta: dict
-    
+
     def predict(
         self,
         z: Fingerprint,
@@ -87,22 +87,22 @@ class ClassificationLocalizer:
         """
         # Reshape for sklearn (expects 2D input)
         z_2d = z.reshape(1, -1)
-        
+
         # Predict class
         predicted_class = self.classifier.predict(z_2d)[0]
-        
+
         # Get location for predicted class
         predicted_location = self.class_to_location[predicted_class]
-        
+
         # Build info dict
         info = {"predicted_class": predicted_class}
-        
+
         if return_proba and hasattr(self.classifier, "predict_proba"):
             probas = self.classifier.predict_proba(z_2d)[0]
             classes = self.classifier.classes_
             info["class_probabilities"] = dict(zip(classes, probas))
             info["top_k_classes"] = classes[np.argsort(probas)[::-1][:5]]
-        
+
         return predicted_location, info
 
 
@@ -165,7 +165,7 @@ def fit_classifier(
             "scikit-learn is required for classification-based fingerprinting. "
             "Install it with: pip install scikit-learn"
         )
-    
+
     # Filter by floor if specified
     if floor_id is not None:
         mask = db.get_floor_mask(floor_id)
@@ -176,30 +176,30 @@ def fit_classifier(
         locations = db.locations
         features = db.get_mean_features()
         floor_ids = db.floor_ids
-    
+
     # Create class labels based on zone_type
     if zone_type == "rp":
         # Each RP is a separate class
         class_labels = np.arange(len(locations))
         class_to_location = {i: locations[i] for i in range(len(locations))}
-    
+
     elif zone_type == "grid":
         # Grid-based zones (not implemented yet, would require grid parameters)
         raise NotImplementedError(
             "Grid-based zone classification not yet implemented. Use 'rp' for now."
         )
-    
+
     elif zone_type == "cluster":
         # Cluster-based zones (not implemented yet, would require clustering)
         raise NotImplementedError(
             "Cluster-based zone classification not yet implemented. Use 'rp' for now."
         )
-    
+
     else:
         raise ValueError(
             f"Unknown zone_type '{zone_type}'. Use 'rp', 'grid', or 'cluster'."
         )
-    
+
     # Create and fit classifier
     if classifier_type == "random_forest":
         # Random Forest (book default)
@@ -211,7 +211,7 @@ def fit_classifier(
         }
         default_rf_params.update(classifier_kwargs)
         classifier = RandomForestClassifier(**default_rf_params)
-    
+
     elif classifier_type == "svm":
         # Support Vector Machine
         default_svm_params = {
@@ -222,20 +222,20 @@ def fit_classifier(
         }
         default_svm_params.update(classifier_kwargs)
         classifier = SVC(**default_svm_params, probability=True)
-    
+
     else:
         raise ValueError(
             f"Unknown classifier_type '{classifier_type}'. "
             f"Use 'random_forest' or 'svm'."
         )
-    
+
     # Fit classifier
     classifier.fit(features, class_labels)
-    
+
     # Create label encoder for interpretability
     label_encoder = LabelEncoder()
     label_encoder.fit(class_labels)
-    
+
     return ClassificationLocalizer(
         classifier=classifier,
         locations=locations,
@@ -379,44 +379,44 @@ def hierarchical_localize(
         raise ValueError(
             f"Unknown coarse_method '{coarse_method}'. Use 'floor' or 'random_forest'."
         )
-    
+
     # Step 2: Fine localization within coarse region
     if fine_method == "nn":
         from .deterministic import nn_localize
-        
+
         pos = nn_localize(z, db, floor_id=floor_id, **fine_method_kwargs)
-    
+
     elif fine_method == "knn":
         from .deterministic import knn_localize
-        
+
         # Default k=5 if not provided
         if "k" not in fine_method_kwargs:
             fine_method_kwargs["k"] = 5
-        
+
         pos = knn_localize(z, db, floor_id=floor_id, **fine_method_kwargs)
-    
+
     elif fine_method == "map":
         from .probabilistic import fit_gaussian_naive_bayes, map_localize
-        
+
         # Fit model on the coarse floor
         model = fit_gaussian_naive_bayes(db)
         pos = map_localize(z, model, floor_id=floor_id)
-    
+
     elif fine_method == "posterior_mean":
         from .probabilistic import fit_gaussian_naive_bayes, posterior_mean_localize
-        
+
         # Fit model on the coarse floor
         model = fit_gaussian_naive_bayes(db)
         pos = posterior_mean_localize(z, model, floor_id=floor_id, **fine_method_kwargs)
-    
+
     else:
         raise ValueError(
             f"Unknown fine_method '{fine_method}'. "
             f"Use 'nn', 'knn', 'map', or 'posterior_mean'."
         )
-    
+
     info["fine_position"] = pos
-    
+
     return pos, info
 
 

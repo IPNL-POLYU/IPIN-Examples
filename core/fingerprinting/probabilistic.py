@@ -264,7 +264,7 @@ def log_likelihood(
     # Handle missing values: identify observed (non-NaN) features
     observed_mask = ~np.isnan(z)  # Shape: (N,)
     n_observed = np.sum(observed_mask)
-    
+
     if n_observed == 0:
         # No observed features: return -inf for all RPs
         log_likelihoods = np.full(M, -np.inf)

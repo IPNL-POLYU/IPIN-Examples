@@ -48,13 +48,13 @@ class StampedMeasurement:
         ...     meta={'frame': 'body'}
         ... )
     """
-    
+
     t: float
     sensor: str
     z: np.ndarray
     R: np.ndarray
     meta: Dict[str, Any] = field(default_factory=dict)
-    
+
     def __post_init__(self) -> None:
         """Validate the measurement structure."""
         # Validate timestamp
@@ -62,34 +62,34 @@ class StampedMeasurement:
             raise TypeError(f"Timestamp must be numeric, got {type(self.t)}")
         if self.t < 0:
             raise ValueError(f"Timestamp must be non-negative, got {self.t}")
-        
+
         # Validate sensor name
         if not isinstance(self.sensor, str) or not self.sensor:
             raise ValueError(f"Sensor must be a non-empty string, got {self.sensor}")
-        
+
         # Validate measurement vector
         if not isinstance(self.z, np.ndarray):
             raise TypeError(f"Measurement z must be numpy array, got {type(self.z)}")
         if self.z.ndim != 1:
             raise ValueError(f"Measurement z must be 1D array, got shape {self.z.shape}")
-        
+
         # Validate covariance matrix
         if not isinstance(self.R, np.ndarray):
             raise TypeError(f"Covariance R must be numpy array, got {type(self.R)}")
         if self.R.ndim != 2:
             raise ValueError(f"Covariance R must be 2D array, got shape {self.R.shape}")
-        
+
         m = len(self.z)
         if self.R.shape != (m, m):
             raise ValueError(
                 f"Covariance R shape {self.R.shape} must match "
                 f"measurement dimension ({m}, {m})"
             )
-        
+
         # Check symmetry (within tolerance)
         if not np.allclose(self.R, self.R.T):
             raise ValueError("Covariance R must be symmetric")
-        
+
         # Check positive semi-definite (all eigenvalues >= 0)
         eigvals = np.linalg.eigvalsh(self.R)
         if np.any(eigvals < -1e-10):  # small negative tolerance for numerical errors
@@ -127,18 +127,18 @@ class TimeSyncModel:
     References:
         Chapter 8, Section 8.5 (Temporal Calibration and Synchronization)
     """
-    
+
     offset: float = 0.0
     drift: float = 0.0
-    
+
     def __post_init__(self) -> None:
         """Validate the time synchronization parameters."""
         if not isinstance(self.offset, (float, int)):
             raise TypeError(f"Offset must be numeric, got {type(self.offset)}")
-        
+
         if not isinstance(self.drift, (float, int)):
             raise TypeError(f"Drift must be numeric, got {type(self.drift)}")
-        
+
         # Warn about unrealistic drift values (typically < 100 ppm = 0.0001)
         if abs(self.drift) > 0.01:
             import warnings
@@ -147,7 +147,7 @@ class TimeSyncModel:
                 f"is unusually large. Typical values are < 100 ppm (0.0001).",
                 UserWarning
             )
-    
+
     def to_fusion_time(self, t_sensor: float) -> float:
         """Convert sensor-local time to fusion time.
         
@@ -163,7 +163,7 @@ class TimeSyncModel:
             10.51
         """
         return (1.0 + self.drift) * t_sensor + self.offset
-    
+
     def to_sensor_time(self, t_fusion: float) -> float:
         """Convert fusion time to sensor-local time (inverse operation).
         
@@ -180,7 +180,7 @@ class TimeSyncModel:
             10.0
         """
         return (t_fusion - self.offset) / (1.0 + self.drift)
-    
+
     def is_synchronized(self, tolerance: float = 1e-6) -> bool:
         """Check if the sensor is already synchronized (identity transform).
         

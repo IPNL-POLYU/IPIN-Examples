@@ -50,13 +50,13 @@ def innovation(z: np.ndarray, z_pred: np.ndarray) -> np.ndarray:
     """
     z = np.asarray(z)
     z_pred = np.asarray(z_pred)
-    
+
     if z.shape != z_pred.shape:
         raise ValueError(
             f"Measurement z and prediction z_pred must have same shape, "
             f"got {z.shape} and {z_pred.shape}"
         )
-    
+
     return z - z_pred
 
 
@@ -98,7 +98,7 @@ def innovation_covariance(
     H = np.asarray(H)
     P_pred = np.asarray(P_pred)
     R = np.asarray(R)
-    
+
     # Validate dimensions
     if H.ndim != 2:
         raise ValueError(f"H must be 2D matrix, got shape {H.shape}")
@@ -106,27 +106,27 @@ def innovation_covariance(
         raise ValueError(f"P_pred must be 2D matrix, got shape {P_pred.shape}")
     if R.ndim != 2:
         raise ValueError(f"R must be 2D matrix, got shape {R.shape}")
-    
+
     m, n = H.shape
-    
+
     if P_pred.shape != (n, n):
         raise ValueError(
             f"P_pred shape {P_pred.shape} incompatible with H shape {H.shape}, "
             f"expected ({n}, {n})"
         )
-    
+
     if R.shape != (m, m):
         raise ValueError(
             f"R shape {R.shape} incompatible with H shape {H.shape}, "
             f"expected ({m}, {m})"
         )
-    
+
     # Eq. (8.6): S_k = H_k P_{k|k-1} H_k^T + R_k
     S = H @ P_pred @ H.T + R
-    
+
     # Ensure symmetry (numerical stability)
     S = 0.5 * (S + S.T)
-    
+
     return S
 
 
@@ -186,22 +186,22 @@ def scale_measurement_covariance(
         Eq. (8.7) in Chapter 8
     """
     R = np.asarray(R)
-    
+
     if R.ndim != 2:
         raise ValueError(f"R must be 2D matrix, got shape {R.shape}")
-    
+
     if not isinstance(scale_factor, (int, float, np.number)):
         raise TypeError(f"Scale factor must be numeric, got {type(scale_factor)}")
-    
+
     if scale_factor < 1.0:
         raise ValueError(
             f"Scale factor must be >= 1 (inflate covariance for outliers), "
             f"got {scale_factor}"
         )
-    
+
     # Eq. (8.7): R_k ← w_R(y_k) * R_k
     R_scaled = scale_factor * R
-    
+
     return R_scaled
 
 
@@ -253,7 +253,7 @@ def huber_R_scale(
         Eq. (8.7): R_k ← w_R(y_k) * R_k
     """
     abs_residual = abs(residual)
-    
+
     if abs_residual <= delta:
         return 1.0
     else:
@@ -355,9 +355,9 @@ def huber_weight(
         DeprecationWarning,
         stacklevel=2
     )
-    
+
     abs_residual = abs(residual)
-    
+
     if abs_residual <= threshold:
         return 1.0
     else:
@@ -406,7 +406,7 @@ def cauchy_weight(
         DeprecationWarning,
         stacklevel=2
     )
-    
+
     normalized = residual / scale
     return 1.0 / (1.0 + normalized**2)
 
@@ -454,27 +454,27 @@ def compute_normalized_innovation(
     """
     y = np.asarray(y)
     S = np.asarray(S)
-    
+
     if y.ndim != 1:
         raise ValueError(f"Innovation y must be 1D, got shape {y.shape}")
     if S.ndim != 2:
         raise ValueError(f"Covariance S must be 2D, got shape {S.shape}")
-    
+
     m = len(y)
     if S.shape != (m, m):
         raise ValueError(
             f"Innovation dimension {m} incompatible with S shape {S.shape}"
         )
-    
+
     # Cholesky decomposition: S = L L^T
     try:
         L = np.linalg.cholesky(S)
     except np.linalg.LinAlgError as e:
         raise ValueError(f"Innovation covariance S is not positive definite: {e}")
-    
+
     # Solve L * y_norm = y for y_norm
     y_normalized = np.linalg.solve(L, y)
-    
+
     return y_normalized
 
 

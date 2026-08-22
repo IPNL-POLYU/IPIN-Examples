@@ -131,40 +131,40 @@ def zupt_test_statistic(
         raise ValueError(f"sigma_a must be positive, got {sigma_a}")
     if sigma_g <= 0:
         raise ValueError(f"sigma_g must be positive, got {sigma_g}")
-    
+
     N = accel_window.shape[0]
-    
+
     # Compute average accelerometer measurement over window: ā_k
     accel_mean = np.mean(accel_window, axis=0)  # Shape: (3,)
     accel_mean_norm = np.linalg.norm(accel_mean)
-    
+
     # Avoid division by zero (shouldn't happen with real IMU data)
     if accel_mean_norm < 1e-6:
         accel_mean_norm = 1e-6
-    
+
     # Expected gravity direction: g * (ā_k / ||ā_k||)
     # where g is from Eq. (6.8) if latitude provided
     g_mag = gravity_magnitude(lat_rad=lat_rad, default_g=g)
     gravity_direction = g_mag * (accel_mean / accel_mean_norm)  # Shape: (3,)
-    
+
     # Compute test statistic: sum over window samples
     T_k = 0.0
     for i in range(N):
         # Accelerometer term: (1/σ_A) * ||ã_l - g*(ā_k)/||ā_k|| ||
         accel_deviation = np.linalg.norm(accel_window[i] - gravity_direction)
         accel_term = accel_deviation / sigma_a
-        
+
         # Gyroscope term: (1/σ_G) * ||ω̃_l||²
         # Note: Eq. 6.44 has (1/σ_G) * ||ω||², not (1/σ_G²) * ||ω||²
         gyro_norm_sq = np.sum(gyro_window[i]**2)  # ||ω||²
         gyro_term = gyro_norm_sq / sigma_g
-        
+
         # Sum both terms
         T_k += accel_term + gyro_term
-    
+
     # Normalize by window length: T_k = (1/N) * Σ(...)
     T_k /= N
-    
+
     return T_k
 
 
@@ -245,10 +245,10 @@ def detect_zupt_windowed(
     """
     # Compute test statistic
     T_k = zupt_test_statistic(accel_window, gyro_window, sigma_a, sigma_g, g, lat_rad=lat_rad)
-    
+
     # Compare to threshold
     is_stationary = (T_k < gamma)
-    
+
     return is_stationary
 
 

@@ -108,7 +108,7 @@ def load_pdr_dataset(data_dir: str) -> Dict:
         Dictionary with time, ground truth, and sensor measurements
     """
     path = Path(data_dir)
-    
+
     data = {
         't': np.loadtxt(path / 'time.txt'),
         'pos_true': np.loadtxt(path / 'ground_truth_position.txt'),
@@ -118,13 +118,13 @@ def load_pdr_dataset(data_dir: str) -> Dict:
         'mag_meas': np.loadtxt(path / 'magnetometer.txt'),
         'step_times': np.loadtxt(path / 'step_times.txt'),
     }
-    
+
     # Load config if available
     config_path = path / 'config.json'
     if config_path.exists():
         with open(config_path) as f:
             data['config'] = json.load(f)
-    
+
     return data
 
 
@@ -152,11 +152,11 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75, step_model: str = "bo
     accel_meas = data['accel_meas']
     gyro_meas = data['gyro_meas']
     mag_meas = data['mag_meas']
-    
+
     N = len(t)
     dt = t[1] - t[0] if len(t) > 1 else 0.01
     fs = 1.0 / dt  # Sampling frequency
-    
+
     # Detect steps using peak detector (Eqs. 6.46-6.47)
     # Tune parameters based on dataset sampling rate:
     # - min_peak_height: 1.0 m/s² (typical walking peak above gravity)
@@ -171,15 +171,15 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75, step_model: str = "bo
         min_peak_distance=0.3,  # seconds between steps
         lowpass_cutoff=5.0  # Hz low-pass filter
     )
-    
+
     print(f"  Detected {len(step_indices)} steps")
-    
+
     # Initialize outputs
     pos_gyro = np.zeros((N, 2))
     pos_mag = np.zeros((N, 2))
     heading_gyro = np.zeros(N)
     heading_mag = np.zeros(N)
-    
+
     # Initialize headings
     # NOTE FOR STUDENTS: Gyro heading starts at 0° (East in ENU) as a simulation
     # choice. In real PDR systems, initial heading MUST be calibrated from an
@@ -187,13 +187,13 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75, step_model: str = "bo
     # only CHANGES in heading, not absolute direction!
     heading_gyro[0] = 0.0  # Start at 0° (East), will drift due to gyro bias
     heading_mag[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)  # Absolute reference
-    
+
     # Run PDR with gyro heading
     for k in range(1, N):
         # Integrate gyro heading
         heading_gyro[k] = integrate_gyro_heading(heading_gyro[k-1], gyro_meas[k, 2], dt)
         heading_gyro[k] = wrap_heading(heading_gyro[k])
-        
+
         # Update position on step events
         if k in step_indices:
             # Find previous step for delta_t calculation
@@ -204,20 +204,20 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75, step_model: str = "bo
                 f_step = 1.0 / delta_t if delta_t > 0 else 2.0
             else:
                 f_step = 2.0  # Default for first step
-            
+
             # Step length using selected model
             L = compute_step_length(height, f_step, model=step_model)
-            
+
             # Update position (Eq. 6.50)
             pos_gyro[k] = pdr_step_update(pos_gyro[k-1], L, heading_gyro[k-1])
         else:
             pos_gyro[k] = pos_gyro[k-1]
-    
+
     # Run PDR with magnetometer heading
     for k in range(1, N):
         # Magnetometer heading (Eqs. 6.51-6.53)
         heading_mag[k] = mag_heading(mag_meas[k], roll=0.0, pitch=0.0, declination=0.0)
-        
+
         # Update position on step events
         if k in step_indices:
             # Find previous step for delta_t calculation
@@ -228,15 +228,15 @@ def run_pdr_from_dataset(data: Dict, height: float = 1.75, step_model: str = "bo
                 f_step = 1.0 / delta_t if delta_t > 0 else 2.0
             else:
                 f_step = 2.0  # Default for first step
-            
+
             # Step length using selected model
             L = compute_step_length(height, f_step, model=step_model)
-            
+
             # Update position (Eq. 6.50)
             pos_mag[k] = pdr_step_update(pos_mag[k-1], L, heading_mag[k-1])
         else:
             pos_mag[k] = pos_mag[k-1]
-    
+
     return {
         't': t,
         'pos_gyro': pos_gyro,
@@ -262,41 +262,41 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     print("Chapter 6: Pedestrian Dead Reckoning (PDR)")
     print(f"Using dataset: {data_dir}")
     print("="*70)
-    
+
     # Load dataset
     print("\nLoading dataset...")
     data = load_pdr_dataset(data_dir)
-    
+
     t = data['t']
     pos_true = data['pos_true']
     heading_true = data['heading_true']
     step_times = data['step_times']
-    
+
     total_dist = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
-    
+
     print("\nDataset Info:")
     print(f"  Duration: {t[-1]:.1f} s")
     print(f"  Total distance: {total_dist:.1f} m")
     print(f"  True steps: {len(step_times)}")
     print(f"  User height: {height} m")
-    
+
     # Run PDR
     print(f"\nRunning PDR algorithms (step model: {step_model})...")
     start = time.time()
     results = run_pdr_from_dataset(data, height, step_model=step_model)
     elapsed = time.time() - start
-    
+
     print(f"  Processing time: {elapsed:.3f} s")
     print(f"  Steps detected (gyro): {results['step_count_gyro']}")
     print(f"  Steps detected (mag): {results['step_count_mag']}")
-    
+
     # Compute errors
     error_gyro = np.linalg.norm(results['pos_gyro'] - pos_true, axis=1)
     error_mag = np.linalg.norm(results['pos_mag'] - pos_true, axis=1)
-    
+
     rmse_gyro = np.sqrt(np.mean(error_gyro**2))
     rmse_mag = np.sqrt(np.mean(error_mag**2))
-    
+
     print("\n" + "="*70)
     print("RESULTS")
     print("="*70)
@@ -307,16 +307,16 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     print("PDR (Magnetometer Heading - absolute but noisy):")
     print(f"  Final error:  {error_mag[-1]:.1f} m ({error_mag[-1]/total_dist*100:.1f}% of distance)")
     print(f"  RMSE:         {rmse_mag:.1f} m")
-    
+
     # Plot results
     figs_dir = Path(__file__).parent / 'figs'
     figs_dir.mkdir(exist_ok=True)
-    
+
     print("\nGenerating plots...")
-    
+
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle('PDR: Dataset Analysis', fontsize=14, fontweight='bold')
-    
+
     # Trajectory
     ax = axes[0, 0]
     ax.plot(pos_true[:, 0], pos_true[:, 1], 'k-', linewidth=3, label='True Path')
@@ -329,7 +329,7 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     ax.legend()
     ax.grid(True, alpha=0.3)
     ax.axis('equal')
-    
+
     # Position error
     ax = axes[0, 1]
     ax.plot(t, error_gyro, 'r-', linewidth=2, label='Gyro Heading')
@@ -339,7 +339,7 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     ax.set_title('Position Error vs Time')
     ax.legend()
     ax.grid(True, alpha=0.3)
-    
+
     # Heading comparison
     ax = axes[1, 0]
     ax.plot(t, np.rad2deg(heading_true), 'k-', linewidth=2, label='True')
@@ -350,7 +350,7 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     ax.set_title('Heading Comparison')
     ax.legend()
     ax.grid(True, alpha=0.3)
-    
+
     # Heading error
     ax = axes[1, 1]
     heading_error_gyro = np.abs(wrap_heading(results['heading_gyro'] - heading_true))
@@ -362,14 +362,14 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     ax.set_title('Heading Error')
     ax.legend()
     ax.grid(True, alpha=0.3)
-    
+
     plt.tight_layout()
-    
+
     paths = save_figure(fig, figs_dir, 'pdr_dataset_results')
     print(f"  [OK] Saved: {paths[0]}")
-    
+
     show_figures_if_requested()
-    
+
     print("\n" + "="*70)
     print("KEY INSIGHT: Heading errors DOMINATE PDR accuracy!")
     print("             Gyro drifts unbounded -> unusable alone.")
@@ -386,10 +386,10 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     """
     if frame is None:
         frame = FrameConvention.create_enu()
-    
+
     t = np.arange(0, duration, dt)
     N = len(t)
-    
+
     # Corridor: 40m x 20m rectangle, walked counter-clockwise, with each
     # corner cut by a quarter-circle of CORNER_RADIUS_M.
     #
@@ -483,7 +483,7 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     # Convert to 3D trajectory (z=0, vz=0)
     pos_map = np.column_stack([pos_2d, np.zeros(N)])
     vel_map = np.column_stack([vel_2d, np.zeros(N)])
-    
+
     # Create quaternion trajectory (yaw only, roll/pitch = 0)
     quat_b_to_m = np.column_stack([
         np.cos(heading_true / 2),
@@ -491,7 +491,7 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
         np.zeros(N),
         np.sin(heading_true / 2)
     ])
-    
+
     # Add synthetic walking accelerations (vertical oscillations for step detection)
     # Walking creates periodic vertical accelerations at step frequency
     # Amplitude: ~2-3 m/s² (typical for walking)
@@ -519,7 +519,7 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
         / (2 * np.pi * step_freq)
         * np.cos(2 * np.pi * step_freq * t)
     )
-    
+
     # Generate IMU measurements using correct forward model
     accel_body, gyro_body = generate_imu_from_trajectory(
         pos_map=pos_map,
@@ -529,11 +529,11 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
         frame=frame,
         g=9.81
     )
-    
+
     # Generate magnetometer measurements (points to magnetic north in body frame)
     mag_body = np.zeros((N, 3))
     mag_north_map = np.array([1.0, 0.0, 0.0])  # North = x-axis in ENU map frame (conventionally)
-    
+
     for k in range(N):
         # Rotate north vector from map to body frame
         # C_M^B = (C_B^M)^T
@@ -544,12 +544,12 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
             [0, 0, 1]
         ])
         mag_body[k] = C_yaw.T @ mag_north_map
-    
+
     # Steps actually taken: the walker is only moving until the lap closes at
     # total_length / v_walk, and stands still afterwards.
     walking_time = min(total_length / v_walk, duration)
     expected_steps = int(round(walking_time * step_freq))
-    
+
     return t, pos_2d, heading_true, accel_body, gyro_body, mag_body, expected_steps
 
 
@@ -590,11 +590,11 @@ def add_sensor_noise(accel_body, gyro_body, mag_body, dt,
     for start, end in disturb_intervals:
         mask = (np.arange(N)*dt >= start) & (np.arange(N)*dt < end)
         mag_disturbance[mask] = rng.standard_normal((np.sum(mask), 3)) * 0.3
-    
+
     gyro_meas = gyro_body + gyro_bias + gyro_noise
     accel_meas = accel_body + accel_noise
     mag_meas = mag_body + mag_noise + mag_disturbance
-    
+
     return accel_meas, gyro_meas, mag_meas
 
 
@@ -613,10 +613,10 @@ def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75, step_model="book
     """
     N = len(t)
     dt = t[1] - t[0]
-    
+
     pos_est = np.zeros((N, 2))
     heading_est = np.zeros(N)
-    
+
     # Step detection using peak detector (Eqs. 6.46-6.47)
     print("  Detecting steps using peak detector (Eqs. 6.46-6.47)...")
     step_indices, accel_processed = detect_steps_peak_detector(
@@ -627,21 +627,21 @@ def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75, step_model="book
         min_peak_distance=0.3,  # 0.3s between steps (max ~3.3 steps/s)
         lowpass_cutoff=5.0  # 5 Hz low-pass filter
     )
-    
+
     step_count = len(step_indices)
     print(f"  Detected {step_count} steps using peak detection")
-    
+
     # Initialize heading (gyro integration requires initial heading)
     # NOTE FOR STUDENTS: Starting at 0° for simulation simplicity. In practice,
     # use magnetometer or GPS for initial heading calibration!
     heading_est[0] = 0.0  # Initial heading (0° = East in ENU)
-    
+
     # Process time series
     for k in range(1, N):
         # Integrate gyro heading
         heading_est[k] = integrate_gyro_heading(heading_est[k-1], gyro_meas[k, 2], dt)
         heading_est[k] = wrap_heading(heading_est[k])
-        
+
         # Update position on step events
         if k in step_indices:
             # Find previous step for delta_t calculation
@@ -652,15 +652,15 @@ def run_pdr_gyro_heading(t, accel_meas, gyro_meas, height=1.75, step_model="book
                 f_step = 1.0 / delta_t if delta_t > 0 else 2.0
             else:
                 f_step = 2.0  # Default for first step
-            
+
             # Step length using selected model
             L = compute_step_length(height, f_step, model=step_model)
-            
+
             # Update position (Eq. 6.50)
             pos_est[k] = pdr_step_update(pos_est[k-1], L, heading_est[k-1])
         else:
             pos_est[k] = pos_est[k-1]
-    
+
     return pos_est, heading_est, step_count
 
 
@@ -680,10 +680,10 @@ def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75, step_mo
     """
     N = len(t)
     dt = t[1] - t[0]
-    
+
     pos_est = np.zeros((N, 2))
     heading_est = np.zeros(N)
-    
+
     # Step detection using peak detector (Eqs. 6.46-6.47)
     print("  Detecting steps using peak detector (Eqs. 6.46-6.47)...")
     step_indices, accel_processed = detect_steps_peak_detector(
@@ -694,21 +694,21 @@ def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75, step_mo
         min_peak_distance=0.3,  # 0.3s between steps
         lowpass_cutoff=5.0  # 5 Hz low-pass filter
     )
-    
+
     step_count = len(step_indices)
     print(f"  Detected {step_count} steps using peak detection")
-    
+
     # Initialize heading from magnetometer (absolute reference)
     # NOTE FOR STUDENTS: Unlike gyro heading which can start anywhere, magnetometer
     # provides an absolute heading reference. This is the proper way to initialize!
     heading_est[0] = mag_heading(mag_meas[0], roll=0.0, pitch=0.0, declination=0.0)  # Absolute heading
-    
+
     # Process time series
     for k in range(1, N):
         # Magnetometer heading (Eqs. 6.51-6.53)
         # Assume level (roll=pitch=0 for simplicity)
         heading_est[k] = mag_heading(mag_meas[k], roll=0.0, pitch=0.0, declination=0.0)
-        
+
         # Update position on step events
         if k in step_indices:
             # Find previous step for delta_t calculation
@@ -719,24 +719,24 @@ def run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height=1.75, step_mo
                 f_step = 1.0 / delta_t if delta_t > 0 else 2.0
             else:
                 f_step = 2.0  # Default for first step
-            
+
             # Step length using selected model
             L = compute_step_length(height, f_step, model=step_model)
-            
+
             # Update position (Eq. 6.50)
             pos_est[k] = pdr_step_update(pos_est[k-1], L, heading_est[k-1])
         else:
             pos_est[k] = pos_est[k-1]
-    
+
     return pos_est, heading_est, step_count
 
 
 def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, heading_mag, figs_dir):
     """Generate publication-quality plots."""
-    
+
     error_gyro = np.linalg.norm(pos_gyro - pos_true, axis=1)
     error_mag = np.linalg.norm(pos_mag - pos_true, axis=1)
-    
+
     # Figure 1: Trajectory
     fig1, ax = plt.subplots(figsize=(12, 8))
     ax.plot(pos_true[:, 0], pos_true[:, 1], 'k-', linewidth=3, label='True Path')
@@ -752,10 +752,10 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     plt.tight_layout()
     paths = save_figure(fig1, figs_dir, 'pdr_trajectory')
     print(f"  [OK] Saved: {paths[0]}")
-    
+
     # Figure 2: Heading comparison
     fig2, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
-    
+
     ax1.plot(t, np.rad2deg(heading_true), 'k-', linewidth=2, label='True Heading')
     ax1.plot(t, np.rad2deg(heading_gyro), 'r--', linewidth=2, alpha=0.7, label='Gyro Integrated')
     ax1.plot(t, np.rad2deg(heading_mag), 'b-', linewidth=1.5, alpha=0.7, label='Magnetometer')
@@ -763,7 +763,7 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     ax1.set_title('PDR Example: Heading Comparison', fontsize=14, fontweight='bold')
     ax1.legend(fontsize=10)
     ax1.grid(True, alpha=0.3)
-    
+
     heading_error_gyro = np.abs(wrap_heading(heading_gyro - heading_true))
     heading_error_mag = np.abs(wrap_heading(heading_mag - heading_true))
     ax2.plot(t, np.rad2deg(heading_error_gyro), 'r-', linewidth=2, label='Gyro Error')
@@ -773,11 +773,11 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     ax2.legend(fontsize=10)
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim([0, t[-1]])
-    
+
     plt.tight_layout()
     paths = save_figure(fig2, figs_dir, 'pdr_heading')
     print(f"  [OK] Saved: {paths[0]}")
-    
+
     # Figure 3: Position error
     fig3, ax = plt.subplots(figsize=(12, 6))
     ax.plot(t, error_gyro, 'r-', linewidth=2, label='PDR (Gyro Heading)')
@@ -791,9 +791,9 @@ def plot_results(t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, hea
     plt.tight_layout()
     paths = save_figure(fig3, figs_dir, 'pdr_error')
     print(f"  [OK] Saved: {paths[0]}")
-    
+
     plt.close('all')
-    
+
     return error_gyro, error_mag
 
 
@@ -810,7 +810,7 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print("="*70)
     print("\nDemonstrates the critical importance of heading accuracy in PDR.")
     print("Key equations: 6.46-6.50 (step detection, length, position update)\n")
-    
+
     duration = 120.0
     dt = 0.01
     height = 1.75  # meters
@@ -824,51 +824,51 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
         accel_vrw_mps_sqrt_s=units.mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.01),
         grade='consumer (high gyro drift)'
     )
-    
+
     print("Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  User Height:     {height} m")
     print("  Trajectory:      40m x 20m rectangular corridor")
     print(f"  Frame:           {frame.map_frame}\n")
-    
+
     # Print IMU specifications
     print(imu_params.format_specs())
     print()
-    
+
     print("Generating trajectory with correct IMU forward model...")
     t, pos_true, heading_true, accel_body, gyro_body, mag_body, expected_steps = generate_corridor_walk(
         duration, dt, step_freq=2.0, frame=frame
     )
-    
+
     total_dist = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
     print(f"  Total distance:  {total_dist:.1f} m")
     print(f"  Expected steps:  {expected_steps} (at 2.0 Hz step frequency)")
-    
+
     print("\nAdding sensor noise...")
     accel_meas, gyro_meas, mag_meas = add_sensor_noise(accel_body, gyro_body, mag_body, dt, imu_params)
-    
+
     print(f"\nRunning PDR with gyro heading (step model: {step_model})...")
     start = time.time()
     pos_gyro, heading_gyro, steps_gyro = run_pdr_gyro_heading(t, accel_meas, gyro_meas, height, step_model=step_model)
     print(f"  Time: {time.time()-start:.3f} s, Steps detected: {steps_gyro}")
-    
+
     print(f"\nRunning PDR with magnetometer heading (step model: {step_model})...")
     start = time.time()
     pos_mag, heading_mag, steps_mag = run_pdr_mag_heading(t, accel_meas, gyro_meas, mag_meas, height, step_model=step_model)
     print(f"  Time: {time.time()-start:.3f} s, Steps detected: {steps_mag}")
-    
+
     figs_dir = Path(__file__).parent / 'figs'
     figs_dir.mkdir(exist_ok=True)
-    
+
     print("\nGenerating plots...")
     error_gyro, error_mag = plot_results(
         t, pos_true, pos_gyro, pos_mag, heading_true, heading_gyro, heading_mag, figs_dir
     )
-    
+
     # Metrics
     rmse_gyro = np.sqrt(np.mean(error_gyro**2))
     rmse_mag = np.sqrt(np.mean(error_mag**2))
-    
+
     print("\n" + "="*70)
     print("RESULTS")
     print("="*70)
@@ -1003,9 +1003,9 @@ Examples:
         choices=["book", "power_law"],
         help="Step-length model: 'book' (Eq. 6.49, default) or 'power_law' (old)"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.data:
         # Run with dataset
         data_path = resolve_data_path(args.data)
@@ -1020,7 +1020,7 @@ Examples:
                     if d.is_dir() and d.name.startswith("ch6"):
                         print(f"  - {d.name}")
             return
-        
+
         run_with_dataset(str(data_path), height=args.height, lat_deg=args.latitude, step_model=args.step_model)
     else:
         run_with_inline_data(lat_deg=args.latitude, step_model=args.step_model)

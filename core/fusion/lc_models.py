@@ -81,33 +81,33 @@ def solve_uwb_position_wls(
     if np.sum(valid_mask) < 3:
         # Need at least 3 ranges for 2D position
         return None, None, False
-    
+
     ranges_valid = ranges[valid_mask]
     anchors_valid = anchor_positions[valid_mask]
     n_anchors = len(ranges_valid)
-    
+
     # Determine per-measurement noise std
     if anchor_noise_std is not None:
         noise_std_valid = anchor_noise_std[valid_mask]
     else:
         noise_std_valid = np.full(n_anchors, range_noise_std)
-    
+
     # Weight matrix W = R^{-1}, for R = diag(σ_i²)
     W = np.diag(1.0 / (noise_std_valid**2))
-    
+
     # Initial guess: centroid of valid anchors
     if initial_guess is None:
         pos = np.mean(anchors_valid, axis=0)
     else:
         pos = initial_guess.copy()
-    
+
     # Iterative WLS
     converged = False
     for iteration in range(max_iterations):
         # Compute predicted ranges and residuals
         ranges_pred = np.linalg.norm(anchors_valid - pos, axis=1)
         residuals = ranges_valid - ranges_pred
-        
+
         # Build measurement matrix H (Jacobian)
         # H[i, :] = -(anchor[i] - pos) / range_pred[i]
         H = np.zeros((n_anchors, 2))
@@ -115,7 +115,7 @@ def solve_uwb_position_wls(
             if ranges_pred[i] > 1e-6:  # Avoid singularity
                 diff = anchors_valid[i] - pos
                 H[i, :] = -diff / ranges_pred[i]
-        
+
         # WLS update: Δp = (H^T W H)^{-1} H^T W r
         try:
             HTW = H.T @ W
@@ -124,16 +124,16 @@ def solve_uwb_position_wls(
         except np.linalg.LinAlgError:
             # Singular matrix, solver failed
             return None, None, False
-        
+
         # Update position
         pos = pos + delta_pos
-        
+
         # Check convergence based on position update magnitude
         # (more robust than residual norm, which is biased by noise)
         if np.linalg.norm(delta_pos) < tolerance:
             converged = True
             break
-        
+
         # Check for reasonable position (within reasonable bounds)
         anchor_min = np.min(anchors_valid, axis=0)
         anchor_max = np.max(anchors_valid, axis=0)
@@ -141,7 +141,7 @@ def solve_uwb_position_wls(
         if np.any(pos < anchor_min - margin) or np.any(pos > anchor_max + margin):
             # Position diverged outside reasonable bounds
             return None, None, False
-    
+
     # If we reached max iterations without diverging, consider it converged
     # (even if delta_pos was still above tolerance on the last iteration)
     if not converged and iteration == max_iterations - 1:
@@ -151,7 +151,7 @@ def solve_uwb_position_wls(
         margin = 50.0
         if np.all(pos >= anchor_min - margin) and np.all(pos <= anchor_max + margin):
             converged = True
-    
+
     # Compute covariance: Cov(p) = (H^T W H)^{-1}
     # This is the Cramér-Rao lower bound for unbiased estimators
     ranges_pred_final = np.linalg.norm(anchors_valid - pos, axis=1)
@@ -160,7 +160,7 @@ def solve_uwb_position_wls(
         if ranges_pred_final[i] > 1e-6:
             diff = anchors_valid[i] - pos
             H_final[i, :] = -diff / ranges_pred_final[i]
-    
+
     try:
         HTW_final = H_final.T @ W
         HTWH_final = HTW_final @ H_final
@@ -169,11 +169,11 @@ def solve_uwb_position_wls(
         # Default to conservative covariance if inversion fails
         cov = np.eye(2) * 1.0  # 1m std
         converged = False
-    
+
     # Apply covariance floor to prevent overconfidence
     # This accounts for unmodeled errors (multipath, NLOS, anchor position errors, etc.)
     cov_floor = np.eye(2) * (cov_floor_std**2)
-    
+
     # For each diagonal element, enforce minimum variance
     for i in range(2):
         if cov[i, i] < cov_floor[i, i]:
@@ -181,7 +181,7 @@ def solve_uwb_position_wls(
             scale_factor = cov_floor[i, i] / cov[i, i]
             cov[i, :] *= np.sqrt(scale_factor)
             cov[:, i] *= np.sqrt(scale_factor)
-    
+
     return pos, cov, converged
 
 
@@ -223,11 +223,11 @@ def create_lc_position_measurement_model(
         position_noise_std = np.array([0.5, 0.5])
     else:
         position_noise_std = np.asarray(position_noise_std)
-    
+
     def measurement_model(x: np.ndarray) -> np.ndarray:
         """Predict position measurement h(x) = [px, py]."""
         return x[:2]  # Extract position from state
-    
+
     def measurement_jacobian(x: np.ndarray) -> np.ndarray:
         """Compute H = ∂h/∂x."""
         # h(x) = [px, py] = [x[0], x[1]]
@@ -238,11 +238,11 @@ def create_lc_position_measurement_model(
             [0.0, 1.0, 0.0, 0.0, 0.0]
         ])
         return H
-    
+
     def measurement_noise_cov() -> np.ndarray:
         """Return R for position measurement."""
         return np.diag(position_noise_std**2)
-    
+
     return measurement_model, measurement_jacobian, measurement_noise_cov
 
 
@@ -262,20 +262,20 @@ def create_lc_fusion_ekf(
         Initialized ExtendedKalmanFilter instance
     """
     from core.estimators import ExtendedKalmanFilter
-    
+
     # Create process model
     process_f, process_F, process_Q = create_lc_process_model(process_noise_std)
-    
+
     # Dummy measurement model (will be replaced during updates)
     def dummy_h(x):
         return np.zeros(2)
-    
+
     def dummy_H(x):
         return np.zeros((2, 5))
-    
+
     def dummy_R():
         return np.eye(2)
-    
+
     ekf = ExtendedKalmanFilter(
         process_model=process_f,
         process_jacobian=process_F,
@@ -286,6 +286,6 @@ def create_lc_fusion_ekf(
         x0=initial_state.copy(),
         P0=initial_cov.copy()
     )
-    
+
     return ekf
 

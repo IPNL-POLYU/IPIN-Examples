@@ -186,35 +186,47 @@ IPIN_SHOW_FIGURES=1 python -m ch6_dead_reckoning.example_zupt
 
 ## Code Style
 
-This project follows **PEP 8** and the **Google Python Style Guide**. All code should:
+New code follows **PEP 8** and the **Google Python Style Guide**: type hints on
+every function, Google-style docstrings, PascalCase classes, snake_case
+functions, 88-character lines.
 
-- Use type hints for all functions
-- Include Google-style docstrings
-- Follow naming conventions (PascalCase for classes, snake_case for functions)
-- Be formatted with Black (88 character line length)
-- Pass linting checks (flake8/ruff, mypy, pylint)
+### What is actually enforced
 
-### Formatting and Linting
+The test suite is the gate, and it enforces more than style. Everything below
+runs in CI on every pull request:
 
-Format code:
+| Check | What it holds |
+|---|---|
+| `tests/test_repo_conventions.py` | No raw `savefig`, no unseeded RNG, no `plt.show()` in an example, chapter folders hold only `example_*.py`, and **pyflakes is clean across ~300 files** |
+| `tests/docs/` | Every documented command, path and flag exists; every README transcript matches what the example prints; the notebooks run |
+| `tests/test_every_figure_has_a_demo_behind_it.py` | Every committed figure is still produced, and everything produced is committed |
+| `tests/test_examples_answer_help.py` | `--help` answers instead of running the demonstration |
+
 ```bash
-black .
+pytest
 ```
 
-Check code style:
-```bash
-ruff check .
-flake8 .
-```
+### The linters are configured, and the repository does not pass them
 
-Type checking:
-```bash
-mypy .
-```
+This is worth stating plainly, because the section used to imply otherwise and
+a reader who ran these got thousands of complaints and reasonably concluded
+they had broken something. Measured over `core/`, the chapters, `scripts/`,
+`tools/` and `tests/`:
 
-Linting:
+| Tool | Today |
+|---|---|
+| `ruff check` | **1879 findings.** 907 are whitespace inside docstrings that ruff will not safely fix — there it is string content, not layout. 727 are annotation modernisations (`List[int]` → `list[int]`) that only became available when the floor moved to 3.10. |
+| `black --check` | 237 of 293 files would be reformatted |
+| `mypy` | 404 errors in `core/` alone |
+
+`tests/test_lint_debt_only_shrinks.py` records the ruff count per rule and fails
+if any of them grows, so the number can only go down from here. It is not
+pass/fail on the linters themselves, which would be red on arrival and stay red.
+
 ```bash
-pylint core/ ch*_*/
+ruff check core ch*_* tests
+black --check core ch*_* tests
+mypy core
 ```
 
 ## Testing

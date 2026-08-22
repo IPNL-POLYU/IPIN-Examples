@@ -68,17 +68,17 @@ def compute_scan_descriptor(
         raise ValueError(f"n_bins must be >= 1, got {n_bins}")
     if max_range <= 0:
         raise ValueError(f"max_range must be > 0, got {max_range}")
-    
+
     # Handle empty scan
     if len(scan_xy) == 0:
         return np.zeros(n_bins, dtype=np.float64)
-    
+
     # Compute ranges
     ranges = np.linalg.norm(scan_xy, axis=1)
-    
+
     # Clip ranges to max_range (points beyond go to last bin)
     ranges = np.clip(ranges, 0, max_range - 1e-9)
-    
+
     # Create histogram
     # Bins span [0, max_range] uniformly
     histogram, _ = np.histogram(
@@ -87,14 +87,14 @@ def compute_scan_descriptor(
         range=(0, max_range),
         density=False,
     )
-    
+
     # Convert to float and normalize
     descriptor = histogram.astype(np.float64)
     total = np.sum(descriptor)
-    
+
     if total > 0:
         descriptor /= total
-    
+
     return descriptor
 
 
@@ -133,33 +133,33 @@ def compute_descriptor_similarity(
         raise ValueError(
             f"Descriptors must have same shape, got {desc1.shape} and {desc2.shape}"
         )
-    
+
     if method == "cosine":
         # Cosine similarity: dot(a, b) / (||a|| * ||b||)
         norm1 = np.linalg.norm(desc1)
         norm2 = np.linalg.norm(desc2)
-        
+
         if norm1 < 1e-9 or norm2 < 1e-9:
             # One or both descriptors are zero vectors
             return 0.0
-        
+
         similarity = np.dot(desc1, desc2) / (norm1 * norm2)
         return float(similarity)
-    
+
     elif method == "correlation":
         # Pearson correlation coefficient
         # Handles case where descriptors have zero variance
         if np.std(desc1) < 1e-9 or np.std(desc2) < 1e-9:
             return 0.0
-        
+
         correlation = np.corrcoef(desc1, desc2)[0, 1]
         return float(correlation)
-    
+
     elif method == "l2":
         # Negative L2 distance (so higher = more similar)
         distance = np.linalg.norm(desc1 - desc2)
         return float(-distance)
-    
+
     else:
         raise ValueError(
             f"Invalid method '{method}'. Must be one of: cosine, correlation, l2"
@@ -194,5 +194,5 @@ def batch_compute_descriptors(
     for scan in scans:
         desc = compute_scan_descriptor(scan, n_bins=n_bins, max_range=max_range)
         descriptors.append(desc)
-    
+
     return np.array(descriptors)

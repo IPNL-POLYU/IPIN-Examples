@@ -117,7 +117,7 @@ class TestPinkNoise1fFFT(unittest.TestCase):
         N = 360000  # 3600 seconds (1 hour) at 100 Hz
         fs = 100.0
         rng = np.random.default_rng(42)
-        
+
         # Generate combined white + pink noise (realistic IMU scenario)
         white = rng.standard_normal(N) * 0.3  # ARW component (dominant at short tau)
         pink = pink_noise_1f_fft(N, fs, rng=rng) * 1.0  # BI component (dominant at mid tau)
@@ -130,14 +130,14 @@ class TestPinkNoise1fFFT(unittest.TestCase):
         # Key test: The curve should show characteristic BI behavior
         # Pure white noise would have slope -1/2 throughout (monotonic in log-log)
         idx_min = np.argmin(sigma)
-        
+
         # The minimum should not be at the very start
         self.assertGreater(idx_min, 0)  # Not at short tau (would be pure white)
-        
+
         # Verify the curve decreases from short tau (characteristic of BI region)
         # This shows pink noise is flattening the curve relative to pure white noise
         self.assertLess(sigma[idx_min], sigma[0])
-        
+
         # Verify we have a realistic Allan deviation magnitude
         # (not all zeros, not absurdly large)
         self.assertGreater(np.min(sigma), 0)

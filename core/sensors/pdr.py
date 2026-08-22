@@ -244,25 +244,25 @@ def detect_steps_peak_detector(
         raise ValueError(f"dt must be positive, got {dt}")
     if min_peak_distance <= 0:
         raise ValueError(f"min_peak_distance must be positive, got {min_peak_distance}")
-    
-    
+
+
     # Step 1: Compute total acceleration magnitude (Eq. 6.46)
     # a_mag[k] = ||a_k|| = sqrt(ax² + ay² + az²)
     accel_mag = np.linalg.norm(accel_series, axis=1)  # Shape: (N,)
-    
+
     # Step 2: Remove gravity (Eq. 6.47)
     # a_dynamic[k] = a_mag[k] - g
     # where g is from Eq. (6.8) if latitude provided
     g_mag = gravity_magnitude(lat_rad=lat_rad, default_g=g)
     accel_dynamic = accel_mag - g_mag  # Shape: (N,)
-    
+
     # Step 3: Optional low-pass filter to reduce noise
     if lowpass_cutoff is not None:
         # Design Butterworth low-pass filter
         fs = 1.0 / dt  # Sampling frequency
         nyquist = fs / 2.0
         normalized_cutoff = lowpass_cutoff / nyquist
-        
+
         # Ensure cutoff is valid
         if normalized_cutoff >= 1.0:
             # Cutoff too high, skip filtering
@@ -273,18 +273,18 @@ def detect_steps_peak_detector(
             accel_filtered = signal.filtfilt(b, a, accel_dynamic)
     else:
         accel_filtered = accel_dynamic
-    
+
     # Step 4: Find peaks using scipy.signal.find_peaks
     # Convert min_peak_distance from seconds to samples
     min_distance_samples = int(min_peak_distance / dt)
-    
+
     # Find peaks with constraints
     peak_indices, peak_properties = signal.find_peaks(
         accel_filtered,
         height=min_peak_height,  # Minimum peak height
         distance=min_distance_samples,  # Minimum distance between peaks
     )
-    
+
     return peak_indices, accel_filtered
 
 

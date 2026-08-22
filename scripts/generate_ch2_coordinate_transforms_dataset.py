@@ -280,7 +280,7 @@ def generate_dataset(
 
     # Convert to ENU
     print("\nStep 3: Converting ECEF -> ENU (local frame)...")
-    enu = np.array([ecef_to_enu(pt[0], pt[1], pt[2], 
+    enu = np.array([ecef_to_enu(pt[0], pt[1], pt[2],
                                   lat_center, lon_center, height_ground)
                     for pt in ecef])
     print(f"  ENU East range: {enu[:, 0].min():.1f}m to {enu[:, 0].max():.1f}m")

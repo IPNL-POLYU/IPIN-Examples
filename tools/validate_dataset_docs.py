@@ -159,13 +159,13 @@ def check_readme_sections(readme_path: Path) -> Dict[str, bool]:
     """
     if not readme_path.exists():
         return {section: False for section in REQUIRED_SECTIONS + RECOMMENDED_SECTIONS}
-    
+
     content = readme_path.read_text(encoding='utf-8')
-    
+
     results = {}
     for section in REQUIRED_SECTIONS + RECOMMENDED_SECTIONS:
         results[section] = section in content
-    
+
     return results
 
 
@@ -180,13 +180,13 @@ def check_readme_code_blocks(readme_path: Path) -> Tuple[int, List[str]]:
     """
     if not readme_path.exists():
         return 0, []
-    
+
     content = readme_path.read_text(encoding='utf-8')
-    
+
     # Count code blocks
     code_blocks = content.count("```")
     num_blocks = code_blocks // 2  # Each block has opening and closing
-    
+
     # Detect languages (python, bash, json)
     languages = set()
     if "```python" in content:
@@ -195,7 +195,7 @@ def check_readme_code_blocks(readme_path: Path) -> Tuple[int, List[str]]:
         languages.add("bash")
     if "```json" in content:
         languages.add("json")
-    
+
     return num_blocks, sorted(languages)
 
 
@@ -210,7 +210,7 @@ def check_parameter_table(readme_path: Path) -> bool:
     """
     if not readme_path.exists():
         return False
-    
+
     content = readme_path.read_text(encoding='utf-8')
 
     # A markdown table inside the parameter-effects section.
@@ -265,18 +265,18 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
         'warnings': [],
         'errors': [],
     }
-    
+
     if verbose:
         print(f"\n{Colors.BOLD}Checking: {dataset_path.name}{Colors.END}")
         print(f"Path: {dataset_path}")
-    
+
     # Check files
     found_files, missing_files = check_dataset_files(dataset_path)
     results['has_config'] = any(
         name in found_files for name in ("config.json", "metadata.json")
     )
     results['has_data_files'] = any("data files" in f for f in found_files)
-    
+
     if missing_files:
         for mf in missing_files:
             results['errors'].append(f"Missing required file: {mf}")
@@ -285,11 +285,11 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
     else:
         if verbose:
             print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} All required files present")
-    
+
     # Check README
     readme_path = dataset_path / "README.md"
     results['has_readme'] = readme_path.exists()
-    
+
     if not readme_path.exists():
         results['errors'].append("Missing README.md")
         if verbose:
@@ -298,7 +298,7 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
     else:
         if verbose:
             print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} README.md exists")
-    
+
     # Check sections
     sections = check_readme_sections(readme_path)
     for section in REQUIRED_SECTIONS:
@@ -307,32 +307,32 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
             results['errors'].append(f"Missing required section: {section}")
             if verbose:
                 print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing section: {section}")
-    
+
     for section in RECOMMENDED_SECTIONS:
         results['recommended_sections'][section] = sections[section]
         if not sections[section]:
             results['warnings'].append(f"Missing recommended section: {section}")
-    
+
     if verbose and not results['errors']:
         print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} All required sections present")
-    
+
     # Check code examples
     num_blocks, languages = check_readme_code_blocks(readme_path)
     results['num_code_blocks'] = num_blocks
     results['code_languages'] = languages
-    
+
     if num_blocks < 3:
         results['warnings'].append(f"Only {num_blocks} code blocks (recommend ≥3)")
         if verbose:
             print(f"  {Colors.YELLOW}[{WARN}]{Colors.END} Only {num_blocks} code blocks (recommend ≥3)")
     elif verbose:
         print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} {num_blocks} code blocks found")
-    
+
     if 'python' not in languages:
         results['warnings'].append("No Python loading examples found")
         if verbose:
             print(f"  {Colors.YELLOW}[{WARN}]{Colors.END} No Python loading examples")
-    
+
     # Check parameter table
     results['has_parameter_table'] = check_parameter_table(readme_path)
     if not results['has_parameter_table']:
@@ -341,18 +341,18 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
             print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing parameter effects table")
     elif verbose:
         print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} Parameter effects table present")
-    
+
     is_valid = len(results['errors']) == 0
-    
+
     if verbose:
         if is_valid:
             print(f"  {Colors.GREEN}{Colors.BOLD}Status: VALID [{CHECK}]{Colors.END}")
         else:
             print(f"  {Colors.RED}{Colors.BOLD}Status: INVALID [{CROSS}]{Colors.END}")
-        
+
         if results['warnings']:
             print(f"  {Colors.YELLOW}Warnings: {len(results['warnings'])}{Colors.END}")
-    
+
     return is_valid, results
 
 
@@ -399,15 +399,15 @@ def print_summary(results_list: List[Tuple[bool, Dict]]):
     """
     valid_count = sum(1 for is_valid, _ in results_list if is_valid)
     total_count = len(results_list)
-    
+
     print(f"\n{Colors.BOLD}{'='*70}{Colors.END}")
     print(f"{Colors.BOLD}VALIDATION SUMMARY{Colors.END}")
     print(f"{Colors.BOLD}{'='*70}{Colors.END}\n")
-    
+
     print(f"Total datasets checked: {total_count}")
     print(f"Valid datasets: {Colors.GREEN}{valid_count}{Colors.END}")
     print(f"Invalid datasets: {Colors.RED}{total_count - valid_count}{Colors.END}")
-    
+
     if valid_count == total_count:
         print(f"\n{Colors.GREEN}{Colors.BOLD}All datasets have complete documentation! [{CHECK}]{Colors.END}")
     else:
@@ -416,11 +416,11 @@ def print_summary(results_list: List[Tuple[bool, Dict]]):
         for is_valid, results in results_list:
             if not is_valid:
                 print(f"  - {results['path'].name}: {len(results['errors'])} errors")
-    
+
     # Print statistics
     total_errors = sum(len(r['errors']) for _, r in results_list)
     total_warnings = sum(len(r['warnings']) for _, r in results_list)
-    
+
     print(f"\nTotal errors: {Colors.RED}{total_errors}{Colors.END}")
     print(f"Total warnings: {Colors.YELLOW}{total_warnings}{Colors.END}")
 
@@ -445,40 +445,40 @@ Examples:
   python tools/validate_dataset_docs.py --strict
         """
     )
-    
+
     parser.add_argument(
         'dataset',
         nargs='?',
         help='Specific dataset to check (default: check all)'
     )
-    
+
     parser.add_argument(
         '--quiet', '-q',
         action='store_true',
         help='Only print summary (no per-dataset details)'
     )
-    
+
     parser.add_argument(
         '--strict',
         action='store_true',
         help='Treat warnings as errors'
     )
-    
+
     parser.add_argument(
         '--data-dir',
         type=str,
         default='data/sim',
         help='Path to data/sim directory (default: data/sim)'
     )
-    
+
     args = parser.parse_args()
-    
+
     # Find data/sim directory
     data_sim_path = Path(args.data_dir)
     if not data_sim_path.exists():
         print(f"{Colors.RED}Error: Directory not found: {data_sim_path}{Colors.END}")
         return 1
-    
+
     # Find datasets to check
     if args.dataset:
         dataset_path = data_sim_path / args.dataset
@@ -491,26 +491,26 @@ Examples:
         if not datasets_to_check:
             print(f"{Colors.YELLOW}No datasets found in {data_sim_path}{Colors.END}")
             return 0
-    
+
     print(f"{Colors.BOLD}Dataset Documentation Validator{Colors.END}")
     print(f"Checking {len(datasets_to_check)} dataset(s)...")
-    
+
     # Validate each dataset
     results_list = []
     for dataset_path in datasets_to_check:
         is_valid, results = validate_dataset(dataset_path, verbose=not args.quiet)
-        
+
         # In strict mode, treat warnings as errors
         if args.strict and results['warnings']:
             is_valid = False
             results['errors'].extend(results['warnings'])
             results['warnings'] = []
-        
+
         results_list.append((is_valid, results))
-    
+
     # Print summary
     print_summary(results_list)
-    
+
     # --strict is a "show me everything" mode, so the register does not apply.
     #
     # It promotes the recommended-section warnings to errors, which fails eight

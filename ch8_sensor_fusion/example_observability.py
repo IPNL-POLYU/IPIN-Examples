@@ -47,21 +47,21 @@ def generate_trajectory(
     """
     t = np.arange(0, duration, dt)
     n = len(t)
-    
+
     # Create a figure-8 trajectory
     p_xy = np.zeros((n, 2))
     v_xy = np.zeros((n, 2))
-    
+
     for i, ti in enumerate(t):
         # Figure-8 parametric curve
         angle = 2 * np.pi * ti / duration
         p_xy[i, 0] = 5 * np.sin(angle)
         p_xy[i, 1] = 5 * np.sin(2 * angle)
-        
+
         # Velocity (derivative)
         v_xy[i, 0] = 5 * (2 * np.pi / duration) * np.cos(angle)
         v_xy[i, 1] = 5 * 2 * (2 * np.pi / duration) * np.cos(2 * angle)
-    
+
     return {'t': t, 'p_xy': p_xy, 'v_xy': v_xy}
 
 
@@ -83,14 +83,14 @@ def generate_odometry_measurements(
     """
     p_xy = trajectory['p_xy']
     t = trajectory['t']
-    
+
     # Compute increments (odometry measures displacement between steps)
     delta_p = np.diff(p_xy, axis=0)
-    
+
     # Add noise
     noise = np.random.randn(*delta_p.shape) * noise_std
     delta_p_noisy = delta_p + noise
-    
+
     return {
         't': t[1:],  # Odometry starts at t[1]
         'delta_p': delta_p_noisy,
@@ -118,14 +118,14 @@ def generate_absolute_fixes(
     t = trajectory['t']
     p_xy = trajectory['p_xy']
     dt = t[1] - t[0]
-    
+
     # Sample at fix_rate
     fix_interval = int(1.0 / (fix_rate * dt))
     fix_indices = np.arange(0, len(t), fix_interval)
-    
+
     t_fix = t[fix_indices]
     p_fix = p_xy[fix_indices] + np.random.randn(len(fix_indices), 2) * noise_std
-    
+
     return {
         't_fix': t_fix,
         'p_fix': p_fix,
@@ -168,40 +168,40 @@ def compute_observability_matrix(
         max_steps = len(H_sequence)
     else:
         max_steps = min(max_steps, len(H_sequence))
-    
+
     if max_steps == 0:
         raise ValueError("Need at least one measurement")
-    
+
     n_states = F_sequence[0].shape[0]  # State dimension
-    
+
     # Build observability matrix row by row
     O_rows = []
-    
+
     # Φ(k,0) = state transition from time 0 to k
     # Φ(k,0) = F_k * F_{k-1} * ... * F_1
     Phi_k_0 = np.eye(n_states)  # Φ(0,0) = I
-    
+
     for k in range(max_steps):
         H_k = H_sequence[k]
-        
+
         # Add H_k * Φ(k,0) to observability matrix
         O_rows.append(H_k @ Phi_k_0)
-        
+
         # Update state transition matrix for next iteration
         # Φ(k+1,0) = F_{k+1} * Φ(k,0)
         if k < len(F_sequence):
             Phi_k_0 = F_sequence[k] @ Phi_k_0
-    
+
     # Stack all rows
     O_EKF = np.vstack(O_rows)
-    
+
     # Compute rank using SVD
     U, s, Vt = np.linalg.svd(O_EKF, full_matrices=False)
-    
+
     # Numerical rank (count singular values above threshold)
     tol = max(O_EKF.shape) * np.spacing(s[0])
     rank = np.sum(s > tol)
-    
+
     return O_EKF, rank, s
 
 
@@ -319,27 +319,27 @@ def analyze_unobservable_states(
         Chapter 8, Section 8.2: Observability Analysis
     """
     n_states = O_EKF.shape[1]
-    
+
     if state_names is None:
         state_names = [f'x{i}' for i in range(n_states)]
-    
+
     # Perform SVD to find null space
     U, s, Vt = np.linalg.svd(O_EKF, full_matrices=True)
-    
+
     # Determine tolerance
     if tolerance is None:
         tolerance = max(O_EKF.shape) * np.spacing(s[0])
-    
+
     # Null space = columns of V corresponding to zero singular values
     # These are the unobservable directions
     n_unobservable = n_states - rank
-    
+
     if n_unobservable > 0:
         # Last n_unobservable columns of Vt are the null space
         unobservable_modes = Vt[-n_unobservable:, :].T
     else:
         unobservable_modes = np.array([]).reshape(n_states, 0)
-    
+
     return {
         'n_states': n_states,
         'n_observable': rank,
@@ -378,14 +378,14 @@ def run_odometry_only_fusion(
         trajectory['v_xy'][0, 0],
         trajectory['v_xy'][0, 1]
     ])
-    
+
     P0 = np.diag([1.0, 1.0, 0.5, 0.5])**2  # Initial covariance
-    
+
     # Process model: constant velocity
     def process_model(x, u, dt):
         px, py, vx, vy = x
         return np.array([px + vx * dt, py + vy * dt, vx, vy])
-    
+
     def process_jacobian(x, u, dt):
         F = np.array([
             [1, 0, dt, 0],
@@ -394,7 +394,7 @@ def run_odometry_only_fusion(
             [0, 0, 0, 1]
         ])
         return F
-    
+
     def process_noise_cov(dt):
         # Process noise (small velocity perturbations)
         q_v = 0.1**2
@@ -405,14 +405,14 @@ def run_odometry_only_fusion(
             [0, 0.5 * q_v * dt**3, 0, q_v * dt**2]
         ])
         return Q
-    
+
     # Measurement model: odometry increment
     # z = [delta_px, delta_py] = [vx * dt, vy * dt] (approximately)
     def measurement_model(x):
         # Odometry observes incremental displacement
         # This is velocity * dt, but we'll use the actual delta from measurements
         return np.array([x[2], x[3]])  # Return velocity as proxy
-    
+
     def measurement_jacobian(x):
         # H observes velocity only (position is unobservable!)
         H = np.array([
@@ -420,11 +420,11 @@ def run_odometry_only_fusion(
             [0, 0, 0, 1]
         ])
         return H
-    
+
     def measurement_noise_cov():
         R = np.eye(2) * odometry['noise_std']**2
         return R
-    
+
     # Initialize EKF
     ekf = ExtendedKalmanFilter(
         process_model=process_model,
@@ -436,7 +436,7 @@ def run_odometry_only_fusion(
         x0=x0,
         P0=P0
     )
-    
+
     # Run fusion
     dt = trajectory['t'][1] - trajectory['t'][0]
     history = {
@@ -446,34 +446,34 @@ def run_odometry_only_fusion(
         'H_sequence': [],  # For observability analysis
         'F_sequence': []   # For observability analysis
     }
-    
+
     # Initial state
     history['t'].append(trajectory['t'][0])
     history['x_est'].append(ekf.state.copy())
     history['P_trace'].append(np.trace(ekf.covariance))
-    
+
     for i, delta_p in enumerate(odometry['delta_p']):
         # Predict
         F = process_jacobian(ekf.state, None, dt)
         history['F_sequence'].append(F)
         ekf.predict(u=None, dt=dt)
-        
+
         # Update with odometry (velocity measurement as proxy for increment)
         z = delta_p / dt  # Convert increment to velocity
         H = measurement_jacobian(ekf.state)
         history['H_sequence'].append(H)
         ekf.update(z)
-        
+
         # Log
         history['t'].append(odometry['t'][i])
         history['x_est'].append(ekf.state.copy())
         history['P_trace'].append(np.trace(ekf.covariance))
-    
+
     # Convert to arrays
     history['t'] = np.array(history['t'])
     history['x_est'] = np.array(history['x_est'])
     history['P_trace'] = np.array(history['P_trace'])
-    
+
     return history
 
 
@@ -505,14 +505,14 @@ def run_odometry_with_fixes_fusion(
         trajectory['v_xy'][0, 0],
         trajectory['v_xy'][0, 1]
     ])
-    
+
     P0 = np.diag([1.0, 1.0, 0.5, 0.5])**2
-    
+
     # Process model (same as before)
     def process_model(x, u, dt):
         px, py, vx, vy = x
         return np.array([px + vx * dt, py + vy * dt, vx, vy])
-    
+
     def process_jacobian(x, u, dt):
         return np.array([
             [1, 0, dt, 0],
@@ -520,7 +520,7 @@ def run_odometry_with_fixes_fusion(
             [0, 0, 1, 0],
             [0, 0, 0, 1]
         ])
-    
+
     def process_noise_cov(dt):
         q_v = 0.1**2
         Q = np.array([
@@ -530,34 +530,34 @@ def run_odometry_with_fixes_fusion(
             [0, 0.5 * q_v * dt**3, 0, q_v * dt**2]
         ])
         return Q
-    
+
     # Odometry measurement model
     def odom_measurement_model(x):
         return np.array([x[2], x[3]])
-    
+
     def odom_measurement_jacobian(x):
         return np.array([
             [0, 0, 1, 0],
             [0, 0, 0, 1]
         ])
-    
+
     def odom_measurement_noise_cov():
         return np.eye(2) * odometry['noise_std']**2
-    
+
     # Absolute position measurement model
     def pos_measurement_model(x):
         return np.array([x[0], x[1]])  # Observe ABSOLUTE position
-    
+
     def pos_measurement_jacobian(x):
         # H observes position directly (makes translation observable!)
         return np.array([
             [1, 0, 0, 0],
             [0, 1, 0, 0]
         ])
-    
+
     def pos_measurement_noise_cov():
         return np.eye(2) * absolute_fixes['noise_std']**2
-    
+
     # Initialize EKF
     ekf = ExtendedKalmanFilter(
         process_model=process_model,
@@ -569,12 +569,12 @@ def run_odometry_with_fixes_fusion(
         x0=x0,
         P0=P0
     )
-    
+
     # Merge odometry and fixes by timestamp
     from core.fusion import StampedMeasurement
-    
+
     measurements = []
-    
+
     # Add odometry
     for i in range(len(odometry['t'])):
         measurements.append(StampedMeasurement(
@@ -584,7 +584,7 @@ def run_odometry_with_fixes_fusion(
             R=np.eye(2) * odometry['noise_std']**2,
             meta={}
         ))
-    
+
     # Add absolute fixes
     for i in range(len(absolute_fixes['t_fix'])):
         measurements.append(StampedMeasurement(
@@ -594,10 +594,10 @@ def run_odometry_with_fixes_fusion(
             R=np.eye(2) * absolute_fixes['noise_std']**2,
             meta={}
         ))
-    
+
     # Sort by timestamp
     measurements.sort(key=lambda m: m.t)
-    
+
     # Run fusion
     history = {
         't': [],
@@ -607,22 +607,22 @@ def run_odometry_with_fixes_fusion(
         'H_sequence': [],  # For observability analysis
         'F_sequence': []   # For observability analysis
     }
-    
+
     # Initial state
     history['t'].append(trajectory['t'][0])
     history['x_est'].append(ekf.state.copy())
     history['P_trace'].append(np.trace(ekf.covariance))
-    
+
     t_prev = trajectory['t'][0]
-    
+
     for meas in measurements:
         dt_step = meas.t - t_prev
-        
+
         # Predict
         F = process_jacobian(ekf.state, None, dt_step)
         history['F_sequence'].append(F)
         ekf.predict(u=None, dt=dt_step)
-        
+
         # Update based on sensor type
         if meas.sensor == 'odometry':
             # Odometry update (velocity)
@@ -630,42 +630,42 @@ def run_odometry_with_fixes_fusion(
             H_odom = odom_measurement_jacobian(ekf.state)
             history['H_sequence'].append(H_odom)
             R_odom = odom_measurement_noise_cov()
-            
+
             # Manual update (simpler than switching models)
             y = z_odom - odom_measurement_model(ekf.state)
             S = H_odom @ ekf.covariance @ H_odom.T + R_odom
             K = ekf.covariance @ H_odom.T @ np.linalg.inv(S)
             ekf.state = ekf.state + K @ y
             ekf.covariance = (np.eye(4) - K @ H_odom) @ ekf.covariance
-        
+
         elif meas.sensor == 'position_fix':
             # Position fix update (absolute position)
             z_pos = meas.z
             H_pos = pos_measurement_jacobian(ekf.state)
             history['H_sequence'].append(H_pos)
             R_pos = pos_measurement_noise_cov()
-            
+
             y = z_pos - pos_measurement_model(ekf.state)
             S = H_pos @ ekf.covariance @ H_pos.T + R_pos
             K = ekf.covariance @ H_pos.T @ np.linalg.inv(S)
             ekf.state = ekf.state + K @ y
             ekf.covariance = (np.eye(4) - K @ H_pos) @ ekf.covariance
-            
+
             history['fix_times'].append(meas.t)
-        
+
         # Log
         history['t'].append(meas.t)
         history['x_est'].append(ekf.state.copy())
         history['P_trace'].append(np.trace(ekf.covariance))
-        
+
         t_prev = meas.t
-    
+
     # Convert to arrays
     history['t'] = np.array(history['t'])
     history['x_est'] = np.array(history['x_est'])
     history['P_trace'] = np.array(history['P_trace'])
     history['fix_times'] = np.array(history['fix_times'])
-    
+
     return history
 
 
@@ -691,13 +691,13 @@ def plot_example_observability(
     """
     fig = plt.figure(figsize=(16, 10))
     gs = GridSpec(2, 3, figure=fig, hspace=0.3, wspace=0.3)
-    
+
     # Color scheme
     color_truth = 'black'
     color_odom1 = 'tab:red'
     color_odom2 = 'tab:purple'
     color_fixes = 'tab:green'
-    
+
     # 1. Odometry-only: Two translations
     ax1 = fig.add_subplot(gs[0, 0])
     ax1.plot(trajectory['p_xy'][:, 0], trajectory['p_xy'][:, 1],
@@ -717,7 +717,7 @@ def plot_example_observability(
     ax1.legend(fontsize=8)
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
-    
+
     # 2. Odometry + Fixes
     ax2 = fig.add_subplot(gs[0, 1])
     ax2.plot(trajectory['p_xy'][:, 0], trajectory['p_xy'][:, 1],
@@ -741,7 +741,7 @@ def plot_example_observability(
     ax2.legend(fontsize=8)
     ax2.grid(True, alpha=0.3)
     ax2.axis('equal')
-    
+
     # 3. Comparison
     ax3 = fig.add_subplot(gs[0, 2])
     ax3.plot(trajectory['p_xy'][:, 0], trajectory['p_xy'][:, 1],
@@ -758,7 +758,7 @@ def plot_example_observability(
     ax3.legend(fontsize=8)
     ax3.grid(True, alpha=0.3)
     ax3.axis('equal')
-    
+
     # 4. Position errors (Odom-only)
     ax4 = fig.add_subplot(gs[1, 0])
     # Interpolate truth
@@ -769,10 +769,10 @@ def plot_example_observability(
         ])
         errors = history['x_est'][:, :2] - p_true_interp
         return np.linalg.norm(errors, axis=1)
-    
+
     error_odom1 = get_errors(odom_only_1)
     error_odom2 = get_errors(odom_only_2)
-    
+
     ax4.plot(odom_only_1['t'], error_odom1, color=color_odom1,
             linewidth=1.5, label='Offset=[0,0]')
     ax4.plot(odom_only_2['t'], error_odom2, color=color_odom2,
@@ -782,7 +782,7 @@ def plot_example_observability(
     ax4.set_title('Odometry-Only: Constant Translation Error')
     ax4.legend()
     ax4.grid(True, alpha=0.3)
-    
+
     # 5. Position error (Odom + Fixes)
     ax5 = fig.add_subplot(gs[1, 1])
     error_fixes = get_errors(odom_with_fixes)
@@ -794,7 +794,7 @@ def plot_example_observability(
     ax5.set_ylabel('Position Error [m]')
     ax5.set_title('Odom + Fixes: Error Corrected at Fixes')
     ax5.grid(True, alpha=0.3)
-    
+
     # 6. Covariance trace
     ax6 = fig.add_subplot(gs[1, 2])
     ax6.plot(odom_only_1['t'], odom_only_1['P_trace'],
@@ -809,10 +809,10 @@ def plot_example_observability(
     ax6.set_title('Covariance: Fixes Reduce Uncertainty')
     ax6.legend()
     ax6.grid(True, alpha=0.3)
-    
+
     fig.suptitle('Observability Demo: Odometry-Only vs Odometry + Absolute Fixes',
                 fontsize=16, fontweight='bold')
-    
+
     if save_path:
         # Via save_figure, not plt.savefig: it writes the book's svg/pdf
         # alongside the png and strips the timestamps and random element ids
@@ -842,11 +842,11 @@ def main():
         default=42,
         help="Random seed"
     )
-    
+
     args = parser.parse_args()
-    
+
     np.random.seed(args.seed)
-    
+
     print("\n" + "="*70)
     print("Observability Demonstration (Chapter 8)")
     print("="*70)
@@ -855,65 +855,65 @@ def main():
     print("  -> Translation is UNOBSERVABLE from odometry alone.")
     print("  -> Adding absolute position fixes makes translation OBSERVABLE.")
     print("")
-    
+
     # Generate trajectory
     print("[1/6] Generating trajectory...")
     trajectory = generate_trajectory(duration=30.0, speed=1.0, dt=0.1)
-    
+
     # Generate measurements
     print("[2/6] Generating odometry measurements...")
     odometry = generate_odometry_measurements(trajectory, noise_std=0.05)
-    
+
     print("[3/6] Generating absolute position fixes (1 Hz)...")
     absolute_fixes = generate_absolute_fixes(trajectory, fix_rate=1.0, noise_std=0.5)
-    
+
     # Run fusions
     translation_offset = np.array([3.0, 2.0])
-    
+
     print("[4/6] Running odometry-only fusion (offset [0, 0])...")
     odom_only_1 = run_odometry_only_fusion(
         trajectory, odometry, translation_offset=np.array([0.0, 0.0])
     )
-    
+
     print(f"[5/6] Running odometry-only fusion (offset {translation_offset})...")
     odom_only_2 = run_odometry_only_fusion(
         trajectory, odometry, translation_offset=translation_offset
     )
-    
+
     print("[6/6] Running odometry + absolute fixes fusion...")
     odom_with_fixes = run_odometry_with_fixes_fusion(
         trajectory, odometry, absolute_fixes, translation_offset=translation_offset
     )
-    
+
     # Perform observability analysis (Eq. 8.3)
     print("\n" + "="*70)
     print("Observability Analysis (Equation 8.3)")
     print("="*70)
-    
+
     state_names = ['px', 'py', 'vx', 'vy']
-    
+
     print("\n[A] Odometry-Only System:")
     print("-" * 70)
-    
+
     # Limit analysis to first 50 steps for computational efficiency
     max_steps = min(50, len(odom_only_1['H_sequence']))
-    
+
     O_odom, rank_odom, s_odom = compute_observability_matrix(
         odom_only_1['H_sequence'],
         odom_only_1['F_sequence'],
         max_steps=max_steps
     )
-    
+
     obs_analysis_odom = analyze_unobservable_states(
         O_odom, rank_odom, state_names=state_names
     )
-    
+
     print(f"  State dimension: {obs_analysis_odom['n_states']}")
     print(f"  Observable states: {obs_analysis_odom['n_observable']}")
     print(f"  Unobservable states: {obs_analysis_odom['n_unobservable']}")
     print(f"  Observability matrix shape: {O_odom.shape}")
     print(f"  Rank: {rank_odom} / {obs_analysis_odom['n_states']}")
-    
+
     if obs_analysis_odom['n_unobservable'] > 0:
         print("\n  Unobservable modes (null space basis):")
         for i in range(obs_analysis_odom['n_unobservable']):
@@ -939,30 +939,30 @@ def main():
             ][:2]
             dominant_states = [state_names[j] for j in dominant_idx]
             print(f"              (dominant: {', '.join(dominant_states)})")
-    
+
     print(f"\n  Singular values (first 5): {s_odom[:5]}")
-    
+
     print("\n[B] Odometry + Absolute Fixes System:")
     print("-" * 70)
-    
+
     max_steps_fixes = min(50, len(odom_with_fixes['H_sequence']))
-    
+
     O_fixes, rank_fixes, s_fixes = compute_observability_matrix(
         odom_with_fixes['H_sequence'],
         odom_with_fixes['F_sequence'],
         max_steps=max_steps_fixes
     )
-    
+
     obs_analysis_fixes = analyze_unobservable_states(
         O_fixes, rank_fixes, state_names=state_names
     )
-    
+
     print(f"  State dimension: {obs_analysis_fixes['n_states']}")
     print(f"  Observable states: {obs_analysis_fixes['n_observable']}")
     print(f"  Unobservable states: {obs_analysis_fixes['n_unobservable']}")
     print(f"  Observability matrix shape: {O_fixes.shape}")
     print(f"  Rank: {rank_fixes} / {obs_analysis_fixes['n_states']}")
-    
+
     if obs_analysis_fixes['n_unobservable'] > 0:
         print("\n  Unobservable modes:")
         for i in range(obs_analysis_fixes['n_unobservable']):
@@ -970,9 +970,9 @@ def main():
             print(f"    Mode {i+1}: {dict(zip(state_names, mode))}")
     else:
         print("\n  System is FULLY OBSERVABLE!")
-    
+
     print(f"\n  Singular values (first 5): {s_fixes[:5]}")
-    
+
     print("\n[C] Key Observation:")
     print("-" * 70)
     if obs_analysis_odom['n_unobservable'] > obs_analysis_fixes['n_unobservable']:
@@ -980,17 +980,17 @@ def main():
         print(f"  * Adding absolute fixes reduces this to {obs_analysis_fixes['n_unobservable']}")
         print("  * The unobservable directions correspond to constant translation")
         print("  * This matches the book's observability analysis (Section 8.2)")
-    
+
     # Compute final errors
     def final_error(history):
         p_true_final = trajectory['p_xy'][-1]
         p_est_final = history['x_est'][-1, :2]
         return np.linalg.norm(p_true_final - p_est_final)
-    
+
     error_odom1 = final_error(odom_only_1)
     error_odom2 = final_error(odom_only_2)
     error_fixes = final_error(odom_with_fixes)
-    
+
     print("\n" + "="*70)
     print("Results")
     print("="*70)
@@ -1000,7 +1000,7 @@ def main():
     print(f"{'Odometry-only (offset [3, 2])':<35} {error_odom2:>15.3f}")
     print(f"{'Odometry + Absolute Fixes':<35} {error_fixes:>15.3f}")
     print("="*70)
-    
+
     # Theory against measurement, side by side. This used to print the offset
     # magnitude formatted as though it were the measured error, directly under
     # a table giving a different number for the same quantity.
@@ -1026,7 +1026,7 @@ def main():
     print("    more precise. Observability is about which errors can be "
           "corrected at all, not about how small they end up.")
     print("")
-    
+
     # Plot
     save_path = args.save if args.save else "ch8_sensor_fusion/figs/observability_demo.svg"
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)

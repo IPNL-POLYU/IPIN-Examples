@@ -38,12 +38,12 @@ class Submap2D:
         - No automatic downsampling unless explicitly requested
         - Thread-safety: not thread-safe, use external locking if needed
     """
-    
+
     def __init__(self) -> None:
         """Initialize an empty submap."""
         self.points: np.ndarray = np.empty((0, 2), dtype=np.float64)
         self.n_scans: int = 0
-    
+
     def add_scan(self, pose_se2: np.ndarray, scan_xy: np.ndarray) -> None:
         """Add a scan to the submap by transforming it into map frame.
         
@@ -67,22 +67,22 @@ class Submap2D:
             raise ValueError(f"pose_se2 must have shape (3,), got {pose_se2.shape}")
         if scan_xy.ndim != 2 or scan_xy.shape[1] != 2:
             raise ValueError(f"scan_xy must have shape (N, 2), got {scan_xy.shape}")
-        
+
         if len(scan_xy) == 0:
             # Empty scan, nothing to add
             return
-        
+
         # Transform scan points from robot frame to map frame
         map_points = se2_apply(pose_se2, scan_xy)
-        
+
         # Append to existing points
         if self.points.shape[0] == 0:
             self.points = map_points
         else:
             self.points = np.vstack([self.points, map_points])
-        
+
         self.n_scans += 1
-    
+
     def get_points(self, voxel_size: Optional[float] = None) -> np.ndarray:
         """Get all map points, optionally downsampled.
         
@@ -108,13 +108,13 @@ class Submap2D:
         """
         if self.points.shape[0] == 0:
             return self.points.copy()
-        
+
         if voxel_size is None:
             return self.points.copy()
-        
+
         # Voxel grid downsampling
         return self._voxel_downsample(self.points, voxel_size)
-    
+
     def downsample(self, voxel_size: float) -> None:
         """Downsample map points in-place using voxel grid filter.
         
@@ -135,9 +135,9 @@ class Submap2D:
         """
         if self.points.shape[0] == 0:
             return
-        
+
         self.points = self._voxel_downsample(self.points, voxel_size)
-    
+
     def clear(self) -> None:
         """Clear all points and reset scan count.
         
@@ -154,7 +154,7 @@ class Submap2D:
         """
         self.points = np.empty((0, 2), dtype=np.float64)
         self.n_scans = 0
-    
+
     def __len__(self) -> int:
         """Return number of points in the submap.
         
@@ -162,7 +162,7 @@ class Submap2D:
             Number of points currently stored.
         """
         return self.points.shape[0]
-    
+
     @staticmethod
     def _voxel_downsample(points: np.ndarray, voxel_size: float) -> np.ndarray:
         """Voxel grid downsampling using quantization and centroid computation.
@@ -181,13 +181,13 @@ class Submap2D:
         """
         if voxel_size <= 0:
             raise ValueError(f"voxel_size must be positive, got {voxel_size}")
-        
+
         if points.shape[0] == 0:
             return points.copy()
-        
+
         # Quantize points to voxel indices
         voxel_indices = np.floor(points / voxel_size).astype(np.int32)
-        
+
         # Group points by voxel using dictionary
         voxel_dict = {}
         for i, voxel_idx in enumerate(voxel_indices):
@@ -195,11 +195,11 @@ class Submap2D:
             if key not in voxel_dict:
                 voxel_dict[key] = []
             voxel_dict[key].append(points[i])
-        
+
         # Compute centroid for each voxel
         downsampled = []
         for voxel_points in voxel_dict.values():
             centroid = np.mean(voxel_points, axis=0)
             downsampled.append(centroid)
-        
+
         return np.array(downsampled)

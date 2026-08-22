@@ -156,7 +156,7 @@ class TestWheelSpeedToAttitudeVelocity(unittest.TestCase):
         v_s = np.array([0.0, 5.0, 0.0])  # 5 m/s forward in S-frame
         omega = np.array([0.0, 0.0, 0.5])  # yaw rate
         lever_arm = np.array([0.0, 0.5, 0.0])  # forward offset
-        
+
         # Rotation matrix: 90° about z (S-frame rotated 90° relative to A-frame)
         angle = np.pi / 2
         C_S_A = np.array([
@@ -194,7 +194,7 @@ class TestWheelSpeedToAttitudeVelocity(unittest.TestCase):
         v_s = np.array([0.0, 5.0, 0.0])  # Forward in S-frame
         omega = np.zeros(3)
         lever_arm = np.zeros(3)
-        
+
         # 180° rotation about z-axis
         C_S_A = np.array([
             [-1, 0, 0],

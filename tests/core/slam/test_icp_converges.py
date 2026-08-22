@@ -93,7 +93,7 @@ class TestICPConvergence:
         # ICP struggles with large rotations from zero initial guess
         # Provide a reasonable initial guess (within ~20 degrees)
         initial_guess = np.array([0.3, 0.3, np.pi / 8])
-        
+
         pose, iters, residual, converged = icp_point_to_point(
             simple_scan,
             target,
@@ -116,7 +116,7 @@ class TestICPConvergence:
 
         # Moderate rotation with reasonable initial guess
         initial_guess = np.array([0.7, 0.5, np.pi / 15])  # 12 degrees
-        
+
         pose, iters, residual, converged = icp_point_to_point(
             simple_scan,
             target,
@@ -155,7 +155,7 @@ class TestICPConvergence:
         assert converged_with_init, "ICP should converge with good guess"
         assert iters_with_init <= iters_moderate, \
             "Better initial guess should not increase iterations"
-        
+
         # Good guess should be reasonably accurate
         np.testing.assert_allclose(pose_with_init, true_pose, atol=0.25)
 
@@ -163,7 +163,7 @@ class TestICPConvergence:
         """Test ICP robustness to measurement noise."""
         np.random.seed(999)
         true_pose = np.array([0.5, 0.3, np.pi / 16])  # Small rotation (11.25 deg)
-        
+
         # Apply transformation and add noise
         target_clean = se2_apply(true_pose, simple_scan)
         noise = np.random.normal(0, 0.03, target_clean.shape)  # 3cm noise
@@ -171,7 +171,7 @@ class TestICPConvergence:
 
         # Provide reasonable initial guess to help convergence with noise
         initial_guess = np.array([0.4, 0.2, 0.1])
-        
+
         pose, iters, residual, converged = icp_point_to_point(
             simple_scan,
             target_noisy,
@@ -192,14 +192,14 @@ class TestICPConvergence:
         """Test ICP with partial scan overlap."""
         np.random.seed(555)
         true_pose = np.array([0.5, 0.5, 0.0])
-        
+
         # Take only subset of points to simulate partial overlap
         source_subset = dense_scan[::2]  # Every other point
         target = se2_apply(true_pose, dense_scan)
 
         # Provide good initial guess to help with partial overlap
         initial_guess = np.array([0.4, 0.4, 0.0])
-        
+
         pose, iters, residual, converged = icp_point_to_point(
             source_subset,
             target,
@@ -241,7 +241,7 @@ class TestICPRegressionThresholds:
     def test_icp_accuracy_threshold_small_noise(self):
         """Regression: ICP should achieve <10cm RMSE on clean scans with good guess."""
         np.random.seed(100)
-        
+
         # Generate structured scan
         scan = np.array([
             [i, j]
@@ -254,7 +254,7 @@ class TestICPRegressionThresholds:
 
         # Provide good initial guess
         initial_guess = np.array([0.9, 1.4, np.pi / 20])
-        
+
         pose, _, residual, converged = icp_point_to_point(
             scan, target, initial_pose=initial_guess, max_iterations=100
         )
@@ -263,14 +263,14 @@ class TestICPRegressionThresholds:
         assert converged, "Must converge"
         pose_error = np.linalg.norm(pose[:2] - true_pose[:2])
         assert pose_error < 0.10, f"Position error {pose_error:.4f}m exceeds 10cm threshold"
-        
+
         angle_error = np.abs(pose[2] - true_pose[2])
         assert angle_error < np.deg2rad(5), f"Angle error {np.rad2deg(angle_error):.2f}deg exceeds 5deg threshold"
 
     def test_icp_accuracy_threshold_with_noise(self):
         """Regression: ICP should achieve <15cm RMSE with 5cm noise."""
         np.random.seed(200)
-        
+
         # Generate scan with moderate noise
         scan = np.random.rand(50, 2) * 5
         scan += np.random.normal(0, 0.01, scan.shape)

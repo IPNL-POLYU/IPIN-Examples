@@ -53,7 +53,7 @@ def load_dataset(data_dir: str) -> dict:
         Dictionary with loaded data arrays and config
     """
     path = Path(data_dir)
-    
+
     data = {
         'llh': np.loadtxt(path / 'llh_coordinates.txt'),
         'ecef': np.loadtxt(path / 'ecef_coordinates.txt'),
@@ -62,10 +62,10 @@ def load_dataset(data_dir: str) -> dict:
         'euler_angles': np.loadtxt(path / 'euler_angles.txt'),
         'quaternions': np.loadtxt(path / 'quaternions.txt'),
     }
-    
+
     with open(path / 'config.json') as f:
         data['config'] = json.load(f)
-    
+
     return data
 
 
@@ -79,104 +79,104 @@ def run_with_dataset(data_dir: str) -> None:
     print("Chapter 2: Coordinate Transformation Examples")
     print(f"Using dataset: {data_dir}")
     print("=" * 70)
-    
+
     # Load dataset
     data = load_dataset(data_dir)
     config = data['config']
-    
+
     print("\nDataset Info:")
     print(f"  Location: {config.get('location', 'Unknown')}")
     print(f"  Points: {len(data['llh'])}")
-    
+
     # Example 1: LLH to ECEF (verify dataset)
     print("\n1. LLH to ECEF Transformation (Dataset Verification)")
     print("-" * 70)
-    
+
     llh_sample = data['llh'][0]
     ecef_dataset = data['ecef'][0]
-    
+
     print(f"Dataset LLH: lat={np.rad2deg(llh_sample[0]):.6f}°, "
           f"lon={np.rad2deg(llh_sample[1]):.6f}°, h={llh_sample[2]:.2f}m")
     print(f"Dataset ECEF: [{ecef_dataset[0]:,.2f}, {ecef_dataset[1]:,.2f}, {ecef_dataset[2]:,.2f}] m")
-    
+
     # Verify our transform matches
     ecef_computed = llh_to_ecef(llh_sample[0], llh_sample[1], llh_sample[2])
     diff = np.linalg.norm(ecef_computed - ecef_dataset)
     print(f"Computed ECEF: [{ecef_computed[0]:,.2f}, {ecef_computed[1]:,.2f}, {ecef_computed[2]:,.2f}] m")
     print(f"Difference: {diff:.6e} m (should be ~0)")
-    
+
     # Example 2: Round-trip LLH -> ECEF -> LLH
     print("\n2. Round-Trip Accuracy Test")
     print("-" * 70)
-    
+
     errors_lat = []
     errors_lon = []
     errors_h = []
-    
+
     for i in range(min(10, len(data['llh']))):
         llh_orig = data['llh'][i]
         ecef = llh_to_ecef(llh_orig[0], llh_orig[1], llh_orig[2])
         llh_recovered = ecef_to_llh(ecef[0], ecef[1], ecef[2])
-        
+
         errors_lat.append(np.abs(llh_recovered[0] - llh_orig[0]))
         errors_lon.append(np.abs(llh_recovered[1] - llh_orig[1]))
         errors_h.append(np.abs(llh_recovered[2] - llh_orig[2]))
-    
+
     print("Round-trip errors (10 samples):")
     print(f"  Latitude:  {np.max(errors_lat):.2e} rad = {np.rad2deg(np.max(errors_lat)) * 3600:.2e} arcsec")
     print(f"  Longitude: {np.max(errors_lon):.2e} rad = {np.rad2deg(np.max(errors_lon)) * 3600:.2e} arcsec")
     print(f"  Height:    {np.max(errors_h):.2e} m")
-    
+
     # Example 3: ENU Frame
     print("\n3. Local ENU Frame")
     print("-" * 70)
-    
+
     ref_llh = data['reference_llh']
     if ref_llh.ndim == 1:
         lat_ref, lon_ref, _ = ref_llh[0], ref_llh[1], ref_llh[2]
     else:
         lat_ref, lon_ref, _ = ref_llh[0, 0], ref_llh[0, 1], ref_llh[0, 2]
-    
+
     print(f"Reference point: lat={np.rad2deg(lat_ref):.6f}°, lon={np.rad2deg(lon_ref):.6f}°")
-    
+
     # Show first few ENU coordinates
     print("\nSample ENU coordinates (from dataset):")
     for i in range(min(5, len(data['enu']))):
         enu = data['enu'][i]
         print(f"  Point {i}: E={enu[0]:.2f}m, N={enu[1]:.2f}m, U={enu[2]:.2f}m")
-    
+
     # Example 4: Rotation Representations
     print("\n4. Rotation Representations")
     print("-" * 70)
-    
+
     euler_sample = data['euler_angles'][0]
     quat_sample = data['quaternions'][0]
-    
+
     print(f"Dataset Euler: roll={np.rad2deg(euler_sample[0]):.2f}°, "
           f"pitch={np.rad2deg(euler_sample[1]):.2f}°, yaw={np.rad2deg(euler_sample[2]):.2f}°")
     print(f"Dataset Quaternion: [{quat_sample[0]:.4f}, {quat_sample[1]:.4f}, "
           f"{quat_sample[2]:.4f}, {quat_sample[3]:.4f}]")
-    
+
     # Convert and verify
     quat_computed = euler_to_quat(euler_sample[0], euler_sample[1], euler_sample[2])
     R_from_euler = euler_to_rotation_matrix(euler_sample[0], euler_sample[1], euler_sample[2])
     R_from_quat = quat_to_rotation_matrix(quat_sample)
-    
+
     print(f"\nComputed Quaternion: [{quat_computed[0]:.4f}, {quat_computed[1]:.4f}, "
           f"{quat_computed[2]:.4f}, {quat_computed[3]:.4f}]")
     print(f"Quaternion norm: {np.linalg.norm(quat_computed):.6f} (should be 1.0)")
     print(f"Rotation matrix determinant: {np.linalg.det(R_from_euler):.6f} (should be 1.0)")
-    
+
     # Example 5: Apply the coordinate transform (passive: x_new = C @ x_old)
     print("\n5. Applying the Coordinate Transform (x_new = C @ x_old)")
     print("-" * 70)
-    
+
     x_old = np.array([1.0, 0.0, 0.0])  # a point in the old frame
     x_new = R_from_quat @ x_old  # its coordinates in the rotated (new) frame
-    
+
     print(f"Point in old frame: {x_old}")
     print(f"Coordinates in new frame: [{x_new[0]:.4f}, {x_new[1]:.4f}, {x_new[2]:.4f}]")
-    
+
     print("\n" + "=" * 70)
     print("Dataset verification complete!")
     print("=" * 70)
@@ -407,9 +407,9 @@ Examples:
         default=None,
         help="Dataset name or path (e.g., 'ch2_coords_san_francisco' or full path)"
     )
-    
+
     args = parser.parse_args()
-    
+
     if args.data:
         # Resolve dataset path
         data_path = resolve_data_path(args.data)
@@ -425,7 +425,7 @@ Examples:
                     if d.is_dir() and d.name.startswith("ch2"):
                         print(f"  - {d.name}")
             return
-        
+
         run_with_dataset(str(data_path))
     else:
         run_with_inline_data()

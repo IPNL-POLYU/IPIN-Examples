@@ -44,9 +44,7 @@ HELP_TIMEOUT_S = 90
 
 
 def _examples():
-    return sorted(
-        p for p in WORKSPACE_ROOT.glob("ch*_*/example_*.py") if p.is_file()
-    )
+    return sorted(p for p in WORKSPACE_ROOT.glob("ch*_*/example_*.py") if p.is_file())
 
 
 def _module(path):
@@ -58,14 +56,16 @@ def test_help_prints_usage_and_stops(example, tmp_path):
     """`python -m <example> --help` must print usage without doing the work."""
     module = _module(example)
     env = os.environ.copy()
-    env.update({
-        "MPLBACKEND": "Agg",
-        "PYTHONPATH": str(WORKSPACE_ROOT),
-        "PYTHONIOENCODING": "utf-8",
-        # If the example ignores --help and runs anyway, its figures must not
-        # land on the committed ones.
-        "IPIN_FIGS_DIR": str(tmp_path),
-    })
+    env.update(
+        {
+            "MPLBACKEND": "Agg",
+            "PYTHONPATH": str(WORKSPACE_ROOT),
+            "PYTHONIOENCODING": "utf-8",
+            # If the example ignores --help and runs anyway, its figures must not
+            # land on the committed ones.
+            "IPIN_FIGS_DIR": str(tmp_path),
+        }
+    )
 
     try:
         run = subprocess.run(
@@ -84,9 +84,9 @@ def test_help_prints_usage_and_stops(example, tmp_path):
             "running the demonstration instead of answering."
         )
 
-    assert run.returncode == 0, (
-        f"{module} --help exited {run.returncode}.\n{run.stderr[-1500:]}"
-    )
+    assert (
+        run.returncode == 0
+    ), f"{module} --help exited {run.returncode}.\n{run.stderr[-1500:]}"
     assert "usage:" in run.stdout[:400], (
         f"{module} --help printed no usage line. Its first output was:\n\n"
         f"{run.stdout[:400]!r}\n\n"

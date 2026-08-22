@@ -239,30 +239,30 @@ def generate_imu_measurements(
     """
     N = len(t)
     dt = np.diff(t, prepend=t[0] - (t[1] - t[0]))
-    
+
     if accel_bias is None:
         accel_bias = np.zeros(2)
-    
+
     # Compute true accelerations (derivative of velocity)
     accel_xy_true = np.gradient(v_xy, axis=0) / dt[:, None]
-    
+
     # Compute true yaw rate (derivative of yaw)
     yaw_unwrapped = np.unwrap(yaw)  # handle 2π wraps
     gyro_z_true = np.gradient(yaw_unwrapped) / dt
-    
+
     # Add noise and bias
     accel_xy = (
-        accel_xy_true 
-        + accel_bias 
+        accel_xy_true
+        + accel_bias
         + np.random.randn(N, 2) * accel_noise_std
     )
-    
+
     gyro_z = (
-        gyro_z_true 
-        + gyro_bias 
+        gyro_z_true
+        + gyro_bias
         + np.random.randn(N) * gyro_noise_std
     )
-    
+
     return t, accel_xy, gyro_z
 
 
@@ -309,43 +309,43 @@ def generate_uwb_measurements(
     """
     if nlos_anchors is None:
         nlos_anchors = []
-    
+
     # 1. Generate timestamps in FUSION time (same as truth/IMU)
     dt_uwb = 1.0 / uwb_rate
     t_uwb_fusion = np.arange(t[0], t[-1], dt_uwb)
     M = len(t_uwb_fusion)
-    
+
     # 2. Convert to UWB SENSOR time using inverse of TimeSyncModel
     #    t_fusion = (1 + drift) * t_sensor + offset
     #    => t_sensor = (t_fusion - offset) / (1 + drift)
     t_uwb_sensor = (t_uwb_fusion - time_offset_sec) / (1.0 + clock_drift)
-    
+
     # 3. Interpolate positions at FUSION timestamps (ranges are measured in fusion time)
     p_xy_uwb = np.column_stack([
         np.interp(t_uwb_fusion, t, p_xy[:, 0]),
         np.interp(t_uwb_fusion, t, p_xy[:, 1])
     ])
-    
+
     # 4. Compute true ranges
     A = anchor_positions.shape[0]
     ranges_true = np.zeros((M, A))
-    
+
     for i, anchor in enumerate(anchor_positions):
         ranges_true[:, i] = np.linalg.norm(p_xy_uwb - anchor, axis=1)
-    
+
     # 5. Add noise
     ranges = ranges_true + np.random.randn(M, A) * range_noise_std
-    
+
     # 6. Add NLOS bias
     for anchor_idx in nlos_anchors:
         if 0 <= anchor_idx < A:
             ranges[:, anchor_idx] += nlos_bias
-    
+
     # 7. Add dropouts
     for i in range(A):
         dropout_mask = np.random.rand(M) < dropout_rate
         ranges[dropout_mask, i] = np.nan
-    
+
     # Return SENSOR timestamps (not fusion timestamps)
     return t_uwb_sensor, ranges
 
@@ -382,22 +382,22 @@ def generate_fusion_2d_imu_uwb_dataset(
         (other parameters documented above)
     """
     np.random.seed(seed)
-    
+
     print(f"\n{'='*70}")
     print("Generating 2D IMU + UWB Fusion Dataset")
     print(f"{'='*70}")
-    
+
     # Create output directory
     output_path = Path(output_dir)
     output_path.mkdir(parents=True, exist_ok=True)
-    
+
     # 1. Generate ground truth trajectory
     print("\n1. Generating trajectory...")
     print(f"   Rectangle: {width}m × {height}m")
     print(f"   Speed: {speed} m/s")
     print(f"   Duration: {duration} s")
     print(f"   IMU rate: {1/dt_imu:.0f} Hz")
-    
+
     t, p_xy, v_xy, yaw = generate_rectangular_trajectory(
         width=width,
         height=height,
@@ -405,10 +405,10 @@ def generate_fusion_2d_imu_uwb_dataset(
         dt=dt_imu,
         duration=duration
     )
-    
+
     print(f"   Generated {len(t)} samples")
     print(f"   Perimeter: {2*(width+height):.1f}m, {(2*(width+height)/speed):.1f}s per lap")
-    
+
     # Save ground truth
     np.savez(
         output_path / "truth.npz",
@@ -418,15 +418,15 @@ def generate_fusion_2d_imu_uwb_dataset(
         yaw=yaw
     )
     print("   Saved: truth.npz")
-    
+
     # 2. Generate IMU measurements
     print("\n2. Generating IMU measurements...")
     print(f"   Accel noise: {accel_noise_std} m/s²")
     print(f"   Gyro noise: {gyro_noise_std} rad/s")
-    
+
     if accel_bias is None:
         accel_bias = np.zeros(2)
-    
+
     t_imu, accel_xy, gyro_z = generate_imu_measurements(
         t, v_xy, yaw,
         accel_noise_std=accel_noise_std,
@@ -434,7 +434,7 @@ def generate_fusion_2d_imu_uwb_dataset(
         accel_bias=accel_bias,
         gyro_bias=gyro_bias
     )
-    
+
     np.savez(
         output_path / "imu.npz",
         t=t_imu,
@@ -443,7 +443,7 @@ def generate_fusion_2d_imu_uwb_dataset(
     )
     print(f"   Generated {len(t_imu)} IMU samples")
     print("   Saved: imu.npz")
-    
+
     # 3. Place UWB anchors at corners (plus center offset)
     print("\n3. Generating UWB measurements...")
     anchor_positions = np.array([
@@ -452,12 +452,12 @@ def generate_fusion_2d_imu_uwb_dataset(
         [width, height],      # Top-right
         [0.0, height]         # Top-left
     ])
-    
+
     np.save(output_path / "uwb_anchors.npy", anchor_positions)
     print(f"   Anchors: {anchor_positions.shape[0]} at corners")
     for i, pos in enumerate(anchor_positions):
         print(f"      Anchor {i}: ({pos[0]:.1f}, {pos[1]:.1f}) m")
-    
+
     # Generate UWB ranges
     print(f"   UWB rate: {uwb_rate} Hz")
     print(f"   Range noise: {range_noise_std} m")
@@ -467,7 +467,7 @@ def generate_fusion_2d_imu_uwb_dataset(
         print(f"   Time offset: {time_offset_sec*1000:.1f} ms")
         print(f"   Clock drift: {clock_drift*1e6:.1f} ppm")
         print("   NOTE: UWB timestamps are in SENSOR time, not fusion time")
-    
+
     t_uwb, ranges = generate_uwb_measurements(
         t, p_xy, anchor_positions,
         uwb_rate=uwb_rate,
@@ -478,23 +478,23 @@ def generate_fusion_2d_imu_uwb_dataset(
         time_offset_sec=time_offset_sec,
         clock_drift=clock_drift
     )
-    
+
     np.savez(
         output_path / "uwb_ranges.npz",
         t=t_uwb,
         ranges=ranges
     )
-    
+
     # Count dropouts
     n_dropouts = np.sum(np.isnan(ranges))
     dropout_percent = 100 * n_dropouts / ranges.size
     print(f"   Generated {len(t_uwb)} UWB samples")
     print(f"   Dropouts: {n_dropouts}/{ranges.size} ({dropout_percent:.1f}%)")
     print("   Saved: uwb_ranges.npz")
-    
+
     # 4. Save configuration
     print("\n4. Saving configuration...")
-    
+
     config = {
         "dataset_info": {
             "description": "2D IMU + UWB fusion dataset for Chapter 8",
@@ -536,12 +536,12 @@ def generate_fusion_2d_imu_uwb_dataset(
             "units": "meters"
         }
     }
-    
+
     with open(output_path / "config.json", "w") as f:
         json.dump(config, f, indent=2)
-    
+
     print("   Saved: config.json")
-    
+
     # Summary
     print(f"\n{'='*70}")
     print("Dataset generation complete!")
@@ -593,7 +593,7 @@ Examples:
 
 Available presets: """ + ", ".join(PRESETS.keys())
     )
-    
+
     # Preset configuration
     parser.add_argument(
         '--preset',
@@ -601,13 +601,13 @@ Available presets: """ + ", ".join(PRESETS.keys())
         choices=PRESETS.keys(),
         help='Use preset configuration (overrides individual parameters)'
     )
-    
+
     parser.add_argument(
         '--all-variants',
         action='store_true',
         help='Generate all 3 standard variants (baseline, nlos, timeoffset)'
     )
-    
+
     # Output
     parser.add_argument(
         '--output',
@@ -619,14 +619,14 @@ Available presets: """ + ", ".join(PRESETS.keys())
             'explicitly it always wins.'
         )
     )
-    
+
     parser.add_argument(
         '--seed',
         type=int,
         default=42,
         help='Random seed for reproducibility (default: 42)'
     )
-    
+
     # Trajectory parameters
     traj_group = parser.add_argument_group('Trajectory Parameters')
     traj_group.add_argument(
@@ -659,7 +659,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         default=0.01,
         help='IMU time step in seconds (default: 0.01, i.e., 100 Hz)'
     )
-    
+
     # IMU parameters
     imu_group = parser.add_argument_group('IMU Parameters')
     imu_group.add_argument(
@@ -694,7 +694,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         default=0.0,
         help='Gyroscope Z-axis bias in rad/s (default: 0.0)'
     )
-    
+
     # UWB parameters
     uwb_group = parser.add_argument_group('UWB Parameters')
     uwb_group.add_argument(
@@ -729,7 +729,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
         default=0.05,
         help='Measurement dropout probability per anchor (default: 0.05)'
     )
-    
+
     # Temporal calibration
     temporal_group = parser.add_argument_group('Temporal Calibration Parameters')
     temporal_group.add_argument(
@@ -745,16 +745,16 @@ Available presets: """ + ", ".join(PRESETS.keys())
         default=0.0,
         help='Relative clock drift (e.g., 0.0001 = 100 ppm) (default: 0.0)'
     )
-    
+
     # Parse arguments
     args = parser.parse_args()
-    
+
     # Handle --all-variants special case
     if args.all_variants:
         print(f"\n{'='*70}")
         print("Generating all 3 standard variants...")
         print(f"{'='*70}\n")
-        
+
         # Baseline
         print("1/3: BASELINE (no offset, no NLOS)")
         generate_fusion_2d_imu_uwb_dataset(
@@ -773,7 +773,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
             time_offset_sec=0.0,
             clock_drift=0.0
         )
-        
+
         # NLOS variant
         print("\n2/3: NLOS variant (anchors 1,2 biased +0.8m)")
         generate_fusion_2d_imu_uwb_dataset(
@@ -794,7 +794,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
             time_offset_sec=0.0,
             clock_drift=0.0
         )
-        
+
         # Time offset variant
         print("\n3/3: TIME OFFSET variant (UWB 50ms behind, 100ppm drift)")
         generate_fusion_2d_imu_uwb_dataset(
@@ -814,18 +814,18 @@ Available presets: """ + ", ".join(PRESETS.keys())
             time_offset_sec=-0.05,
             clock_drift=0.0001
         )
-        
+
         print(f"\n{'='*70}")
         print("All 3 variants generated successfully!")
         print(f"{'='*70}\n")
         return
-    
+
     # If preset is specified, override with preset values
     if args.preset:
         preset_config = PRESETS[args.preset]
         print(f"\nUsing preset: '{args.preset}'")
         print(f"Description: {preset_config['description']}\n")
-        
+
         # Override parameters with preset values
         for key, value in preset_config.items():
             if key != 'description' and hasattr(args, key):
@@ -840,7 +840,7 @@ Available presets: """ + ", ".join(PRESETS.keys())
     args.output = args.output or PRESET_DIRS.get(
         args.preset, 'data/sim/ch8_fusion_2d_imu_uwb'
     )
-    
+
     # Validate parameters
     if args.duration <= 0:
         parser.error("Duration must be positive")
@@ -857,10 +857,10 @@ Available presets: """ + ", ".join(PRESETS.keys())
     if args.nlos_anchors:
         if any(a < 0 or a > 3 for a in args.nlos_anchors):
             parser.error("NLOS anchor indices must be in [0, 3]")
-    
+
     # Build accel_bias from individual components
     accel_bias = np.array([args.accel_bias_x, args.accel_bias_y])
-    
+
     # Generate dataset
     generate_fusion_2d_imu_uwb_dataset(
         output_dir=args.output,
