@@ -1048,6 +1048,47 @@ anything goes wrong — 28 parametrised tests × eight subprocesses, in the
 instance that taught this. Collect failures and return them, then assert in a
 separate test, so a failure is reported once and the rest skip.
 
+## What an example does before it does the work
+
+Two things a reader hits on every example were decided per-file for years, so
+they disagreed roughly half and half:
+
+- **`--help` ran the whole demonstration** in 17 of 38, because those had no
+  `ArgumentParser` at all and the flag was simply ignored. It is the first thing
+  anyone types at an unfamiliar program. Each of the 17 now parses before doing
+  any work, spelled `description=__doc__` with
+  `RawDescriptionHelpFormatter` — three lines, and `--help` becomes genuinely
+  useful, because the module docstrings here already list what the example shows
+  and which equations it implements.
+- **`plt.show()` was in 19 of 38**, undocumented either way. Under a GUI backend
+  it *blocks* until the window is closed, which is what made the first usability
+  walkthrough of this repo spend minutes believing an example had hung. It is
+  one decision now, in `core.eval.show_figures_if_requested`, reading
+  `IPIN_SHOW_FIGURES` and off by default. The figures are saved regardless.
+
+`tests/test_examples_answer_help.py` holds the first and
+`KNOWN_DIRECT_PLT_SHOW` in `tests/test_repo_conventions.py` the second; both are
+empty.
+
+**The `--help` check is behavioural on purpose.** The structural version — "the
+module builds an `ArgumentParser`" — is satisfied by a parser constructed at the
+*end* of `main()`, after the work and the figures. So it runs the process and
+requires a usage line and an empty `IPIN_FIGS_DIR`. About a second per example,
+since a `--help` run exits during argument parsing.
+
+Two things that sweep turned up, both familiar shapes:
+
+- **A grep sees the spellings you thought to look for**, again. Searching for
+  the literal `plt.show()` missed two Chapter 7 examples calling
+  `plt.show(block=False)` behind hand-rolled `DISPLAY`/`MPLBACKEND` sniffing and
+  a bare `except: pass`. The AST check found them immediately. Same lesson as
+  the PEP 585 floor and `test_documented_flags_exist`.
+- **`example_allan_variance` parsed `'--debug' in sys.argv` by hand**, which
+  accepted its own flag while ignoring `--help` — and would have accepted
+  `--debug` anywhere, including as the value of another option. Adding a strict
+  parser to a file like that breaks the undocumented flag unless you look, so
+  check for `sys.argv` before adding one.
+
 ## A diagram nobody can regenerate is a claim nothing checks
 
 `docs/architecture/` held 34 files -- a PlantUML source and a rendered SVG for a

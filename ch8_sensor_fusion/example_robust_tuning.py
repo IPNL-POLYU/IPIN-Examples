@@ -44,7 +44,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
 
-from core.eval import compute_rmse, save_figure
+from core.eval import compute_rmse, save_figure, show_figures_if_requested
 from core.fusion import (
     chi_square_gate,
     huber_R_scale,
@@ -513,7 +513,7 @@ def plot_tuning_comparison(
         written = save_figure(fig, save_path.parent, save_path.stem)
         print(f"\nSaved figure: {written[0]}")
     
-    plt.show()
+    show_figures_if_requested()
 
 
 def main():

@@ -806,6 +806,17 @@ def set_axes_equal_3d(ax, radius: float = 1.5) -> None:
 #: :func:`_resolve_out_dir`.
 FIGS_DIR_ENV_VAR = "IPIN_FIGS_DIR"
 
+#: Set to display figures in a window as well as writing them.
+#:
+#: Off by default, and that default is the point. Nineteen of the repository's
+#: thirty-eight examples used to end in a bare ``plt.show()`` and nineteen did
+#: not, undocumented either way, so a reader could not predict whether running
+#: one would pop up a window. Worse, the ones that did **block** under a GUI
+#: backend until the window is closed, which makes running several in sequence
+#: an exercise in clicking, and warn under Agg. The figures are written either
+#: way; this only adds the window.
+SHOW_FIGURES_ENV_VAR = "IPIN_SHOW_FIGURES"
+
 #: Repository root, i.e. the parent of ``core/``.
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -844,6 +855,34 @@ def _resolve_out_dir(out_dir: Union[str, Path]) -> Path:
         return requested
 
     return Path(override) / within_repo
+
+
+def show_figures_if_requested() -> bool:
+    """Display the open figures, but only when the reader asked for them.
+
+    Every example calls this where it would otherwise call ``plt.show()``, so
+    the answer to "does running this pop up a window" is the same for all of
+    them and is written down in one place. Set ``IPIN_SHOW_FIGURES`` to any
+    non-empty value to get the windows.
+
+    The figures are saved regardless -- that is what ``chX_*/figs`` is for --
+    so the default costs a reader nothing except the window they did not ask
+    for, and saves them a blocked terminal.
+
+    Returns:
+        True if the figures were shown.
+
+    Examples:
+        >>> from core.eval import show_figures_if_requested
+        >>> show_figures_if_requested()   # doctest: +SKIP
+        False
+    """
+    if not os.environ.get(SHOW_FIGURES_ENV_VAR):
+        return False
+    import matplotlib.pyplot as plt
+
+    plt.show()
+    return True
 
 
 def resolve_figs_dir(out_dir: Union[str, Path]) -> Path:

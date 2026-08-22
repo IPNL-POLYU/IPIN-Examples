@@ -25,6 +25,7 @@ from core.eval import (
     compute_position_errors,
     compute_position_rmse,
     save_figure,
+    show_figures_if_requested,
 )
 from core.fusion import load_fusion_dataset, run_tc_fusion
 
@@ -170,7 +171,7 @@ def plot_results(dataset: Dict, history: Dict, save_path: str = None) -> None:
         written = save_figure(fig, save_path.parent, save_path.stem)
         print(f"\nSaved figure: {written[0]}")
 
-    plt.show()
+    show_figures_if_requested()
 
 
 def main():

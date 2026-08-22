@@ -25,6 +25,7 @@ Particle Filter Algorithm (SIR - Sequential Importance Resampling):
 Book Reference: Section 3.5 and Table 3.4 provide comparison criteria.
 """
 
+import argparse
 import contextlib
 import io
 import time
@@ -38,6 +39,7 @@ from core.eval import (
     plot_error_magnitude_time,
     plot_trajectory_2d,
     save_figure,
+    show_figures_if_requested,
 )
 from core.estimators import (
     ExtendedKalmanFilter,
@@ -479,6 +481,13 @@ def model_evaluation_counts(n_steps, n_states, n_particles, fgo_iterations):
 
 def main():
     """Run comparison of all estimators."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     overall_start = time.time()
     
     print("=" * 70)
@@ -657,7 +666,7 @@ def main():
     paths = save_figure(fig, Path(__file__).parent / "figs",
                         "ch3_estimator_comparison")
     print(f"[OK] Plot saved as: {paths[0]}")
-    plt.show()
+    show_figures_if_requested()
 
     overall_time = time.time() - overall_start
     print("\n" + "=" * 70)

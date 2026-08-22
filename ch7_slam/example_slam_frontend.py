@@ -15,13 +15,14 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+import argparse
 from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from core.eval import plot_error_magnitude_time, plot_trajectory_2d, save_figure
+from core.eval import plot_error_magnitude_time, plot_trajectory_2d, save_figure, show_figures_if_requested
 from core.slam import SlamFrontend2D, se2_relative
 
 FIGURE_NAME = "slam_frontend_demo"
@@ -191,6 +192,13 @@ def build_figure(demo: Dict[str, object]) -> plt.Figure:
 
 def main():
     """Run SLAM front-end demo."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("=" * 80)
     print("SLAM FRONT-END DEMO: Prediction -> Scan-to-Map Alignment -> Map Update")
     print("=" * 80)
@@ -265,6 +273,7 @@ def main():
     print("Note: This demonstrates the front-end loop. For full SLAM,")
     print("      add back-end pose graph optimization with loop closures.")
     print()
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

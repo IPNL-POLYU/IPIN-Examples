@@ -50,7 +50,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from core.estimators import ParticleFilter
-from core.eval import resolve_figs_dir, save_animation, save_figure
+from core.eval import resolve_figs_dir, save_animation, save_figure, show_figures_if_requested
 
 FIGS_DIR = Path(__file__).parent / "figs"
 
@@ -383,6 +383,7 @@ def main() -> None:
 
     plt.close("all")
     print(f"\nFigures written to {resolve_figs_dir(args.out_dir)}")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

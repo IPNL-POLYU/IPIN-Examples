@@ -24,6 +24,7 @@ from core.eval import (
     compute_position_rmse,
     resolve_figs_dir,
     save_figure,
+    show_figures_if_requested,
 )
 from core.fusion import load_fusion_dataset, run_lc_fusion, run_tc_fusion
 
@@ -451,7 +452,7 @@ def plot_comparison(
         written = save_figure(fig, save_path.parent, save_path.stem)
         print(f"\nSaved comparison figure: {written[0]}")
     
-    plt.show()
+    show_figures_if_requested()
 
 
 def save_comparison_report(

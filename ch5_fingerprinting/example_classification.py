@@ -14,6 +14,7 @@ Author: Li-Ta Hsu
 Date: December 2024
 """
 
+import argparse
 import sys
 from pathlib import Path
 
@@ -23,7 +24,7 @@ import numpy as np
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from core.eval import plot_error_cdf, save_figure
+from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
     FingerprintDatabase,
     fit_classifier,
@@ -477,6 +478,13 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
 
 def main():
     """Run all classification-based fingerprinting demonstrations."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("=" * 70)
     print("Chapter 5: Classification-Based Fingerprinting")
     print("=" * 70)
@@ -505,6 +513,7 @@ def main():
     print("\nGenerated figures:")
     print("  - figs/classification_noise_robustness.png")
     print("  - figs/hierarchical_localization.png")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

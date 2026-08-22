@@ -14,6 +14,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+import argparse
 import time
 from pathlib import Path
 from typing import Dict, Optional, Tuple
@@ -27,6 +28,7 @@ from core.eval import (
     plot_trajectory_2d,
     resolve_figs_dir,
     save_figure,
+    show_figures_if_requested,
 )
 from core.sensors import (
     FrameConvention,
@@ -738,6 +740,13 @@ def plot_comparison(
 
 def main() -> None:
     """Main execution."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("\n" + "="*75)
     print("Chapter 6: COMPREHENSIVE COMPARISON of Dead Reckoning Methods")
     print("="*75)
@@ -866,6 +875,7 @@ def main() -> None:
     print("             - Best: Multi-sensor fusion (Chapter 8)")
     print("="*75)
     print()
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

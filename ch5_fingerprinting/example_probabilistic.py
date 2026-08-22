@@ -14,12 +14,13 @@ Author: Li-Ta Hsu
 Date: December 2024
 """
 
+import argparse
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import plot_error_cdf, save_figure
+from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
     load_fingerprint_database,
     fit_gaussian_naive_bayes,
@@ -157,6 +158,13 @@ def visualize_posterior(model, query, true_loc, floor_id, ax, title):
 
 def main():
     """Run probabilistic fingerprinting examples."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("="*70)
     print("Chapter 5: Probabilistic Fingerprinting (Bayesian Methods)")
     print("="*70)
@@ -367,6 +375,7 @@ def main():
     print("  - Equation 5.4: MAP estimate i* = argmax_i P(x_i|z)")
     print("  - Equation 5.5: Posterior mean x_hat = sum_i P(x_i|z) x_i")
     print("  - Equation 5.6: Gaussian likelihood P(z|x_i) = N(z; mu_i, Sigma_i)")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

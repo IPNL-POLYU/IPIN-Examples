@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import Dict, Optional
 
-from core.eval import resolve_figs_dir, save_figure
+from core.eval import resolve_figs_dir, save_figure, show_figures_if_requested
 from core.utils import resolve_data_path
 from core.sensors import (
     FrameConvention,
@@ -368,7 +368,7 @@ def run_with_dataset(data_dir: str, height: float = 1.75, lat_deg: float = 45.0,
     paths = save_figure(fig, figs_dir, 'pdr_dataset_results')
     print(f"  [OK] Saved: {paths[0]}")
     
-    plt.show()
+    show_figures_if_requested()
     
     print("\n" + "="*70)
     print("KEY INSIGHT: Heading errors DOMINATE PDR accuracy!")

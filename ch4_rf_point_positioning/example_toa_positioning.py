@@ -15,12 +15,13 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+import argparse
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from core.eval import save_figure
+from core.eval import save_figure, show_figures_if_requested
 from core.rf import (
     SPEED_OF_LIGHT,
     TOAPositioner,
@@ -552,6 +553,13 @@ def example_wls_vs_ls():
 
 def main():
     """Run all TOA positioning examples."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("\n" + "=" * 70)
     print("Chapter 4: TOA and RSS Positioning Examples")
     print("=" * 70)
@@ -584,7 +592,7 @@ def main():
                         "toa_positioning_example")
     print(f"\nFigure saved: {paths[0]}")
 
-    plt.show()
+    show_figures_if_requested()
 
     print("\n" + "=" * 70)
     print("Examples completed successfully!")

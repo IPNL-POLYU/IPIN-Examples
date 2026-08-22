@@ -34,11 +34,12 @@ Measurement Model:
     Residual: r_i(x) = y_i - h_i(x)  (observation minus prediction)
 """
 
+import argparse
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import save_figure
+from core.eval import save_figure, show_figures_if_requested
 from core.estimators import (
     linear_least_squares,
     weighted_least_squares,
@@ -575,11 +576,18 @@ def visualize_results():
     paths = save_figure(fig, Path(__file__).parent / "figs",
                         "ch3_least_squares_examples")
     print(f"\nPlot saved as: {paths[0]}")
-    plt.show()
+    show_figures_if_requested()
 
 
 def main():
     """Run all examples."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("\n" + "=" * 70)
     print("CHAPTER 3: LEAST SQUARES ESTIMATION EXAMPLES")
     print("=" * 70)

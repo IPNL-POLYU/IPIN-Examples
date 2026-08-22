@@ -22,7 +22,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import resolve_figs_dir, save_animation, save_figure
+from core.eval import resolve_figs_dir, save_animation, save_figure, show_figures_if_requested
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
@@ -664,6 +664,7 @@ def main(animate: bool = False):
     print("             Typical improvement: >90% error reduction.")
     print("="*70)
     print()
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

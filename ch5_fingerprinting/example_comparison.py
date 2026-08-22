@@ -15,12 +15,13 @@ Author: Li-Ta Hsu
 Date: December 2024
 """
 
+import argparse
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import plot_error_cdf, save_figure
+from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
     load_fingerprint_database,
     nn_localize,
@@ -425,6 +426,13 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
 
 def main():
     """Run comprehensive comparison of fingerprinting methods."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("="*70)
     print("Chapter 5: Fingerprinting Methods Comparison")
     print("="*70)
@@ -688,6 +696,7 @@ def main():
     print("  - Noisy environments: k-NN with k=3-5 or Posterior Mean")
     print("  - Dense RPs: NN sufficient")
     print("  - Sparse RPs: k-NN or Linear Regression for interpolation")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

@@ -12,12 +12,13 @@ Author: Li-Ta Hsu
 Date: December 2024
 """
 
+import argparse
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import plot_error_cdf, save_figure
+from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
     load_fingerprint_database,
     nn_localize,
@@ -195,6 +196,13 @@ def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kw
 
 def main():
     """Run deterministic fingerprinting examples."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("="*70)
     print("Chapter 5: Deterministic Fingerprinting (NN and k-NN)")
     print("="*70)
@@ -362,7 +370,7 @@ def main():
                         "deterministic_positioning")
     print(f"   Saved: {paths[0]}")
     
-    plt.show()
+    show_figures_if_requested()
     
     print("\n" + "="*70)
     print("Example complete!")

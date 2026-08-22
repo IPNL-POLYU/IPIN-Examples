@@ -39,6 +39,7 @@ from core.eval import (
     plot_error_magnitude_time,
     plot_trajectory_2d,
     save_figure,
+    show_figures_if_requested,
 )
 from core.utils import angle_diff
 
@@ -422,7 +423,7 @@ def example_iekf_vs_ekf_comparison():
                         "ch3_iekf_vs_ekf_comparison")
     print(f"Plot saved: {paths[0]}")
 
-    plt.show()
+    show_figures_if_requested()
 
     print("\n" + "=" * 70)
     print("Key Insight from Section 3.2.3:")

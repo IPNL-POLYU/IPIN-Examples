@@ -18,12 +18,13 @@ Author: Li-Ta Hsu
 Date: December 2024
 """
 
+import argparse
 import time
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 
-from core.eval import resolve_figs_dir, save_figure
+from core.eval import resolve_figs_dir, save_figure, show_figures_if_requested
 from core.sensors import wheel_odom_update, NavStateQPVP
 
 
@@ -246,6 +247,13 @@ SLIP_SPEED_HINT = 5.0  # cruise speed on the straights, m/s
 
 def main():
     """Main execution."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("\n" + "="*70)
     print("Chapter 6: Wheel Odometry Dead Reckoning for Vehicles")
     print("="*70)
@@ -335,6 +343,7 @@ def main():
     print("             BUT very sensitive to wheel slip (turns, ice, etc).")
     print("="*70)
     print()
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

@@ -30,7 +30,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import List, Tuple, Dict
 
-from core.eval import save_animation, save_figure
+from core.eval import save_animation, save_figure, show_figures_if_requested
 from core.slam import (
     CameraIntrinsics,
     project_point,
@@ -486,14 +486,7 @@ def plot_bundle_adjustment_results(
     paths = save_figure(fig, figs_dir, "bundle_adjustment_results")
     print(f"\n[OK] Saved figure: {paths[0]}")
     
-    # Only show interactively if display available
-    import os
-    if os.environ.get("DISPLAY") or os.environ.get("MPLBACKEND") != "Agg":
-        try:
-            plt.show(block=False)
-            plt.pause(0.1)
-        except:
-            pass
+    show_figures_if_requested()
 
 
 def main(animate: bool = False):
@@ -821,6 +814,7 @@ def main(animate: bool = False):
     print("  - Bundle adjustment: Joint optimization of poses + landmarks")
     print("  - Implements Eqs. (7.68)-(7.70) from Chapter 7, Section 7.4")
     print()
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

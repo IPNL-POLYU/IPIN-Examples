@@ -19,12 +19,13 @@ Book Reference (Chapter 3, Section 3.2.1):
     - Eq. (3.17)-(3.20): KF update equations (gain K, state x, covariance P)
 """
 
+import argparse
 from pathlib import Path
 
 import numpy as np
 import matplotlib.pyplot as plt
 from core.estimators import KalmanFilter
-from core.eval import save_figure
+from core.eval import save_figure, show_figures_if_requested
 
 FIGS_DIR = Path(__file__).parent / "figs"
 
@@ -204,11 +205,18 @@ def example_1d_constant_velocity():
     plt.tight_layout()
     paths = save_figure(fig, FIGS_DIR, "ch3_kalman_1d_tracking")
     print(f"Plot saved as: {paths[0]}")
-    plt.show()
+    show_figures_if_requested()
 
 
 def main():
     """Run the 1D Kalman Filter example."""
+    # Parse arguments before doing any work, so --help answers instead of
+    # running the whole demonstration.
+    argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    ).parse_args()
+
     print("\n" + "=" * 70)
     print("CHAPTER 3: KALMAN FILTER EXAMPLE")
     print("=" * 70)

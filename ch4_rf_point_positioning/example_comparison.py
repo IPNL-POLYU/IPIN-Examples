@@ -29,7 +29,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from tqdm import tqdm
 
-from core.eval import save_figure
+from core.eval import save_figure, show_figures_if_requested
 from core.utils import resolve_data_path
 from core.rf import (
     AOAPositioner,
@@ -821,7 +821,7 @@ Examples:
             output_file = args.output or "ch4_rf_point_positioning/figs/ch4_geometry_comparison.png"
             paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
             print(f"\n[OK] Figure saved: {paths[0]}")
-            plt.show()
+            show_figures_if_requested()
     
     elif args.data:
         # Run with dataset
@@ -843,7 +843,7 @@ Examples:
         output_file = args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
         plot_dataset_results(results, output_file)
-        plt.show()
+        show_figures_if_requested()
     
     else:
         # Run with inline data (original behavior)
@@ -864,7 +864,7 @@ Examples:
         output_file = args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
         paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
         print(f"[OK] Figure saved: {paths[0]}")
-        plt.show()
+        show_figures_if_requested()
 
     overall_time = time.time() - overall_start
     print("\n" + "=" * 70)
