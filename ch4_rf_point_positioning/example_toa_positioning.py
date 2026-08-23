@@ -2,13 +2,15 @@
 TOA and RSS Positioning Example.
 
 This script demonstrates Time of Arrival (TOA) and RSS-based positioning
-using Iterative Weighted Least Squares (I-WLS).
+using iterative least squares. Every solve here is `method="iterative_ls"`,
+W = I and Eq. (4.20); Example 6 is the one that supplies a covariance and
+so is genuinely weighted (Eq. 4.23).
 
 Implements:
     - Eq. (4.1)-(4.3): TOA range measurements
     - Eq. (4.6)-(4.9): Two-way TOA / RTT measurement model
     - Eq. (4.11)-(4.13): RSS path-loss model
-    - Eq. (4.14)-(4.23): Nonlinear TOA I-WLS positioning
+    - Eq. (4.14)-(4.23): Nonlinear TOA iterative LS, and WLS in Example 6
     - Eq. (4.24)-(4.26): Joint position + clock bias estimation
 
 Author: Li-Ta Hsu

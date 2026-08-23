@@ -9,7 +9,7 @@ Implements:
         - Eq. 4.63: sin(theta) = (x_u^i - x_u,a) / ||x_a - x^i||
         - Eq. 4.64: tan(psi) = (x_e^i - x_e,a) / (x_n^i - x_n,a)
         - Eq. 4.65: z = [sin(theta_1), tan(psi_1), ..., sin(theta_I), tan(psi_I)]^T
-    - AOA I-WLS positioning (Eqs. 4.67-4.78)
+    - AOA iterative LS positioning (Eqs. 4.67-4.78 at uniform weights)
     - Orthogonal Vector Estimator (OVE) - 3D closed-form (Eqs. 4.79-4.85)
     - Pseudolinear Estimator (PLE) - 2D/3D closed-form (Eqs. 4.86-4.95)
 
@@ -52,9 +52,19 @@ from core.rf import (
 
 
 def demo_aoa_basic():
-    """Demonstrate basic AOA positioning with I-WLS."""
+    """Demonstrate basic AOA positioning with iterative LS.
+
+    `AOAPositioner(anchors)` is built with no `sigma_*`, which the class
+    documents as uniform weights -- and a uniform weight matrix is a multiple
+    of the identity, so it cancels out of (H' W H)^-1 H' W. Checked rather
+    than assumed: no sigma and a scalar sigma give bit-identical positions,
+    and only a *per-anchor* sigma moves the answer. So this is the
+    Eqs. (4.63)-(4.78) solver run unweighted -- iterative LS.
+    `example_comparison --compare-geometry` is where a per-anchor sigma is
+    supplied and the "W" earns its letter.
+    """
     print("\n" + "=" * 70)
-    print("Demo 1: Basic AOA Positioning (I-WLS)")
+    print("Demo 1: Basic AOA Positioning (iterative LS, uniform weights)")
     print("=" * 70)
 
     # Setup anchors (4 anchors at corners) in ENU coordinates
@@ -78,7 +88,7 @@ def demo_aoa_basic():
     tan_psi = np.array([aoa_tan_azimuth(anchor, true_position) for anchor in anchors])
     print(f"\ntan(psi) values (Eq. 4.64): {tan_psi}")
 
-    # Solve using I-WLS
+    # Solve unweighted: no sigma given, so W is a multiple of the identity
     positioner = AOAPositioner(anchors)
     estimated_position, info = positioner.solve(
         aoa_measurements, initial_guess=np.array([5.0, 5.0])
@@ -435,12 +445,12 @@ def demo_closed_form_algorithms():
     print("Demo 6: Closed-Form AOA Solvers (OVE & PLE)")
     print("=" * 70)
     print("\nAlgorithms compared:")
-    print("  - I-WLS: Iterative Weighted Least Squares (Eqs. 4.63-4.78)")
+    print("  - I-LS: the Eqs. (4.63)-(4.78) iterative solver, run unweighted")
     print("  - OVE: Orthogonal Vector Estimator, 3D (Eqs. 4.79-4.85)")
     print("  - PLE: Pseudolinear Estimator, 2D (Eqs. 4.86-4.91)")
 
     # === 2D Comparison ===
-    print("\n--- 2D Comparison (I-WLS vs PLE) ---")
+    print("\n--- 2D Comparison (I-LS vs PLE) ---")
     anchors_2d = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
     true_pos_2d = np.array([4.0, 6.0])
 
@@ -450,22 +460,22 @@ def demo_closed_form_algorithms():
     print(f"\nAnchors: {anchors_2d.tolist()}")
     print(f"True position (E, N): {true_pos_2d}")
 
-    # I-WLS
+    # Iterative LS (unweighted)
     aoa_meas = aoa_angle_vector(anchors_2d, true_pos_2d, include_elevation=False)
     positioner = AOAPositioner(anchors_2d)
-    pos_iwls, info_iwls = positioner.solve(aoa_meas, initial_guess=np.array([5.0, 5.0]))
-    err_iwls = np.linalg.norm(pos_iwls - true_pos_2d)
+    pos_ils, info_ils = positioner.solve(aoa_meas, initial_guess=np.array([5.0, 5.0]))
+    err_ils = np.linalg.norm(pos_ils - true_pos_2d)
 
     # PLE 2D
     pos_ple, info_ple = aoa_ple_solve_2d(anchors_2d, azimuths)
     err_ple = np.linalg.norm(pos_ple - true_pos_2d)
 
     print("\nResults (perfect measurements):")
-    print(f"  I-WLS: pos={pos_iwls}, error={err_iwls:.6f} m, iters={info_iwls['iterations']}")
+    print(f"  I-LS:  pos={pos_ils}, error={err_ils:.6f} m, iters={info_ils['iterations']}")
     print(f"  PLE:   pos={pos_ple}, error={err_ple:.6f} m (closed-form)")
 
     # === 3D Comparison ===
-    print("\n--- 3D Comparison (I-WLS vs OVE vs PLE) ---")
+    print("\n--- 3D Comparison (I-LS vs OVE vs PLE) ---")
     anchors_3d = np.array(
         [[0, 0, 5], [10, 0, 5], [10, 10, 5], [0, 10, 5]], dtype=float
     )
@@ -478,13 +488,13 @@ def demo_closed_form_algorithms():
     print(f"\nAnchors (3D): {anchors_3d.tolist()}")
     print(f"True position (E, N, U): {true_pos_3d}")
 
-    # I-WLS 3D
+    # Iterative LS, 3D (unweighted)
     aoa_meas_3d = aoa_angle_vector(anchors_3d, true_pos_3d, include_elevation=True)
     positioner_3d = AOAPositioner(anchors_3d)
-    pos_iwls_3d, info_iwls_3d = positioner_3d.solve(
+    pos_ils_3d, info_ils_3d = positioner_3d.solve(
         aoa_meas_3d, initial_guess=np.array([5.0, 5.0, 1.0])
     )
-    err_iwls_3d = np.linalg.norm(pos_iwls_3d - true_pos_3d)
+    err_ils_3d = np.linalg.norm(pos_ils_3d - true_pos_3d)
 
     # OVE 3D
     pos_ove, info_ove = aoa_ove_solve(anchors_3d, elevations, azimuths_3d)
@@ -496,8 +506,8 @@ def demo_closed_form_algorithms():
 
     print("\nResults (perfect measurements):")
     print(
-        f"  I-WLS: pos={pos_iwls_3d}, error={err_iwls_3d:.6f} m, "
-        f"iters={info_iwls_3d['iterations']}"
+        f"  I-LS:  pos={pos_ils_3d}, error={err_ils_3d:.6f} m, "
+        f"iters={info_ils_3d['iterations']}"
     )
     print(f"  OVE:   pos={pos_ove}, error={err_ove:.6f} m (closed-form)")
     print(f"  PLE:   pos={pos_ple_3d}, error={err_ple_3d:.6f} m (closed-form)")
@@ -507,14 +517,14 @@ def demo_closed_form_algorithms():
     np.random.seed(42)
     noise_deg = 2.0
     n_trials = 100
-    errors = {"I-WLS": [], "OVE": [], "PLE": []}
+    errors = {"I-LS": [], "OVE": [], "PLE": []}
 
     for _ in range(n_trials):
         # Add noise
         elev_noisy = elevations + np.random.randn(len(elevations)) * np.deg2rad(noise_deg)
         azim_noisy = azimuths_3d + np.random.randn(len(azimuths_3d)) * np.deg2rad(noise_deg)
 
-        # I-WLS
+        # Iterative LS (unweighted)
         aoa_noisy = np.zeros(2 * len(anchors_3d))
         for i in range(len(anchors_3d)):
             aoa_noisy[2 * i] = elev_noisy[i]
@@ -522,7 +532,7 @@ def demo_closed_form_algorithms():
         try:
             pos, info = positioner_3d.solve(aoa_noisy, initial_guess=np.array([5.0, 5.0, 1.0]))
             if info["converged"]:
-                errors["I-WLS"].append(np.linalg.norm(pos - true_pos_3d))
+                errors["I-LS"].append(np.linalg.norm(pos - true_pos_3d))
         except Exception:
             pass
 
@@ -576,7 +586,7 @@ def demo_geometry_sensitivity():
     print(f"Noise level: {noise_deg} deg")
     print("\n" + "-" * 80)
     print(
-        f"{'Geometry':<25} {'I-WLS Error (m)':<18} {'PLE Error (m)':<18} "
+        f"{'Geometry':<25} {'I-LS Error (m)':<18} {'PLE Error (m)':<18} "
         f"{'PLE Cond#':<15} {'Warning':<10}"
     )
     print("-" * 80)
@@ -586,21 +596,21 @@ def demo_geometry_sensitivity():
         azimuths = np.array([aoa_azimuth(a, true_pos) for a in anchors])
         azimuths_noisy = azimuths + np.random.randn(len(azimuths)) * np.deg2rad(noise_deg)
 
-        # I-WLS
+        # Iterative LS (unweighted)
         aoa_meas = aoa_angle_vector(anchors, true_pos, include_elevation=False)
         aoa_noisy = aoa_meas + np.random.randn(len(aoa_meas)) * np.deg2rad(noise_deg)
         positioner = AOAPositioner(anchors)
         try:
-            pos_iwls, info_iwls = positioner.solve(
+            pos_ils, info_ils = positioner.solve(
                 aoa_noisy, initial_guess=np.array([5.0, 5.0])
             )
-            if info_iwls["converged"]:
-                err_iwls = np.linalg.norm(pos_iwls - true_pos)
-                iwls_str = f"{err_iwls:.4f}"
+            if info_ils["converged"]:
+                err_ils = np.linalg.norm(pos_ils - true_pos)
+                ils_str = f"{err_ils:.4f}"
             else:
-                iwls_str = "FAIL"
+                ils_str = "FAIL"
         except Exception:
-            iwls_str = "FAIL"
+            ils_str = "FAIL"
 
         # PLE
         try:
@@ -614,12 +624,12 @@ def demo_geometry_sensitivity():
             cond_str = "N/A"
             warn_str = "N/A"
 
-        print(f"{name:<25} {iwls_str:<18} {ple_str:<18} {cond_str:<15} {warn_str:<10}")
+        print(f"{name:<25} {ils_str:<18} {ple_str:<18} {cond_str:<15} {warn_str:<10}")
 
     print("\nKey observations:")
     print("  - With aligned (linear) anchors, bearings are near-parallel")
     print("  - This causes high condition number and large PLE errors")
-    print("  - I-WLS is more robust but may also struggle with poor geometry")
+    print("  - I-LS is more robust but may also struggle with poor geometry")
     print("  - The 'geometry_warning' flag indicates potential issues")
 
 
