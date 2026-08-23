@@ -1088,14 +1088,26 @@ Carlo beside it does pass a covariance. The labels now name what runs, and
 because that is literally what the alias maps to. Verified the honest way: every
 number in the demo's 242 lines of output is unchanged, only labels moved.
 
-**Still mislabelled, and deliberately left for a separate decision:**
-`example_aoa_positioning` constructs `AOAPositioner(anchors)` at all seven call
-sites with no `sigma_*`, which the class documents as uniform weights, then
-labels the result "I-WLS" about fourteen times; and `example_toa_positioning`
-solves with `method="iterative_ls"` while its module docstring says "using
-Iterative Weighted Least Squares (I-WLS)". The second is the one to fix first if
-only one gets done -- its stdout is the transcript pinned in the chapter README,
-so it is the most-read wrong label of the three.
+**The other two files carried the same defect and are fixed too.**
+`example_aoa_positioning` constructed `AOAPositioner(anchors)` at all seven call
+sites with no `sigma_*` and then said "I-WLS" fourteen times;
+`example_toa_positioning` solves with `method="iterative_ls"` throughout while
+its module docstring claimed "using Iterative Weighted Least Squares".
+
+**The AOA case needed measuring, not reading, because "uniform weights" does not
+obviously mean "unweighted".** It does here: a uniform W is a multiple of the
+identity, so it cancels out of `(H' W H)^-1 H' W`. Confirmed by solving the same
+bearings three ways -- no sigma, a scalar sigma, and a per-anchor sigma. The
+first two are **bit-identical**; only the third moves the answer. So the seven
+call sites are the Eq. (4.63)-(4.78) solver run unweighted, and `--compare-geometry`
+is the one place in the chapter that supplies a per-anchor sigma and earns the W.
+
+Same verification as before: every number in both examples' output is unchanged,
+and both committed figures are byte-identical, because neither carried the label
+in a tick or an axis. Note what that leaves -- `example_toa_positioning`'s stdout
+is the transcript pinned in the chapter README, and it did **not** move, because
+the wrong label lived only in the module docstring. A pinned transcript is not a
+guard against a mislabelled docstring; nothing here is.
 
 ## A success rate can measure your harness instead of your method
 
