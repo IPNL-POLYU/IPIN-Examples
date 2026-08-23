@@ -47,10 +47,10 @@
       "n_positions": 100
     },
     "tdoa": {
-      "median_m": 13.752816843345684,
-      "mean_solved_m": 12.505866298734949,
-      "max_solved_m": 21.135042827029935,
-      "failed_count": 11,
+      "median_m": 0.0745554470859442,
+      "mean_solved_m": 0.08100019885870145,
+      "max_solved_m": 0.2337776426824388,
+      "failed_count": 0,
       "n_positions": 100
     },
     "aoa": {

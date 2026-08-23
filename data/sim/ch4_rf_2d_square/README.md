@@ -260,11 +260,21 @@ print(f"TDOA mean over solved: {errors_tdoa[good].mean():.3f} m")
 print(f"TDOA failed to solve: {np.sum(~good)}/{N}")
 ```
 
-**Expected Result**: 13.75m median, 12.51m mean over the 89 that solve, 11/100 failed.
+**Expected Result**: 0.075m median, 0.081m mean over the 100 that solve, 0/100 failed.
 
-**Note**: TDOA errors are large here because of the hyperbolic geometry and the
-linearisation, not because of initialisation — seeding the solver from the true
-position instead changes the median by less than a millimetre.
+**Note**: this is the accuracy the geometry predicts. The TDOA GDOP here is
+0.873 and the range-difference noise is 0.1 m, so `sigma_position = GDOP x
+sigma_range` gives 0.087 m — and a median sits a little below that, since it is
+not an RMS. TDOA slightly beats TOA on this array (0.075 m against 0.095 m)
+because its GDOP is lower, which is the whole point of comparing the two here.
+
+Until recently this block printed 13.75 m with 11 of 100 fixes failing, and the
+text around it explained that as the price of hyperbolic geometry. It was not:
+the generator wrote each range difference as `d_ref - d_j` while
+`TDOAPositioner` predicts `d_j - d_ref`, so every shipped measurement was
+negated and the solver was being sent to the far branch of each hyperbola.
+Missing a GDOP prediction by 158x is the kind of disagreement worth chasing
+rather than narrating.
 
 ### AOA Positioning
 ```python
@@ -463,13 +473,17 @@ for name in ['ch4_rf_2d_square', 'ch4_rf_2d_optimal', 'ch4_rf_2d_linear']:
 3. Compare errors and characteristics
 
 **Expected Results**:
-- **TOA**: Best accuracy (~0.1m) but requires clock sync
-- **TDOA**: Moderate accuracy, eliminates clock bias
-- **AOA**: Angle errors amplify with distance (~0.5m)
+- **TOA**: ~0.10m, but requires clock sync
+- **TDOA**: ~0.07m, and eliminates clock bias — on *this* geometry it is the
+  most accurate of the three, because its GDOP is the lowest of the three
+- **AOA**: ~0.40m; angle errors amplify with distance
 
 **Code**: Use Quick Start examples for all three techniques
 
-**Learning Point**: TOA is best IF you can sync clocks, otherwise use TDOA!
+**Learning Point**: on a good geometry the three differ by their GDOP and
+little else, so the choice is made by what the hardware can offer — clock sync
+for TOA, a common time base for TDOA, an antenna array for AOA. Change the
+geometry and that ranking changes completely, which is Experiment 1's job.
 
 ### Experiment 3: NLOS Impact
 
@@ -504,10 +518,10 @@ landed more than 100 m away.
 
 | Metric | TOA | TDOA | AOA | Notes |
 |--------|-----|------|-----|-------|
-| **Median Error** | 0.10m | 13.75m | 0.40m | Robust to the tail |
-| **Mean over solved** | 0.10m | 12.51m | 0.46m | TOA best |
-| **Max over solved** | 0.27m | 21.14m | 1.30m | |
-| **Failed to solve** | **0/100** | **11/100** | **0/100** | TDOA is the fragile one |
+| **Median Error** | 0.10m | 0.07m | 0.40m | Robust to the tail |
+| **Mean over solved** | 0.10m | 0.08m | 0.46m | TDOA best, as its GDOP says |
+| **Max over solved** | 0.27m | 0.23m | 1.30m | |
+| **Failed to solve** | **0/100** | **0/100** | **0/100** | every fix solves on this array |
 | **Mean GDOP** | 1.02 | 0.87 | 15.04 | TOA/TDOA similar |
 | **Min GDOP** | 1.00 | 0.81 | 13.84 | Center of area |
 | **Max GDOP** | 1.09 | 1.03 | 16.74 | Near edges |
@@ -517,10 +531,11 @@ single solve that "converges" to somewhere absurd makes a mean a property of
 that outlier. AOA used to do exactly that on 36 of 100 positions.
 
 **Key Insights**:
-- TOA: best accuracy and solves every position; requires clock sync.
-- TDOA: clock-free, but the hyperbolic geometry costs two orders of magnitude
-  here, and it is the geometry rather than the initialisation — seeding from the
-  true position changes the median by under a millimetre.
+- TOA: 0.10m median, solves every position; requires clock sync.
+- TDOA: 0.07m median, clock-free, and slightly *better* than TOA on this array
+  — its GDOP is 0.87 against TOA's 1.02, and both attain `GDOP x sigma_range`.
+  The cost of TDOA is not accuracy on a good geometry; it is that the geometry
+  has to be good, which the collinear variant below shows.
 - AOA: 0.40m median with no failures, at the price of needing bearing hardware.
 
 **Geometry matters differently for each.** On the collinear `poor_geometry`
@@ -558,20 +573,47 @@ This dataset directly implements RF positioning from Chapter 4:
 
 ## Common Issues & Solutions
 
-### Issue 1: TDOA Positioning Fails or Returns Large Errors
+### Issue 1: A Method Misses the Accuracy Its GDOP Predicts
 
-**Symptoms**: TDOA gives >10m errors while TOA gives <0.5m
+**Symptoms**: one method reports errors orders of magnitude worse than
+`sigma_position = GDOP x sigma_range`, while the others land on it.
 
-**Likely Cause**: Poor initialization or hyperbolic geometry
+**Likely Cause**: a convention mismatch between the stored measurements and the
+solver reading them — a sign, a reference index, a frame, or degrees against
+radians. It is almost never the geometry. GDOP already *is* the geometry, so a
+result that misses the GDOP bound by two orders of magnitude is saying that
+something outside the geometry is wrong.
 
-**Solution**: Use TOA solution as initial guess for TDOA:
+This entry used to read "TDOA Positioning Fails or Returns Large Errors —
+Symptoms: TDOA gives >10m errors while TOA gives <0.5m", and it prescribed
+warm-starting TDOA from the TOA fix. That was a description of a real bug in
+this dataset (the range differences were negated, see the TDOA section above)
+with a cause that could not produce it and a remedy that did not help —
+initialisation moves the median here by less than a millimetre.
+
+**Solution**: compare against the bound before reaching for a workaround.
+
 ```python
-# Get TOA solution first. initial_guess is required, not optional --
-# both solvers are iterative and have no default starting point.
-toa_pos, _ = toa_solver.solve(toa_ranges[i], initial_guess=np.array([10.0, 10.0]))
+import json
+import numpy as np
 
-# Use as initial guess for TDOA
-tdoa_pos, _ = tdoa_solver.solve(tdoa_diffs[i], initial_guess=toa_pos)
+cfg = json.loads((data_dir / "config.json").read_text(encoding="utf-8"))
+sigma = cfg["measurements"]["tdoa_noise_std_m"]
+predicted_accuracy = np.loadtxt(data_dir / "gdop_tdoa.txt").mean() * sigma
+
+# The measurements should match the model the solver predicts, to within noise.
+# TDOAPositioner(reference_idx=0) predicts d_j - d_ref, so that is what the
+# file must contain -- not d_ref - d_j.
+d_ref = np.linalg.norm(positions - beacons[0], axis=1)
+predicted = np.array([
+    np.linalg.norm(positions - beacons[j], axis=1) - d_ref
+    for j in range(1, len(beacons))
+]).T
+residual = np.abs(np.loadtxt(data_dir / "tdoa_diffs.txt") - predicted).mean()
+
+print(f"GDOP predicts {predicted_accuracy:.3f} m")
+print(f"measurement residual {residual:.3f} m against {sigma} m of noise")
+assert residual < 3 * sigma, "the stored measurements are not what the solver expects"
 ```
 
 ### Issue 2: High GDOP in Certain Regions
