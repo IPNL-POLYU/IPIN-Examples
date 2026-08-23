@@ -40,9 +40,9 @@
   "performance": {
     "divergence_threshold_m": 100.0,
     "toa": {
-      "median_m": 0.09512088053570487,
-      "mean_solved_m": 0.10055482598357197,
-      "max_solved_m": 0.2727229726158406,
+      "median_m": 0.08809343270603553,
+      "mean_solved_m": 0.0891267965001353,
+      "max_solved_m": 0.23005412061641367,
       "failed_count": 0,
       "n_positions": 100
     },

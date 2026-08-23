@@ -1039,19 +1039,37 @@ across every ch4 dataset, in the deliverable of a chapter about RF positioning.
   geometry groups show zero failures. A panel with nothing in it looks like
   missing data and is in fact the result.
 
-**The `iwls` question next door is not a defect; do not "fix" it.**
-`run_positioning` solves TOA with `TOAPositioner(beacons, method="iwls")`, and
-`iwls` is a deprecated alias resolving to `range_weighted` (1/d^2 weights),
-not to iterative WLS. That reads like drift and is not: at the commit that
-created these datasets `iwls` *was* the 1/d^2 branch, and the alias was added
-later specifically to preserve it, so the behaviour has never changed. Measured
-before deciding -- `range_weighted` against `iterative_ls` gives 0.0951 vs
-0.0881 m on the square, 0.0995 vs 0.0792 on optimal, identical 6.7696 on the
-collinear, and 0.6030 vs 0.6145 on NLOS. Both sit inside `GDOP x sigma_range`;
-neither is a defect signature. Switching would move the TOA numbers in four
-`config.json`s and every document quoting them, to swap one defensible
-weighting for another. It is an editorial choice about which estimator the
-chapter should showcase -- worth making deliberately, not as a drive-by.
+**The `iwls` question next door was not a defect, and was still worth
+changing.** `run_positioning` used to solve TOA with
+`TOAPositioner(beacons, method="iwls")`, a deprecated alias resolving to
+`range_weighted` (W_ii = 1/d_i^2) rather than to iterative WLS. That reads like
+drift and was not: at the commit that created these datasets `iwls` *was* the
+1/d^2 branch, and the alias was added later specifically to preserve it, so the
+behaviour had never changed.
+
+**The argument for changing it is the data, not the name.** `range_weighted`
+assumes sigma_i proportional to d_i. These generators add
+`rng.normal(0, toa_noise)` with one fixed std, so that assumption is false here
+and uniform weights are the maximum-likelihood choice -- which is also
+Eq. (4.20), the book default. Measured both ways before switching:
+`range_weighted` vs `iterative_ls` gives 0.0951 vs 0.0881 m on the square,
+0.0995 vs 0.0792 on optimal, identical 6.7696 on the collinear, and 0.6030 vs
+0.6145 on NLOS with failures dropping 4 to 1. Uniform weights win on both
+well-conditioned arrays, as BLUE says they must for constant noise.
+
+**The tell that it needed resolving was two files disagreeing about the same
+measurements.** `example_comparison.solve_every_method` already used
+`iterative_ls`, so it reported the square's TOA median as 0.088 m while the
+`config.json` beside it recorded 0.095 m -- and the example carried a docstring
+paragraph *explaining the discrepancy* rather than removing it. When a
+codebase documents why two of its own numbers disagree, that note is a
+deferred decision, not an explanation. They agree now and the paragraph is
+gone.
+
+Blast radius, for calibration: only the TOA block of three `config.json`s. No
+measurement file moved, because the estimator affects what is *reported*, not
+what is *measured* -- and `ch4_rf_2d_linear` did not change at all, since
+100/100 fixes stall at the centroid under either weighting.
 
 ## A scratch probe in the scratchpad imports the *other* checkout
 

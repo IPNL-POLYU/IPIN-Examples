@@ -26,8 +26,8 @@ cannot see that at all.
 4. **A degenerate starting point is its own failure.** The beacon centroid lies
    *on* the line of symmetry, where the range Jacobian has no across-line
    sensitivity, so TOA and TDOA cannot move off it.
-5. **A median can hide a bimodal result.** TOA's overall median of 1.17 m sits
-   in the empty gap between a 0.10 m cluster and an 8.92 m cluster.
+5. **A median can hide a bimodal result.** TOA's overall median of 1.07 m sits
+   in the empty gap between a 0.09 m cluster and an 8.93 m cluster.
 
 ### Implemented Equations
 
@@ -91,7 +91,7 @@ seed = np.array([10.0, 3.0])  # below the beacon line
 
 est = np.zeros_like(positions)
 for i in range(len(positions)):
-    est[i], _ = TOAPositioner(beacons, method="iwls").solve(
+    est[i], _ = TOAPositioner(beacons, method="iterative_ls").solve(
         toa_ranges[i], initial_guess=seed
     )
 
@@ -110,13 +110,13 @@ print(f"Closer to the mirror than to the truth: "
 ```
 
 **Expected**: 100/100 end on the seed's side. Targets on that side are solved
-to a 0.104 m median — as good as the square geometry. Targets on the far side
-come out 8.917 m off, because the solver returned their mirror image. Exactly
+to a 0.085 m median — as good as the square geometry. Targets on the far side
+come out 8.926 m off, because the solver returned their mirror image. Exactly
 50 of 100 estimates are closer to the mirror than to the truth.
 
-Note what this does to a summary statistic. The overall median is 1.17 m, which
+Note what this does to a summary statistic. The overall median is 1.07 m, which
 is not a typical error for anything — the distribution is two tight clusters at
-0.10 m and 8.92 m, and the median lands in the empty space between them. Report
+0.09 m and 8.93 m, and the median lands in the empty space between them. Report
 the two modes, or report the fraction mirrored.
 
 ## Why DOP misses it
@@ -194,7 +194,7 @@ def evaluate(solver, measurements, guess):
 
 for label, guess in [("centroid [10, 10] (on the line)", beacons.mean(axis=0)),
                      ("off-line  [10,  3]", np.array([10.0, 3.0]))]:
-    toa_med, toa_fail = evaluate(TOAPositioner(beacons, method="iwls"), toa_ranges, guess)
+    toa_med, toa_fail = evaluate(TOAPositioner(beacons, method="iterative_ls"), toa_ranges, guess)
     tdoa_med, tdoa_fail = evaluate(TDOAPositioner(beacons, reference_idx=0),
                                    tdoa_diffs, guess)
     aoa_med, aoa_fail = evaluate(AOAPositioner(beacons), aoa_angles, guess)
@@ -207,7 +207,7 @@ for label, guess in [("centroid [10, 10] (on the line)", beacons.mean(axis=0)),
 **Expected**: TOA goes from 100/100 failing on the line to 0/100 failing off
 it — its problem is entirely the starting point, not the measurements. TDOA
 goes from 100/100 to 17, and its median stays an order of magnitude worse than
-TOA's (5.13 m against 1.17 m). AOA goes the other way, from 8 failures to 43:
+TOA's (5.13 m against 1.07 m). AOA goes the other way, from 8 failures to 43:
 its own basin is best approached from the middle of the array.
 
 So the seed matters most, and the geometry still matters after it. TDOA's GDOP
@@ -228,7 +228,7 @@ hyperbolae — and that shows up as the residual gap once the seed is fixed.
 | | `ch4_rf_2d_square` | `ch4_rf_2d_linear` |
 |---|---|---|
 | TOA failed | 0/100 | 100/100 (from the centroid) |
-| TOA median | 0.10m | 6.77m |
+| TOA median | 0.09m | 6.77m |
 | TDOA failed | 0/100 | 100/100 |
 | TDOA median | 0.07m | 6.77m |
 | AOA failed | 0/100 | 8/100 |

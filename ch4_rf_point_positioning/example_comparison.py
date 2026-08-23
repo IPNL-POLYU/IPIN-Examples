@@ -91,11 +91,11 @@ def solve_every_method(data: dict, verbose: bool = True) -> dict[str, SolveOutco
     **failure counts here equal the `failed_count` in each `config.json`** --
     checked on all four ch4 datasets.
 
-    The TOA *median* is 0.088 m here against the 0.095 m recorded there, and
-    that is not drift: the generator asks for `TOAPositioner(method="iwls")`,
-    a deprecated alias resolving to the 1/d^2 range-weighted solver, while this
-    example uses the book default `iterative_ls` (W = I, Eq. 4.20). Same
-    measurements, different estimator.
+    The TOA *median* equals the one recorded there too, now that the generator
+    also asks for `iterative_ls`. It used to ask for `iwls` -- a deprecated
+    alias resolving to the 1/d^2 range-weighted solver -- so the same
+    measurements were reported at 0.095 m there and 0.088 m here, and this
+    docstring existed to explain the gap away.
     """
     beacons = data['beacons']
     truth = data['positions']

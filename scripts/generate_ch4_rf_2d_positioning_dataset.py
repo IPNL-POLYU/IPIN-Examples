@@ -282,7 +282,7 @@ def run_positioning(
     # answer plus a metre. No user has that, so none of the reported errors
     # were reproducible. The beacon centroid is what a real system starts from.
     #
-    # On the square geometry it changes nothing: TOA 0.0951 m, TDOA 0.0746 m
+    # On the square geometry it changes nothing: TOA 0.0881 m, TDOA 0.0746 m
     # and AOA 0.3971 m from the centroid, identical to four decimals from
     # `truth + 1 m`. That is a statement about this geometry and not a general
     # one -- on the collinear `poor_geometry` beacons the seed is the whole
@@ -315,7 +315,18 @@ def run_positioning(
         )
         return outcome.estimates, outcome.solved
 
-    toa_pos, toa_ok = solve_all(TOAPositioner(beacons, method="iwls"), toa_ranges)
+    # `iterative_ls` is the book default and Eq. (4.20): W = I, which is the
+    # maximum-likelihood weighting when every range carries the same noise --
+    # and these datasets add `rng.normal(0, toa_noise)` with one fixed std, so
+    # it does. This used to ask for `iwls`, a deprecated alias resolving to
+    # `range_weighted` (W_ii = 1/d_i^2), whose stated assumption is sigma_i
+    # proportional to d_i. That is a real weighting, but not one this data
+    # justifies, and it left the generator and
+    # `ch4_rf_point_positioning/example_comparison` reporting different TOA
+    # medians for the same measurements -- 0.095 m against 0.088 m.
+    toa_pos, toa_ok = solve_all(
+        TOAPositioner(beacons, method="iterative_ls"), toa_ranges
+    )
     tdoa_pos, tdoa_ok = solve_all(TDOAPositioner(beacons, reference_idx=0), tdoa_diffs)
     aoa_pos, aoa_ok = solve_all(AOAPositioner(beacons), aoa_angles)
 

@@ -184,7 +184,7 @@ positions = np.loadtxt(data_dir / "ground_truth_positions.txt")
 toa_ranges = np.loadtxt(data_dir / "toa_ranges.txt")
 
 # Initialize TOA positioner
-toa_solver = TOAPositioner(beacons, method="iwls")
+toa_solver = TOAPositioner(beacons, method="iterative_ls")
 
 # Estimate positions
 N = len(positions)
@@ -221,7 +221,7 @@ plt.tight_layout()
 plt.show()
 ```
 
-**Expected Result**: ~0.1m mean error with square geometry
+**Expected Result**: 0.089 m mean error, 0.230 m max, 0.100 m RMS.
 
 ### TDOA Positioning
 ```python
@@ -265,7 +265,7 @@ print(f"TDOA failed to solve: {np.sum(~good)}/{N}")
 **Note**: this is the accuracy the geometry predicts. The TDOA GDOP here is
 0.873 and the range-difference noise is 0.1 m, so `sigma_position = GDOP x
 sigma_range` gives 0.087 m — and a median sits a little below that, since it is
-not an RMS. TDOA slightly beats TOA on this array (0.075 m against 0.095 m)
+not an RMS. TDOA slightly beats TOA on this array (0.075 m against 0.088 m)
 because its GDOP is lower, which is the whole point of comparing the two here.
 
 Until recently this block printed 13.75 m with 11 of 100 fixes failing, and the
@@ -440,10 +440,27 @@ python scripts/generate_ch4_rf_2d_positioning_dataset.py --output data/sim/ch4_a
 2. Compare GDOP distributions
 3. Measure positioning errors
 
-**Expected Results**:
-- Square: GDOP ~1.0, error ~0.1m
-- Optimal: GDOP ~0.8, error ~0.08m (20% better!)
-- Linear: GDOP >10, error >1.0m (10× worse!)
+**Expected Results**, per method, because no geometry wins every column:
+
+| Geometry | TOA GDOP / error | TDOA GDOP / error | AOA GDOP / error |
+|---|---|---|---|
+| Square | 1.02 / 0.088 m | **0.87** / 0.075 m | 15.04 / 0.397 m |
+| Optimal | 1.02 / 0.079 m | 1.09 / 0.085 m | 11.54 / 0.273 m |
+| Collinear | 1.43 / 6.770 m [100 failed] | 10.36 / 6.770 m [100 failed] | **9.25** / 0.262 m [8] |
+
+Three things in that table are worth pausing on, and none of them is "optimal
+is best":
+
+- **"Optimal" wins no GDOP column outright.** It ties the square for TOA, is
+  worse for TDOA, and loses AOA to the collinear array. The name describes a
+  layout, not a ranking.
+- **The collinear row is not a GDOP result.** TOA GDOP there is 1.43, which
+  says the geometry is fine; 100 of 100 fixes still fail, because the centroid
+  seed sits on the line of symmetry and the ambiguity that breaks it is global
+  where DOP is local. See `ch4_rf_2d_linear`.
+- **GDOP predicts within a geometry, not across estimators.** Square TOA and
+  TDOA both land on `sigma_position = GDOP x sigma_range`, and TDOA is the more
+  accurate of the two precisely because its GDOP is lower.
 
 **Code**:
 ```bash
@@ -473,7 +490,7 @@ for name in ['ch4_rf_2d_square', 'ch4_rf_2d_optimal', 'ch4_rf_2d_linear']:
 3. Compare errors and characteristics
 
 **Expected Results**:
-- **TOA**: ~0.10m, but requires clock sync
+- **TOA**: ~0.09m, but requires clock sync
 - **TDOA**: ~0.07m, and eliminates clock bias — on *this* geometry it is the
   most accurate of the three, because its GDOP is the lowest of the three
 - **AOA**: ~0.40m; angle errors amplify with distance
@@ -518,9 +535,9 @@ landed more than 100 m away.
 
 | Metric | TOA | TDOA | AOA | Notes |
 |--------|-----|------|-----|-------|
-| **Median Error** | 0.10m | 0.07m | 0.40m | Robust to the tail |
-| **Mean over solved** | 0.10m | 0.08m | 0.46m | TDOA best, as its GDOP says |
-| **Max over solved** | 0.27m | 0.23m | 1.30m | |
+| **Median Error** | 0.09m | 0.07m | 0.40m | Robust to the tail |
+| **Mean over solved** | 0.09m | 0.08m | 0.46m | TDOA best, as its GDOP says |
+| **Max over solved** | 0.23m | 0.23m | 1.30m | |
 | **Failed to solve** | **0/100** | **0/100** | **0/100** | every fix solves on this array |
 | **Mean GDOP** | 1.02 | 0.87 | 15.04 | TOA/TDOA similar |
 | **Min GDOP** | 1.00 | 0.81 | 13.84 | Center of area |
@@ -531,7 +548,7 @@ single solve that "converges" to somewhere absurd makes a mean a property of
 that outlier. AOA used to do exactly that on 36 of 100 positions.
 
 **Key Insights**:
-- TOA: 0.10m median, solves every position; requires clock sync.
+- TOA: 0.09m median, solves every position; requires clock sync.
 - TDOA: 0.07m median, clock-free, and slightly *better* than TOA on this array
   — its GDOP is 0.87 against TOA's 1.02, and both attain `GDOP x sigma_range`.
   The cost of TDOA is not accuracy on a good geometry; it is that the geometry
