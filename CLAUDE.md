@@ -996,11 +996,34 @@ across every ch4 dataset, in the deliverable of a chapter about RF positioning.
   geometry. It covers TOA and AOA too, which were correct and cost nothing to
   pin, and carries a test that re-measures its own tolerance against both the
   noise and the defect on every run, rather than trusting a number written once.
-  At a 3 sigma gate the margins are 0.772 sigma for the loosest honest dataset
-  and 89.65 sigma for the weakest-signal negated one. The honest figure is worth
-  recognising: 0.772 is `sqrt(2/pi)` = 0.798, the mean absolute deviation of the
-  noise itself, so the residual is *all* noise and no systematic part -- which is
-  a stronger statement than "under the threshold".
+  Every arm's margin is measured against six named corruptions.
+- **The first version of that guard was itself broken, and the mutations I chose
+  to validate it were the ones it passes.** This is the antipattern CLAUDE.md
+  already warns about -- "a replacement assertion written during the sweep to
+  remove exactly that antipattern turned out to hold whether or not the code
+  under test did its job" -- arriving one level up, in the guard rather than in
+  the code. Reviewing the diff caught it. Two statistics were wrong:
+  - **A signed mean cancels.** Negating *every* azimuth in the square dataset
+    moves the signed mean residual from 0.17 deg to 0.17 deg, so a fully
+    sign-inverted AOA file passed. Per column the same defect is 90.15 deg.
+    Swapping `atan2`'s two arguments was missed the same way. And a signed mean
+    fails on TDOA even *per column* -- 0.12 sigma either way -- because
+    `d_j - d_ref` averages to nothing over a symmetric grid.
+  - **A mean over all columns dilutes.** One beacon is one of four, so an
+    undeclared +1.1 m bias on a single beacon -- larger than the 0.8 m the NLOS
+    dataset legitimately ships -- read 0.280 m against a 0.300 m gate.
+  The right statistic is the **worst column's mean |residual|**: absolute so it
+  cannot cancel, per column so it cannot dilute. Honest values land at
+  0.81-0.85 sigma for all three measurement types, which is `sqrt(2/pi)` = 0.798,
+  the mean absolute deviation of the noise itself -- so the residual is all noise
+  and no systematic part, a stronger statement than "under the threshold".
+- **Pick the mutation that is hardest for your statistic, not the one that comes
+  to mind.** Of three AOA convention errors, the reverse bearing (+pi) is the
+  only one a signed mean detects, and it is the one I reached for first. The
+  general form: a defect that is *antisymmetric* about the array defeats a
+  signed reduction, and a defect confined to *one* sensor defeats a reduction
+  over all of them. Enumerate corruptions along both axes before believing a
+  green. The tolerance test now carries all six as data rather than as prose.
 - **Correcting the data falsified a claim written about the broken data, and it
   did not read like a number.** `data/sim/ch4_rf_2d_linear/README.md` said
   "TDOA fails from every starting point tried", and explained it with flat
