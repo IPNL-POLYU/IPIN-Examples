@@ -270,12 +270,6 @@ def run_positioning(
     Returns:
         Tuple of (toa_pos, tdoa_pos, aoa_pos) estimated positions.
     """
-    N_pos = len(true_positions)
-
-    toa_pos = np.zeros((N_pos, 2))
-    tdoa_pos = np.zeros((N_pos, 2))
-    aoa_pos = np.zeros((N_pos, 2))
-
     # Every solver here used to be seeded with `true_positions[i] + 1.0` -- the
     # answer plus a metre. No user has that, so none of the reported errors
     # were reproducible. The beacon centroid is what a real system starts from.

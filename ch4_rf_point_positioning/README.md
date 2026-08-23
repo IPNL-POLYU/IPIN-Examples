@@ -63,7 +63,7 @@ Two things are measured, not asserted:
 | Example Script | Dataset | Description |
 |----------------|---------|-------------|
 | `example_comparison.py` | `data/sim/ch4_rf_2d_square/` | Square geometry (4 corners) - good baseline |
-| `example_comparison.py` | `data/sim/ch4_rf_2d_optimal/` | Circular geometry - best TDOA GDOP (1.09) |
+| `example_comparison.py` | `data/sim/ch4_rf_2d_optimal/` | Circular geometry - best AOA GDOP of the two enclosing layouts (11.54 against 15.04) |
 | `example_comparison.py` | `data/sim/ch4_rf_2d_linear/` | Collinear array - worst for TDOA (GDOP 10.36), *best* for AOA (9.25) |
 | `example_comparison.py` | `data/sim/ch4_rf_2d_nlos/` | Square + NLOS bias - robustness testing |
 
@@ -755,6 +755,18 @@ says "poor". It is bad for ranges and the best of the three for bearings:
   eight failures are the grid rows within 1 m of the beacon line, where all
   four bearings are nearly parallel.
 
+**And "Optimal" does not win a single GDOP column outright**, which is the
+same lesson from the other end. Mean GDOP by dataset:
+
+| Geometry | TOA | TDOA | AOA |
+|---|---|---|---|
+| Square (4 corners) | 1.02 | **0.87** | 15.04 |
+| Optimal (circular) | 1.02 | 1.09 | 11.54 |
+| Collinear (4 in a row) | 1.43 | 10.36 | **9.25** |
+
+It ties the square for TOA, is slightly *worse* than it for TDOA, and loses
+AOA to the collinear array. The name describes a layout, not a ranking.
+
 And DOP sees none of it. TOA GDOP on the collinear array averages 1.43 against
 1.02 for the square — a local, first-order measure calling the configuration
 fine, while the ambiguity that breaks it is global. **A healthy DOP is
@@ -833,7 +845,7 @@ data/sim/
 │   └── config.json
 ├── ch4_rf_2d_linear/             # Collinear array (worst TDOA GDOP, best AOA GDOP)
 ├── ch4_rf_2d_nlos/               # Square + NLOS bias (robustness test)
-└── ch4_rf_2d_optimal/            # Circular geometry (best TDOA GDOP)
+└── ch4_rf_2d_optimal/            # Circular geometry (best AOA GDOP of the enclosing layouts)
 ```
 
 ## Figure Gallery
