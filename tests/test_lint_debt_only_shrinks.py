@@ -66,15 +66,15 @@ SOURCE_DIRS = (
 #: available. B905 is the one group worth reading before fixing: `zip()` without
 #: `strict=` truncates to the shorter argument without saying so.
 BASELINE = {
-    "W293": 837,
-    "UP006": 388,
+    "W293": 834,
+    "UP006": 386,
     "UP045": 178,
     "UP035": 123,
-    "I001": 114,
+    "I001": 113,
     "W291": 70,
     "B905": 41,
     "UP007": 38,
-    "B007": 29,
+    "B007": 28,
     "B028": 14,
     "E712": 13,
     "E731": 7,

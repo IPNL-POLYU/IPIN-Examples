@@ -919,6 +919,87 @@ assertion discriminated nothing while reading like the main event. Run the
 mutation before deciding which of your assertions is load-bearing; the
 convincing-sounding one is not reliably the one doing the work.
 
+## An RMSE over the solves that converged hides the failure twice
+
+Chapter 4's `--compare-geometry` aggregated each method as an RMSE over the
+solves reporting `converged`, and that single choice produced three wrong
+answers at once. Nonsense that claimed success was averaged **in** -- AOA on the
+collinear beacons reported 2.2e10 m, from three fixes at 1e11 m among 95
+"converged" ones. Honest refusals dropped **out** of the denominator, so TOA
+and TDOA on that geometry printed no row and drew no bar at all. And the third
+was quieter than either: `errors[:n]` was paired against `gdop[:n]` with the
+errors already compacted to the successes, so point i's error sat beside some
+other point's GDOP the moment anything failed.
+
+Net effect: **no method appeared on more than two of the three geometries**, in
+the mode whose entire purpose is comparing methods across geometries.
+
+- **The correct version was next door.** `030-figures-and-claims.mdc` already
+  said "report the median and the failure count separately" and already listed
+  the fourth condition people forget (never left the initial guess), and
+  `generate_ch4_rf_2d_positioning_dataset.py` already implemented all of it --
+  it is where every `failed_count` in every ch4 `config.json` comes from. The
+  example simply never adopted it. It is now `core.rf.solve_batch`, used by
+  both; the extraction was verified by regenerating all four ch4 datasets and
+  diffing **every byte, `config.json` included**, which is the check that turns
+  "should be equivalent" into "is".
+- **A rule that is not reachable as a function gets applied where someone
+  happened to look.** The chapter's *inline table* had this exact defect fixed
+  once before -- CLAUDE.md records "the comparison table reported AOA at 5.3e9 m
+  with zero noise". The dataset path kept it, for the reason the figure ratchet
+  exists: nobody had ever committed or opened `ch4_geometry_comparison.png`.
+- **On a linear axis one absurd bar is the whole figure.** 2.2e10 m flattened
+  every other bar to zero height. The honest numbers span 0.08 m to 14 m, so
+  the axis is logarithmic, the height is a median, and the failure rate is its
+  own panel -- because an accuracy plot cannot express "this did not work",
+  which is the thing it most needs to say.
+
+**The thread under it was worth more than the figure.** Asking CLAUDE.md's
+standard question of the surviving numbers -- *what should this be?* -- TDOA on
+the square array has GDOP 0.87 and 0.1 m of range noise, so `sigma_position =
+GDOP x sigma_range` predicts 0.087 m. It reported **13.75 m**. The generator
+builds each measurement as `tdoa_range_difference(beacons[0], beacons[j], pos)`
+= `d_ref - d_k`, while `TDOAPositioner` predicts `d_k - d_ref`: every shipped
+TDOA measurement is negated. Negate them back and the square array gives
+0.074 m with 0 failures instead of 13.753 m with 11. A factor of **158**,
+across every ch4 dataset, in the deliverable of a chapter about RF positioning.
+
+- **Three documents had already met it and explained it away.** The square
+  dataset README calls TDOA "the fragile one" and attributes the gap to "the
+  hyperbolic geometry"; its troubleshooting section carries an entry whose
+  stated symptom -- ">10m errors while TOA gives <0.5m" -- *is* the defect.
+  Third instance of this shape after ch2's "Issue 2: ENU Range Seems Wrong" and
+  its 360-degree rotation error. **A troubleshooting entry describing your own
+  output is a bug report.**
+- **The collinear dataset could not see it.** Both signs stall at the beacon
+  centroid, 100/100, so the one geometry a reader would suspect is the one that
+  looks identical either way. Pick the well-conditioned case to test a sign.
+- Not fixed here, because it rewrites shipped bytes in four datasets and the
+  numbers quoted around them.
+  `tests/ch4_rf_point_positioning/test_tdoa_dataset_sign_convention.py` pins it
+  and **goes red the moment the generator is corrected** -- the pattern
+  `test_frontend_actually_corrects.py` established. Verified by actually making
+  the one-line fix, regenerating, and watching all three assertions flip.
+
+## A scratch probe in the scratchpad imports the *other* checkout
+
+The editable-install trap at the top of this file has a second face that the
+`python -m` rule does not cover. A throwaway script written to
+`.../Temp/claude/probe.py` cannot be run as a module from the worktree, so
+`sys.path[0]` is the temp directory, `core` resolves through the editable
+finder to `C:\Users\qmohs\IPIN-Examples`, and the probe measures the **main
+checkout** while you read its output as evidence about your branch.
+
+A helper you just *added* fails loudly with `ImportError`, which is how this
+was noticed. A function you just *changed* does not: it runs the old one and
+returns a plausible number. Two probes in this session ran that way before the
+third failed and gave it away.
+
+`PYTHONPATH=$(pwd)` in front of the command fixes it, and is the one place that
+spelling is still needed -- everything documented in the repository is the
+module form, which is why the note above says the variable is redundant. It is
+redundant for the repository's own commands, not for yours.
+
 ## Figures
 
 `core.eval.save_figure` is the only output path; it writes svg/pdf/png together

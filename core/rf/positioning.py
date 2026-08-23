@@ -13,6 +13,171 @@ from typing import Dict, Optional, Tuple, Union
 
 import numpy as np
 
+#: A fix that landed further than this from the truth did not solve anything,
+#: whatever the solver reported. An iterative solver on a degenerate geometry
+#: walks off to 1e11 m and returns ``converged=True`` -- the residuals shrink on
+#: the way out, so infinity is an attractor rather than a divergence. This is
+#: the threshold the Chapter 4 dataset generator records in every
+#: ``config.json`` as ``divergence_threshold_m``.
+DIVERGENCE_M = 100.0
+
+#: An estimate this close to where it started never moved. On collinear beacons
+#: the range Jacobian is rank-deficient across the beacon line, so a solver
+#: seeded on that line has nowhere to step -- and Gauss-Newton calls a zero step
+#: convergence. The error then scores as the distance from the seed to the
+#: truth, which is a property of the seed and not of the measurements.
+STALL_M = 1e-6
+
+
+class SolveOutcome:
+    """A batch of position fixes with its failures still attached.
+
+    Counting only the solves that reported ``converged`` is how a method comes
+    to look better than it is, in both directions at once: the ones that
+    silently returned nonsense are averaged in, and the ones that honestly
+    refused disappear from the denominator. Chapter 4's geometry comparison did
+    both -- AOA on the collinear beacons reported an RMSE of 2.2e10 m over 95
+    "converged" solves, while TOA and TDOA reported nothing at all because none
+    of their 100 converged, so no method could be compared across geometries.
+
+    A solve counts as failed if it raised, reported ``converged=False``, never
+    left its initial guess, or landed more than ``divergence_m`` away. Those
+    four are the ones observed here; counting fewer of them is the recurring
+    bug.
+
+    Attributes:
+        estimates: Estimated positions, shape (N, dim). NaN where the solve
+            raised.
+        converged: What the solver reported, shape (N,).
+        stalled: Whether the estimate never left the initial guess, shape (N,).
+        errors: Distance from truth in metres, shape (N,). NaN where the solve
+            raised. **Full length and aligned with the measurements**, so it can
+            be paired with per-position quantities such as GDOP -- compacting it
+            to the successes is what silently misaligned the error-vs-GDOP
+            scatter in ``example_comparison``.
+        solved: The conjunction of all four conditions, shape (N,).
+    """
+
+    def __init__(self, estimates, converged, stalled, errors, divergence_m):
+        self.estimates = estimates
+        self.converged = converged
+        self.stalled = stalled
+        self.errors = errors
+        self.divergence_m = float(divergence_m)
+        self.solved = (
+            converged
+            & ~stalled
+            & np.isfinite(errors)
+            & (np.nan_to_num(errors, nan=np.inf) < self.divergence_m)
+        )
+
+    @property
+    def n(self) -> int:
+        """Number of fixes attempted."""
+        return len(self.errors)
+
+    @property
+    def n_failed(self) -> int:
+        """Fixes that raised, refused, stalled or diverged."""
+        return int(np.sum(~self.solved))
+
+    @property
+    def median_m(self) -> float:
+        """Median error over every fix that produced a number.
+
+        Failures are included, because excluding them reports the accuracy of
+        the solves that happened to work rather than of the method. On the
+        collinear geometry that is the difference between "TOA solves to
+        0.10 m" and "TOA returns its own initial guess".
+        """
+        finite = np.isfinite(self.errors)
+        return float(np.median(self.errors[finite])) if finite.any() else float("nan")
+
+    @property
+    def mean_solved_m(self) -> float:
+        """Mean error over the fixes that actually solved."""
+        return (
+            float(self.errors[self.solved].mean())
+            if self.solved.any()
+            else float("nan")
+        )
+
+    @property
+    def max_solved_m(self) -> float:
+        """Worst error among the fixes that actually solved."""
+        return (
+            float(self.errors[self.solved].max())
+            if self.solved.any()
+            else float("nan")
+        )
+
+    def summary(self) -> dict:
+        """The five numbers Chapter 4's ``config.json`` records per method."""
+        return {
+            "median_m": self.median_m,
+            "mean_solved_m": self.mean_solved_m,
+            "max_solved_m": self.max_solved_m,
+            "failed_count": self.n_failed,
+            "n_positions": self.n,
+        }
+
+
+def solve_batch(
+    solver,
+    measurements: np.ndarray,
+    initial_guess: np.ndarray,
+    truth: np.ndarray,
+    *,
+    divergence_m: float = DIVERGENCE_M,
+    stall_m: float = STALL_M,
+    progress=None,
+    **solve_kwargs,
+) -> SolveOutcome:
+    """Solve one fix per row of ``measurements`` and keep the failures.
+
+    Args:
+        solver: Any of the positioners in this module -- anything exposing
+            ``solve(measurement, initial_guess=..., **kwargs)`` and returning
+            ``(position, info)``.
+        measurements: One measurement vector per row, shape (N, M).
+        initial_guess: Starting point for every fix, shape (dim,).
+        truth: Ground-truth positions, shape (N, dim).
+        divergence_m: Distance beyond which a fix is a failure however it was
+            reported. Defaults to :data:`DIVERGENCE_M`.
+        stall_m: Distance below which a fix is treated as never having moved.
+            Defaults to :data:`STALL_M`.
+        progress: Optional wrapper applied to the loop's iterator, so a caller
+            can hand in ``functools.partial(tqdm, desc="TOA")`` without this
+            module depending on tqdm.
+        **solve_kwargs: Passed through to ``solver.solve``.
+
+    Returns:
+        A :class:`SolveOutcome`.
+    """
+    measurements = np.asarray(measurements, dtype=float)
+    truth = np.asarray(truth, dtype=float)
+    initial_guess = np.asarray(initial_guess, dtype=float)
+
+    n = len(truth)
+    estimates = np.full((n, truth.shape[1]), np.nan)
+    converged = np.zeros(n, dtype=bool)
+    stalled = np.zeros(n, dtype=bool)
+
+    indices = range(n)
+    for i in indices if progress is None else progress(indices):
+        try:
+            position, info = solver.solve(
+                measurements[i], initial_guess=initial_guess, **solve_kwargs
+            )
+        except Exception:  # noqa: BLE001 - a raise is one of the four failures
+            continue
+        estimates[i] = position
+        converged[i] = bool(info.get("converged", True))
+        stalled[i] = bool(np.linalg.norm(position - initial_guess) < stall_m)
+
+    errors = np.linalg.norm(estimates - truth, axis=1)
+    return SolveOutcome(estimates, converged, stalled, errors, divergence_m)
+
 
 def build_tdoa_covariance(
     sigmas: np.ndarray,

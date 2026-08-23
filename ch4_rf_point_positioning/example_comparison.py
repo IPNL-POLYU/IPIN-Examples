@@ -5,9 +5,12 @@ This script compares TOA, TDOA, AOA, and RSS positioning methods
 under various conditions using pre-generated datasets.
 
 Can run with:
-    - Pre-generated dataset: python example_comparison.py --data ch4_rf_2d_square
-    - Inline data (default): python example_comparison.py
-    - Compare geometries: python example_comparison.py --compare-geometry
+    - Inline data (default):
+        python -m ch4_rf_point_positioning.example_comparison
+    - Pre-generated dataset:
+        python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_square
+    - Compare geometries, every method on every beacon layout:
+        python -m ch4_rf_point_positioning.example_comparison --compare-geometry
 
 Implements:
     - TOA positioning (Eqs. 4.14-4.23)
@@ -22,6 +25,7 @@ Date: December 2025
 import argparse
 import json
 import time
+from functools import partial
 from pathlib import Path
 from typing import Dict
 
@@ -30,15 +34,18 @@ import numpy as np
 from tqdm import tqdm
 
 from core.eval import save_figure, show_figures_if_requested
-from core.utils import resolve_data_path
 from core.rf import (
+    DIVERGENCE_M,
     AOAPositioner,
+    SolveOutcome,
     TDOAPositioner,
     TOAPositioner,
     aoa_azimuth,
     rss_to_distance,
+    solve_batch,
     toa_range,
 )
+from core.utils import resolve_data_path
 
 
 def load_rf_dataset(data_dir: str) -> Dict:
@@ -69,15 +76,83 @@ def load_rf_dataset(data_dir: str) -> Dict:
     return data
 
 
-def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
+#: The three methods this comparison reports, in the order Chapter 4
+#: introduces them. Every geometry reports all three, including the ones that
+#: fail on it -- a method that vanishes from a table because nothing converged
+#: is the failure being hidden, not reported.
+METHODS = ("TOA", "TDOA", "AOA")
+
+
+def solve_every_method(data: dict, verbose: bool = True) -> dict[str, SolveOutcome]:
+    """Solve a dataset with each of TOA, TDOA and AOA from the beacon centroid.
+
+    The centroid is what a real system starts from, and it is what the dataset
+    generator seeds with. Both go through `core.rf.solve_batch`, so the
+    **failure counts here equal the `failed_count` in each `config.json`** --
+    checked on all four ch4 datasets.
+
+    The TOA *median* is 0.088 m here against the 0.095 m recorded there, and
+    that is not drift: the generator asks for `TOAPositioner(method="iwls")`,
+    a deprecated alias resolving to the 1/d^2 range-weighted solver, while this
+    example uses the book default `iterative_ls` (W = I, Eq. 4.20). Same
+    measurements, different estimator.
+    """
+    beacons = data['beacons']
+    truth = data['positions']
+    guess = np.mean(beacons, axis=0)
+
+    solvers = {
+        'TOA': (TOAPositioner(beacons, method="iterative_ls"), data['toa_ranges']),
+        'TDOA': (TDOAPositioner(beacons, reference_idx=0), data['tdoa_diffs']),
+        'AOA': (AOAPositioner(beacons), data['aoa_angles']),
+    }
+
+    outcomes = {}
+    for method in METHODS:
+        solver, measurements = solvers[method]
+        if verbose:
+            print(f"\n--- Running {method} Positioning ---")
+        outcomes[method] = solve_batch(
+            solver, measurements, guess, truth,
+            progress=partial(tqdm, desc=method, disable=not verbose),
+        )
+    return outcomes
+
+
+def print_method_table(outcomes: dict[str, SolveOutcome],
+                       gdop: dict[str, np.ndarray]) -> None:
+    """One row per method, always -- failures included, nothing omitted."""
+    print(
+        f"A fix has failed if it raised, reported converged=False, never left "
+        f"the\ninitial guess, or landed over {DIVERGENCE_M:.0f} m away. "
+        f"'median' is over every fix that\nreturned a number; 'mean' and "
+        f"'worst' are over the ones that solved."
+    )
+    header = (
+        f"{'Method':<8}{'median(m)':>11}{'mean(m)':>11}{'worst(m)':>11}"
+        f"{'failed':>12}{'GDOP':>10}"
+    )
+    print(header)
+    print("-" * len(header))
+    for method in METHODS:
+        out = outcomes[method]
+        failed = f"{out.n_failed}/{out.n}"
+        print(
+            f"{method:<8}{out.median_m:>11.3f}{out.mean_solved_m:>11.3f}"
+            f"{out.max_solved_m:>11.3f}{failed:>12}"
+            f"{np.mean(gdop[method]):>10.2f}"
+        )
+
+
+def run_with_dataset(data_dir: str, verbose: bool = True) -> dict:
     """Run RF positioning comparison using pre-generated dataset.
-    
+
     Args:
         data_dir: Path to dataset directory
         verbose: Print detailed output
-    
+
     Returns:
-        Dictionary with results for each method
+        Dictionary with a SolveOutcome per method, plus geometry and GDOP.
     """
     if verbose:
         print("=" * 70)
@@ -85,142 +160,76 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> Dict:
         print(f"Using dataset: {data_dir}")
         print("=" * 70)
 
-    # Load dataset
     data = load_rf_dataset(data_dir)
     config = data['config']
-
     beacons = data['beacons']
     positions = data['positions']
-    n_points = len(positions)
 
     if verbose:
         print("\nDataset Info:")
         print(f"  Geometry: {config.get('geometry', {}).get('type', 'unknown')}")
         print(f"  Beacons: {len(beacons)}")
-        print(f"  Test points: {n_points}")
-        print(f"  TOA noise: {config.get('measurements', {}).get('toa_noise_std_m', 'N/A')} m")
-        print(f"  AOA noise: {config.get('measurements', {}).get('aoa_noise_std_deg', 'N/A')}°")
+        print(f"  Test points: {len(positions)}")
+        print(f"  TOA noise: "
+              f"{config.get('measurements', {}).get('toa_noise_std_m', 'N/A')} m")
+        print(f"  AOA noise: "
+              f"{config.get('measurements', {}).get('aoa_noise_std_deg', 'N/A')} deg")
+
+    outcomes = solve_every_method(data, verbose=verbose)
 
     results = {
-        'TOA': {'errors': [], 'converged': 0},
-        'TDOA': {'errors': [], 'converged': 0},
-        'AOA': {'errors': [], 'converged': 0},
+        'outcomes': outcomes,
+        'gdop': {
+            'TOA': data['gdop_toa'],
+            'TDOA': data['gdop_tdoa'],
+            'AOA': data['gdop_aoa'],
+        },
+        'n_points': len(positions),
+        'beacons': beacons,
+        'positions': positions,
+        'config': config,
     }
 
-    # Run TOA positioning
-    if verbose:
-        print("\n--- Running TOA Positioning ---")
-    toa_positioner = TOAPositioner(beacons, method="iterative_ls")
-
-    for i in tqdm(range(n_points), desc="TOA", disable=not verbose):
-        try:
-            est_pos, info = toa_positioner.solve(
-                data['toa_ranges'][i],
-                initial_guess=np.mean(beacons, axis=0)
-            )
-            if info["converged"]:
-                error = np.linalg.norm(est_pos - positions[i])
-                results['TOA']['errors'].append(error)
-                results['TOA']['converged'] += 1
-        except Exception:
-            pass
-
-    # Run TDOA positioning
-    if verbose:
-        print("\n--- Running TDOA Positioning ---")
-    tdoa_positioner = TDOAPositioner(beacons, reference_idx=0)
-
-    for i in tqdm(range(n_points), desc="TDOA", disable=not verbose):
-        try:
-            est_pos, info = tdoa_positioner.solve(
-                data['tdoa_diffs'][i],
-                initial_guess=np.mean(beacons, axis=0)
-            )
-            if info["converged"]:
-                error = np.linalg.norm(est_pos - positions[i])
-                results['TDOA']['errors'].append(error)
-                results['TDOA']['converged'] += 1
-        except Exception:
-            pass
-
-    # Run AOA positioning
-    if verbose:
-        print("\n--- Running AOA Positioning ---")
-    aoa_positioner = AOAPositioner(beacons)
-
-    for i in tqdm(range(n_points), desc="AOA", disable=not verbose):
-        try:
-            est_pos, info = aoa_positioner.solve(
-                data['aoa_angles'][i],
-                initial_guess=np.mean(beacons, axis=0)
-            )
-            if info["converged"]:
-                error = np.linalg.norm(est_pos - positions[i])
-                results['AOA']['errors'].append(error)
-                results['AOA']['converged'] += 1
-        except Exception:
-            pass
-
-    # Convert to numpy arrays
-    for method in results:
-        results[method]['errors'] = np.array(results[method]['errors'])
-
-    # Add GDOP info
-    results['gdop'] = {
-        'TOA': data['gdop_toa'],
-        'TDOA': data['gdop_tdoa'],
-        'AOA': data['gdop_aoa'],
-    }
-    results['n_points'] = n_points
-    results['beacons'] = beacons
-    results['positions'] = positions
-    results['config'] = config
-
-    # Print summary
     if verbose:
         print("\n" + "=" * 70)
         print("Results Summary")
         print("=" * 70)
-        print(f"{'Method':<10} {'RMSE (m)':<12} {'Mean (m)':<12} {'Max (m)':<12} {'Converged':<12} {'GDOP (mean)':<12}")
-        print("-" * 70)
-
-        for method in ['TOA', 'TDOA', 'AOA']:
-            errors = results[method]['errors']
-            if len(errors) > 0:
-                rmse = np.sqrt(np.mean(errors**2))
-                mean_err = np.mean(errors)
-                max_err = np.max(errors)
-            else:
-                rmse = mean_err = max_err = np.nan
-
-            gdop_mean = np.mean(results['gdop'][method])
-            conv_rate = results[method]['converged'] / n_points * 100
-
-            print(f"{method:<10} {rmse:<12.3f} {mean_err:<12.3f} {max_err:<12.3f} "
-                  f"{conv_rate:<12.1f}% {gdop_mean:<12.2f}")
+        print_method_table(outcomes, results['gdop'])
 
     return results
 
 
-def compare_geometries(verbose: bool = True) -> Dict:
+#: The three geometries this mode compares. The labels are printed and are the
+#: figure's x-axis, so they name the layout rather than grade it: "Linear
+#: (poor)" prejudges a geometry that is the best of the three for AOA.
+GEOMETRIES = (
+    ('ch4_rf_2d_square', 'Square (4 corners)'),
+    ('ch4_rf_2d_optimal', 'Optimal (circular)'),
+    ('ch4_rf_2d_linear', 'Collinear (4 in a row)'),
+)
+
+
+def compare_geometries(verbose: bool = True) -> dict:
     """Compare positioning performance across different beacon geometries.
-    
-    Uses ch4_rf_2d_square, ch4_rf_2d_optimal, and ch4_rf_2d_linear datasets.
+
+    Uses ch4_rf_2d_square, ch4_rf_2d_optimal and ch4_rf_2d_linear.
+
+    **Every geometry reports every method**, which is the whole point of the
+    mode and used to be the one thing it could not do. Results were aggregated
+    as an RMSE over the solves that reported convergence, so a method with no
+    converged solves printed no line at all and a method whose "converged"
+    solves included three at 1e11 m printed an RMSE of 2.2e10 m. Square and
+    Optimal listed TOA and TDOA, the collinear geometry listed only AOA, and no
+    method appeared on more than two of the three.
     """
     if verbose:
         print("=" * 70)
         print("Chapter 4: Beacon Geometry Comparison")
         print("=" * 70)
 
-    geometries = [
-        ('ch4_rf_2d_square', 'Square (4 corners)'),
-        ('ch4_rf_2d_optimal', 'Optimal (circular)'),
-        ('ch4_rf_2d_linear', 'Linear (poor)'),
-    ]
-
     all_results = {}
 
-    for dataset_name, geometry_label in geometries:
+    for dataset_name, geometry_label in GEOMETRIES:
         data_path = resolve_data_path(Path("data/sim") / dataset_name)
         if not data_path.exists():
             if verbose:
@@ -229,33 +238,73 @@ def compare_geometries(verbose: bool = True) -> Dict:
 
         if verbose:
             print(f"\n{'='*70}")
-            print(f"Geometry: {geometry_label}")
+            print(f"Geometry: {geometry_label}   [{dataset_name}]")
             print(f"{'='*70}")
 
         results = run_with_dataset(str(data_path), verbose=False)
         all_results[geometry_label] = results
 
-        # Print summary for this geometry
         if verbose:
-            for method in ['TOA', 'TDOA', 'AOA']:
-                errors = results[method]['errors']
-                if len(errors) > 0:
-                    rmse = np.sqrt(np.mean(errors**2))
-                    gdop = np.mean(results['gdop'][method])
-                    print(f"  {method}: RMSE={rmse:.3f}m, GDOP={gdop:.2f}")
+            print_method_table(results['outcomes'], results['gdop'])
 
-    if verbose and len(all_results) > 0:
-        print("\n" + "=" * 70)
-        print("KEY INSIGHT: Geometry Impact on TOA RMSE")
-        print("=" * 70)
-        for geom, res in all_results.items():
-            if len(res['TOA']['errors']) > 0:
-                rmse = np.sqrt(np.mean(res['TOA']['errors']**2))
-                gdop = np.mean(res['gdop']['TOA'])
-                print(f"  {geom}: {rmse:.3f}m (GDOP={gdop:.2f})")
-        print("\nGeometry can cause 10x variation in positioning accuracy!")
+    if verbose and all_results:
+        print_geometry_insight(all_results)
 
     return all_results
+
+
+def print_geometry_insight(all_results: dict) -> None:
+    """The comparison this mode exists for: every method on every geometry."""
+    print("\n" + "=" * 70)
+    print("KEY INSIGHT: a geometry is only good relative to a measurement type")
+    print("=" * 70)
+    print("Median error in metres over all fixes, failed fixes in [brackets]:\n")
+
+    width = max(len(label) for label in all_results) + 2
+    print(f"{'Geometry':<{width}}" + "".join(f"{m:>18}" for m in METHODS))
+    for label, results in all_results.items():
+        row = f"{label:<{width}}"
+        for method in METHODS:
+            out = results['outcomes'][method]
+            cell = f"{out.median_m:.3f} [{out.n_failed}]"
+            row += f"{cell:>18}"
+        print(row)
+
+    print(
+        "\nThe collinear array is not simply the bad one. It is bad for ranges"
+        "\nand better than either alternative for bearings:\n"
+        "\n"
+        "  - TOA and TDOA fail on all 100 fixes *from the beacon centroid*,\n"
+        "    which sits on the line of symmetry. Moving across that line\n"
+        "    changes no range to first order, so the Jacobian is rank\n"
+        "    deficient there and Gauss-Newton has nowhere to step. Their\n"
+        "    median is the distance from the seed to the truth -- a property\n"
+        "    of the seed, not of the measurements.\n"
+        "  - Seeded off the line they solve, but ranges still cannot separate\n"
+        "    a target from its mirror image about the beacon line, so half the\n"
+        "    fixes land on the wrong side. See data/sim/ch4_rf_2d_linear.\n"
+        "  - AOA is *better* here than on the square array, because reflecting\n"
+        "    a position flips every azimuth: bearings carry the side\n"
+        "    information that ranges do not. Its remaining failures are the\n"
+        "    grid rows within 1 m of the beacon line, where all four bearings\n"
+        "    are nearly parallel.\n"
+        "\n"
+        "DOP sees none of this. TOA GDOP on the collinear array averages 1.43\n"
+        "against 1.02 for the square -- a local, first-order measure calling\n"
+        "the configuration fine, while the ambiguity that breaks it is global.\n"
+        "A healthy DOP is necessary, not sufficient."
+    )
+    print(
+        "\nRead the TDOA column with care: it is not a geometry result. The\n"
+        "shipped tdoa_diffs.txt carries d_ref - d_k while TDOAPositioner\n"
+        "predicts d_k - d_ref, so every TDOA fix above solves a negated\n"
+        "measurement. Negate them and the square array gives 0.074 m with no\n"
+        "failures, which is what its TDOA GDOP of 0.87 predicts from 0.1 m of\n"
+        "range noise. Correcting it means regenerating four datasets, so it is\n"
+        "pinned separately in\n"
+        "tests/ch4_rf_point_positioning/test_tdoa_dataset_sign_convention.py,\n"
+        "which goes red the moment the generator is corrected."
+    )
 
 
 def generate_scenario(seed=42):
@@ -640,18 +689,25 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     ax1.grid(True, alpha=0.3)
     ax1.axis('equal')
 
-    # 2. Error CDF
+    # 2. Error CDF over the fixes that solved, labelled with the ones that
+    #    did not. A CDF drawn over the successes alone reads as the method's
+    #    accuracy; the label is what stops it reading that way.
     ax2 = axes[0, 1]
     colors = {'TOA': 'blue', 'TDOA': 'red', 'AOA': 'green'}
     for method, color in colors.items():
-        errors = results[method]['errors']
+        out = results['outcomes'][method]
+        errors = out.errors[out.solved]
         if len(errors) > 0:
             sorted_errors = np.sort(errors)
             cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-            ax2.plot(sorted_errors, cdf, label=method, color=color, linewidth=2)
+            ax2.plot(sorted_errors, cdf, color=color, linewidth=2,
+                     label=f'{method} ({out.n - out.n_failed}/{out.n} solved)')
+        else:
+            ax2.plot([], [], color=color, linewidth=2,
+                     label=f'{method} (0/{out.n} solved)')
     ax2.set_xlabel('Position Error (m)')
     ax2.set_ylabel('CDF')
-    ax2.set_title('Cumulative Distribution of Errors')
+    ax2.set_title('Error CDF over solved fixes')
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim(left=0)
@@ -667,15 +723,18 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     ax3.set_title('Geometric Dilution of Precision')
     ax3.grid(True, alpha=0.3, axis='y')
 
-    # 4. Error vs GDOP scatter
+    # 4. Error vs GDOP scatter.
+    #    Both sides are indexed by the same mask, so point i's error is paired
+    #    with point i's GDOP. They used to be `errors[:n]` against `gdop[:n]`
+    #    with the errors already compacted to the converged solves, which
+    #    silently shifted the pairing whenever anything failed.
     ax4 = axes[1, 1]
     for method, color in colors.items():
-        errors = results[method]['errors']
+        out = results['outcomes'][method]
         gdop = results['gdop'][method]
-        if len(errors) > 0:
-            # Match lengths (some points may have failed)
-            n = min(len(errors), len(gdop))
-            ax4.scatter(gdop[:n], errors[:n], alpha=0.5, label=method, color=color, s=20)
+        if out.solved.any():
+            ax4.scatter(gdop[out.solved], out.errors[out.solved],
+                        alpha=0.5, label=method, color=color, s=20)
     ax4.set_xlabel('GDOP')
     ax4.set_ylabel('Position Error (m)')
     ax4.set_title('Error vs GDOP (lower GDOP = better geometry)')
@@ -688,6 +747,105 @@ def plot_dataset_results(results: Dict, output_file: str = None):
         paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
         print(f"\n[OK] Figure saved: {paths[0]}")
 
+    return fig
+
+
+def plot_geometry_comparison(all_results: dict):
+    """Median error and failure rate for every method on every geometry.
+
+    Two panels, because the single-panel version could not carry the result.
+    It plotted an RMSE over the converged solves on a linear axis, and on the
+    collinear geometry AOA's converged set included three fixes at 1e11 m: one
+    bar at 2.2e10 m flattened every other bar in the figure to zero height.
+    Methods with nothing converged were drawn at zero, which reads as perfect
+    rather than as absent.
+
+    So: a log axis, because the honest numbers span 0.08 m to 14 m; the median
+    rather than an RMSE, because one divergence should not set the height of a
+    bar; and the failure rate beside it, since a method can have a fine median
+    and still not work -- which is exactly what the RMSE was hiding.
+    """
+    fig, (ax_err, ax_fail) = plt.subplots(1, 2, figsize=(13, 5.5))
+    fig.suptitle("Beacon geometry is method-specific", fontsize=15,
+                 fontweight="bold")
+
+    labels = list(all_results)
+    x = np.arange(len(labels))
+    width = 0.26
+    colors = {'TOA': 'tab:blue', 'TDOA': 'tab:red', 'AOA': 'tab:green'}
+
+    for i, method in enumerate(METHODS):
+        medians = [all_results[g]['outcomes'][method].median_m for g in labels]
+        failures = [
+            100.0 * all_results[g]['outcomes'][method].n_failed
+            / all_results[g]['outcomes'][method].n
+            for g in labels
+        ]
+        offset = x + (i - 1) * width
+
+        bars = ax_err.bar(offset, medians, width, label=method,
+                          color=colors[method], edgecolor="white", linewidth=0.8)
+        for rect, median, failed in zip(bars, medians, failures, strict=True):
+            ax_err.annotate(
+                f"{median:.2f}",
+                (rect.get_x() + rect.get_width() / 2, median),
+                textcoords="offset points", xytext=(0, 3),
+                ha="center", fontsize=8,
+            )
+            # Hatch the bars whose median is mostly failures, so a tall bar and
+            # a broken method are distinguishable at a glance.
+            if failed >= 50.0:
+                rect.set_hatch("///")
+                rect.set_edgecolor("black")
+
+        ax_fail.bar(offset, failures, width, label=method, color=colors[method],
+                    edgecolor="white", linewidth=0.8)
+
+    ax_err.set_yscale("log")
+    ax_err.set_ylabel("Median position error (m), log scale")
+    ax_err.set_title("Median error over all 100 fixes")
+    ax_err.set_xticks(x)
+    ax_err.set_xticklabels(labels, fontsize=9)
+    # Headroom for the legend, on a log axis, so it cannot sit over a bar. The
+    # first draft put it at the default "best" location, which matplotlib chose
+    # to be on top of the collinear group.
+    top = max(
+        all_results[g]['outcomes'][m].median_m for g in labels for m in METHODS
+    )
+    ax_err.set_ylim(top=top * 12)
+    ax_err.legend(title="Method", loc="upper center", ncols=3, fontsize=9)
+    ax_err.grid(True, alpha=0.3, axis='y', which='both')
+    ax_err.set_axisbelow(True)
+
+    ax_fail.set_ylabel("Fixes that failed (%)")
+    ax_fail.set_title("Failed = raised, refused, stalled, or landed >100 m away")
+    ax_fail.set_xticks(x)
+    ax_fail.set_xticklabels(labels, fontsize=9)
+    ax_fail.set_ylim(0, 122)
+    ax_fail.legend(title="Method", loc="upper center", ncols=3, fontsize=9)
+    ax_fail.grid(True, alpha=0.3, axis='y')
+    ax_fail.set_axisbelow(True)
+
+    fig.text(
+        0.5, 0.055,
+        "Hatched bars are medians made mostly of failed fixes: on the collinear "
+        "array the beacon centroid lies on the line of symmetry,\nso TOA and "
+        "TDOA never leave it, and their 6.77 m is the distance from the seed to "
+        "the truth. AOA is the best of the three there.",
+        ha="center", fontsize=8.5, style="italic",
+    )
+    # TDOA's bars are a dataset defect rather than a property of the geometry,
+    # and a figure that does not say so teaches the wrong lesson twice over --
+    # once about TDOA and once about hyperbolic positioning in general.
+    fig.text(
+        0.5, 0.005,
+        "TDOA's height is a dataset defect, not geometry: tdoa_diffs.txt stores "
+        "d_ref - d_k where the solver predicts d_k - d_ref.\nCorrect the sign "
+        "and the square array gives 0.074 m, the 0.087 m its GDOP predicts. "
+        "See test_tdoa_dataset_sign_convention.py.",
+        ha="center", fontsize=8.5, style="italic", color="darkred",
+    )
+    fig.tight_layout(rect=(0, 0.11, 1, 1))
     return fig
 
 
@@ -763,16 +921,16 @@ def main():
         epilog="""
 Examples:
   # Run with inline generated data (default)
-  python example_comparison.py
-  
+  python -m ch4_rf_point_positioning.example_comparison
+
   # Run with pre-generated dataset
-  python example_comparison.py --data ch4_rf_2d_square
-  
+  python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_square
+
   # Compare different beacon geometries
-  python example_comparison.py --compare-geometry
-  
+  python -m ch4_rf_point_positioning.example_comparison --compare-geometry
+
   # Compare NLOS vs baseline
-  python example_comparison.py --data ch4_rf_2d_nlos
+  python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_nlos
         """
     )
     parser.add_argument(
@@ -797,26 +955,7 @@ Examples:
         all_results = compare_geometries(verbose=True)
 
         if len(all_results) > 0:
-            # Plot comparison
-            fig, ax = plt.subplots(figsize=(10, 6))
-            methods = ['TOA', 'TDOA', 'AOA']
-            x = np.arange(len(all_results))
-            width = 0.25
-
-            for i, method in enumerate(methods):
-                rmse_vals = []
-                for geom, res in all_results.items():
-                    errors = res[method]['errors']
-                    rmse = np.sqrt(np.mean(errors**2)) if len(errors) > 0 else 0
-                    rmse_vals.append(rmse)
-                ax.bar(x + i*width, rmse_vals, width, label=method)
-
-            ax.set_ylabel('RMSE (m)')
-            ax.set_title('Positioning Error by Beacon Geometry')
-            ax.set_xticks(x + width)
-            ax.set_xticklabels(all_results.keys())
-            ax.legend()
-            ax.grid(True, alpha=0.3, axis='y')
+            fig = plot_geometry_comparison(all_results)
 
             output_file = args.output or "ch4_rf_point_positioning/figs/ch4_geometry_comparison.png"
             paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)

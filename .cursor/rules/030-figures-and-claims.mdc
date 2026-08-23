@@ -87,6 +87,18 @@ positions; the README reported a mean and called it 0.5 m.
   reproducible by a reader. It changed nothing for TOA and TDOA and everything
   for AOA, which is exactly why it has to go: it silently converts a fragility
   into an accuracy.
+- **Use `core.rf.solve_batch`.** It is the four conditions above, applied once,
+  returning a full-length error array with a `solved` mask beside it. Three
+  places had hand-rolled this and the fourth had not: `--compare-geometry`
+  still aggregated an RMSE over the converged solves long after the rule was
+  written, because its figure was never committed and so nobody read its
+  output. A rule that is not reachable as a function gets followed wherever
+  someone happened to look.
+- **A method that failed everywhere must not plot as zero.** The bar chart drew
+  0 m for a method with no converged solves, which reads as the best result in
+  the figure rather than the absence of one, and omitted its row from the table
+  entirely. Draw the failure rate as its own panel: an accuracy figure cannot
+  express "this did not work", and that is precisely what it most needs to say.
 
 ## Check the residual, not just the solver
 
