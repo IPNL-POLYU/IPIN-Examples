@@ -974,12 +974,84 @@ across every ch4 dataset, in the deliverable of a chapter about RF positioning.
 - **The collinear dataset could not see it.** Both signs stall at the beacon
   centroid, 100/100, so the one geometry a reader would suspect is the one that
   looks identical either way. Pick the well-conditioned case to test a sign.
-- Not fixed here, because it rewrites shipped bytes in four datasets and the
-  numbers quoted around them.
-  `tests/ch4_rf_point_positioning/test_tdoa_dataset_sign_convention.py` pins it
-  and **goes red the moment the generator is corrected** -- the pattern
-  `test_frontend_actually_corrects.py` established. Verified by actually making
-  the one-line fix, regenerating, and watching all three assertions flip.
+- **Fixed in a follow-up change**, which is what the pinning test was for: it
+  went red on all six assertions the moment the argument order was swapped, and
+  was then deleted. Regenerating from each dataset's recorded preset touched
+  `tdoa_diffs.txt` in all four and the TDOA block of three `config.json`s and
+  **nothing else** -- TOA, AOA and every GDOP file byte-identical, which is the
+  check that the sign flip did not disturb the RNG stream. Square and NLOS now
+  give 0.075 m with 0 failures, optimal 0.085 m; the collinear variant is
+  unchanged at 6.770 m / 100 failures, exactly as predicted.
+- **Nothing caught it because nothing read the shipped bytes.** Chapter 4 had
+  two good accuracy tests on either side of this -- `test_toa_attains_the_dop_bound`
+  and `test_tdoa_error_scales_linearly` -- and both *synthesise their own
+  measurements* from the correct convention before solving. They characterise
+  the solvers, which were never wrong. Same blind spot as the figure defects:
+  a test that builds its own input cannot see a defect in the stored input, just
+  as a test that checks a figure was written cannot see what it depicts.
+  `tests/ch4_rf_point_positioning/test_shipped_measurements_match_the_solver_convention.py`
+  is the durable replacement, and it compares each stored measurement file
+  against the forward model rather than against a solved position -- so a
+  solver, seed or tolerance change cannot move it, because both sides are
+  geometry. It covers TOA and AOA too, which were correct and cost nothing to
+  pin, and carries a test that re-measures its own tolerance against both the
+  noise and the defect on every run, rather than trusting a number written once.
+  Every arm's margin is measured against six named corruptions.
+- **The first version of that guard was itself broken, and the mutations I chose
+  to validate it were the ones it passes.** This is the antipattern CLAUDE.md
+  already warns about -- "a replacement assertion written during the sweep to
+  remove exactly that antipattern turned out to hold whether or not the code
+  under test did its job" -- arriving one level up, in the guard rather than in
+  the code. Reviewing the diff caught it. Two statistics were wrong:
+  - **A signed mean cancels.** Negating *every* azimuth in the square dataset
+    moves the signed mean residual from 0.17 deg to 0.17 deg, so a fully
+    sign-inverted AOA file passed. Per column the same defect is 90.15 deg.
+    Swapping `atan2`'s two arguments was missed the same way. And a signed mean
+    fails on TDOA even *per column* -- 0.12 sigma either way -- because
+    `d_j - d_ref` averages to nothing over a symmetric grid.
+  - **A mean over all columns dilutes.** One beacon is one of four, so an
+    undeclared +1.1 m bias on a single beacon -- larger than the 0.8 m the NLOS
+    dataset legitimately ships -- read 0.280 m against a 0.300 m gate.
+  The right statistic is the **worst column's mean |residual|**: absolute so it
+  cannot cancel, per column so it cannot dilute. Honest values land at
+  0.81-0.85 sigma for all three measurement types, which is `sqrt(2/pi)` = 0.798,
+  the mean absolute deviation of the noise itself -- so the residual is all noise
+  and no systematic part, a stronger statement than "under the threshold".
+- **Pick the mutation that is hardest for your statistic, not the one that comes
+  to mind.** Of three AOA convention errors, the reverse bearing (+pi) is the
+  only one a signed mean detects, and it is the one I reached for first. The
+  general form: a defect that is *antisymmetric* about the array defeats a
+  signed reduction, and a defect confined to *one* sensor defeats a reduction
+  over all of them. Enumerate corruptions along both axes before believing a
+  green. The tolerance test now carries all six as data rather than as prose.
+- **Correcting the data falsified a claim written about the broken data, and it
+  did not read like a number.** `data/sim/ch4_rf_2d_linear/README.md` said
+  "TDOA fails from every starting point tried", and explained it with flat
+  hyperbolae and a GDOP of 10.36 -- physics, not a measurement, so it survived
+  every numeric sweep. On the corrected file TDOA solves **83 of 100** from an
+  off-line seed. Half the sentence was right and the half that was wrong was
+  the half that sounded like a conclusion. Its loop evaluated only TOA and AOA
+  and described TDOA in prose; it evaluates all three now, which is the general
+  fix -- **when a defect is fixed, re-run the claims that were measured against
+  it, and prefer to put the third method in the loop over describing it.**
+- **`--compare-geometry` now prints an emptier failure panel, and that is
+  correct.** With TDOA no longer failing 11 and 13 times, two of the three
+  geometry groups show zero failures. A panel with nothing in it looks like
+  missing data and is in fact the result.
+
+**The `iwls` question next door is not a defect; do not "fix" it.**
+`run_positioning` solves TOA with `TOAPositioner(beacons, method="iwls")`, and
+`iwls` is a deprecated alias resolving to `range_weighted` (1/d^2 weights),
+not to iterative WLS. That reads like drift and is not: at the commit that
+created these datasets `iwls` *was* the 1/d^2 branch, and the alias was added
+later specifically to preserve it, so the behaviour has never changed. Measured
+before deciding -- `range_weighted` against `iterative_ls` gives 0.0951 vs
+0.0881 m on the square, 0.0995 vs 0.0792 on optimal, identical 6.7696 on the
+collinear, and 0.6030 vs 0.6145 on NLOS. Both sit inside `GDOP x sigma_range`;
+neither is a defect signature. Switching would move the TOA numbers in four
+`config.json`s and every document quoting them, to swap one defensible
+weighting for another. It is an editorial choice about which estimator the
+chapter should showcase -- worth making deliberately, not as a drive-by.
 
 ## A scratch probe in the scratchpad imports the *other* checkout
 

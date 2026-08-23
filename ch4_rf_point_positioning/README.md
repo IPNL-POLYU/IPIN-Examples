@@ -734,8 +734,8 @@ generator writes into each `config.json`.
 
 | Geometry | TOA | TDOA | AOA |
 |---|---|---|---|
-| Square (4 corners) | 0.088 m [0] | 13.753 m [11] | 0.397 m [0] |
-| Optimal (circular) | 0.079 m [0] | 14.009 m [13] | 0.273 m [0] |
+| Square (4 corners) | 0.088 m [0] | 0.075 m [0] | 0.397 m [0] |
+| Optimal (circular) | 0.079 m [0] | 0.085 m [0] | 0.273 m [0] |
 | Collinear (4 in a row) | 6.770 m [100] | 6.770 m [100] | **0.262 m** [8] |
 
 The collinear array is not simply the bad one, which is why the label no longer
@@ -772,15 +772,12 @@ And DOP sees none of it. TOA GDOP on the collinear array averages 1.43 against
 fine, while the ambiguity that breaks it is global. **A healthy DOP is
 necessary, not sufficient.**
 
-> **The TDOA column is a dataset defect, not a geometry result.** The shipped
-> `tdoa_diffs.txt` stores `d_ref - d_k` while `TDOAPositioner` predicts
-> `d_k - d_ref`, so every TDOA fix above solves a negated measurement. Negate
-> them and the square array gives 0.074 m with no failures — the 0.087 m its
-> GDOP of 0.87 predicts from 0.1 m of range noise, a factor of 158. Correcting
-> it means regenerating four datasets and the numbers quoted around them, so it
-> is pinned separately in
-> `tests/ch4_rf_point_positioning/test_tdoa_dataset_sign_convention.py`, which
-> goes red the moment the generator is fixed.
+Where DOP *does* work, it works well: on the square and circular arrays all
+three methods land on `sigma_position = GDOP x sigma_range` to within the
+difference between a median and an RMS, and TDOA edges out TOA on the square
+purely because its GDOP is lower (0.87 against 1.02). The first two rows of
+the table are a DOP prediction being confirmed; only the third row is DOP
+being wrong.
 
 ## Architecture
 

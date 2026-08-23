@@ -294,17 +294,6 @@ def print_geometry_insight(all_results: dict) -> None:
         "the configuration fine, while the ambiguity that breaks it is global.\n"
         "A healthy DOP is necessary, not sufficient."
     )
-    print(
-        "\nRead the TDOA column with care: it is not a geometry result. The\n"
-        "shipped tdoa_diffs.txt carries d_ref - d_k while TDOAPositioner\n"
-        "predicts d_k - d_ref, so every TDOA fix above solves a negated\n"
-        "measurement. Negate them and the square array gives 0.074 m with no\n"
-        "failures, which is what its TDOA GDOP of 0.87 predicts from 0.1 m of\n"
-        "range noise. Correcting it means regenerating four datasets, so it is\n"
-        "pinned separately in\n"
-        "tests/ch4_rf_point_positioning/test_tdoa_dataset_sign_convention.py,\n"
-        "which goes red the moment the generator is corrected."
-    )
 
 
 def generate_scenario(seed=42):
@@ -760,7 +749,8 @@ def plot_geometry_comparison(all_results: dict):
     Methods with nothing converged were drawn at zero, which reads as perfect
     rather than as absent.
 
-    So: a log axis, because the honest numbers span 0.08 m to 14 m; the median
+    So: a log axis, because the honest numbers span 0.075 m to 6.77 m -- two
+    decades even after the negated TDOA measurements were corrected; the median
     rather than an RMSE, because one divergence should not set the height of a
     bar; and the failure rate beside it, since a method can have a fine median
     and still not work -- which is exactly what the RMSE was hiding.
@@ -834,18 +824,7 @@ def plot_geometry_comparison(all_results: dict):
         "the truth. AOA is the best of the three there.",
         ha="center", fontsize=8.5, style="italic",
     )
-    # TDOA's bars are a dataset defect rather than a property of the geometry,
-    # and a figure that does not say so teaches the wrong lesson twice over --
-    # once about TDOA and once about hyperbolic positioning in general.
-    fig.text(
-        0.5, 0.005,
-        "TDOA's height is a dataset defect, not geometry: tdoa_diffs.txt stores "
-        "d_ref - d_k where the solver predicts d_k - d_ref.\nCorrect the sign "
-        "and the square array gives 0.074 m, the 0.087 m its GDOP predicts. "
-        "See test_tdoa_dataset_sign_convention.py.",
-        ha="center", fontsize=8.5, style="italic", color="darkred",
-    )
-    fig.tight_layout(rect=(0, 0.11, 1, 1))
+    fig.tight_layout(rect=(0, 0.085, 1, 1))
     return fig
 
 

@@ -209,9 +209,17 @@ def generate_measurements(
 
             toa_ranges[i, j] = true_range + noise + bias
 
-        # TDOA range differences (relative to first beacon)
+        # TDOA range differences, d_j - d_ref, with beacon 0 as reference.
+        # The argument order matters and used to be the other way round:
+        # `tdoa_range_difference(anchor_i, anchor_j, pos)` returns d_i - d_j,
+        # so passing (beacons[0], beacons[j]) stored -(d_j - d_0) while
+        # `TDOAPositioner(reference_idx=0)` and Eqs. (4.34) onward both predict
+        # d_j - d_0. Solving a negated range difference asks for the branch of
+        # the hyperbola on the far side of the array: it cost a factor of 158
+        # on the square geometry (13.753 m against the 0.087 m its GDOP
+        # predicts) until it was corrected.
         for j in range(1, N_beacons):
-            true_diff = tdoa_range_difference(beacons[0], beacons[j], pos)
+            true_diff = tdoa_range_difference(beacons[j], beacons[0], pos)
             noise = rng.normal(0, tdoa_noise)
             tdoa_diffs[i, j - 1] = true_diff + noise
 
@@ -274,12 +282,13 @@ def run_positioning(
     # answer plus a metre. No user has that, so none of the reported errors
     # were reproducible. The beacon centroid is what a real system starts from.
     #
-    # It changes nothing for TOA (0.095 m median either way) or TDOA (13.75 m
-    # either way): both are insensitive to initialisation on this geometry.
-    # For AOA it is the whole story -- seeded with the truth it diverges on 0
-    # of 100 positions, seeded honestly on 30 of 100. That fragility is the
-    # measurement, and hiding it behind a warm start reported AOA as the
-    # best-behaved of the three when it is by far the worst.
+    # On the square geometry it changes nothing: TOA 0.0951 m, TDOA 0.0746 m
+    # and AOA 0.3971 m from the centroid, identical to four decimals from
+    # `truth + 1 m`. That is a statement about this geometry and not a general
+    # one -- on the collinear `poor_geometry` beacons the seed is the whole
+    # story. The centroid sits on the line of symmetry, where every TOA and
+    # TDOA fix stalls; seeded at [10, 3] TOA solves all 100 and TDOA 83.
+    # See data/sim/ch4_rf_2d_linear/README.md, which measures all three.
     initial_guess = beacons.mean(axis=0)
 
     # A solve can fail three ways, and only counting one of them is how AOA

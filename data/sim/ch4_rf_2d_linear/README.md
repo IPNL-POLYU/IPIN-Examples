@@ -195,20 +195,33 @@ def evaluate(solver, measurements, guess):
 for label, guess in [("centroid [10, 10] (on the line)", beacons.mean(axis=0)),
                      ("off-line  [10,  3]", np.array([10.0, 3.0]))]:
     toa_med, toa_fail = evaluate(TOAPositioner(beacons, method="iwls"), toa_ranges, guess)
+    tdoa_med, tdoa_fail = evaluate(TDOAPositioner(beacons, reference_idx=0),
+                                   tdoa_diffs, guess)
     aoa_med, aoa_fail = evaluate(AOAPositioner(beacons), aoa_angles, guess)
     print(f"{label}")
     print(f"   TOA median {toa_med:8.3f} m, failed {toa_fail:3d}/100")
+    print(f"   TDOA median {tdoa_med:7.3f} m, failed {tdoa_fail:3d}/100")
     print(f"   AOA median {aoa_med:8.3f} m, failed {aoa_fail:3d}/100")
 ```
 
 **Expected**: TOA goes from 100/100 failing on the line to 0/100 failing off
-it — its problem is entirely the starting point, not the measurements. AOA goes
-the other way, from 8 failures to 43: its own basin is best approached from the
-middle of the array.
+it — its problem is entirely the starting point, not the measurements. TDOA
+goes from 100/100 to 17, and its median stays an order of magnitude worse than
+TOA's (5.13 m against 1.17 m). AOA goes the other way, from 8 failures to 43:
+its own basin is best approached from the middle of the array.
 
-TDOA fails from every starting point tried. That is genuine: its GDOP averages
-10.36 and reaches 111 near the line, against 1.43 for TOA on the same
-geometry, because differencing collinear ranges leaves very flat hyperbolae.
+So the seed matters most, and the geometry still matters after it. TDOA's GDOP
+here averages 10.36 and reaches 111 near the line, against 1.43 for TOA on the
+same beacons, because differencing collinear ranges leaves very flat
+hyperbolae — and that shows up as the residual gap once the seed is fixed.
+
+> This paragraph used to say "TDOA fails from every starting point tried",
+> which was true of the data it was written against: `tdoa_diffs.txt` shipped
+> negated until the generator's argument order was corrected. Re-measured on
+> the corrected file, TDOA solves 83 of 100 from `[10, 3]`. The claim about
+> flat hyperbolae survives; the claim that nothing solves did not, which is why
+> the loop above now evaluates all three methods rather than describing the
+> third in prose.
 
 ## Comparison to the square variant
 
@@ -216,10 +229,20 @@ geometry, because differencing collinear ranges leaves very flat hyperbolae.
 |---|---|---|
 | TOA failed | 0/100 | 100/100 (from the centroid) |
 | TOA median | 0.10m | 6.77m |
-| TDOA failed | 11/100 | 100/100 |
+| TDOA failed | 0/100 | 100/100 |
+| TDOA median | 0.07m | 6.77m |
 | AOA failed | 0/100 | 8/100 |
 | AOA median | 0.40m | 0.26m |
 | TOA mean GDOP | 1.02 | 1.43 |
+| TDOA mean GDOP | 0.87 | 10.36 |
+
+TDOA is the sharpest contrast in the table: 0.07 m with no failures on the
+square array, and nothing at all from the centroid here. Its GDOP moves by a
+factor of twelve between the two geometries where TOA's moves by 1.4, which is
+why it is the method this variant exists to break. Note that both columns are
+measured from the beacon centroid, as every `config.json` is — the section
+above shows how much of the collinear column is the seed rather than the
+geometry.
 
 AOA is *better* here than on the square geometry (0.26 m against 0.40 m).
 Spreading beacons along a line gives a wide baseline of well-separated
