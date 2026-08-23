@@ -43,13 +43,26 @@ References: Chapter 4, Section 4.5.3 (distribution of beacons),
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Ellipse
 
-from core.eval import resolve_figs_dir, save_animation, save_figure, show_figures_if_requested
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from core.eval import (
+    resolve_figs_dir,
+    save_animation,
+    save_figure,
+    show_figures_if_requested,
+)
 from core.rf.dop import compute_dop, compute_geometry_matrix
 from core.rf.positioning import TOAPositioner
 

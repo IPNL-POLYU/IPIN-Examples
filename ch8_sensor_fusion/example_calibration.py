@@ -17,14 +17,23 @@ References: Chapter 8, Section 8.4 (Calibration Techniques)
 """
 
 import argparse
+import sys
 from pathlib import Path
 
-from core.eval import save_figure, show_figures_if_requested
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.gridspec import GridSpec
+
+from core.eval import save_figure, show_figures_if_requested
 
 
 def wrap_angle_deg(angle_deg: float) -> float:

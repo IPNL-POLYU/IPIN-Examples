@@ -16,13 +16,26 @@ Date: December 2025
 """
 
 import argparse
+import sys
 from pathlib import Path
 from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
 
-from core.eval import plot_error_magnitude_time, plot_trajectory_2d, save_figure, show_figures_if_requested
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from core.eval import (
+    plot_error_magnitude_time,
+    plot_trajectory_2d,
+    save_figure,
+    show_figures_if_requested,
+)
 from core.slam import SlamFrontend2D, se2_relative
 
 FIGURE_NAME = "slam_frontend_demo"

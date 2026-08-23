@@ -23,30 +23,37 @@ Date: December 2025
 
 import argparse
 import json
+import sys
 import time
-import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
 from typing import Dict, Optional
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from core.eval import resolve_figs_dir, save_figure, show_figures_if_requested
-from core.utils import resolve_data_path
 from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
     detect_steps_peak_detector,
+    integrate_gyro_heading,
+    mag_heading,
+    pdr_step_update,
     step_length,
     step_length_book_eq6_49,
     step_length_weinberg,
-    pdr_step_update,
-    integrate_gyro_heading,
-    wrap_heading,
-    mag_heading,
     units,
+    wrap_heading,
 )
 from core.sim import generate_imu_from_trajectory
-
-
+from core.utils import resolve_data_path
 
 # Seed for this example's sensor-noise draws. Fixed so the committed
 # figures can be regenerated exactly; see the noise function below.

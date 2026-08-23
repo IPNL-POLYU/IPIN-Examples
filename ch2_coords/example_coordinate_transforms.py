@@ -24,11 +24,18 @@ Reference: Chapter 2 - IPIN Fundamentals
 
 import argparse
 import json
+import sys
 from pathlib import Path
 
 import numpy as np
 
-from core.utils import angle_diff, resolve_data_path
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from core.coords import (
     ecef_to_enu,
     ecef_to_llh,
@@ -41,6 +48,7 @@ from core.coords import (
     quat_to_rotation_matrix,
     rotation_matrix_to_euler,
 )
+from core.utils import angle_diff, resolve_data_path
 
 
 def load_dataset(data_dir: str) -> dict:
