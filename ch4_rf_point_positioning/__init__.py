@@ -5,7 +5,7 @@ This module provides example scripts and demonstrations for Chapter 4
 of "Principles of Indoor Positioning and Indoor Navigation".
 
 Examples:
-    - TOA/RSS positioning with I-WLS
+    - TOA/RSS positioning with iterative LS, and WLS where a covariance is given
     - TDOA positioning with closed-form algorithms (Fang, Chan)
     - AOA positioning
     - RF challenges and limitations
