@@ -35,6 +35,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.rf import (
+    solve_batch,
     toa_range,
     tdoa_range_difference,
     aoa_azimuth,
@@ -269,12 +270,6 @@ def run_positioning(
     Returns:
         Tuple of (toa_pos, tdoa_pos, aoa_pos) estimated positions.
     """
-    N_pos = len(true_positions)
-
-    toa_pos = np.zeros((N_pos, 2))
-    tdoa_pos = np.zeros((N_pos, 2))
-    aoa_pos = np.zeros((N_pos, 2))
-
     # Every solver here used to be seeded with `true_positions[i] + 1.0` -- the
     # answer plus a metre. No user has that, so none of the reported errors
     # were reproducible. The beacon centroid is what a real system starts from.
@@ -297,23 +292,19 @@ def run_positioning(
     #     distance from the centroid to the truth -- an identical 6.77 m median
     #     for TOA, TDOA and AOA alike, which is the tell. AOA reports
     #     converged=True while doing this, with a residual of 2e10.
-    STALL_M = 1e-6
-
+    # This policy lives in `core.rf.solve_batch`, extracted when Chapter 4's
+    # geometry comparison turned out to be counting only the converged solves
+    # and so reporting a different subset of methods per geometry. One
+    # definition, used here and by `ch4_rf_point_positioning/example_comparison`,
+    # so the example's failure counts and this file's `failed_count` cannot
+    # drift apart. Verified bit-identical to the loop it replaced across all
+    # four ch4 datasets.
     def solve_all(solver, measurements):
-        estimates = np.zeros((N_pos, 2))
-        ok = np.zeros(N_pos, dtype=bool)
-        for i in range(N_pos):
-            try:
-                pos_est, info = solver.solve(
-                    measurements[i], initial_guess=initial_guess
-                )
-            except Exception:
-                estimates[i] = np.nan
-                continue
-            estimates[i] = pos_est
-            stalled = np.linalg.norm(pos_est - initial_guess) < STALL_M
-            ok[i] = bool(info.get("converged", True)) and not stalled
-        return estimates, ok
+        outcome = solve_batch(
+            solver, measurements, initial_guess, true_positions,
+            divergence_m=np.inf,   # the magnitude check is applied downstream
+        )
+        return outcome.estimates, outcome.solved
 
     toa_pos, toa_ok = solve_all(TOAPositioner(beacons, method="iwls"), toa_ranges)
     tdoa_pos, tdoa_ok = solve_all(TDOAPositioner(beacons, reference_idx=0), tdoa_diffs)

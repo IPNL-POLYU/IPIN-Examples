@@ -39,13 +39,17 @@ from core.rf.measurement_models import (
     two_way_toa_range,
 )
 from core.rf.positioning import (
+    DIVERGENCE_M,
+    STALL_M,
     AOAPositioner,
+    SolveOutcome,
     TDOAPositioner,
     TOAPositioner,
     aoa_ove_solve,
     aoa_ple_solve_2d,
     aoa_ple_solve_3d,
     build_tdoa_covariance,
+    solve_batch,
     tdoa_chan_solver,
     toa_fang_solver,
     toa_solve_with_clock_bias,
@@ -80,6 +84,11 @@ __all__ = [
     "TDOAPositioner",
     "AOAPositioner",
     "toa_solve_with_clock_bias",
+    # Batch solving, with the failures kept
+    "solve_batch",
+    "SolveOutcome",
+    "DIVERGENCE_M",
+    "STALL_M",
     # TDOA utilities
     "build_tdoa_covariance",
     # TOA/TDOA Closed-form solvers

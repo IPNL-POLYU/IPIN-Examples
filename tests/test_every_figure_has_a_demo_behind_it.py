@@ -57,6 +57,14 @@ from tests.example_runner import WORKSPACE_ROOT, run_example
 #: committed figures. Each is here rather than in the exemption list below
 #: because running it is cheap and an exemption is a hole.
 EXTRA_RUNS = {
+    "ch4_rf_point_positioning": (
+        # The geometry comparison is a documented Quick Start mode and writes
+        # its own figure. It was found by the reverse direction below rather
+        # than listed here, and sat in KNOWN_UNCOMMITTED while the comparison
+        # it drew was wrong; naming the invocation is what stops the figure
+        # depending on some other test in the suite happening to run it.
+        ("example_comparison", ("--compare-geometry",)),
+    ),
     "ch6_dead_reckoning": (
         # Allan variance draws the per-component breakdown only in debug mode.
         ("example_allan_variance", ("--debug",)),
@@ -87,28 +95,20 @@ EXPECTED_WITHOUT_A_RUN = {
 #: Figures a demo writes that are deliberately not committed, predating this
 #: check. Same ratchet as the rest of the repository: only shrink it.
 #:
-#: One figure, and the reason is that it is **wrong**.
-#: `example_comparison --compare-geometry` is a documented Quick Start mode, and
-#: what it produces cannot be shipped: AOA on the collinear dataset reports an
-#: RMSE of 2.2e10 m, which on a linear axis flattens every other bar to zero
-#: height, so the figure shows one absurd spike and nothing else. The console
-#: output has the same defect and a larger one behind it -- each geometry prints
-#: a *different subset* of methods (Square and Optimal print TOA and TDOA but no
-#: AOA; Linear prints only AOA), because the missing ones had no converged
-#: solves at all. The "KEY INSIGHT: Geometry Impact on TOA RMSE" summary then
-#: omits the collinear case, which is the entire point of the comparison.
+#: **It is empty.** Its one entry was the three files of
+#: `ch4_geometry_comparison`, held open because the figure was *wrong* rather
+#: than merely absent: `example_comparison --compare-geometry` aggregated each
+#: method as an RMSE over the solves that reported convergence, so AOA on the
+#: collinear dataset reported 2.2e10 m -- three fixes at 1e11 m among 95
+#: "converged" ones -- which on a linear axis flattened every other bar to zero
+#: height. Methods with nothing converged printed no line and drew no bar,
+#: which is why Square and Optimal showed TOA and TDOA, the collinear geometry
+#: showed only AOA, and no method appeared on all three.
 #:
-#: CLAUDE.md records this exact shape being fixed once already for the chapter's
-#: *table* -- "the comparison table reported AOA at 5.3e9 m with zero noise".
-#: The figure kept the defect because nobody had ever committed or looked at it,
-#: which is the argument for this check rather than an exception to it.
-#:
-#: Fix the comparison, then commit the figure and delete this entry.
-KNOWN_UNCOMMITTED = {
-    "ch4_rf_point_positioning/figs/ch4_geometry_comparison.pdf",
-    "ch4_rf_point_positioning/figs/ch4_geometry_comparison.png",
-    "ch4_rf_point_positioning/figs/ch4_geometry_comparison.svg",
-}
+#: It now reports the median over every fix with the failure count beside it,
+#: on a log axis, and every geometry carries every method. The invocation is in
+#: EXTRA_RUNS above so this file produces the figure itself.
+KNOWN_UNCOMMITTED = set()
 
 
 def _chapters():
