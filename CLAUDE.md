@@ -1097,6 +1097,49 @@ Iterative Weighted Least Squares (I-WLS)". The second is the one to fix first if
 only one gets done -- its stdout is the transcript pinned in the chapter README,
 so it is the most-read wrong label of the three.
 
+## A success rate can measure your harness instead of your method
+
+`example_comparison` injected a shared 1.5 m receiver clock bias into the TOA
+pseudoranges -- correctly, to show that TDOA differences it away -- and then
+solved them with a **position-only** `(x, y)` state. A common bias is
+unobservable to that state: no position makes four uniformly inflated ranges
+consistent, so the residual never reaches `tol` and the solve is discarded. The
+figure's "Convergence Success Rate" panel therefore read **2-5 of 100** for TOA
+at every noise level, next to a median-error table where TOA was among the best.
+Both cannot be true of a method, and the panel was the one lying: it was
+reporting the survival rate of a model mismatch.
+
+- **The tell was the noiseless row.** TOA printed 0.153 m of median error at
+  zero measurement noise, where TDOA and AOA both printed 0.000. A method
+  solving perfect data is exact, so a nonzero number there is never noise --
+  it is a model that cannot represent the data it was handed. Check the
+  zero-noise row first; it is the one row with a known right answer.
+- **"The survivors are accurate" was wrong, and worth disbelieving on sight.**
+  The few solves that converged were the geometries where the bias could be
+  partly absorbed *into the position* -- so they were the least-inaccurate, not
+  the accurate. When a filter passes 4% of cases, ask what those 4% have in
+  common before treating them as a clean sample.
+- **The fix was already exported.** `toa_solve_with_clock_bias` is
+  Eqs. (4.24)-(4.26), lives in `core/rf/positioning.py`, and is in `core.rf`'s
+  `__all__`. The example injected a clock bias and then declined to use the
+  solver written for it, one import away. Same shape as the ch5 and ch7 library
+  bugs: look for the sibling that does it right before designing anything.
+  With it: 100/100 converge at every level, the bias returns as +1.500 m on
+  noiseless data, and TOA tracks TDOA at the small cost of the extra unknown.
+
+**Fixing it made TOA invisible, which is the same defect mirrored.** Three of
+the four methods then sat on 100%, and four solid lines at one value show only
+the last one drawn -- so the panel that used to say "TOA barely converges" would
+have said "TOA is missing". Distinct dash patterns per method, no nudging of
+values. Whenever a fix moves several series onto the same constant, re-open the
+figure: the overlap is new and it is not visible in any number.
+
+**My own probe reproduced the bug while measuring it.** Checking the fix, I
+called `toa_solve_with_clock_bias` expecting two return values where it returns
+three -- `(position, bias, info)` -- inside a `try/except Exception: pass`, and
+got a confident `0/100 converged`. That is the issue's own defect one level up:
+a blanket except turning a caller error into a result about the callee. Fourth
+harness in this file to report the thing it could not read as broken.
 ## Every example now bootstraps its own sys.path, and the sweep took three tries
 
 The trap at the top of this file -- `python chX/example.py` resolving `core` to

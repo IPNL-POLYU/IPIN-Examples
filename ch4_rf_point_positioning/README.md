@@ -695,12 +695,30 @@ Results Summary (median error in metres)
   AOA anchor 3 is 10x noisier than the others; 'AOA unw' solves the same bearings unweighted
 Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       TDOA      AOA       AOA unw   RSS       AOA fail
 ----------------------------------------------------------------------------------------------------------
-1      0.00      0.00      0.0       0.0       0.153     0.000     0.000     0.000     1.131     0
-2      0.05      0.05      1.0       2.0       0.177     0.033     0.126     0.495     1.627     0
-3      0.10      0.10      3.0       4.0       0.074     0.065     0.340     1.389     3.912     0
-4      0.20      0.20      5.0       6.0       0.211     0.136     0.630     1.026     5.611     0
-5      0.50      0.50      10.0      8.0       0.406     0.279     1.506     1.525     5.853     0
+1      0.00      0.00      0.0       0.0       0.000     0.000     0.000     0.000     1.131     0
+2      0.05      0.05      1.0       2.0       0.044     0.033     0.126     0.495     1.627     0
+3      0.10      0.10      3.0       4.0       0.078     0.065     0.340     1.389     3.912     0
+4      0.20      0.20      5.0       6.0       0.152     0.136     0.630     1.026     5.611     0
+5      0.50      0.50      10.0      8.0       0.408     0.279     1.506     1.525     5.853     0
 ```
+
+**TOA reads 0.000 m at level 1 because it now estimates the clock.** The
+comparison injects a shared 1.5 m receiver bias into the TOA pseudoranges, and
+that term is unobservable to a position-only solver: no `(x, y)` makes four
+uniformly inflated ranges consistent, so the residual never reached `tol` and
+the solve was thrown away. The convergence panel of the figure below reported
+**2-5 of 100** for TOA at every noise level, which is a property of the harness
+and not of the method — and the survivors were the geometries where the bias
+could be partly absorbed *into the position*, so they were the least-inaccurate
+rather than the accurate ones. The tell was this table's own top row: 0.153 m
+of error on **noiseless** measurements, where TDOA and AOA both printed 0.000.
+
+The fix was one already in `core.rf`: `toa_solve_with_clock_bias`, which is
+Eqs. (4.24)-(4.26) — the state is `(x, y, c*dt)` instead of `(x, y)`. Every
+solve converges now, the bias comes back as +1.500 m on noiseless data, and TOA
+tracks TDOA across the sweep at the small penalty of the extra unknown. That is
+the comparison Chapter 4 is for: **TOA has to carry the clock, TDOA differences
+it away.**
 
 `AOA fail` counts solves landing over 100 m from truth, and reads 0 at every
 level. It did not always: solving on `z = tan(psi)` as Eq. (4.64) is written
