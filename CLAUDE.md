@@ -1071,6 +1071,32 @@ measurement file moved, because the estimator affects what is *reported*, not
 what is *measured* -- and `ch4_rf_2d_linear` did not change at all, since
 100/100 fixes stall at the centroid under either weighting.
 
+**"I-WLS" is a label three Chapter 4 demos apply to two estimators that are not
+it.** Chasing the alias turned up the same confusion in the printed output.
+There are three weightings and the difference is one argument:
+
+- `TOAPositioner(method="iterative_ls")` and `TDOAPositioner.solve()` **without**
+  a `covariance` are W = I: iterative *LS*, Eq. (4.20) / (4.34)-(4.41).
+- `.solve(..., covariance=cov)` is genuinely I-WLS, W = Sigma^-1, Eq. (4.23).
+- `method="range_weighted"` is W_ii = 1/d_i^2, a heuristic the library's own
+  docstring flags as "NOT from the book".
+
+`example_tdoa_positioning` printed all three under "I-WLS" -- including inside a
+single demo, where Chan's perfect-measurement run is unweighted and its Monte
+Carlo beside it does pass a covariance. The labels now name what runs, and
+`method='iwls'` is spelled `method='range_weighted'`, which is **bit-identical**
+because that is literally what the alias maps to. Verified the honest way: every
+number in the demo's 242 lines of output is unchanged, only labels moved.
+
+**Still mislabelled, and deliberately left for a separate decision:**
+`example_aoa_positioning` constructs `AOAPositioner(anchors)` at all seven call
+sites with no `sigma_*`, which the class documents as uniform weights, then
+labels the result "I-WLS" about fourteen times; and `example_toa_positioning`
+solves with `method="iterative_ls"` while its module docstring says "using
+Iterative Weighted Least Squares (I-WLS)". The second is the one to fix first if
+only one gets done -- its stdout is the transcript pinned in the chapter README,
+so it is the most-read wrong label of the three.
+
 ## A scratch probe in the scratchpad imports the *other* checkout
 
 The editable-install trap at the top of this file has a second face that the

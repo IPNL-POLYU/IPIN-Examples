@@ -5,7 +5,7 @@ This script demonstrates TDOA positioning algorithms from Chapter 4.
 
 Implements:
     - TDOA measurement model (Eqs. 4.27-4.33)
-    - TDOA I-WLS (Eqs. 4.34-4.42)
+    - TDOA iterative LS and I-WLS (Eqs. 4.34-4.42)
     - Correlated covariance matrix (Eq. 4.42)
     - Fang's TOA closed-form (Eqs. 4.43-4.49)
     - Chan's TDOA closed-form (Eqs. 4.50-4.62)
@@ -35,9 +35,14 @@ from core.rf import (
 SEED = 42
 
 def demo_tdoa_basic():
-    """Demonstrate basic TDOA positioning with I-WLS."""
+    """Demonstrate basic TDOA positioning with iterative LS.
+
+    `TDOAPositioner.solve` without a `covariance` uses W = I, so this is
+    iterative *LS*. Demo 4 is where a covariance is supplied and the "W"
+    starts meaning something -- see Eq. (4.42).
+    """
     print("\n" + "=" * 70)
-    print("Demo 1: Basic TDOA Positioning (I-WLS)")
+    print("Demo 1: Basic TDOA Positioning (iterative LS, W = I)")
     print("=" * 70)
 
     # Setup anchors (5 anchors in a larger area)
@@ -61,7 +66,7 @@ def demo_tdoa_basic():
 
     print(f"\nTDOA measurements (m): {tdoa_measurements}")
 
-    # Solve using I-WLS
+    # Solve with W = I (Eqs. 4.34-4.41, unweighted)
     positioner = TDOAPositioner(anchors, reference_idx=0)
     estimated_position, info = positioner.solve(
         tdoa_measurements, initial_guess=np.array([7.5, 7.5])
@@ -591,10 +596,11 @@ def demo_fang_toa_solver():
 
     Compares:
         - Fang's closed-form solution (no iteration needed)
-        - I-WLS iterative solution (requires initial guess)
+        - the range-weighted iterative solution (requires an initial guess)
     """
     print("\n" + "=" * 70)
-    print("Demo 7: Fang's TOA Closed-Form vs I-WLS (Eqs. 4.43-4.49)")
+    print("Demo 7: Fang's TOA Closed-Form vs Range-Weighted LS "
+          "(Eqs. 4.43-4.49)")
     print("=" * 70)
 
     # Setup: 4 anchors in a square
@@ -615,16 +621,16 @@ def demo_fang_toa_solver():
     fang_pos, fang_info = toa_fang_solver(anchors, ranges_true)
     fang_error = np.linalg.norm(fang_pos - true_position)
 
-    # I-WLS iterative
-    positioner = TOAPositioner(anchors, method='iwls')
-    iwls_pos, iwls_info = positioner.solve(
+    # Range-weighted iterative (W_ii = 1/d_i^2)
+    positioner = TOAPositioner(anchors, method='range_weighted')
+    rw_pos, rw_info = positioner.solve(
         ranges_true, initial_guess=np.array([10.0, 10.0])
     )
-    iwls_error = np.linalg.norm(iwls_pos - true_position)
+    rw_error = np.linalg.norm(rw_pos - true_position)
 
     print(f"Fang:  position={fang_pos}, error={fang_error:.6f} m")
-    print(f"I-WLS: position={iwls_pos}, error={iwls_error:.6f} m, "
-          f"iters={iwls_info['iterations']}")
+    print(f"RW-LS: position={rw_pos}, error={rw_error:.6f} m, "
+          f"iters={rw_info['iterations']}")
 
     # Test with noisy measurements
     print("\n--- Noisy Measurements (Monte Carlo) ---")
@@ -635,7 +641,7 @@ def demo_fang_toa_solver():
     results = []
     for noise_std in noise_levels:
         fang_errors = []
-        iwls_errors = []
+        rw_errors = []
 
         for _ in range(n_trials):
             ranges_noisy = ranges_true + np.random.randn(len(anchors)) * noise_std
@@ -647,37 +653,37 @@ def demo_fang_toa_solver():
             except Exception:
                 pass
 
-            # I-WLS (requires initial guess)
+            # Range-weighted iterative (requires an initial guess)
             try:
                 i_pos, i_info = positioner.solve(
                     ranges_noisy, initial_guess=np.array([10.0, 10.0])
                 )
                 if i_info['converged']:
-                    iwls_errors.append(np.linalg.norm(i_pos - true_position))
+                    rw_errors.append(np.linalg.norm(i_pos - true_position))
             except Exception:
                 pass
 
         fang_rmse = np.sqrt(np.mean(np.array(fang_errors)**2))
-        iwls_rmse = np.sqrt(np.mean(np.array(iwls_errors)**2))
+        rw_rmse = np.sqrt(np.mean(np.array(rw_errors)**2))
 
         results.append({
             'noise': noise_std,
             'fang_rmse': fang_rmse,
-            'iwls_rmse': iwls_rmse,
+            'rw_rmse': rw_rmse,
             'fang_success': len(fang_errors),
-            'iwls_success': len(iwls_errors),
+            'rw_success': len(rw_errors),
         })
 
-    print(f"\n{'Noise (m)':<12} {'Fang RMSE':<15} {'I-WLS RMSE':<15} "
-          f"{'Fang Success':<15} {'I-WLS Success':<15}")
+    print(f"\n{'Noise (m)':<12} {'Fang RMSE':<15} {'RW-LS RMSE':<15} "
+          f"{'Fang Success':<15} {'RW-LS Success':<15}")
     print("-" * 70)
     for r in results:
-        print(f"{r['noise']:<12.2f} {r['fang_rmse']:<15.4f} {r['iwls_rmse']:<15.4f} "
-              f"{r['fang_success']:<15} {r['iwls_success']:<15}")
+        print(f"{r['noise']:<12.2f} {r['fang_rmse']:<15.4f} {r['rw_rmse']:<15.4f} "
+              f"{r['fang_success']:<15} {r['rw_success']:<15}")
 
     print("\nKey Insights:")
     print("  - Fang's method is non-iterative (no initial guess required)")
-    print("  - I-WLS can refine estimates with proper weighting")
+    print("  - Range weighting is a heuristic (W_ii = 1/d_i^2), not a book method")
     print("  - Both methods sensitive to noise and geometry (GDOP)")
 
     return results
@@ -689,10 +695,11 @@ def demo_chan_tdoa_solver():
 
     Compares:
         - Chan's closed-form solution (no iteration needed)
-        - I-WLS iterative TDOA solution (requires initial guess)
+        - the iterative TDOA solution: W = I here, W = Sigma^-1 under noise
     """
     print("\n" + "=" * 70)
-    print("Demo 8: Chan's TDOA Closed-Form vs I-WLS (Eqs. 4.50-4.62)")
+    print("Demo 8: Chan's TDOA Closed-Form vs Iterative LS/WLS "
+          "(Eqs. 4.50-4.62)")
     print("=" * 70)
 
     # Setup: 5 anchors for good geometry
@@ -722,17 +729,17 @@ def demo_chan_tdoa_solver():
     chan_pos, chan_info = tdoa_chan_solver(anchors, tdoa_true, ref_idx=ref_idx)
     chan_error = np.linalg.norm(chan_pos - true_position)
 
-    # I-WLS iterative
+    # Iterative LS: no covariance here, so W = I
     positioner = TDOAPositioner(anchors, reference_idx=ref_idx)
-    iwls_pos, iwls_info = positioner.solve(
+    ils_pos, ils_info = positioner.solve(
         tdoa_true, initial_guess=np.array([10.0, 10.0])
     )
-    iwls_error = np.linalg.norm(iwls_pos - true_position)
+    ils_error = np.linalg.norm(ils_pos - true_position)
 
     print(f"Chan:  position={chan_pos}, error={chan_error:.6f} m")
     print(f"       reference distance estimate={chan_info['reference_distance']:.4f} m")
-    print(f"I-WLS: position={iwls_pos}, error={iwls_error:.6f} m, "
-          f"iters={iwls_info['iterations']}")
+    print(f"I-LS:  position={ils_pos}, error={ils_error:.6f} m, "
+          f"iters={ils_info['iterations']}")
 
     # Test with noisy measurements (correlated noise)
     print("\n--- Noisy Measurements (Monte Carlo with Correlated Noise) ---")
@@ -798,7 +805,7 @@ def demo_chan_tdoa_solver():
     print("\nKey Insights:")
     print("  - Chan's method is non-iterative, estimates position + ref distance")
     print("  - Chan's WLS step uses correlated covariance (Eq. 4.62)")
-    print("  - I-WLS requires initial guess but can iterate to better solution")
+    print("  - I-WLS requires an initial guess but iterates to a better solution")
     print("  - Both methods benefit from proper covariance modeling")
 
     return results
@@ -809,8 +816,8 @@ def demo_closed_form_comparison():
     Comprehensive comparison of closed-form and iterative solvers.
 
     Compares:
-        - TOA: Fang vs I-WLS
-        - TDOA: Chan vs I-WLS
+        - TOA: Fang vs range-weighted LS
+        - TDOA: Chan vs I-WLS (a covariance is supplied, Eq. 4.42)
     """
     print("\n" + "=" * 70)
     print("Demo 9: Comprehensive Closed-Form vs Iterative Comparison")
@@ -836,11 +843,11 @@ def demo_closed_form_comparison():
 
     # Results storage
     toa_fang_err = []
-    toa_iwls_err = []
+    toa_rw_err = []
     tdoa_chan_err = []
     tdoa_iwls_err = []
 
-    toa_positioner = TOAPositioner(anchors, method='iwls')
+    toa_positioner = TOAPositioner(anchors, method='range_weighted')
     tdoa_positioner = TDOAPositioner(anchors, reference_idx=ref_idx)
     sigmas = np.ones(len(anchors)) * noise_std
     cov = build_tdoa_covariance(sigmas, ref_idx=ref_idx)
@@ -860,13 +867,13 @@ def demo_closed_form_comparison():
         except Exception:
             pass
 
-        # TOA: I-WLS
+        # TOA: range-weighted iterative
         try:
             pos, info = toa_positioner.solve(
                 ranges_noisy, initial_guess=np.array([10.0, 10.0])
             )
             if info['converged']:
-                toa_iwls_err.append(np.linalg.norm(pos - true_position))
+                toa_rw_err.append(np.linalg.norm(pos - true_position))
         except Exception:
             pass
 
@@ -901,8 +908,8 @@ def demo_closed_form_comparison():
     rmse, mean, std, n = stats(toa_fang_err)
     print(f"{'TOA Fang (closed-form)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}")
 
-    rmse, mean, std, n = stats(toa_iwls_err)
-    print(f"{'TOA I-WLS (iterative)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}")
+    rmse, mean, std, n = stats(toa_rw_err)
+    print(f"{'TOA RW-LS (iterative)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}")
 
     rmse, mean, std, n = stats(tdoa_chan_err)
     print(f"{'TDOA Chan (closed-form)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}")
@@ -912,7 +919,7 @@ def demo_closed_form_comparison():
 
     print("\nSummary:")
     print("  - Closed-form methods (Fang, Chan) don't need initial guess")
-    print("  - Iterative methods (I-WLS) can refine estimates iteratively")
+    print("  - Iterative methods can refine estimates from an initial guess")
     print("  - TOA methods require range measurements; TDOA uses range differences")
     print("  - TDOA eliminates need for clock synchronization between agent & beacons")
     print("  - All methods benefit from good geometry (low GDOP)")
@@ -923,8 +930,8 @@ def demo_closed_form_comparison():
 
         # TOA comparison
         ax1 = axes[0]
-        data = [toa_fang_err, toa_iwls_err]
-        tick_labels = ['Fang\n(closed-form)', 'I-WLS\n(iterative)']
+        data = [toa_fang_err, toa_rw_err]
+        tick_labels = ['Fang\n(closed-form)', 'RW-LS\n(iterative)']
         bp = ax1.boxplot(data, tick_labels=tick_labels, patch_artist=True)
         bp['boxes'][0].set_facecolor('lightblue')
         bp['boxes'][1].set_facecolor('lightgreen')
@@ -954,7 +961,7 @@ def demo_closed_form_comparison():
 
     return {
         'toa_fang': toa_fang_err,
-        'toa_iwls': toa_iwls_err,
+        'toa_rw': toa_rw_err,
         'tdoa_chan': tdoa_chan_err,
         'tdoa_iwls': tdoa_iwls_err,
     }

@@ -426,14 +426,35 @@ L 327.94125 50.64
       </g>
      </g>
      <g id="text_2">
-      <!-- I-WLS -->
-      <g transform="translate(313.958438 335.054437) scale(0.1 -0.1)">
+      <!-- RW-LS -->
+      <g transform="translate(312.159219 335.054437) scale(0.1 -0.1)">
        <defs>
-        <path id="DejaVuSans-49" d="M 628 4666 
-L 1259 4666 
+        <path id="DejaVuSans-52" d="M 2841 2188 
+Q 3044 2119 3236 1894 
+Q 3428 1669 3622 1275 
+L 4263 0 
+L 3584 0 
+L 2988 1197 
+Q 2756 1666 2539 1819 
+Q 2322 1972 1947 1972 
+L 1259 1972 
 L 1259 0 
 L 628 0 
 L 628 4666 
+L 2053 4666 
+Q 2853 4666 3247 4331 
+Q 3641 3997 3641 3322 
+Q 3641 2881 3436 2590 
+Q 3231 2300 2841 2188 
+z
+M 1259 4147 
+L 1259 2491 
+L 2053 2491 
+Q 2509 2491 2742 2702 
+Q 2975 2913 2975 3322 
+Q 2975 3731 2742 3939 
+Q 2509 4147 2053 4147 
+L 1259 4147 
 z
 " transform="scale(0.015625)"/>
         <path id="DejaVuSans-57" d="M 213 4666 
@@ -493,11 +514,11 @@ Q 3069 4631 3425 4513
 z
 " transform="scale(0.015625)"/>
        </defs>
-       <use xlink:href="#DejaVuSans-49"/>
-       <use xlink:href="#DejaVuSans-2d" transform="translate(29.492188 0)"/>
-       <use xlink:href="#DejaVuSans-57" transform="translate(61.576172 0)"/>
-       <use xlink:href="#DejaVuSans-4c" transform="translate(160.453125 0)"/>
-       <use xlink:href="#DejaVuSans-53" transform="translate(216.166016 0)"/>
+       <use xlink:href="#DejaVuSans-52"/>
+       <use xlink:href="#DejaVuSans-57" transform="translate(65.482422 0)"/>
+       <use xlink:href="#DejaVuSans-2d" transform="translate(160.359375 0)"/>
+       <use xlink:href="#DejaVuSans-4c" transform="translate(196.443359 0)"/>
+       <use xlink:href="#DejaVuSans-53" transform="translate(252.15625 0)"/>
       </g>
       <!-- (iterative) -->
       <g transform="translate(303.109219 346.25225) scale(0.1 -0.1)">
@@ -1213,6 +1234,15 @@ L 754.54125 50.64
      <g id="text_11">
       <!-- I-WLS -->
       <g transform="translate(740.558437 335.054437) scale(0.1 -0.1)">
+       <defs>
+        <path id="DejaVuSans-49" d="M 628 4666 
+L 1259 4666 
+L 1259 0 
+L 628 0 
+L 628 4666 
+z
+" transform="scale(0.015625)"/>
+       </defs>
        <use xlink:href="#DejaVuSans-49"/>
        <use xlink:href="#DejaVuSans-2d" transform="translate(29.492188 0)"/>
        <use xlink:href="#DejaVuSans-57" transform="translate(61.576172 0)"/>
