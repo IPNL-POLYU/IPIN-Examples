@@ -35,18 +35,27 @@ Measurement Model:
 """
 
 import argparse
-import numpy as np
-import matplotlib.pyplot as plt
+import sys
 from pathlib import Path
 
-from core.eval import save_figure, show_figures_if_requested
+import matplotlib.pyplot as plt
+import numpy as np
+
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
 from core.estimators import (
-    linear_least_squares,
-    weighted_least_squares,
     gauss_newton,
     levenberg_marquardt,
+    linear_least_squares,
     robust_gauss_newton,
+    weighted_least_squares,
 )
+from core.eval import save_figure, show_figures_if_requested
 
 
 def setup_positioning_scenario():

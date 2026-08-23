@@ -155,10 +155,17 @@ python -m ch6_dead_reckoning.example_comparison
 ```
 
 `python -m` puts the repository root on `sys.path`, so these run straight from
-a fresh clone even before step 4 above. The script form —
-`python <chapter>/<example>.py` — puts the *script's* directory there instead,
-so `core` is only importable once the package is installed. That is why every
-command in this repository is written as `python -m`.
+a fresh clone even before step 4 above, and it is the form every command in
+this repository is written in.
+
+The script form — `python <chapter>/<example>.py` — puts the *script's*
+directory there instead, so `core` would not be importable from a fresh clone.
+Each example now adds the repository root itself before importing `core`, so
+that form works too. It is worth knowing why the line is there: without it, on
+a machine that has ever installed this package, `import core` does not fail —
+it quietly resolves to **whichever checkout the install points at**, and the
+example runs to completion against a different copy of the library. The error,
+when there is one, names a directory you have never heard of.
 
 Examples find their datasets from any working directory, so `cd`-ing into a
 chapter folder first is fine. Every example takes `--help`, which prints what

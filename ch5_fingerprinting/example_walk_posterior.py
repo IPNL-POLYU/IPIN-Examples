@@ -32,13 +32,26 @@ References: Chapter 5, Sections 5.1-5.2, Eqs. (5.3)-(5.4), (5.6)
 """
 
 import argparse
+import sys
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.colors import PowerNorm
 
-from core.eval import resolve_figs_dir, save_animation, save_figure, show_figures_if_requested
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from core.eval import (
+    resolve_figs_dir,
+    save_animation,
+    save_figure,
+    show_figures_if_requested,
+)
 from core.fingerprinting import (
     fit_gaussian_naive_bayes,
     load_fingerprint_database,

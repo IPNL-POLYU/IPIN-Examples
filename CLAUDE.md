@@ -1097,6 +1097,50 @@ Iterative Weighted Least Squares (I-WLS)". The second is the one to fix first if
 only one gets done -- its stdout is the transcript pinned in the chapter README,
 so it is the most-read wrong label of the three.
 
+## Every example now bootstraps its own sys.path, and the sweep took three tries
+
+The trap at the top of this file -- `python chX/example.py` resolving `core` to
+the main checkout -- is closed at the source now: all 38 examples insert the
+repository root before their first `core` import, matching what
+`ch5_fingerprinting/example_classification` and nine of twelve `scripts/`
+generators already did. `tests/test_examples_import_this_checkout.py` holds it,
+and checks *order* rather than presence, because a bootstrap below the import
+changes nothing.
+
+Two things worth knowing before repeating this kind of sweep.
+
+**Three of the three bugs in the sweep script were found by pyflakes, none by
+reading.** Each was a plausible-looking way to locate an insertion point:
+
+1. `ast.walk` to decide whether `sys` was already imported -- it counts an
+   `import sys` inside a *function*, so four files got a module-level
+   `sys.path.insert` with no `sys` bound.
+2. Finding the stdlib group with `line.startswith(("import ", "from "))` --
+   which matched a line of *module docstring prose* beginning "from range
+   measurements ...", and wrote `import sys` inside the docstring.
+3. Treating any module-level import of a name as sufficient -- ch7's pose-graph
+   example imports `pathlib.Path` three lines *below* its first `core` import,
+   so the name existed but not yet at the point the bootstrap runs.
+
+All three produce files that `compileall` accepts. The rule from the earlier
+lint sweep holds and is worth restating in the stronger form: **a tool that
+locates Python by line prefix cannot tell an import from prose that starts like
+one, and `ast.walk` cannot tell module scope from function scope.** Use
+`tree.body`, and compare line numbers.
+
+**The import-order ratchet fired, correctly, and fixing it improved the
+baseline.** Inserting `import sys` at the top of a stdlib group is unsorted, so
+I001 went 113 -> 147. `ruff --select I001 --fix` over the chapter directories
+cleared 63, including 29 that predated this change, leaving **84** -- so the
+baseline moved down, not up. E402 does *not* fire: ruff exempts imports that
+follow a `sys.path` manipulation, which is what makes this idiom viable at all.
+
+Verification was the cheap strong one: `--help` for all 38 examples, captured
+before and diffed after, **byte-identical both times** -- once after the
+insertions and again after ruff reordered the imports. `--help` exits during
+argument parsing but only after every module-level import has run, so it tests
+exactly what this change touches, in about a second per example.
+
 ## A scratch probe in the scratchpad imports the *other* checkout
 
 The editable-install trap at the top of this file has a second face that the

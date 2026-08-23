@@ -25,19 +25,27 @@ Date: December 2025
 """
 
 import argparse
-import numpy as np
-import matplotlib.pyplot as plt
+import sys
 from pathlib import Path
-from typing import List, Tuple, Dict
+from typing import Dict, List, Tuple
 
+import matplotlib.pyplot as plt
+import numpy as np
+
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from core.estimators.factor_graph import FactorGraph
 from core.eval import save_animation, save_figure, show_figures_if_requested
 from core.slam import (
     CameraIntrinsics,
-    project_point,
     create_reprojection_factor,
+    project_point,
 )
-from core.estimators.factor_graph import FactorGraph
-
 
 # Standard deviation of the synthetic pixel observations, and the sigma the
 # reprojection factors are weighted by. Named because the final reprojection

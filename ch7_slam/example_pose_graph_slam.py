@@ -44,26 +44,37 @@ Date: December 2025
 
 import argparse
 import json
+import sys
+from pathlib import Path
+
 import numpy as np
 
-from core.utils import resolve_data_path, wrap_angle
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
+
+from pathlib import Path
+from typing import Dict, List, Optional, Tuple
+
 import matplotlib.pyplot as plt
 from matplotlib.transforms import blended_transform_factory
-from pathlib import Path
-from typing import List, Tuple, Dict, Optional
 
 from core.eval import save_animation, save_figure, show_figures_if_requested
 from core.slam import (
+    LoopClosureDetector2D,
+    SlamFrontend2D,
+    create_pose_graph,
+    icp_point_to_point,
     se2_compose,
     se2_relative,
-    icp_point_to_point,
-    create_pose_graph,
-    SlamFrontend2D,
-    LoopClosureDetector2D,
 )
 from core.slam.scan_generation import (
     generate_scan_with_occlusion,
 )
+from core.utils import resolve_data_path, wrap_angle
 
 
 def load_slam_dataset(data_dir: str) -> Dict:

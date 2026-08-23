@@ -16,20 +16,29 @@ Date: December 2024
 """
 
 import argparse
+import sys
 import time
-import numpy as np
-import matplotlib.pyplot as plt
 from pathlib import Path
+
+import matplotlib.pyplot as plt
+import numpy as np
+
+# `core` must come from this checkout. Running this file as a script puts
+# its *chapter* directory on sys.path[0], not the repository root, so
+# without this line `import core` silently resolves to whatever else is
+# installed -- another clone, a stale editable install -- or fails outright
+# on a fresh one. See issue #86.
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
-    load_fingerprint_database,
-    nn_localize,
-    knn_localize,
-    fit_gaussian_naive_bayes,
-    map_localize,
-    posterior_mean_localize,
     LinearRegressionLocalizer,
+    fit_gaussian_naive_bayes,
+    knn_localize,
+    load_fingerprint_database,
+    map_localize,
+    nn_localize,
+    posterior_mean_localize,
 )
 
 

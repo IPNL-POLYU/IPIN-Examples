@@ -33,8 +33,6 @@ from core.fingerprinting import (
     load_fingerprint_database,
 )
 
-
-
 # Seed for this example's synthetic database and query draws. Fixed so the
 # committed figures and reported accuracies can be regenerated exactly.
 DEFAULT_SEED = 42
