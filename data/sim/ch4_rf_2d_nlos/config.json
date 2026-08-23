@@ -43,10 +43,10 @@
   "performance": {
     "divergence_threshold_m": 100.0,
     "toa": {
-      "median_m": 0.6029546074780416,
-      "mean_solved_m": 0.6167426934628311,
-      "max_solved_m": 0.9445206747139516,
-      "failed_count": 4,
+      "median_m": 0.6144901467055827,
+      "mean_solved_m": 0.6033314677844087,
+      "max_solved_m": 1.0424196993754482,
+      "failed_count": 1,
       "n_positions": 100
     },
     "tdoa": {
