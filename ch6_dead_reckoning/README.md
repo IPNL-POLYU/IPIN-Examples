@@ -1,5 +1,10 @@
 # Chapter 6: Dead Reckoning
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch6_dead_reckoning.ipynb)
+
+Run this chapter in your browser — every figure below is one you can
+regenerate and change. No install: [`notebooks/ch6_dead_reckoning.ipynb`](../notebooks/ch6_dead_reckoning.ipynb)
+
 ## Overview
 
 This module implements dead reckoning and sensor algorithms described in **Chapter 6** of *Principles of Indoor Positioning and Indoor Navigation*. Dead reckoning propagates position using proprioceptive sensors (IMU, wheel encoders, step counters) without external references.

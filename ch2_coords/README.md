@@ -1,5 +1,10 @@
 # Chapter 2: Coordinate Systems and Transformations
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch2_coordinate_systems.ipynb)
+
+Run this chapter in your browser — every figure below is one you can
+regenerate and change. No install: [`notebooks/ch2_coordinate_systems.ipynb`](../notebooks/ch2_coordinate_systems.ipynb)
+
 ## Overview
 
 This module implements the coordinate systems and transformation functions described in **Chapter 2** of *Principles of Indoor Positioning and Indoor Navigation*. It provides the foundational mathematical tools for converting between different coordinate frames and rotation representations commonly used in indoor navigation systems.

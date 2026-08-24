@@ -1,5 +1,10 @@
 # Chapter 5: Fingerprinting-based Indoor Positioning
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch5_fingerprinting.ipynb)
+
+Run this chapter in your browser — every figure below is one you can
+regenerate and change. No install: [`notebooks/ch5_fingerprinting.ipynb`](../notebooks/ch5_fingerprinting.ipynb)
+
 ## Overview
 
 This module implements fingerprinting-based positioning algorithms described in **Chapter 5** of *Principles of Indoor Positioning and Indoor Navigation*. Fingerprinting is a pattern-matching approach that compares measured radio signal strengths (RSS) against a pre-built database of reference fingerprints.

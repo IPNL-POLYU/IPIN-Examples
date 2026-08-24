@@ -1,5 +1,10 @@
 # Chapter 4: RF Point Positioning
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch4_rf_positioning.ipynb)
+
+Run this chapter in your browser — every figure below is one you can
+regenerate and change. No install: [`notebooks/ch4_rf_positioning.ipynb`](../notebooks/ch4_rf_positioning.ipynb)
+
 ## Overview
 
 This module implements RF (Radio Frequency) positioning algorithms described in **Chapter 4** of *Principles of Indoor Positioning and Indoor Navigation*. It provides simulation-based examples of various RF positioning techniques including TOA, TDOA, AOA, and RSS-based positioning.

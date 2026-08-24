@@ -1,5 +1,10 @@
 # Chapter 3: Estimators and Filters for Indoor Positioning
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch3_state_estimation.ipynb)
+
+Run this chapter in your browser — every figure below is one you can
+regenerate and change. No install: [`notebooks/ch3_state_estimation.ipynb`](../notebooks/ch3_state_estimation.ipynb)
+
 ## Overview
 
 This module implements the state estimation algorithms described in **Chapter 3** of *Principles of Indoor Positioning and Indoor Navigation*. It provides the mathematical foundations for estimating position, velocity, and other states from noisy measurements using various filtering and optimization techniques.
