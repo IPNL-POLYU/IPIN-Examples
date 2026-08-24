@@ -41,6 +41,8 @@ python -m ch4_rf_point_positioning.example_comparison
 | `ch4_dop_geometry.{svg,pdf,png}` | `example_dop_geometry.py` | — |
 | `ch4_dop_geometry.gif` | `example_dop_geometry.py --animate` | 1.06 MB |
 
+![GDOP rising as the receiver walks away from a clustered anchor set](figs/ch4_dop_geometry.svg)
+
 DOP is the factor by which anchor geometry amplifies range noise into position
 error: **position error ≈ DOP × range noise**. It is a property of where the
 anchors are relative to you, and it is what a single number cannot convey.
@@ -71,6 +73,8 @@ Two things are measured, not asserted:
 | Figure | Built by | Size |
 |--------|----------|------|
 | `ch4_initial_guess_basin.{svg,pdf,png}` | `example_initial_guess_basin.py` | — |
+
+![Which starting points converge, and which do not](figs/ch4_initial_guess_basin.svg)
 
 When an iterative solve fails, the reflex is to blame the starting point. This example holds
 the geometry at the well-behaved square, fixes one target, sets the measurement noise to
@@ -130,6 +134,306 @@ aoa_angles = np.loadtxt(path / "aoa_angles.txt")
 gdop_toa = np.loadtxt(path / "gdop_toa.txt")
 config = json.load(open(path / "config.json"))
 ```
+
+## Usage Examples
+
+### TOA Positioning
+
+```python
+import numpy as np
+from core.rf import TOAPositioner
+
+# Define anchor layout (square)
+anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+
+# True position and compute ranges
+true_pos = np.array([5.0, 5.0])
+ranges = np.linalg.norm(anchors - true_pos, axis=1)
+
+# Solve using iterative LS (book default: Eq. 4.20)
+positioner = TOAPositioner(anchors, method='iterative_ls')
+estimated_pos, info = positioner.solve(ranges, initial_guess=np.array([6.0, 6.0]))
+
+print(f"True position: {true_pos}")
+print(f"Estimated: {estimated_pos}")
+print(f"Error: {np.linalg.norm(estimated_pos - true_pos):.3f} m")
+```
+
+**Implements:** Eq. (4.14)-(4.23)
+
+### RSS-Based Ranging
+
+The RSS path-loss model follows book Eqs. (4.10)-(4.13):
+- **Eq. 4.10**: Forward model: `p_R = p_ref - 10*η*log10(d/d_ref)`
+- **Eq. 4.11**: Inverse model: `d = d_ref * 10^((p_ref - p_R) / (10*η))`
+- **Eq. 4.12**: Fading: `p̃_R = p_R + ω_long(x) + ω_short(t)`
+- **Eq. 4.13**: Distance error (general form):
+  ```
+  d̃ = d * 10^(-(ω_long + ω_short) / (10*η))
+    = d * 10^(-ω_long / (10*η)) * 10^(-ω_short / (10*η))
+  ```
+
+**Note on Eq. 4.13:** The book's derivation shows only `ω_long` in the final formula because
+it assumes `ω_short(t)` is mitigated by time-averaging multiple RSS samples. After sufficient
+averaging, ω_short → 0 in expectation, leaving only the location-dependent `ω_long` term.
+**Our implementation uses the full formula** (both terms) to accurately model the residual
+short-term fading when averaging is limited or disabled.
+
+**Fading Model Details (Eq. 4.12):**
+
+| Fading Type | Distribution | Domain | Reducible by Averaging? |
+|-------------|--------------|--------|-------------------------|
+| **ω_long(x)** Long-term | Gaussian `N(0, σ_long²)` | dB (log power) | No (location-dependent) |
+| **ω_short(t)** Short-term | Rayleigh amplitude | Linear amplitude | Yes (time-varying) |
+
+**Short-term Fading Models:**
+- `"rayleigh"` (default, book-faithful): Amplitude A ~ Rayleigh(σ), power P = A²
+- `"gaussian_db"`: Gaussian noise directly in dB domain (legacy)
+- `"none"`: Disable short-term fading
+
+**Physical Interpretation:**
+- Rayleigh fading models multipath propagation when no dominant LOS path exists
+- The amplitude A follows Rayleigh distribution, power P = A² follows exponential
+- In dB: the fading has asymmetric distribution with negative mean (~-2.5 dB below mean power)
+- Averaging multiple samples reduces variance by combining independent fading realizations
+
+```python
+from core.rf import (
+    rss_pathloss,
+    rss_to_distance,
+    simulate_rss_measurement,
+    rss_fading_to_distance_error,
+)
+
+# RSS at 10m with p_ref=-40dBm @ 1m, path-loss exponent eta=2.5
+p_ref_dbm = -40.0  # Reference RSS at d_ref=1m
+rss = rss_pathloss(p_ref_dbm=p_ref_dbm, distance=10.0, path_loss_exp=2.5)
+print(f"RSS at 10m: {rss:.2f} dBm")  # -65.00 dBm
+
+# Invert to estimate distance (Eq. 4.11)
+distance_est = rss_to_distance(rss_dbm=rss, p_ref_dbm=p_ref_dbm, path_loss_exp=2.5)
+print(f"Estimated distance: {distance_est:.2f} m")  # 10.00 m
+
+# Simulate RSS with Rayleigh short-term fading (Eq. 4.12)
+anchor = np.array([0.0, 0.0])
+agent = np.array([10.0, 0.0])
+rss_meas, info = simulate_rss_measurement(
+    anchor, agent,
+    p_ref_dbm=-40.0,
+    path_loss_exp=2.5,
+    sigma_long_db=6.0,         # Long-term fading std (typical: 4-8 dB)
+    sigma_short_linear=0.707,  # Rayleigh scale σ (normalized: 1/sqrt(2))
+    n_samples_avg=5,           # Average 5 samples to reduce short-term fading
+    short_fading_model="rayleigh",  # Book-faithful Rayleigh fading
+)
+print(f"True RSS: {info['rss_true']:.1f} dBm, Measured: {rss_meas:.1f} dBm")
+print(f"Long-term fading: {info['omega_long_db']:.2f} dB")
+print(f"Short-term fading (after avg): {info['omega_short_db']:.2f} dB")
+print(f"Distance error factor: {info['distance_error_factor']:.2f}x")
+
+# Direct fading-to-distance-error conversion (Eq. 4.13)
+# Takes TOTAL fading (ω_long + ω_short) as input
+# +6 dB total fading -> underestimate distance, -6 dB -> overestimate
+total_fading = info['omega_long_db'] + info['omega_short_db']
+factor = rss_fading_to_distance_error(omega_db=total_fading, path_loss_exp=2.5)
+print(f"Total fading {total_fading:.1f} dB -> {factor:.2f}x distance")
+```
+
+**Distance Error Factor:**
+- `distance_error_factor` in `info` dict uses **total fading** (ω_long + ω_short)
+- `rss_fading_to_distance_error()` converts any fading value (dB) to multiplicative error
+- After averaging many samples, ω_short → 0, so error is dominated by ω_long
+
+**Averaging Effect on Short-term Fading:**
+- n=1: Full Rayleigh variance (~5-6 dB std in power)
+- n=5: Variance reduced by ~sqrt(5), improved stability
+- n=10+: Further reduction, approaching long-term fading limit (ω_short ≈ 0)
+
+**Implements:** Eqs. (4.10)-(4.13)
+
+### TDOA Positioning
+
+```python
+from core.rf import TDOAPositioner
+
+anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+true_pos = np.array([5.0, 5.0])
+
+# Compute TDOA measurements (relative to anchor 0)
+dist_ref = np.linalg.norm(true_pos - anchors[0])
+tdoa = [np.linalg.norm(true_pos - anchors[i]) - dist_ref for i in range(1, len(anchors))]
+tdoa = np.array(tdoa)
+
+# Solve
+positioner = TDOAPositioner(anchors, reference_idx=0)
+estimated_pos, info = positioner.solve(tdoa, initial_guess=np.array([6.0, 6.0]))
+```
+
+**Implements:** Eq. (4.27)-(4.42)
+
+## Expected Output
+
+### TOA Positioning Example
+
+Running `python -m ch4_rf_point_positioning.example_toa_positioning` produces:
+
+<!-- example-output: ch4_rf_point_positioning.example_toa_positioning -->
+```
+Example 1: TOA Positioning with Perfect Measurements
+======================================================================
+...
+True position: [5. 5.]
+...
+Estimated position: [5.00000012 5.00000012]
+Position error: 0.000000 m
+Converged: True
+Iterations: 3
+...
+Example 2: TOA Positioning with Measurement Noise
+======================================================================
+True position: [3. 7.]
+Range noise std: 0.1 m
+...
+Position error: 0.055 m   <- ONE noise draw, not an accuracy
+...
+Over 2000 noise draws, against Eq. (4.107):
+  HDOP for this geometry : 1.010
+  predicted HDOP x sigma : 0.1010 m
+  measured RMS error     : 0.1012 m  (1.00x predicted)
+  a single draw lands anywhere in [0.032, 0.154] m (10th-90th percentile)
+```
+
+Note what the example does with that single draw: it prints it, labels it as
+one draw rather than an accuracy, and then reports the Monte-Carlo RMS beside
+the DOP prediction it should match. 0.1012 m measured against 0.1010 m
+predicted is the actual claim; the 0.055 m above it is a sample that happens to
+land low, and the percentile range says how little that means.
+
+**Visual Output:**
+
+![TOA Positioning](figs/toa_positioning_example.png)
+
+*This figure shows the TOA positioning geometry with anchors (red triangles), true position (green circle), estimated position (blue X), and range circles (dashed red). The convergence path shows the iterative solver approaching the true position.*
+
+### RF Methods Comparison
+
+Running `python -m ch4_rf_point_positioning.example_comparison` generates a comprehensive comparison:
+
+The left four columns are the noise injected at each level; the right columns
+are the resulting median position error over repeated draws. One draw is not a
+measurement, so this table reports medians rather than the single realisation
+it used to — see `.cursor/rules/030-figures-and-claims.mdc`.
+
+<!-- example-output: ch4_rf_point_positioning.example_comparison -->
+```
+Results Summary (median error in metres)
+======================================================================
+  Clock bias: 1.5 m (TOA only; cancels in TDOA)
+  RSS config: Rayleigh short-term (sigma=0.5), 5 samples averaged
+  AOA anchor 3 is 10x noisier than the others; 'AOA unw' solves the same bearings unweighted
+Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       TDOA      AOA       AOA unw   RSS       AOA fail
+----------------------------------------------------------------------------------------------------------
+1      0.00      0.00      0.0       0.0       0.000     0.000     0.000     0.000     1.131     0
+2      0.05      0.05      1.0       2.0       0.044     0.033     0.126     0.495     1.627     0
+3      0.10      0.10      3.0       4.0       0.078     0.065     0.340     1.389     3.912     0
+4      0.20      0.20      5.0       6.0       0.152     0.136     0.630     1.026     5.611     0
+5      0.50      0.50      10.0      8.0       0.408     0.279     1.506     1.525     5.853     0
+```
+
+**TOA reads 0.000 m at level 1 because it now estimates the clock.** The
+comparison injects a shared 1.5 m receiver bias into the TOA pseudoranges, and
+that term is unobservable to a position-only solver: no `(x, y)` makes four
+uniformly inflated ranges consistent, so the residual never reached `tol` and
+the solve was thrown away. The convergence panel of the figure below reported
+**2-5 of 100** for TOA at every noise level, which is a property of the harness
+and not of the method — and the survivors were the geometries where the bias
+could be partly absorbed *into the position*, so they were the least-inaccurate
+rather than the accurate ones. The tell was this table's own top row: 0.153 m
+of error on **noiseless** measurements, where TDOA and AOA both printed 0.000.
+
+The fix was one already in `core.rf`: `toa_solve_with_clock_bias`, which is
+Eqs. (4.24)-(4.26) — the state is `(x, y, c*dt)` instead of `(x, y)`. Every
+solve converges now, the bias comes back as +1.500 m on noiseless data, and TOA
+tracks TDOA across the sweep at the small penalty of the extra unknown. That is
+the comparison Chapter 4 is for: **TOA has to carry the clock, TDOA differences
+it away.**
+
+`AOA fail` counts solves landing over 100 m from truth, and reads 0 at every
+level. It did not always: solving on `z = tan(psi)` as Eq. (4.64) is written
+literally made infinity an attractor the solver reported as convergence, so
+8 of 39 converged solves were wrong — at zero angular noise. `AOAPositioner`
+now forms its residuals as `wrap(psi - atan2(dE, dN))`. The example prints the
+full explanation.
+
+**Visual Output:**
+
+![RF Methods Comparison](figs/ch4_rf_comparison.png)
+
+*This figure shows four subplots comparing RF positioning methods:*
+- **Top-Left:** RMSE vs measurement noise - TOA/TDOA/AOA maintain accuracy while RSS degrades rapidly
+- **Top-Right:** Error CDF at 10cm noise - TOA/TDOA/AOA achieve sub-meter accuracy, RSS shows larger spread
+- **Bottom-Left:** Error distribution box plots - RSS has significantly higher variance
+- **Bottom-Right:** Convergence success rate - TOA/TDOA/AOA maintain high success, RSS drops with noise
+
+### Geometry is method-specific (`--compare-geometry`)
+
+```bash
+python -m ch4_rf_point_positioning.example_comparison --compare-geometry
+```
+
+![Geometry Comparison](figs/ch4_geometry_comparison.png)
+
+Median error over all 100 fixes, with the fixes that failed in brackets. A fix
+has failed if it raised, reported `converged=False`, never left its initial
+guess, or landed over 100 m away — the same four conditions the dataset
+generator writes into each `config.json`.
+
+| Geometry | TOA | TDOA | AOA |
+|---|---|---|---|
+| Square (4 corners) | 0.088 m [0] | 0.075 m [0] | 0.397 m [0] |
+| Optimal (circular) | 0.079 m [0] | 0.085 m [0] | 0.273 m [0] |
+| Collinear (4 in a row) | 6.770 m [100] | 6.770 m [100] | **0.262 m** [8] |
+
+The collinear array is not simply the bad one, which is why the label no longer
+says "poor". It is bad for ranges and the best of the three for bearings:
+
+- TOA and TDOA fail on all 100 fixes **from the beacon centroid**, which sits
+  on the line of symmetry. Moving across that line changes no range to first
+  order, so the Jacobian is rank deficient there and Gauss-Newton has nowhere
+  to step. Their 6.770 m is the distance from the seed to the truth — a
+  property of the seed, not of the measurements.
+- Seeded off the line they solve, but ranges still cannot separate a target
+  from its mirror image about the beacon line, so half the fixes land on the
+  wrong side. [`data/sim/ch4_rf_2d_linear`](../data/sim/ch4_rf_2d_linear/README.md)
+  measures both halves.
+- AOA is *better* here than on the square array, because reflecting a position
+  flips every azimuth: bearings carry the side information ranges do not. Its
+  eight failures are the grid rows within 1 m of the beacon line, where all
+  four bearings are nearly parallel.
+
+**And "Optimal" does not win a single GDOP column outright**, which is the
+same lesson from the other end. Mean GDOP by dataset:
+
+| Geometry | TOA | TDOA | AOA |
+|---|---|---|---|
+| Square (4 corners) | 1.02 | **0.87** | 15.04 |
+| Optimal (circular) | 1.02 | 1.09 | 11.54 |
+| Collinear (4 in a row) | 1.43 | 10.36 | **9.25** |
+
+It ties the square for TOA, is slightly *worse* than it for TDOA, and loses
+AOA to the collinear array. The name describes a layout, not a ranking.
+
+And DOP sees none of it. TOA GDOP on the collinear array averages 1.43 against
+1.02 for the square — a local, first-order measure calling the configuration
+fine, while the ambiguity that breaks it is global. **A healthy DOP is
+necessary, not sufficient.**
+
+Where DOP *does* work, it works well: on the square and circular arrays all
+three methods land on `sigma_position = GDOP x sigma_range` to within the
+difference between a median and an RMS, and TDOA edges out TOA on the square
+purely because its GDOP is lower (0.87 against 1.02). The first two rows of
+the table are a DOP prediction being confirmed; only the third row is DOP
+being wrong.
 
 ## Equation Reference
 
@@ -544,306 +848,6 @@ print(f"Expected horizontal error: {sigma_horizontal:.2f} m")  # 0.42 m
 - DOP = 1-2: Good geometry
 - DOP = 2-4: Acceptable geometry
 - DOP > 6: Poor geometry (avoid if possible)
-
-## Usage Examples
-
-### TOA Positioning
-
-```python
-import numpy as np
-from core.rf import TOAPositioner
-
-# Define anchor layout (square)
-anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-
-# True position and compute ranges
-true_pos = np.array([5.0, 5.0])
-ranges = np.linalg.norm(anchors - true_pos, axis=1)
-
-# Solve using iterative LS (book default: Eq. 4.20)
-positioner = TOAPositioner(anchors, method='iterative_ls')
-estimated_pos, info = positioner.solve(ranges, initial_guess=np.array([6.0, 6.0]))
-
-print(f"True position: {true_pos}")
-print(f"Estimated: {estimated_pos}")
-print(f"Error: {np.linalg.norm(estimated_pos - true_pos):.3f} m")
-```
-
-**Implements:** Eq. (4.14)-(4.23)
-
-### RSS-Based Ranging
-
-The RSS path-loss model follows book Eqs. (4.10)-(4.13):
-- **Eq. 4.10**: Forward model: `p_R = p_ref - 10*η*log10(d/d_ref)`
-- **Eq. 4.11**: Inverse model: `d = d_ref * 10^((p_ref - p_R) / (10*η))`
-- **Eq. 4.12**: Fading: `p̃_R = p_R + ω_long(x) + ω_short(t)`
-- **Eq. 4.13**: Distance error (general form):
-  ```
-  d̃ = d * 10^(-(ω_long + ω_short) / (10*η))
-    = d * 10^(-ω_long / (10*η)) * 10^(-ω_short / (10*η))
-  ```
-
-**Note on Eq. 4.13:** The book's derivation shows only `ω_long` in the final formula because
-it assumes `ω_short(t)` is mitigated by time-averaging multiple RSS samples. After sufficient
-averaging, ω_short → 0 in expectation, leaving only the location-dependent `ω_long` term.
-**Our implementation uses the full formula** (both terms) to accurately model the residual
-short-term fading when averaging is limited or disabled.
-
-**Fading Model Details (Eq. 4.12):**
-
-| Fading Type | Distribution | Domain | Reducible by Averaging? |
-|-------------|--------------|--------|-------------------------|
-| **ω_long(x)** Long-term | Gaussian `N(0, σ_long²)` | dB (log power) | No (location-dependent) |
-| **ω_short(t)** Short-term | Rayleigh amplitude | Linear amplitude | Yes (time-varying) |
-
-**Short-term Fading Models:**
-- `"rayleigh"` (default, book-faithful): Amplitude A ~ Rayleigh(σ), power P = A²
-- `"gaussian_db"`: Gaussian noise directly in dB domain (legacy)
-- `"none"`: Disable short-term fading
-
-**Physical Interpretation:**
-- Rayleigh fading models multipath propagation when no dominant LOS path exists
-- The amplitude A follows Rayleigh distribution, power P = A² follows exponential
-- In dB: the fading has asymmetric distribution with negative mean (~-2.5 dB below mean power)
-- Averaging multiple samples reduces variance by combining independent fading realizations
-
-```python
-from core.rf import (
-    rss_pathloss,
-    rss_to_distance,
-    simulate_rss_measurement,
-    rss_fading_to_distance_error,
-)
-
-# RSS at 10m with p_ref=-40dBm @ 1m, path-loss exponent eta=2.5
-p_ref_dbm = -40.0  # Reference RSS at d_ref=1m
-rss = rss_pathloss(p_ref_dbm=p_ref_dbm, distance=10.0, path_loss_exp=2.5)
-print(f"RSS at 10m: {rss:.2f} dBm")  # -65.00 dBm
-
-# Invert to estimate distance (Eq. 4.11)
-distance_est = rss_to_distance(rss_dbm=rss, p_ref_dbm=p_ref_dbm, path_loss_exp=2.5)
-print(f"Estimated distance: {distance_est:.2f} m")  # 10.00 m
-
-# Simulate RSS with Rayleigh short-term fading (Eq. 4.12)
-anchor = np.array([0.0, 0.0])
-agent = np.array([10.0, 0.0])
-rss_meas, info = simulate_rss_measurement(
-    anchor, agent,
-    p_ref_dbm=-40.0,
-    path_loss_exp=2.5,
-    sigma_long_db=6.0,         # Long-term fading std (typical: 4-8 dB)
-    sigma_short_linear=0.707,  # Rayleigh scale σ (normalized: 1/sqrt(2))
-    n_samples_avg=5,           # Average 5 samples to reduce short-term fading
-    short_fading_model="rayleigh",  # Book-faithful Rayleigh fading
-)
-print(f"True RSS: {info['rss_true']:.1f} dBm, Measured: {rss_meas:.1f} dBm")
-print(f"Long-term fading: {info['omega_long_db']:.2f} dB")
-print(f"Short-term fading (after avg): {info['omega_short_db']:.2f} dB")
-print(f"Distance error factor: {info['distance_error_factor']:.2f}x")
-
-# Direct fading-to-distance-error conversion (Eq. 4.13)
-# Takes TOTAL fading (ω_long + ω_short) as input
-# +6 dB total fading -> underestimate distance, -6 dB -> overestimate
-total_fading = info['omega_long_db'] + info['omega_short_db']
-factor = rss_fading_to_distance_error(omega_db=total_fading, path_loss_exp=2.5)
-print(f"Total fading {total_fading:.1f} dB -> {factor:.2f}x distance")
-```
-
-**Distance Error Factor:**
-- `distance_error_factor` in `info` dict uses **total fading** (ω_long + ω_short)
-- `rss_fading_to_distance_error()` converts any fading value (dB) to multiplicative error
-- After averaging many samples, ω_short → 0, so error is dominated by ω_long
-
-**Averaging Effect on Short-term Fading:**
-- n=1: Full Rayleigh variance (~5-6 dB std in power)
-- n=5: Variance reduced by ~sqrt(5), improved stability
-- n=10+: Further reduction, approaching long-term fading limit (ω_short ≈ 0)
-
-**Implements:** Eqs. (4.10)-(4.13)
-
-### TDOA Positioning
-
-```python
-from core.rf import TDOAPositioner
-
-anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-true_pos = np.array([5.0, 5.0])
-
-# Compute TDOA measurements (relative to anchor 0)
-dist_ref = np.linalg.norm(true_pos - anchors[0])
-tdoa = [np.linalg.norm(true_pos - anchors[i]) - dist_ref for i in range(1, len(anchors))]
-tdoa = np.array(tdoa)
-
-# Solve
-positioner = TDOAPositioner(anchors, reference_idx=0)
-estimated_pos, info = positioner.solve(tdoa, initial_guess=np.array([6.0, 6.0]))
-```
-
-**Implements:** Eq. (4.27)-(4.42)
-
-## Expected Output
-
-### TOA Positioning Example
-
-Running `python -m ch4_rf_point_positioning.example_toa_positioning` produces:
-
-<!-- example-output: ch4_rf_point_positioning.example_toa_positioning -->
-```
-Example 1: TOA Positioning with Perfect Measurements
-======================================================================
-...
-True position: [5. 5.]
-...
-Estimated position: [5.00000012 5.00000012]
-Position error: 0.000000 m
-Converged: True
-Iterations: 3
-...
-Example 2: TOA Positioning with Measurement Noise
-======================================================================
-True position: [3. 7.]
-Range noise std: 0.1 m
-...
-Position error: 0.055 m   <- ONE noise draw, not an accuracy
-...
-Over 2000 noise draws, against Eq. (4.107):
-  HDOP for this geometry : 1.010
-  predicted HDOP x sigma : 0.1010 m
-  measured RMS error     : 0.1012 m  (1.00x predicted)
-  a single draw lands anywhere in [0.032, 0.154] m (10th-90th percentile)
-```
-
-Note what the example does with that single draw: it prints it, labels it as
-one draw rather than an accuracy, and then reports the Monte-Carlo RMS beside
-the DOP prediction it should match. 0.1012 m measured against 0.1010 m
-predicted is the actual claim; the 0.055 m above it is a sample that happens to
-land low, and the percentile range says how little that means.
-
-**Visual Output:**
-
-![TOA Positioning](figs/toa_positioning_example.png)
-
-*This figure shows the TOA positioning geometry with anchors (red triangles), true position (green circle), estimated position (blue X), and range circles (dashed red). The convergence path shows the iterative solver approaching the true position.*
-
-### RF Methods Comparison
-
-Running `python -m ch4_rf_point_positioning.example_comparison` generates a comprehensive comparison:
-
-The left four columns are the noise injected at each level; the right columns
-are the resulting median position error over repeated draws. One draw is not a
-measurement, so this table reports medians rather than the single realisation
-it used to — see `.cursor/rules/030-figures-and-claims.mdc`.
-
-<!-- example-output: ch4_rf_point_positioning.example_comparison -->
-```
-Results Summary (median error in metres)
-======================================================================
-  Clock bias: 1.5 m (TOA only; cancels in TDOA)
-  RSS config: Rayleigh short-term (sigma=0.5), 5 samples averaged
-  AOA anchor 3 is 10x noisier than the others; 'AOA unw' solves the same bearings unweighted
-Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       TDOA      AOA       AOA unw   RSS       AOA fail
-----------------------------------------------------------------------------------------------------------
-1      0.00      0.00      0.0       0.0       0.000     0.000     0.000     0.000     1.131     0
-2      0.05      0.05      1.0       2.0       0.044     0.033     0.126     0.495     1.627     0
-3      0.10      0.10      3.0       4.0       0.078     0.065     0.340     1.389     3.912     0
-4      0.20      0.20      5.0       6.0       0.152     0.136     0.630     1.026     5.611     0
-5      0.50      0.50      10.0      8.0       0.408     0.279     1.506     1.525     5.853     0
-```
-
-**TOA reads 0.000 m at level 1 because it now estimates the clock.** The
-comparison injects a shared 1.5 m receiver bias into the TOA pseudoranges, and
-that term is unobservable to a position-only solver: no `(x, y)` makes four
-uniformly inflated ranges consistent, so the residual never reached `tol` and
-the solve was thrown away. The convergence panel of the figure below reported
-**2-5 of 100** for TOA at every noise level, which is a property of the harness
-and not of the method — and the survivors were the geometries where the bias
-could be partly absorbed *into the position*, so they were the least-inaccurate
-rather than the accurate ones. The tell was this table's own top row: 0.153 m
-of error on **noiseless** measurements, where TDOA and AOA both printed 0.000.
-
-The fix was one already in `core.rf`: `toa_solve_with_clock_bias`, which is
-Eqs. (4.24)-(4.26) — the state is `(x, y, c*dt)` instead of `(x, y)`. Every
-solve converges now, the bias comes back as +1.500 m on noiseless data, and TOA
-tracks TDOA across the sweep at the small penalty of the extra unknown. That is
-the comparison Chapter 4 is for: **TOA has to carry the clock, TDOA differences
-it away.**
-
-`AOA fail` counts solves landing over 100 m from truth, and reads 0 at every
-level. It did not always: solving on `z = tan(psi)` as Eq. (4.64) is written
-literally made infinity an attractor the solver reported as convergence, so
-8 of 39 converged solves were wrong — at zero angular noise. `AOAPositioner`
-now forms its residuals as `wrap(psi - atan2(dE, dN))`. The example prints the
-full explanation.
-
-**Visual Output:**
-
-![RF Methods Comparison](figs/ch4_rf_comparison.png)
-
-*This figure shows four subplots comparing RF positioning methods:*
-- **Top-Left:** RMSE vs measurement noise - TOA/TDOA/AOA maintain accuracy while RSS degrades rapidly
-- **Top-Right:** Error CDF at 10cm noise - TOA/TDOA/AOA achieve sub-meter accuracy, RSS shows larger spread
-- **Bottom-Left:** Error distribution box plots - RSS has significantly higher variance
-- **Bottom-Right:** Convergence success rate - TOA/TDOA/AOA maintain high success, RSS drops with noise
-
-### Geometry is method-specific (`--compare-geometry`)
-
-```bash
-python -m ch4_rf_point_positioning.example_comparison --compare-geometry
-```
-
-![Geometry Comparison](figs/ch4_geometry_comparison.png)
-
-Median error over all 100 fixes, with the fixes that failed in brackets. A fix
-has failed if it raised, reported `converged=False`, never left its initial
-guess, or landed over 100 m away — the same four conditions the dataset
-generator writes into each `config.json`.
-
-| Geometry | TOA | TDOA | AOA |
-|---|---|---|---|
-| Square (4 corners) | 0.088 m [0] | 0.075 m [0] | 0.397 m [0] |
-| Optimal (circular) | 0.079 m [0] | 0.085 m [0] | 0.273 m [0] |
-| Collinear (4 in a row) | 6.770 m [100] | 6.770 m [100] | **0.262 m** [8] |
-
-The collinear array is not simply the bad one, which is why the label no longer
-says "poor". It is bad for ranges and the best of the three for bearings:
-
-- TOA and TDOA fail on all 100 fixes **from the beacon centroid**, which sits
-  on the line of symmetry. Moving across that line changes no range to first
-  order, so the Jacobian is rank deficient there and Gauss-Newton has nowhere
-  to step. Their 6.770 m is the distance from the seed to the truth — a
-  property of the seed, not of the measurements.
-- Seeded off the line they solve, but ranges still cannot separate a target
-  from its mirror image about the beacon line, so half the fixes land on the
-  wrong side. [`data/sim/ch4_rf_2d_linear`](../data/sim/ch4_rf_2d_linear/README.md)
-  measures both halves.
-- AOA is *better* here than on the square array, because reflecting a position
-  flips every azimuth: bearings carry the side information ranges do not. Its
-  eight failures are the grid rows within 1 m of the beacon line, where all
-  four bearings are nearly parallel.
-
-**And "Optimal" does not win a single GDOP column outright**, which is the
-same lesson from the other end. Mean GDOP by dataset:
-
-| Geometry | TOA | TDOA | AOA |
-|---|---|---|---|
-| Square (4 corners) | 1.02 | **0.87** | 15.04 |
-| Optimal (circular) | 1.02 | 1.09 | 11.54 |
-| Collinear (4 in a row) | 1.43 | 10.36 | **9.25** |
-
-It ties the square for TOA, is slightly *worse* than it for TDOA, and loses
-AOA to the collinear array. The name describes a layout, not a ranking.
-
-And DOP sees none of it. TOA GDOP on the collinear array averages 1.43 against
-1.02 for the square — a local, first-order measure calling the configuration
-fine, while the ambiguity that breaks it is global. **A healthy DOP is
-necessary, not sufficient.**
-
-Where DOP *does* work, it works well: on the square and circular arrays all
-three methods land on `sigma_position = GDOP x sigma_range` to within the
-difference between a median and an RMS, and TDOA edges out TOA on the square
-purely because its GDOP is lower (0.87 against 1.02). The first two rows of
-the table are a DOP prediction being confirmed; only the third row is DOP
-being wrong.
 
 ## Architecture
 

@@ -77,12 +77,34 @@ All figures are written to `figs/` — never beside the source.
 `example_scan_matching_visualization.py` covers Section 7.3, where the other
 examples only ever reported a final pose and RMSE:
 
-| Figure | Shows |
-|--------|-------|
-| `ch7_icp_correspondences` | The correspondence set of (7.11) as lines between the scans, before and after alignment, with the (7.10) objective falling per iteration |
-| `ch7_ndt_voxels` | The per-voxel Gaussians of (7.12)–(7.13) as covariance ellipses. Thin ellipses hug walls, so NDT constrains motion *across* a wall far better than *along* it |
-| `ch7_ndt_score_surface` | The (7.16) objective over translation, sliced at the true yaw, with the Gauss-Newton path drawn on it. The surface **steps** at voxel boundaries — which is why the gradient is taken analytically rather than by finite differences |
-| `ch7_convergence_basin` | Which initial guesses each method recovers from, plus NDT's capture range versus voxel size |
+### What ICP is actually doing
+
+![ICP correspondences before and after alignment, with the objective falling](figs/ch7_icp_correspondences.svg)
+
+The correspondence set of (7.11), drawn as lines between the two scans before
+and after alignment, with the (7.10) objective falling per iteration.
+
+### Why NDT is directional
+
+![Per-voxel Gaussians as covariance ellipses](figs/ch7_ndt_voxels.svg)
+
+The per-voxel Gaussians of (7.12)–(7.13). Thin ellipses hug walls, so NDT
+constrains motion *across* a wall far better than *along* it.
+
+### The surface the optimiser is descending
+
+![The NDT objective over translation, with the Gauss-Newton path on it](figs/ch7_ndt_score_surface.svg)
+
+The (7.16) objective over translation, sliced at the true yaw. It **steps** at
+voxel boundaries — which is why the gradient is taken analytically rather than
+by finite differences.
+
+### How wrong the initial guess may be
+
+![Which initial guesses each method recovers from](figs/ch7_convergence_basin.svg)
+
+Which starting points each method recovers from, and NDT's capture range
+against voxel size.
 
 ### Animations
 
@@ -363,42 +385,6 @@ map_after = build_map(optimized_poses, scans) # From optimization
 - ✅ Factor graph optimization with sparse structure
 - ✅ Covariance handling (information matrices)
 - ✅ Convergence metrics and quality assessment
-
-## Equation Reference
-
-### 7.3.1 Point-cloud based LiDAR SLAM - ICP
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `icp_point_to_point()` | `core/slam/scan_matching.py` | Eq. (7.10)-(7.11) | ICP alignment with SVD |
-
-### 7.3.2 Feature-based LiDAR SLAM - NDT
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `build_ndt_map()` | `core/slam/ndt.py` | Eq. (7.12), (7.13) | Voxel mean and covariance (note: uses n_k-1) |
-| `ndt_score()` | `core/slam/ndt.py` | Eq. (7.14)-(7.16) | Negative log-likelihood objective |
-| `ndt_align()` | `core/slam/ndt.py` | Eq. (7.12)-(7.16) | Full NDT alignment (2D implementation) |
-
-**Note**: The book presents NDT for 3D LiDAR (Eq. 7.9), but this implementation uses 2D for pedagogical clarity.
-
-### Pose Graph Optimization (GraphSLAM)
-
-| Function | Location | Reference | Description |
-|----------|----------|----------|-------------|
-| `create_odometry_factor()` | `core/slam/factors.py` | Section 7.1.2, Table 7.2 | Connect consecutive poses |
-| `create_loop_closure_factor()` | `core/slam/factors.py` | Section 7.3.5, Eq. (7.22) | Loop closure constraints |
-| `create_prior_factor()` | `core/slam/factors.py` | Section 7.1.2 | Anchor first pose |
-
-### 7.4 Visual SLAM
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `project_point()` | `core/slam/camera.py` | Eq. (7.40), (7.41), (7.42)-(7.43) | Full camera projection + distortion |
-| `distort_normalized()` | `core/slam/camera.py` | Eq. (7.41) | Distortion model (k1,k2,k3,p1,p2) |
-| `create_reprojection_factor()` | `core/slam/factors.py` | Eq. (7.70) | Bundle adjustment reprojection error |
-
-**Note on Bundle Adjustment (Section 7.4.2)**: The book's Eq. (7.70) uses full SE(3) poses with rotation matrix R_i and translation vector t_i. This implementation uses SE(2) planar poses [x, y, yaw] for pedagogical consistency with other 2D SLAM examples. The core principle (minimizing reprojection error) remains the same.
 
 ## Expected Output
 
@@ -681,6 +667,42 @@ This constraint "bends" the trajectory to close loops and eliminate accumulated 
 - **Challenge**: Scale uncertainty in monocular vision (Section 7.4.2)
 - **Result**: Globally consistent reconstruction across multiple views
 - **Note**: Separate example (`example_bundle_adjustment.py`)
+
+## Equation Reference
+
+### 7.3.1 Point-cloud based LiDAR SLAM - ICP
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `icp_point_to_point()` | `core/slam/scan_matching.py` | Eq. (7.10)-(7.11) | ICP alignment with SVD |
+
+### 7.3.2 Feature-based LiDAR SLAM - NDT
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `build_ndt_map()` | `core/slam/ndt.py` | Eq. (7.12), (7.13) | Voxel mean and covariance (note: uses n_k-1) |
+| `ndt_score()` | `core/slam/ndt.py` | Eq. (7.14)-(7.16) | Negative log-likelihood objective |
+| `ndt_align()` | `core/slam/ndt.py` | Eq. (7.12)-(7.16) | Full NDT alignment (2D implementation) |
+
+**Note**: The book presents NDT for 3D LiDAR (Eq. 7.9), but this implementation uses 2D for pedagogical clarity.
+
+### Pose Graph Optimization (GraphSLAM)
+
+| Function | Location | Reference | Description |
+|----------|----------|----------|-------------|
+| `create_odometry_factor()` | `core/slam/factors.py` | Section 7.1.2, Table 7.2 | Connect consecutive poses |
+| `create_loop_closure_factor()` | `core/slam/factors.py` | Section 7.3.5, Eq. (7.22) | Loop closure constraints |
+| `create_prior_factor()` | `core/slam/factors.py` | Section 7.1.2 | Anchor first pose |
+
+### 7.4 Visual SLAM
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `project_point()` | `core/slam/camera.py` | Eq. (7.40), (7.41), (7.42)-(7.43) | Full camera projection + distortion |
+| `distort_normalized()` | `core/slam/camera.py` | Eq. (7.41) | Distortion model (k1,k2,k3,p1,p2) |
+| `create_reprojection_factor()` | `core/slam/factors.py` | Eq. (7.70) | Bundle adjustment reprojection error |
+
+**Note on Bundle Adjustment (Section 7.4.2)**: The book's Eq. (7.70) uses full SE(3) poses with rotation matrix R_i and translation vector t_i. This implementation uses SE(2) planar poses [x, y, yaw] for pedagogical consistency with other 2D SLAM examples. The core principle (minimizing reprojection error) remains the same.
 
 ## Architecture
 

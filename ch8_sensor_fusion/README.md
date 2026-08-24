@@ -52,6 +52,8 @@ python -m ch8_sensor_fusion.example_calibration  # Section 8.4: Intrinsic & extr
 | `ch8_anchor_outage.{svg,pdf,png}` | `example_anchor_outage.py` | Anchor visibility and both error curves over the whole run |
 | `ch8_anchor_outage.gif` (0.69 MB) | `example_anchor_outage.py --animate` | The same, unfolding: anchors going hollow, LC's error ramping, TC's branch flip |
 
+![Anchor visibility and both error curves across the 8 s outage](figs/ch8_anchor_outage.svg)
+
 On the shipped dataset LC and TC look close, and that is misleading. The
 dataset's natural dropouts are **single isolated epochs**, so LC coasts for a
 fraction of a second and nothing visible happens. The difference needs an
@@ -85,56 +87,6 @@ coupling structurally cannot: LC's front end refuses to answer, while TC
 answers confidently and wrongly. Which you prefer is an engineering judgement,
 not a ranking. Other outage windows do not trigger the flip — see the module
 docstring.
-
-## Equation Reference
-
-### Innovation Monitoring and Gating
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `innovation()` | `core/fusion/tuning.py` | Eq. (8.5) | Compute innovation y = z - h(x) |
-| `innovation_covariance()` | `core/fusion/tuning.py` | Eq. (8.6) | S = HPH' + R |
-| `scale_measurement_covariance()` | `core/fusion/tuning.py` | Eq. (8.7) | R ← w_R * R (inflate for outliers) |
-| `huber_R_scale()`, `cauchy_R_scale()` | `core/fusion/tuning.py` | Eq. (8.7) | Covariance scale factors w_R >= 1 |
-| `mahalanobis_distance_squared()` | `core/fusion/gating.py` | Eq. (8.8) | d² = y'S⁻¹y |
-| `chi_square_gate()` | `core/fusion/gating.py` | Eq. (8.9) | Accept if d² < χ²(α,m) |
-| `AdaptiveGatingManager` | `core/fusion/adaptive.py` | Sec. 8.3.2 | Adaptive gating with P inflation & NIS monitoring |
-| `interpolate_imu_measurements()` | `core/fusion/tc_models.py` | Sec. 8.5.2 | Direct linear interpolation of IMU |
-| `compute_observability_matrix()` | `example_observability.py` | Eq. (8.3) | Build EKF observability matrix O_EKF |
-| `analyze_unobservable_states()` | `example_observability.py` | Sec. 8.2 | Identify unobservable modes via SVD |
-| `estimate_imu_bias_stationary()` | `example_calibration.py` | Sec. 8.4.1.3 | IMU intrinsic calibration (bias estimation) |
-| `calibrate_extrinsic_2d_least_squares()` | `example_calibration.py` | Sec. 8.4.2 | 2D extrinsic calibration (lever-arm + rotation) |
-
-**Note on Robust Loss (Eq. 8.7):** The robust functions return scale factors **w_R >= 1** that
-**inflate** R for outliers. This is the correct interpretation: outliers get larger covariance,
-reducing their influence in the Kalman gain K = PH^T S^{-1} without complete rejection.
-Never shrink R below its nominal value.
-
-**Note on Asynchronous Measurements (Sec. 8.5.2):** When measurement timestamps don't align
-with IMU samples (due to temporal calibration or different sensor rates), use
-`interpolate_imu_measurements()` to get IMU data at the exact measurement time. This implements
-direct linear interpolation, the simplest method from Section 8.5.2. More sophisticated approaches
-(continuous-time propagation, physics-based interpolation) can be added for higher accuracy.
-
-**Note on Adaptive Gating (Sec. 8.3.2):** The `AdaptiveGatingManager` implements practical robustness
-mechanisms mentioned in the book to prevent gating from starving the filter:
-1. **Consecutive Reject Tracking:** If a sensor stream is rejected too many times in a row (default: 3),
-   applies covariance inflation `P ← λP` (λ=2.0) to prevent filter overconfidence.
-2. **NIS Monitoring:** Tracks rolling mean of NIS values. If mean NIS significantly exceeds DOF
-   (indicating filter overconfidence), gradually scales up R to restore consistency.
-3. **Automatic Recovery:** These mechanisms ensure stable fusion even when filter tuning isn't perfect.
-
-Both TC and LC fusion use adaptive gating by default. This allows gating to remain enabled without
-risk of filter divergence. See `core/fusion/adaptive.py` for implementation details.
-
-### Fusion Models
-
-| Function | Location | Description |
-|----------|----------|-------------|
-| `create_process_model()` | `core/fusion/tc_models.py` | 2D IMU dead-reckoning process model |
-| `create_uwb_range_measurement_model()` | `core/fusion/tc_models.py` | UWB range measurement for TC |
-| `solve_uwb_position_wls()` | `core/fusion/lc_models.py` | WLS position solver for LC |
-| `create_lc_position_measurement_model()` | `core/fusion/lc_models.py` | Position measurement for LC |
 
 ## Usage Examples
 
@@ -592,6 +544,56 @@ config = data['config']     # Configuration parameters
 python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
 ```
 
+## Equation Reference
+
+### Innovation Monitoring and Gating
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `innovation()` | `core/fusion/tuning.py` | Eq. (8.5) | Compute innovation y = z - h(x) |
+| `innovation_covariance()` | `core/fusion/tuning.py` | Eq. (8.6) | S = HPH' + R |
+| `scale_measurement_covariance()` | `core/fusion/tuning.py` | Eq. (8.7) | R ← w_R * R (inflate for outliers) |
+| `huber_R_scale()`, `cauchy_R_scale()` | `core/fusion/tuning.py` | Eq. (8.7) | Covariance scale factors w_R >= 1 |
+| `mahalanobis_distance_squared()` | `core/fusion/gating.py` | Eq. (8.8) | d² = y'S⁻¹y |
+| `chi_square_gate()` | `core/fusion/gating.py` | Eq. (8.9) | Accept if d² < χ²(α,m) |
+| `AdaptiveGatingManager` | `core/fusion/adaptive.py` | Sec. 8.3.2 | Adaptive gating with P inflation & NIS monitoring |
+| `interpolate_imu_measurements()` | `core/fusion/tc_models.py` | Sec. 8.5.2 | Direct linear interpolation of IMU |
+| `compute_observability_matrix()` | `example_observability.py` | Eq. (8.3) | Build EKF observability matrix O_EKF |
+| `analyze_unobservable_states()` | `example_observability.py` | Sec. 8.2 | Identify unobservable modes via SVD |
+| `estimate_imu_bias_stationary()` | `example_calibration.py` | Sec. 8.4.1.3 | IMU intrinsic calibration (bias estimation) |
+| `calibrate_extrinsic_2d_least_squares()` | `example_calibration.py` | Sec. 8.4.2 | 2D extrinsic calibration (lever-arm + rotation) |
+
+**Note on Robust Loss (Eq. 8.7):** The robust functions return scale factors **w_R >= 1** that
+**inflate** R for outliers. This is the correct interpretation: outliers get larger covariance,
+reducing their influence in the Kalman gain K = PH^T S^{-1} without complete rejection.
+Never shrink R below its nominal value.
+
+**Note on Asynchronous Measurements (Sec. 8.5.2):** When measurement timestamps don't align
+with IMU samples (due to temporal calibration or different sensor rates), use
+`interpolate_imu_measurements()` to get IMU data at the exact measurement time. This implements
+direct linear interpolation, the simplest method from Section 8.5.2. More sophisticated approaches
+(continuous-time propagation, physics-based interpolation) can be added for higher accuracy.
+
+**Note on Adaptive Gating (Sec. 8.3.2):** The `AdaptiveGatingManager` implements practical robustness
+mechanisms mentioned in the book to prevent gating from starving the filter:
+1. **Consecutive Reject Tracking:** If a sensor stream is rejected too many times in a row (default: 3),
+   applies covariance inflation `P ← λP` (λ=2.0) to prevent filter overconfidence.
+2. **NIS Monitoring:** Tracks rolling mean of NIS values. If mean NIS significantly exceeds DOF
+   (indicating filter overconfidence), gradually scales up R to restore consistency.
+3. **Automatic Recovery:** These mechanisms ensure stable fusion even when filter tuning isn't perfect.
+
+Both TC and LC fusion use adaptive gating by default. This allows gating to remain enabled without
+risk of filter divergence. See `core/fusion/adaptive.py` for implementation details.
+
+### Fusion Models
+
+| Function | Location | Description |
+|----------|----------|-------------|
+| `create_process_model()` | `core/fusion/tc_models.py` | 2D IMU dead-reckoning process model |
+| `create_uwb_range_measurement_model()` | `core/fusion/tc_models.py` | UWB range measurement for TC |
+| `solve_uwb_position_wls()` | `core/fusion/lc_models.py` | WLS position solver for LC |
+| `create_lc_position_measurement_model()` | `core/fusion/lc_models.py` | Position measurement for LC |
+
 ## Architecture
 
 Every chapter has the same shape: pick an example, it calls into `core/`,
@@ -797,6 +799,8 @@ that no demo produces.
 
 **Temporal calibration validation (Sec. 8.5):**
 
+![Fusion error with and without the time-sync correction](figs/temporal_calibration_demo.svg)
+
 Built by `example_temporal_calibration.py`, which runs both paths in one pass:
 UWB timestamps offset by 50 ms and drifting at 100 ppm, fused with and without
 `TimeSyncModel` mapping sensor time to fusion time as
@@ -813,6 +817,8 @@ prints.
 ### 8. Robust Loss Comparison (`tuning_robust_demo.svg`)
 
 **Robust loss functions for outlier handling (Sec. 8.3, Eq. 8.7):**
+
+![Baseline, chi-square gating, Huber and Cauchy on the NLOS dataset](figs/tuning_robust_demo.svg)
 
 Built by `example_robust_tuning.py` on the NLOS dataset, comparing no gating,
 chi-square gating, Huber and Cauchy.

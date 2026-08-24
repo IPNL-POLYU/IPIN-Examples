@@ -44,6 +44,8 @@ python -m ch5_fingerprinting.example_walk_posterior
 | `ch5_walk_posterior.{svg,pdf,png}` | `example_walk_posterior.py` | — |
 | `ch5_walk_posterior.gif` | `example_walk_posterior.py --animate` | 0.30 MB |
 
+![The posterior over a walk, and where it goes wrong](figs/ch5_walk_posterior.svg)
+
 The intuitive animation to reach for is "watch the posterior sharpen as the
 user walks." There is nothing to sharpen. With eight access points over this
 grid the Gaussian Naive-Bayes posterior of Eq. (5.3) is a near-delta
@@ -80,39 +82,6 @@ leaping across the floor and snapping back.
 | All examples | `data/sim/ch5_wifi_fingerprint_sparse/` | Sparse 10m grid, 36 RPs per floor (quick deployment) |
 
 > **Note**: To use a different dataset density, edit the `db_path` variable in the example scripts.
-
-## Equation Reference
-
-### Deterministic Fingerprinting
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `nn_localize()` | `core/fingerprinting/deterministic.py` | Eq. (5.1) | NN: i* = argmin_i D(z, f_i), x = x_{i*} |
-| `knn_localize()` | `core/fingerprinting/deterministic.py` | Eq. (5.2) | k-NN: x = sum(w_i * x_i) / sum(w_i) |
-
-### Probabilistic Fingerprinting (Bayesian)
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `log_likelihood()` | `core/fingerprinting/probabilistic.py` | Eq. (5.6) | Likelihood P(z\|x_i) using Gaussian model (term in Eq. 5.3) |
-| `log_posterior()` | `core/fingerprinting/probabilistic.py` | Eq. (5.3) | Bayes posterior: P(x_i\|z) = P(z\|x_i)P(x_i)/P(z) |
-| `map_localize()` | `core/fingerprinting/probabilistic.py` | Eq. (5.4) | MAP: i* = argmax_i p(x_i\|z) |
-| `posterior_mean_localize()` | `core/fingerprinting/probabilistic.py` | Eq. (5.5) | Posterior mean: x = sum(p(x_i\|z) * x_i), supports top-k optimization |
-
-### Pattern Recognition - Regression
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `LinearRegressionLocalizer.fit()` | `core/fingerprinting/pattern_recognition.py` | - | Train linear model x = Wz + b |
-| `LinearRegressionLocalizer.predict()` | `core/fingerprinting/pattern_recognition.py` | - | Predict location from fingerprint |
-
-### Pattern Recognition - Classification
-
-| Function | Location | Description |
-|----------|----------|-------------|
-| `fit_classifier()` | `core/fingerprinting/classification.py` | Train Random Forest or SVM classifier (each RP as a class) |
-| `ClassificationLocalizer.predict()` | `core/fingerprinting/classification.py` | Predict location via classification |
-| `hierarchical_localize()` | `core/fingerprinting/classification.py` | Two-step: classify floor/region, then fine-grained localization |
 
 ## Usage Examples
 
@@ -480,6 +449,39 @@ pos_map = map_localize(query, model, floor_id=0)  # Likelihood from AP1, AP3, AP
 ```
 
 **Tested:** Up to 50% dropout rate, 100 queries, no crashes ✓
+
+## Equation Reference
+
+### Deterministic Fingerprinting
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `nn_localize()` | `core/fingerprinting/deterministic.py` | Eq. (5.1) | NN: i* = argmin_i D(z, f_i), x = x_{i*} |
+| `knn_localize()` | `core/fingerprinting/deterministic.py` | Eq. (5.2) | k-NN: x = sum(w_i * x_i) / sum(w_i) |
+
+### Probabilistic Fingerprinting (Bayesian)
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `log_likelihood()` | `core/fingerprinting/probabilistic.py` | Eq. (5.6) | Likelihood P(z\|x_i) using Gaussian model (term in Eq. 5.3) |
+| `log_posterior()` | `core/fingerprinting/probabilistic.py` | Eq. (5.3) | Bayes posterior: P(x_i\|z) = P(z\|x_i)P(x_i)/P(z) |
+| `map_localize()` | `core/fingerprinting/probabilistic.py` | Eq. (5.4) | MAP: i* = argmax_i p(x_i\|z) |
+| `posterior_mean_localize()` | `core/fingerprinting/probabilistic.py` | Eq. (5.5) | Posterior mean: x = sum(p(x_i\|z) * x_i), supports top-k optimization |
+
+### Pattern Recognition - Regression
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `LinearRegressionLocalizer.fit()` | `core/fingerprinting/pattern_recognition.py` | - | Train linear model x = Wz + b |
+| `LinearRegressionLocalizer.predict()` | `core/fingerprinting/pattern_recognition.py` | - | Predict location from fingerprint |
+
+### Pattern Recognition - Classification
+
+| Function | Location | Description |
+|----------|----------|-------------|
+| `fit_classifier()` | `core/fingerprinting/classification.py` | Train Random Forest or SVM classifier (each RP as a class) |
+| `ClassificationLocalizer.predict()` | `core/fingerprinting/classification.py` | Predict location via classification |
+| `hierarchical_localize()` | `core/fingerprinting/classification.py` | Two-step: classify floor/region, then fine-grained localization |
 
 ## Architecture
 

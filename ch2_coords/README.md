@@ -83,36 +83,6 @@ enu = np.loadtxt(path / "enu_coordinates.txt")
 config = json.load(open(path / "config.json"))
 ```
 
-## Equation Reference
-
-### Coordinate Transformations
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `llh_to_ecef()` | `core/coords/transforms.py` | Eq. (2.9) | Geodetic (LLH) to ECEF Cartesian coordinates |
-| `ecef_to_llh()` | `core/coords/transforms.py` | Iterative (see [2]) | ECEF to Geodetic (LLH) - iterative solution |
-| `ecef_to_enu()` | `core/coords/transforms.py` | Eq. (2.10) | ECEF to local East-North-Up frame |
-| `enu_to_ecef()` | `core/coords/transforms.py` | Eq. (2.10) inverse | Local ENU to ECEF coordinates |
-
-### Rotation Representations
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `euler_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.17) | Euler angles (ZYX) to 3×3 rotation matrix |
-| `rotation_matrix_to_euler()` | `core/coords/rotations.py` | Eq. (2.17) inverse | Rotation matrix to Euler angles |
-| `euler_to_quat()` | `core/coords/rotations.py` | Eq. (2.23) | Euler angles to unit quaternion |
-| `quat_to_euler()` | `core/coords/rotations.py` | Eq. (2.22) | Quaternion to Euler angles |
-| `quat_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.21) | Quaternion to rotation matrix |
-| `rotation_matrix_to_quat()` | `core/coords/rotations.py` | Eq. (2.21) inverse | Rotation matrix to quaternion |
-
-### WGS84 Constants
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `WGS84_A` | 6378137.0 m | Semi-major axis |
-| `WGS84_F` | 1/298.257223563 | Flattening |
-| `WGS84_B` | 6356752.314245 m | Semi-minor axis |
-
 ## Examples
 
 ### Example 1: LLH to ECEF Transformation
@@ -296,6 +266,36 @@ Examples completed successfully!
 
 Tip: Run with --data ch2_coords_san_francisco to use pre-generated dataset
 ```
+
+## Equation Reference
+
+### Coordinate Transformations
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `llh_to_ecef()` | `core/coords/transforms.py` | Eq. (2.9) | Geodetic (LLH) to ECEF Cartesian coordinates |
+| `ecef_to_llh()` | `core/coords/transforms.py` | Iterative (see [2]) | ECEF to Geodetic (LLH) - iterative solution |
+| `ecef_to_enu()` | `core/coords/transforms.py` | Eq. (2.10) | ECEF to local East-North-Up frame |
+| `enu_to_ecef()` | `core/coords/transforms.py` | Eq. (2.10) inverse | Local ENU to ECEF coordinates |
+
+### Rotation Representations
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `euler_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.17) | Euler angles (ZYX) to 3×3 rotation matrix |
+| `rotation_matrix_to_euler()` | `core/coords/rotations.py` | Eq. (2.17) inverse | Rotation matrix to Euler angles |
+| `euler_to_quat()` | `core/coords/rotations.py` | Eq. (2.23) | Euler angles to unit quaternion |
+| `quat_to_euler()` | `core/coords/rotations.py` | Eq. (2.22) | Quaternion to Euler angles |
+| `quat_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.21) | Quaternion to rotation matrix |
+| `rotation_matrix_to_quat()` | `core/coords/rotations.py` | Eq. (2.21) inverse | Rotation matrix to quaternion |
+
+### WGS84 Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `WGS84_A` | 6378137.0 m | Semi-major axis |
+| `WGS84_F` | 1/298.257223563 | Flattening |
+| `WGS84_B` | 6356752.314245 m | Semi-minor axis |
 
 ## Architecture
 
