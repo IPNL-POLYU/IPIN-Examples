@@ -46,11 +46,11 @@ python -m ch6_dead_reckoning.example_zupt --animate
 
 ![All four dead-reckoning methods against ground truth, full extent and zoomed](figs/comparison_trajectories.svg)
 
-Left: the full extent. IMU alone leaves the building — it ends about 90 m from
-a walk that never went further than 30 m. Right: the same run zoomed to the
-truth, where ZUPT, wheel odometry and PDR are finally distinguishable from
-each other. Every method below is a way of stopping the left-hand picture
-from happening.
+Left: the full extent. IMU alone drifts clean off a walk that never left a
+30 m by 20 m box — **54 m RMSE**. Right: the same run zoomed to the truth,
+which is the only scale at which ZUPT (8.8 m), wheel odometry (0.42 m) and PDR
+(0.51 m) are distinguishable from each other at all. Every method below is a
+way of stopping the left-hand picture from happening.
 ## ⚙️ Frame Conventions (IMPORTANT!)
 
 All Chapter 6 algorithms use **explicit frame conventions** via the `FrameConvention` dataclass. This ensures:
