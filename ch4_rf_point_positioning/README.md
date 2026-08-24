@@ -15,6 +15,9 @@ python -m ch4_rf_point_positioning.example_aoa_positioning
 # Dilution of precision: walk away from the anchors (add --animate)
 python -m ch4_rf_point_positioning.example_dop_geometry
 
+# Sweep the initial guess over the floor, under two residual parameterisations
+python -m ch4_rf_point_positioning.example_initial_guess_basin
+
 # Run with pre-generated datasets
 python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_square
 python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_nlos
@@ -57,6 +60,46 @@ Two things are measured, not asserted:
 - **No estimator can rescue bad geometry.** The solver is optimal and the noise
   is fixed, yet the position error grows **6×** across the walk — purely
   because the anchors are in the wrong place.
+
+## The initial guess, and why it is usually the wrong thing to blame (Section 4.4)
+
+| Figure | Built by | Size |
+|--------|----------|------|
+| `ch4_initial_guess_basin.{svg,pdf,png}` | `example_initial_guess_basin.py` | — |
+
+When an iterative solve fails, the reflex is to blame the starting point. This example holds
+the geometry at the well-behaved square, fixes one target, sets the measurement noise to
+**zero**, and sweeps the initial guess over 1681 seeds — twice, changing nothing but the
+space the residual is formed in.
+
+| | |
+|---|---|
+| `residual="tan"` | `z = tan(ψ)`, Eq. (4.64) written literally |
+| `residual="angle"` | `wrap(ψ − atan2(ΔE, ΔN))` — the default |
+
+The tan form carries two defects no starting point repairs. `tan` has period π, so an anchor
+ahead and an anchor behind give the same measurement; and as the estimate runs to infinity
+every bearing converges, so the tan residuals *shrink* on the way out. Infinity is an
+attractor, and the iteration arrives there reporting success — one traced seed at (−4.5,
+−2.0) walked to **9.4 × 10¹¹ m in 18 iterations with `converged=True`**.
+
+Measured over the sweep:
+
+| | `tan(ψ)` | `wrap(angle)` |
+|---|---:|---:|
+| seeds that fail | 785 / 1681 | 341 / 1681 |
+| **quiet:** stalled at the seed, or stopped somewhere plausible | **263** | **0** |
+| loud: walked off past 100 m | 522 | 341 |
+| failures that still reported `converged=True` | 305 | 196 |
+
+So the honest headline is 2.3× fewer failures, and a sharper claim underneath it: the
+wrapped-angle form removes the **quiet** class completely — the failures that look like
+answers — while a seed far outside the room still walks off under either parameterisation.
+
+**Fixing the residual makes the solver honest, not safe.** The convergence flag is not a
+check either way, which is why `core.rf.solve_batch`'s four conditions are not optional. Two
+questions catch both defects, and they are worth asking of any residual: *is it bounded?* and
+*does the cost stay large when the estimate is far wrong?*
 
 ## 📂 Dataset Connection
 
@@ -809,7 +852,7 @@ drift from the code.
 ```mermaid
 flowchart TB
     D["<b>optional input</b><br/>data/sim/ch4_rf_2d_linear<br/>data/sim/ch4_rf_2d_nlos<br/>data/sim/ch4_rf_2d_optimal<br/>data/sim/ch4_rf_2d_square<br/><i>only example_comparison reads it</i>"]
-    E["<b>ch4_rf_point_positioning/example_*.py</b><br/>5 runnable demos"]
+    E["<b>ch4_rf_point_positioning/example_*.py</b><br/>6 runnable demos"]
     C["<b>the reusable library</b><br/>core/eval/ · core/rf/ · core/utils/"]
     F["<b>ch4_rf_point_positioning/figs/</b><br/>svg + pdf + png"]
     D -. "--data" .-> E
@@ -822,6 +865,7 @@ flowchart TB
 | `example_aoa_positioning` | `core.eval`, `core.rf` | — |
 | `example_comparison` | `core.eval`, `core.rf`, `core.utils` | `ch4_rf_2d_linear`, `ch4_rf_2d_nlos`, `ch4_rf_2d_optimal`, `ch4_rf_2d_square` |
 | `example_dop_geometry` | `core.eval`, `core.rf` | — |
+| `example_initial_guess_basin` | `core.eval`, `core.rf` | — |
 | `example_tdoa_positioning` | `core.eval`, `core.rf` | — |
 | `example_toa_positioning` | `core.eval`, `core.rf` | — |
 
@@ -836,11 +880,13 @@ ch4_rf_point_positioning/
 ├── example_tdoa_positioning.py   # TDOA positioning demo
 ├── example_aoa_positioning.py    # AOA positioning demo
 ├── example_dop_geometry.py       # Sec. 4.5: how anchor geometry amplifies noise
+├── example_initial_guess_basin.py # Sec. 4.4: the basin is the residual's, not the seed's
 ├── example_comparison.py         # Compare all RF methods
 └── figs/                         # Generated figures
     ├── toa_positioning_example.png   # TOA positioning geometry and convergence
     ├── ch4_rf_comparison.png         # Comprehensive RF methods comparison
     ├── ch4_aoa_geometry.png          # AOA positioning geometry (ENU convention)
+    ├── ch4_initial_guess_basin.png   # Seed sweep under two residual parameterisations
     ├── tdoa_covariance_matrix.png    # TDOA covariance structure (Eq. 4.42)
     └── closed_form_comparison.png    # Fang/Chan vs iterative solvers
 
