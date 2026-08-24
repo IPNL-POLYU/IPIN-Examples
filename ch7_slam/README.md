@@ -182,6 +182,13 @@ config = json.load(open(path / "config.json"))
 
 ## Complete SLAM Pipeline Architecture
 
+How the pieces fit: raw scans and noisy odometry into the front end, its
+pose graph into the back end, the optimised trajectory back out. Implementation
+detail rather than a first read — the figures above are the chapter.
+
+<details>
+<summary>The full pipeline, stage by stage — 205 lines</summary>
+
 ### Overview: Observation-Driven SLAM
 
 The implementation demonstrates a **complete observation-driven SLAM system** where all constraints come from sensor measurements:
@@ -386,11 +393,17 @@ map_after = build_map(optimized_poses, scans) # From optimization
 - ✅ Covariance handling (information matrices)
 - ✅ Convergence metrics and quality assessment
 
+
+</details>
+
 ## Expected Output
 
 ### LiDAR Pose Graph SLAM
 
 Running `python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square` produces:
+
+<details>
+<summary>Full console output — 36 lines</summary>
 
 <!-- example-output: ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square -->
 ```
@@ -431,6 +444,8 @@ Results:
    Map before (front-end): 537 points
    Map after (backend):    481 points
 ```
+
+</details>
 
 Read the front-end line: **it is negative.** Scan-to-map ICP leaves this
 trajectory slightly worse than the odometry it started from, and the whole

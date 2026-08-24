@@ -154,6 +154,9 @@ python -m ch8_sensor_fusion.example_comparison --save comparison.svg
 
 Running `python -m ch8_sensor_fusion.example_tc_fusion` produces:
 
+<details>
+<summary>Full console output — 28 lines</summary>
+
 <!-- example-output: ch8_sensor_fusion.example_tc_fusion -->
 ```
 Tightly Coupled IMU + UWB EKF Fusion
@@ -186,6 +189,8 @@ Evaluation Metrics
   Median Error : 0.030 m  <- typical tracking
 ```
 
+</details>
+
 TC takes one update per anchor per epoch, so it accepts 2023 range updates
 where LC accepts 565 position fixes below — that ratio is most of why the two
 differ.
@@ -203,6 +208,9 @@ differ.
 ### LC Fusion Demo
 
 Running `python -m ch8_sensor_fusion.example_lc_fusion` produces:
+
+<details>
+<summary>Full console output — 29 lines</summary>
 
 <!-- example-output: ch8_sensor_fusion.example_lc_fusion -->
 ```
@@ -236,6 +244,8 @@ Evaluation Metrics
   Max Error    : 3.562 m
   Final Error  : 1.963 m
 ```
+
+</details>
 
 `UWB solver failures: 13` is worth noticing: LC has to solve a position fix
 from the ranges before the filter sees anything, and on 13 epochs that solve

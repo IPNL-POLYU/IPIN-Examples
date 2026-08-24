@@ -160,6 +160,9 @@ print(f"||q|| = {np.linalg.norm(q):.6f}")  # Should be 1.0
 
 When you run the demonstration script, you should see:
 
+<details>
+<summary>Full console output — 103 lines</summary>
+
 <!-- example-output: ch2_coords.example_coordinate_transforms -->
 ```
 ======================================================================
@@ -266,6 +269,8 @@ Examples completed successfully!
 
 Tip: Run with --data ch2_coords_san_francisco to use pre-generated dataset
 ```
+
+</details>
 
 ## Equation Reference
 
