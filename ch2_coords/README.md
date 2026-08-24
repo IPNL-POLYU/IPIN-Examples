@@ -14,22 +14,49 @@ python -m ch2_coords.example_coordinate_transforms
 python -m ch2_coords.example_coordinate_transforms --data ch2_coords_san_francisco
 
 # Draw the frames and the attitude convention (writes to figs/)
-python -m ch2_coords.example_attitude_visualization --no-show
+python -m ch2_coords.example_attitude_visualization
 ```
 
-## Figures
+## Four pictures worth more than the algebra
 
-`example_attitude_visualization.py` writes four figures to `figs/`. They exist
-because this chapter's attitude convention is **not** the aerospace default —
-roll turns about **Y** (2.15) and pitch about **X** (2.16) — and that is far
-easier to see than to read.
+This chapter's attitude convention is **not** the aerospace default — roll turns
+about **Y** (2.15) and pitch about **X** (2.16) — and that is far easier to see
+than to read. All four are written by
+`python -m ch2_coords.example_attitude_visualization`.
 
-| Figure | Shows |
-|--------|-------|
-| `ch2_euler_convention` | The elemental rotations (2.14)–(2.16) and their composition (2.17), each with its axis of rotation marked, so the Y/X pairing is visible |
-| `ch2_passive_vs_active` | The transpose trap: Chapter 2's passive `C` (2.21) beside the active body-to-map rotation of Chapter 6 (6.13) |
-| `ch2_gimbal_lock` | The singularity, which in this convention sits at **roll** = ±90°, not pitch, with two different (yaw, pitch) pairs collapsing to one attitude |
-| `ch2_frame_chain` | ENU → NED → body, the local-frame chain of (2.5)–(2.7) |
+### The frames, and how they relate
+
+![ENU, NED and body frames side by side](figs/ch2_frame_chain.svg)
+
+NED is a swap-and-flip of ENU that preserves handedness — **not** a rotation.
+The dashed axes behind each frame are the same ENU reference, so you can read
+each frame against it. Eqs. (2.5)–(2.7).
+
+### What "roll" and "pitch" turn about here
+
+![The three elemental rotations and their composition](figs/ch2_euler_convention.svg)
+
+Yaw about Z, then roll about **Y**, then pitch about **X**, composed as
+`C = Rx(pitch) Ry(roll) Rz(yaw)`. The dotted line in each panel is that panel's
+axis of rotation. Eqs. (2.14)–(2.17).
+
+### The transpose trap
+
+![Passive rotation beside active rotation](figs/ch2_passive_vs_active.svg)
+
+Chapter 2's `C` rotates *coordinates* (passive, 2.21); Chapter 6's body-to-map
+rotates the *vector* (active, 6.13). They differ by a transpose, so at yaw = 50°
+the two answers sit **100° apart**. This is the single easiest mistake to make
+in the whole chapter.
+
+### Where the convention breaks
+
+![Gimbal lock at roll = 90 degrees](figs/ch2_gimbal_lock.svg)
+
+The singularity is at **roll = ±90°**, not pitch, because roll is the middle
+rotation. The bottom row is the proof: `(roll, pitch, yaw) = (90, 0, 30)` and
+`(90, -30, 0)` are two different inputs that produce matrices agreeing to
+3.1e-17 — the same attitude. Recovery can only report one of them.
 
 ## 📂 Dataset Connection
 
