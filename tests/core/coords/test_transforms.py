@@ -17,6 +17,7 @@ import unittest
 
 import numpy as np
 
+from core.coords.rotations import euler_to_rotation_matrix
 from core.coords.transforms import (
     body_to_enu,
     body_to_map,
@@ -30,7 +31,6 @@ from core.coords.transforms import (
     map_to_body,
     ned_to_enu,
 )
-from core.coords.rotations import euler_to_rotation_matrix
 
 
 class TestLLHtoECEF(unittest.TestCase):
@@ -432,10 +432,13 @@ class TestEnuBody(unittest.TestCase):
         recovered = body_to_enu(x_body, roll, pitch, yaw, origin)
 
         # Measured round-trip error here is ~7.47 m (verified when this test
-        # was written); assert well below that so the test still catches the
-        # trap even if the specific numbers above are edited later, without
-        # pinning today's exact figure.
-        assert np.linalg.norm(recovered - x_enu) > 1.0
+        # was written), i.e. recovered - x_enu == -(I + C.T) @ origin, which
+        # is nonzero for a generic origin and rotation -- so the error is
+        # checkable by inspection, not just by rerunning. Assert well below
+        # the measured value so the test still catches the trap even if the
+        # specific numbers above are edited later, without pinning today's
+        # exact figure.
+        self.assertGreater(np.linalg.norm(recovered - x_enu), 1.0)
 
 
 class TestENUToLLHOffset(unittest.TestCase):
