@@ -77,7 +77,7 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
     # Generate fingerprints by interpolating from nearby RPs
     query_fingerprints = []
 
-    for i, (true_loc, fid) in enumerate(zip(true_locs, floor_ids_out)):
+    for i, (true_loc, fid) in enumerate(zip(true_locs, floor_ids_out, strict=True)):
         # Find k nearest RPs for interpolation
         if floor_id is not None:
             dists = np.linalg.norm(rp_locs - true_loc, axis=1)
@@ -171,7 +171,7 @@ def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kw
     errors = []
     times = []
 
-    for query, true_loc in zip(queries, true_locs):
+    for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
         est_loc = method_fn(query, **kwargs)
         t_end = time.perf_counter()

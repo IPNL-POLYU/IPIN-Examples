@@ -289,7 +289,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     method_name = "NN (Euclidean)"
     print(f"  {method_name}...", end=" ", flush=True)
     errors, times = [], []
-    for query, true_loc in zip(queries, true_locs):
+    for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
         est_loc = nn_localize(query, db, metric="euclidean", floor_id=floor_id)
         t_end = time.perf_counter()
@@ -315,7 +315,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     method_name = "k-NN (k=3)"
     print(f"  {method_name}...", end=" ", flush=True)
     errors, times = [], []
-    for query, true_loc in zip(queries, true_locs):
+    for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
         est_loc = knn_localize(
             query,
@@ -356,7 +356,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     method_name = "MAP"
     print(f"  {method_name}...", end=" ", flush=True)
     errors, times = [], []
-    for query, true_loc in zip(queries, true_locs):
+    for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
         est_loc = map_localize(query, model_bayes, floor_id=floor_id)
         t_end = time.perf_counter()
@@ -382,7 +382,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     method_name = "Posterior Mean"
     print(f"  {method_name}...", end=" ", flush=True)
     errors, times = [], []
-    for query, true_loc in zip(queries, true_locs):
+    for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
         est_loc = posterior_mean_localize(query, model_bayes, floor_id=floor_id)
         t_end = time.perf_counter()
@@ -408,7 +408,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     method_name = "Post.Mean (k=10)"
     print(f"  {method_name}...", end=" ", flush=True)
     errors, times = [], []
-    for query, true_loc in zip(queries, true_locs):
+    for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
         est_loc = posterior_mean_localize(
             query, model_bayes, floor_id=floor_id, top_k=10
@@ -443,7 +443,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     method_name = "Linear Regression"
     print(f"  {method_name}...", end=" ", flush=True)
     errors, times = [], []
-    for query, true_loc in zip(queries, true_locs):
+    for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
         est_loc = model_lr.predict(query)
         t_end = time.perf_counter()
@@ -604,8 +604,19 @@ def main():
     ax4 = plt.subplot(3, 3, 4)
     error_data = [r["errors"] for r in all_results["Baseline"]]
     bp = ax4.boxplot(error_data, tick_labels=methods, patch_artist=True)
-    colors_box = ["lightblue", "lightcyan", "lightcoral", "lightsalmon", "lightgreen"]
-    for patch, color in zip(bp["boxes"], colors_box):
+    # One light shade per entry of `colors` above, in the same order. It was a
+    # shade short, so the sixth method's box kept matplotlib's default facecolor
+    # and read as deliberately highlighted among five pastel ones. strict=True
+    # below is what stops the two lists drifting apart again.
+    colors_box = [
+        "lightblue",
+        "lightcyan",
+        "lightcoral",
+        "lightsalmon",
+        "lightgreen",
+        "plum",
+    ]
+    for patch, color in zip(bp["boxes"], colors_box, strict=True):
         patch.set_facecolor(color)
     ax4.set_ylabel("Positioning Error (m)")
     ax4.set_title("Error Distribution (Baseline)")
@@ -641,7 +652,7 @@ def main():
     # actual finding, so it should not be what breaks the labelling. Colours
     # match the per-query cost panel above, so a method reads the same in both.
     ax6 = plt.subplot(3, 3, 6)
-    for r, color in zip(all_results["Baseline"], colors):
+    for r, color in zip(all_results["Baseline"], colors, strict=True):
         ax6.scatter(
             r["ops_per_query"],
             r["rmse"],

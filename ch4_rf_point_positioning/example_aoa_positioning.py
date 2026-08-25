@@ -386,7 +386,7 @@ def visualize_aoa_geometry():
     #
     # Negating gives the anchor-to-agent direction, so the rays now meet at
     # the target the way an AOA geometry figure is meant to show.
-    for i, (anchor, psi) in enumerate(zip(anchors, aoa_noisy)):
+    for i, (anchor, psi) in enumerate(zip(anchors, aoa_noisy, strict=True)):
         # In ENU: psi is from North (+y), so the agent lies from the anchor at
         # E-component = -sin(psi), N-component = -cos(psi)
         line_length = 15

@@ -70,7 +70,9 @@ class TestSensorNoiseIsReproducible(unittest.TestCase):
         first = self._noise(DEFAULT_SEED)
         second = self._noise(DEFAULT_SEED)
 
-        for label, a, b in zip(("accel", "gyro", "mag", "wheel"), first, second):
+        for label, a, b in zip(
+            ("accel", "gyro", "mag", "wheel"), first, second, strict=True
+        ):
             with self.subTest(sensor=label):
                 np.testing.assert_array_equal(a, b)
 

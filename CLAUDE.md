@@ -1526,6 +1526,68 @@ of it**, measured on trees verified identical beforehand. What made that safe to
 it was that the README transcripts and the figure gate would have said
 otherwise if it were not.
 
+### `strict=` is the whole point, and ruff's own fix takes it away
+
+`zip()` without `strict=` truncates to the shorter argument and says nothing.
+The ratchet recorded 41, and the obvious move is `ruff --fix --unsafe-fixes`.
+**It writes `strict=False`** -- the current behaviour, spelled out loud. That
+takes the count to zero, looks exactly like the job being done, and preserves
+every defect the rule exists to expose. Check *which* keyword a mechanical fix
+inserted before believing the number it produced.
+
+Done by hand instead, and the count was the least interesting part:
+
+- **58 sites, not 41.** The other 17 are in `notebooks/`, which is not in
+  `SOURCE_DIRS` in `tests/test_lint_debt_only_shrinks.py`, so no ruff guard here
+  had ever read them -- in the three notebooks a student is most likely to open.
+  Same shape as `KNOWN_NON_EXAMPLE_CHAPTER_FILES`: **a file outside the sweep's
+  scope is a file nothing sweeps**, and that scope is a tuple somebody wrote
+  once.
+- **One real defect**, in `ch5_fingerprinting/example_comparison.py`, where
+  `colors_box` held five shades against six methods. The sixth box kept
+  matplotlib's default blue among five pastels and read as deliberately
+  highlighted. Nothing raised, nothing left a range, no printed number moved --
+  the sixth box simply never got its colour, which only opening the PNG shows.
+- **One site where `strict=True` is wrong.** `zip(scales, scales[1:])` is the
+  consecutive-pairs idiom and *depends* on the truncation, so strict raises on
+  every call; it is `itertools.pairwise` now. `zip(xs, itertools.count())` and
+  `zip(xs, cycle(ys))` are the same family. **The tell is a second argument
+  derived from the first**, and a grep for `[1:]` finds only the spelling you
+  thought of -- read the hunks.
+
+**The entry is deleted from BASELINE rather than set to 0, and the deletion is
+the guard**: `test_no_rule_has_more_findings_than_it_did` fails on any rule not
+listed, so one new unguarded `zip()` turns it red. Verified by adding one and
+watching `B905: 1 findings, new`, not by reading the assertion.
+
+**A green sweep only means something where the line runs, so that was measured
+too.** Of the 42 `.py` sites, **34 execute** under the examples, the generators
+and two flag-gated paths that a plain run never reaches -- ch4's `--data`
+branch and ch7's `--animate` callback, which between them held two sites that
+nothing else touches. Six more sit inside test bodies; one is reached only by
+`tests/core/fingerprinting/test_classification.py`; and the last, ch8's
+unobservable-mode print, is behind `if n_unobservable > 0`, which the
+fixes-aided configuration never enters. That one is equal-length by
+construction -- `Vt` from `svd(..., full_matrices=True)` is square, so a mode
+column is `n_states` long and `state_names` comes from the same analysis -- and
+its identical twin in the odometry-only branch does execute. The 17 notebook
+sites are covered by `tests/docs/test_notebooks_run.py`.
+
+**The measurement lied twice before it said anything true**, both times looking
+exactly like "this code never runs":
+
+- `[tool.coverage.run] source = ["ipin_examples", "core"]` in `pyproject.toml`
+  means a plain `coverage run` over a chapter example measures `core/` and
+  **not the example**, so the first cross-reference reported 42 of 43 sites as
+  never loaded. Pass `--source` explicitly when measuring something the project
+  does not normally measure.
+- `coverage combine` **starts clean unless you pass `--append`**. Running it a
+  second time discarded a finished 16-step sweep, and the same script then
+  reported 1 site executed where it had reported 32.
+
+Both were caught the same way: a number moved while the code did not. That is
+the fifth harness in this file to report the thing it could not read as broken.
+
 ## Parallel sessions
 
 Several agents often work this repo at once, on separate worktrees off `main`.

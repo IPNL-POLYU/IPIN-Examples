@@ -1025,7 +1025,7 @@ def build_map_from_poses(
     from core.slam import se2_apply
 
     all_points = []
-    for pose, scan in zip(poses, scans):
+    for pose, scan in zip(poses, scans, strict=True):
         if len(scan) > 0:
             # Transform scan to global frame
             transformed = se2_apply(pose, scan)

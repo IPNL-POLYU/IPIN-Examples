@@ -442,7 +442,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     ax.set_title("RMSE Comparison", fontsize=12)
     ax.grid(True, alpha=0.3, axis="y")
     # Add values on bars
-    for bar, rmse in zip(bars, rmses):
+    for bar, rmse in zip(bars, rmses, strict=True):
         height = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width() / 2,

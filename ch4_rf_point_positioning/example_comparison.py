@@ -778,7 +778,7 @@ def plot_dataset_results(results: Dict, output_file: str = None):
         results["gdop"]["AOA"],
     ]
     bp = ax3.boxplot(gdop_data, tick_labels=["TOA", "TDOA", "AOA"], patch_artist=True)
-    for patch, color in zip(bp["boxes"], ["blue", "red", "green"]):
+    for patch, color in zip(bp["boxes"], ["blue", "red", "green"], strict=True):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
     ax3.set_ylabel("GDOP")
@@ -934,7 +934,7 @@ def plot_inline_comparison(noise_levels, results):
 
     # 1. RMSE vs Noise
     ax1 = axes[0, 0]
-    for method, color in zip(methods, colors):
+    for method, color in zip(methods, colors, strict=True):
         rmse_values = [
             np.sqrt(np.mean(e**2)) if len(e) > 0 else np.nan for e in results[method]
         ]
@@ -950,7 +950,7 @@ def plot_inline_comparison(noise_levels, results):
     # 2. Error CDF
     ax2 = axes[0, 1]
     noise_idx = 2
-    for method, color in zip(methods, colors):
+    for method, color in zip(methods, colors, strict=True):
         errors = results[method][noise_idx]
         if len(errors) > 0:
             sorted_errors = np.sort(errors)
@@ -968,7 +968,7 @@ def plot_inline_comparison(noise_levels, results):
     data = [results[m][noise_idx] for m in methods if len(results[m][noise_idx]) > 0]
     labels = [m for m in methods if len(results[m][noise_idx]) > 0]
     bp = ax3.boxplot(data, tick_labels=labels, patch_artist=True, showfliers=False)
-    for patch, color in zip(bp["boxes"], colors[: len(data)]):
+    for patch, color in zip(bp["boxes"], colors[: len(data)], strict=True):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
     ax3.set_ylabel("Position Error (m)")
@@ -986,7 +986,7 @@ def plot_inline_comparison(noise_levels, results):
     ax4 = axes[1, 1]
     total_points = 50
     dashes = ["-", "--", "-.", ":"]
-    for method, color, dash in zip(methods, colors, dashes):
+    for method, color, dash in zip(methods, colors, dashes, strict=True):
         rates = [len(e) / total_points * 100 for e in results[method]]
         ax4.plot(
             noise_levels,

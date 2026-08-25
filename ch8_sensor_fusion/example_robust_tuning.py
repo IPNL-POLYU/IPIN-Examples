@@ -613,7 +613,7 @@ def plot_tuning_comparison(
     ax7.grid(True, alpha=0.3, axis="y")
 
     # Add value labels
-    for bar, rmse in zip(bars, rmses):
+    for bar, rmse in zip(bars, rmses, strict=True):
         height = bar.get_height()
         ax7.text(
             bar.get_x() + bar.get_width() / 2.0,
@@ -648,7 +648,7 @@ def plot_tuning_comparison(
     ax8.grid(True, alpha=0.3, axis="y")
 
     # Add value labels
-    for bar, rate in zip(bars, acceptance_rates):
+    for bar, rate in zip(bars, acceptance_rates, strict=True):
         height = bar.get_height()
         ax8.text(
             bar.get_x() + bar.get_width() / 2.0,
