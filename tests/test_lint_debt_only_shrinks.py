@@ -67,8 +67,9 @@ SOURCE_DIRS = (
 #: UP0xx are the annotation modernisations that the 3.10 floor made available,
 #: and are the bulk of what is left.
 #:
-#: B905 is absent, and its absence is the guard: `appeared` above fails on any
-#: rule not listed here, so one new `zip()` without `strict=` turns this red.
+#: B905 is absent, and its absence is the guard: the `appeared` check below
+#: fails on any rule not listed here, so one new `zip()` without `strict=`
+#: turns this red.
 #: The 41 it used to record were read one at a time rather than swept, which is
 #: how the two that mattered were found -- a boxplot palette one shade short of
 #: its methods, and one site where `strict=True` is simply wrong, because
