@@ -85,7 +85,10 @@ def generate_building_trajectory_llh(
     north_m = rng.uniform(-half, half, n_points)
     east_m = rng.uniform(-half, half, n_points)
     offsets = np.array(
-        [enu_to_llh_offset(e, n, lat_center) for e, n in zip(east_m, north_m)]
+        [
+            enu_to_llh_offset(e, n, lat_center)
+            for e, n in zip(east_m, north_m, strict=True)
+        ]
     )
 
     # Generate random positions within building footprint
@@ -274,7 +277,10 @@ def generate_dataset(
     # Convert to ECEF
     print("\nStep 2: Converting LLH -> ECEF...")
     ecef = np.array(
-        [llh_to_ecef(lat, lon, h) for lat, lon, h in zip(lats, lons, heights)]
+        [
+            llh_to_ecef(lat, lon, h)
+            for lat, lon, h in zip(lats, lons, heights, strict=True)
+        ]
     )
     print(
         f"  ECEF X range: {ecef[:, 0].min()/1e3:.1f}km to {ecef[:, 0].max()/1e3:.1f}km"

@@ -100,7 +100,7 @@ class ClassificationLocalizer:
         if return_proba and hasattr(self.classifier, "predict_proba"):
             probas = self.classifier.predict_proba(z_2d)[0]
             classes = self.classifier.classes_
-            info["class_probabilities"] = dict(zip(classes, probas))
+            info["class_probabilities"] = dict(zip(classes, probas, strict=True))
             info["top_k_classes"] = classes[np.argsort(probas)[::-1][:5]]
 
         return predicted_location, info

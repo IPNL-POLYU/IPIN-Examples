@@ -995,7 +995,8 @@ def main():
             # numpy 2 reprs as np.float64(-0.9999999999999998) -- accurate and
             # unreadable in a table the chapter asks the reader to interpret.
             components = {
-                name: round(float(value), 3) for name, value in zip(state_names, mode)
+                name: round(float(value), 3)
+                for name, value in zip(state_names, mode, strict=True)
             }
             print(f"    Mode {i+1}: {components}")
             # Identify dominant components. Taking argsort()[-2:] unconditionally
@@ -1039,7 +1040,7 @@ def main():
         print("\n  Unobservable modes:")
         for i in range(obs_analysis_fixes["n_unobservable"]):
             mode = obs_analysis_fixes["unobservable_modes"][:, i]
-            print(f"    Mode {i+1}: {dict(zip(state_names, mode))}")
+            print(f"    Mode {i+1}: {dict(zip(state_names, mode, strict=True))}")
     else:
         print("\n  System is FULLY OBSERVABLE!")
 

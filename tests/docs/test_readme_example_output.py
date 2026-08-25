@@ -172,7 +172,7 @@ def _matches(expected: str, actual: str) -> bool:
     got = actual.split(" ")
     if len(want) != len(got):
         return False
-    return all(_token_matches(w, g) for w, g in zip(want, got))
+    return all(_token_matches(w, g) for w, g in zip(want, got, strict=True))
 
 
 def _find_from(live, expected, start):

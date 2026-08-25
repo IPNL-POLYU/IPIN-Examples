@@ -617,7 +617,7 @@ def plot_comparison(
     ax9.grid(True, alpha=0.3, axis="y")
 
     # Add value labels on bars
-    for i, (lc_val, tc_val) in enumerate(zip(lc_values, tc_values)):
+    for i, (lc_val, tc_val) in enumerate(zip(lc_values, tc_values, strict=True)):
         ax9.text(
             i - width / 2, lc_val, f"{lc_val:.1f}", ha="center", va="bottom", fontsize=8
         )

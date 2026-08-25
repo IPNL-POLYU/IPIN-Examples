@@ -232,7 +232,7 @@ class TestFigureOutputPath(unittest.TestCase):
                 first = save_figure(fig, Path(tmp) / "a", FIGURE_NAME)
                 second = save_figure(fig, Path(tmp) / "b", FIGURE_NAME)
 
-                for lhs, rhs in zip(first, second):
+                for lhs, rhs in zip(first, second, strict=True):
                     with self.subTest(fmt=lhs.suffix):
                         self.assertEqual(lhs.read_bytes(), rhs.read_bytes())
         finally:

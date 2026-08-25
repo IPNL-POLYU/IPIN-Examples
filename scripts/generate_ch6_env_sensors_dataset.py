@@ -567,7 +567,12 @@ def generate_dataset(
     # and got it wrong -- duplicated policy only has to be forgotten once.
     heading_true = att_true[:, 2]
     heading_error = np.abs(
-        np.array([wrap_angle_diff(e, t_) for e, t_ in zip(heading_est, heading_true)])
+        np.array(
+            [
+                wrap_angle_diff(e, t_)
+                for e, t_ in zip(heading_est, heading_true, strict=True)
+            ]
+        )
     )
     heading_error_deg = np.rad2deg(heading_error)
     mean_heading_error = np.mean(heading_error_deg)

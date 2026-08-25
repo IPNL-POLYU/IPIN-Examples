@@ -277,7 +277,7 @@ class TestSubmap2DIntegration(unittest.TestCase):
             np.array([[3.0, 0.0]]),  # From pose 2
         ]
 
-        for pose, scan in zip(poses, scans):
+        for pose, scan in zip(poses, scans, strict=True):
             submap.add_scan(pose, scan)
 
         self.assertEqual(submap.n_scans, 3)

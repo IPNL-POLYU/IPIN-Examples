@@ -194,7 +194,9 @@ def plot_icp_correspondences(max_pairs: int = 45) -> plt.Figure:
             label="source scan",
         )
         stride = max(1, len(matched_source) // max_pairs)
-        for src_pt, tgt_pt in zip(matched_source[::stride], matched_target[::stride]):
+        for src_pt, tgt_pt in zip(
+            matched_source[::stride], matched_target[::stride], strict=True
+        ):
             ax.plot(
                 [src_pt[0], tgt_pt[0]],
                 [src_pt[1], tgt_pt[1]],
@@ -609,7 +611,9 @@ def animate_icp_convergence(max_iterations: int = 18, max_pairs: int = 45) -> tu
             label="source scan",
         )
         stride = max(1, len(matched_source) // max_pairs)
-        for src_pt, tgt_pt in zip(matched_source[::stride], matched_target[::stride]):
+        for src_pt, tgt_pt in zip(
+            matched_source[::stride], matched_target[::stride], strict=True
+        ):
             axes[0].plot(
                 [src_pt[0], tgt_pt[0]],
                 [src_pt[1], tgt_pt[1]],

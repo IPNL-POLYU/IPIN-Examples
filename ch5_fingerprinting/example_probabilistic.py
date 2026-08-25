@@ -65,7 +65,7 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
 
     query_fingerprints = []
 
-    for true_loc, fid in zip(true_locs, floor_ids_out):
+    for true_loc, fid in zip(true_locs, floor_ids_out, strict=True):
         if floor_id is not None:
             dists = np.linalg.norm(rp_locs - true_loc, axis=1)
         else:
@@ -99,7 +99,7 @@ def evaluate_method(method_name, method_fn, queries, true_locs, **kwargs):
     errors = []
     times = []
 
-    for query, true_loc in zip(queries, true_locs):
+    for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
         est_loc = method_fn(query, **kwargs)
         t_end = time.perf_counter()

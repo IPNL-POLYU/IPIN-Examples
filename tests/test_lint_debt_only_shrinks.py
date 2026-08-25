@@ -30,9 +30,9 @@ docstrings and whose blank lines are printed. Black leaves them, correctly.
 **What is left is mostly not lint at all.** 727 of the remaining findings are
 UP006/UP045/UP035/UP007 -- `List[int]` for `list[int]`, `Optional[X]` for
 `X | None`. Those became legal only when the floor moved to 3.10, they are
-mechanical, and they are worth doing in their own change. The ~140 after that
-are the ones with actual content: 41 `zip()` calls without `strict=`, which
-truncate silently to the shorter argument, are the interesting ones.
+mechanical, and they are worth doing in their own change. The ~100 after that
+are the ones with actual content -- B905 was the largest of them and is now
+gone, audited rather than swept: see the comment on BASELINE below.
 
 Per-rule rather than a single total on purpose: a total lets ten fixed W293
 pay for ten new B905, which is the opposite of what a ratchet is for.
@@ -65,9 +65,16 @@ SOURCE_DIRS = (
 #: Findings per rule today. Only ever edit these downwards.
 #:
 #: UP0xx are the annotation modernisations that the 3.10 floor made available,
-#: and are the bulk of what is left. B905 is the one group worth reading before
-#: fixing: `zip()` without `strict=` truncates to the shorter argument without
-#: saying so. The twelve remaining W293 sit inside argparse `epilog` strings,
+#: and are the bulk of what is left.
+#:
+#: B905 is absent, and its absence is the guard: the `appeared` check below
+#: fails on any rule not listed here, so one new `zip()` without `strict=`
+#: turns this red.
+#: The 41 it used to record were read one at a time rather than swept, which is
+#: how the two that mattered were found -- a boxplot palette one shade short of
+#: its methods, and one site where `strict=True` is simply wrong, because
+#: `zip(xs, xs[1:])` relies on the truncation. The twelve remaining W293 sit
+#: inside argparse `epilog` strings,
 #: where the whitespace is content that gets printed rather than layout --
 #: black leaves those alone, correctly, and so should you.
 BASELINE = {
@@ -75,7 +82,6 @@ BASELINE = {
     "UP045": 178,
     "UP035": 123,
     "I001": 84,
-    "B905": 41,
     "UP007": 38,
     "B007": 28,
     "B028": 14,

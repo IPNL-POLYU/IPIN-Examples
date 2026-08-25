@@ -67,7 +67,10 @@ class TestHeadingErrorIsWrapped(unittest.TestCase):
         )
         cls.error = np.abs(
             np.array(
-                [wrap_angle_diff(e, y) for e, y in zip(cls.heading_est, cls.yaw_true)]
+                [
+                    wrap_angle_diff(e, y)
+                    for e, y in zip(cls.heading_est, cls.yaw_true, strict=True)
+                ]
             )
         )
 

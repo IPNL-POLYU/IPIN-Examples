@@ -216,7 +216,7 @@ class TestSaveFigure:
         finally:
             plt.close(fig)
 
-        for lhs, rhs in zip(first, second):
+        for lhs, rhs in zip(first, second, strict=True):
             assert (
                 lhs.read_bytes() == rhs.read_bytes()
             ), f"{lhs.suffix} output is not reproducible"

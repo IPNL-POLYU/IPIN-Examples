@@ -9,6 +9,7 @@ References: Chapter 8, Section 8.3 (Tuning and Robustness)
 
 import unittest
 import warnings
+from itertools import pairwise
 
 import numpy as np
 
@@ -527,7 +528,9 @@ class TestEq87CovarianceInflation(unittest.TestCase):
         cauchy_scales = [cauchy_R_scale(r, 2.385) for r in self.RESIDUALS]
 
         for scales in (huber_scales, cauchy_scales):
-            for earlier, later in zip(scales, scales[1:]):
+            # pairwise, not zip(scales, scales[1:]): that idiom relies on
+            # zip truncating, so strict=True raises on every call.
+            for earlier, later in pairwise(scales):
                 self.assertLessEqual(earlier, later + 1e-12)
 
     def test_literal_printed_form_would_trust_outliers_more(self):

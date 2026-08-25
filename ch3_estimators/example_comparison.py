@@ -656,7 +656,7 @@ def main():
     ax.grid(True, alpha=0.3, axis="y")
 
     # Add value labels on bars
-    for bar, n_evals in zip(bars, evaluations):
+    for bar, n_evals in zip(bars, evaluations, strict=True):
         height = bar.get_height()
         ax.text(
             bar.get_x() + bar.get_width() / 2.0,

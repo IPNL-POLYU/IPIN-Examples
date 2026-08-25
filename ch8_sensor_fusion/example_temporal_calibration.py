@@ -590,7 +590,7 @@ def plot_temporal_calibration(
     ax6.grid(True, alpha=0.3, axis="y")
 
     # Add value labels
-    for bar, val in zip(bars1, no_corr_vals):
+    for bar, val in zip(bars1, no_corr_vals, strict=True):
         height = bar.get_height()
         ax6.text(
             bar.get_x() + bar.get_width() / 2.0,
@@ -600,7 +600,7 @@ def plot_temporal_calibration(
             va="bottom",
             fontsize=8,
         )
-    for bar, val in zip(bars2, with_corr_vals):
+    for bar, val in zip(bars2, with_corr_vals, strict=True):
         height = bar.get_height()
         ax6.text(
             bar.get_x() + bar.get_width() / 2.0,
