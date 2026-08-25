@@ -5,7 +5,7 @@ This script demonstrates the linear Kalman filter applied to 1D constant
 velocity tracking, comparing it with simple measurements.
 
 Run from repository root:
-    python ch3_estimators/example_kalman_1d.py
+    python -m ch3_estimators.example_kalman_1d
 
 Demonstrates:
     - Linear Kalman Filter (KF) for 1D tracking (Section 3.2.1)

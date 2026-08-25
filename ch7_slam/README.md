@@ -67,7 +67,7 @@ python -m ch7_slam.example_slam_frontend
 python -m ch7_slam.example_bundle_adjustment
 
 # Draw how ICP and NDT actually converge (writes to figs/)
-python -m ch7_slam.example_scan_matching_visualization --no-show
+python -m ch7_slam.example_scan_matching_visualization
 ```
 
 ## Figures

@@ -39,7 +39,7 @@ class TestScanMatchingVisualizationExample(unittest.TestCase):
         # holds its scratch root for the whole session, where the local
         # TemporaryDirectory was torn down with this class, so the output is
         # still there if another file ever asserts on the same run.
-        run = run_scan_matching_example("--no-show")
+        run = run_scan_matching_example()
         cls.result = run.process
         cls.figs_dir = run.figs_dir
 
