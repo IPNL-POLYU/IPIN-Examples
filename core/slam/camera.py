@@ -311,7 +311,9 @@ def unproject_pixel(
         else:
             depth_array = np.asarray(depth)
             if depth_array.shape != (N,):
-                raise ValueError(f"Depth shape {depth_array.shape} doesn't match pixels {N}")
+                raise ValueError(
+                    f"Depth shape {depth_array.shape} doesn't match pixels {N}"
+                )
 
         # Scale directions by depth
         directions = directions * depth_array[:, np.newaxis]
@@ -387,11 +389,7 @@ def essential_matrix_from_pose(R: np.ndarray, t: np.ndarray) -> np.ndarray:
         raise ValueError(f"t must be (3,), got {t.shape}")
 
     # Skew-symmetric matrix of translation
-    t_skew = np.array([
-        [0, -t[2], t[1]],
-        [t[2], 0, -t[0]],
-        [-t[1], t[0], 0]
-    ])
+    t_skew = np.array([[0, -t[2], t[1]], [t[2], 0, -t[0]], [-t[1], t[0], 0]])
 
     # Essential matrix
     E = t_skew @ R
@@ -463,5 +461,3 @@ def triangulate_point(
     point2 = origin2_in_cam1 + u * ray2_in_cam1
 
     return (point1 + point2) / 2.0
-
-

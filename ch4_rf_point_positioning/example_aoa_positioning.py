@@ -97,16 +97,14 @@ def demo_aoa_basic():
     print(f"\nEstimated position: {estimated_position}")
     print(f"Converged: {info['converged']}")
     print(f"Iterations: {info['iterations']}")
-    print(
-        f"Position error: {np.linalg.norm(estimated_position - true_position):.6f} m"
-    )
+    print(f"Position error: {np.linalg.norm(estimated_position - true_position):.6f} m")
 
     return anchors, true_position, aoa_measurements
 
 
-
 # Seed for the Monte Carlo in Demo 2.
 SEED = 42
+
 
 def demo_aoa_with_noise():
     """Demonstrate AOA positioning with measurement noise."""
@@ -187,10 +185,14 @@ def demo_aoa_with_noise():
 
     # Print results
     print("\n" + "-" * 70)
-    print(f"Median position error over {trials} draws per noise level "
-          f"(Eq. 4.64 geometry).")
-    print(f"{'Noise (deg)':<13} {'Median err (m)':<16} {'m/deg':<9} "
-          f"{'no-converge':<13} {'>100 m':<8}")
+    print(
+        f"Median position error over {trials} draws per noise level "
+        f"(Eq. 4.64 geometry)."
+    )
+    print(
+        f"{'Noise (deg)':<13} {'Median err (m)':<16} {'m/deg':<9} "
+        f"{'no-converge':<13} {'>100 m':<8}"
+    )
     print("-" * 70)
     for r in results:
         error_str = f"{r['error']:.4f}" if r["error"] != np.inf else "FAILED"
@@ -279,9 +281,7 @@ def demo_minimum_anchors():
     anchor_configs = {
         "2 anchors": np.array([[0, 0], [10, 0]], dtype=float),
         "3 anchors": np.array([[0, 0], [10, 0], [5, 10]], dtype=float),
-        "4 anchors": np.array(
-            [[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float
-        ),
+        "4 anchors": np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float),
     }
 
     print(f"\nTrue position (E, N): {true_position}")
@@ -295,9 +295,7 @@ def demo_minimum_anchors():
         # Try to solve
         try:
             positioner = AOAPositioner(anchors)
-            est_pos, info = positioner.solve(
-                aoa, initial_guess=np.array([5.0, 5.0])
-            )
+            est_pos, info = positioner.solve(aoa, initial_guess=np.array([5.0, 5.0]))
 
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_position)
@@ -333,9 +331,7 @@ def visualize_aoa_geometry():
 
     # Solve
     positioner = AOAPositioner(anchors)
-    est_pos, info = positioner.solve(
-        aoa_noisy, initial_guess=np.array([6.0, 6.0])
-    )
+    est_pos, info = positioner.solve(aoa_noisy, initial_guess=np.array([6.0, 6.0]))
 
     # Plot
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -471,14 +467,14 @@ def demo_closed_form_algorithms():
     err_ple = np.linalg.norm(pos_ple - true_pos_2d)
 
     print("\nResults (perfect measurements):")
-    print(f"  I-LS:  pos={pos_ils}, error={err_ils:.6f} m, iters={info_ils['iterations']}")
+    print(
+        f"  I-LS:  pos={pos_ils}, error={err_ils:.6f} m, iters={info_ils['iterations']}"
+    )
     print(f"  PLE:   pos={pos_ple}, error={err_ple:.6f} m (closed-form)")
 
     # === 3D Comparison ===
     print("\n--- 3D Comparison (I-LS vs OVE vs PLE) ---")
-    anchors_3d = np.array(
-        [[0, 0, 5], [10, 0, 5], [10, 10, 5], [0, 10, 5]], dtype=float
-    )
+    anchors_3d = np.array([[0, 0, 5], [10, 0, 5], [10, 10, 5], [0, 10, 5]], dtype=float)
     true_pos_3d = np.array([4.0, 6.0, 0.0])
 
     # Generate angles
@@ -521,8 +517,12 @@ def demo_closed_form_algorithms():
 
     for _ in range(n_trials):
         # Add noise
-        elev_noisy = elevations + np.random.randn(len(elevations)) * np.deg2rad(noise_deg)
-        azim_noisy = azimuths_3d + np.random.randn(len(azimuths_3d)) * np.deg2rad(noise_deg)
+        elev_noisy = elevations + np.random.randn(len(elevations)) * np.deg2rad(
+            noise_deg
+        )
+        azim_noisy = azimuths_3d + np.random.randn(len(azimuths_3d)) * np.deg2rad(
+            noise_deg
+        )
 
         # Iterative LS (unweighted)
         aoa_noisy = np.zeros(2 * len(anchors_3d))
@@ -530,7 +530,9 @@ def demo_closed_form_algorithms():
             aoa_noisy[2 * i] = elev_noisy[i]
             aoa_noisy[2 * i + 1] = azim_noisy[i]
         try:
-            pos, info = positioner_3d.solve(aoa_noisy, initial_guess=np.array([5.0, 5.0, 1.0]))
+            pos, info = positioner_3d.solve(
+                aoa_noisy, initial_guess=np.array([5.0, 5.0, 1.0])
+            )
             if info["converged"]:
                 errors["I-LS"].append(np.linalg.norm(pos - true_pos_3d))
         except Exception:
@@ -554,7 +556,9 @@ def demo_closed_form_algorithms():
     for method, errs in errors.items():
         if errs:
             rmse = np.sqrt(np.mean(np.array(errs) ** 2))
-            print(f"  {method}: RMSE={rmse:.4f} m (success rate={100*len(errs)/n_trials:.0f}%)")
+            print(
+                f"  {method}: RMSE={rmse:.4f} m (success rate={100*len(errs)/n_trials:.0f}%)"
+            )
         else:
             print(f"  {method}: No successful trials")
 
@@ -594,7 +598,9 @@ def demo_geometry_sensitivity():
     for name, anchors in geometries.items():
         # Generate angles
         azimuths = np.array([aoa_azimuth(a, true_pos) for a in anchors])
-        azimuths_noisy = azimuths + np.random.randn(len(azimuths)) * np.deg2rad(noise_deg)
+        azimuths_noisy = azimuths + np.random.randn(len(azimuths)) * np.deg2rad(
+            noise_deg
+        )
 
         # Iterative LS (unweighted)
         aoa_meas = aoa_angle_vector(anchors, true_pos, include_elevation=False)
@@ -639,9 +645,7 @@ def demo_ove_vs_ple_3d():
     print("Demo 8: OVE vs PLE 3D Noise Sensitivity")
     print("=" * 70)
 
-    anchors_3d = np.array(
-        [[0, 0, 5], [10, 0, 5], [10, 10, 5], [0, 10, 5]], dtype=float
-    )
+    anchors_3d = np.array([[0, 0, 5], [10, 0, 5], [10, 10, 5], [0, 10, 5]], dtype=float)
     true_pos = np.array([5.0, 5.0, 0.0])
 
     elevations = np.array([aoa_elevation(a, true_pos) for a in anchors_3d])
@@ -727,6 +731,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

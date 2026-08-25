@@ -130,10 +130,10 @@ class LinearRegressionLocalizer:
 
         Examples:
             >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
-            >>> 
+            >>>
             >>> # Train on floor 0 only
             >>> model = LinearRegressionLocalizer.fit(db, floor_id=0)
-            >>> 
+            >>>
             >>> # Train on all floors with regularization
             >>> model_all = LinearRegressionLocalizer.fit(db, regularization=1.0)
 
@@ -316,7 +316,7 @@ class LinearRegressionLocalizer:
         Examples:
             >>> # Train on floor 0
             >>> model = LinearRegressionLocalizer.fit(train_db, floor_id=0)
-            >>> 
+            >>>
             >>> # Evaluate on test set (same floor)
             >>> r2 = model.score(test_db, floor_id=0)
             >>> print(f"R² score: {r2:.3f}")
@@ -361,7 +361,9 @@ class LinearRegressionLocalizer:
 
     def __repr__(self) -> str:
         """Readable string representation."""
-        floor_str = f"floor={self.floor_id}" if self.floor_id is not None else "all_floors"
+        floor_str = (
+            f"floor={self.floor_id}" if self.floor_id is not None else "all_floors"
+        )
         return (
             f"LinearRegressionLocalizer("
             f"location_dim={self.location_dim}, "
@@ -369,4 +371,3 @@ class LinearRegressionLocalizer:
             f"n_training_samples={self.n_training_samples}, "
             f"{floor_str})"
         )
-

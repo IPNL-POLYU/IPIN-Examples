@@ -46,14 +46,18 @@ class ExtendedKalmanFilter(StateEstimator):
     def __init__(
         self,
         process_model: Callable[[np.ndarray, Optional[np.ndarray], float], np.ndarray],
-        process_jacobian: Callable[[np.ndarray, Optional[np.ndarray], float], np.ndarray],
+        process_jacobian: Callable[
+            [np.ndarray, Optional[np.ndarray], float], np.ndarray
+        ],
         measurement_model: Callable[[np.ndarray], np.ndarray],
         measurement_jacobian: Callable[[np.ndarray], np.ndarray],
         Q: Callable[[float], np.ndarray],
         R: Callable[[], np.ndarray],
         x0: np.ndarray,
         P0: np.ndarray,
-        innovation_func: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None,
+        innovation_func: Optional[
+            Callable[[np.ndarray, np.ndarray], np.ndarray]
+        ] = None,
     ):
         """
         Initialize Extended Kalman Filter.
@@ -231,41 +235,34 @@ def check_ekf_range_only_tracking():
 
     # Process model: constant velocity in 2D
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def process_jacobian(x, u, dt):
-        return np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # Measurement model: range from origin (nonlinear)
     def measurement_model(x):
-        return np.array([np.sqrt(x[0]**2 + x[1]**2)])
+        return np.array([np.sqrt(x[0] ** 2 + x[1] ** 2)])
 
     def measurement_jacobian(x):
-        r = np.sqrt(x[0]**2 + x[1]**2)
+        r = np.sqrt(x[0] ** 2 + x[1] ** 2)
         if r < 1e-6:
             return np.array([[0, 0, 0, 0]])
-        return np.array([[x[0]/r, x[1]/r, 0, 0]])
+        return np.array([[x[0] / r, x[1] / r, 0, 0]])
 
     # Noise covariances
     q = 0.1
+
     def Q_func(dt):
-        return q * np.array([
-            [dt**3/3, 0, dt**2/2, 0],
-            [0, dt**3/3, 0, dt**2/2],
-            [dt**2/2, 0, dt, 0],
-            [0, dt**2/2, 0, dt]
-        ])
+        return q * np.array(
+            [
+                [dt**3 / 3, 0, dt**2 / 2, 0],
+                [0, dt**3 / 3, 0, dt**2 / 2],
+                [dt**2 / 2, 0, dt, 0],
+                [0, dt**2 / 2, 0, dt],
+            ]
+        )
 
     def R_func():
         return np.array([[0.5]])
@@ -276,9 +273,14 @@ def check_ekf_range_only_tracking():
 
     # Create EKF
     ekf = ExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0, P0
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0,
+        P0,
     )
 
     # Generate true trajectory
@@ -337,40 +339,33 @@ def check_ekf_bearing_only_tracking():
 
     # Same process model as before
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def process_jacobian(x, u, dt):
-        return np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # Measurement model: bearing angle from origin
     def measurement_model(x):
         return np.array([np.arctan2(x[1], x[0])])
 
     def measurement_jacobian(x):
-        r_sq = x[0]**2 + x[1]**2
+        r_sq = x[0] ** 2 + x[1] ** 2
         if r_sq < 1e-6:
             return np.array([[0, 0, 0, 0]])
-        return np.array([[-x[1]/r_sq, x[0]/r_sq, 0, 0]])
+        return np.array([[-x[1] / r_sq, x[0] / r_sq, 0, 0]])
 
     q = 0.1
+
     def Q_func(dt):
-        return q * np.array([
-            [dt**3/3, 0, dt**2/2, 0],
-            [0, dt**3/3, 0, dt**2/2],
-            [dt**2/2, 0, dt, 0],
-            [0, dt**2/2, 0, dt]
-        ])
+        return q * np.array(
+            [
+                [dt**3 / 3, 0, dt**2 / 2, 0],
+                [0, dt**3 / 3, 0, dt**2 / 2],
+                [dt**2 / 2, 0, dt, 0],
+                [0, dt**2 / 2, 0, dt],
+            ]
+        )
 
     def R_func():
         return np.array([[0.05]])  # 0.05 rad^2 variance
@@ -384,9 +379,14 @@ def check_ekf_bearing_only_tracking():
     # takes `innovation_func` for exactly this and the docstring says so; this
     # demo simply never passed one.
     ekf = ExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0, P0,
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0,
+        P0,
         innovation_func=lambda z, z_pred: angle_diff(z, z_pred),
     )
 
@@ -443,10 +443,9 @@ def check_ekf_jacobian_evaluation_point():
 
     def process_jacobian(x, u, dt):
         """Jacobian depends on x[0], so evaluation point matters!"""
-        F = np.array([
-            [1.0 + 0.2 * x[0] * dt, dt],  # ∂f_0/∂x_0 = 1 + 0.2*x*dt
-            [0.0, 1.0]
-        ])
+        F = np.array(
+            [[1.0 + 0.2 * x[0] * dt, dt], [0.0, 1.0]]  # ∂f_0/∂x_0 = 1 + 0.2*x*dt
+        )
         return F
 
     # Simple linear measurement (position only)
@@ -468,9 +467,14 @@ def check_ekf_jacobian_evaluation_point():
 
     # Create EKF
     ekf = ExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0, P0
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0,
+        P0,
     )
 
     # Record pre-prediction state
@@ -508,10 +512,9 @@ def check_ekf_jacobian_evaluation_point():
     )
 
     # Verify it's NOT the wrong covariance
-    assert not np.allclose(ekf.covariance, P_wrong, atol=1e-10) or \
-           np.allclose(P_correct, P_wrong, atol=1e-10), (
-        "EKF appears to use post-prediction state for Jacobian (violates Eq. 3.22)"
-    )
+    assert not np.allclose(ekf.covariance, P_wrong, atol=1e-10) or np.allclose(
+        P_correct, P_wrong, atol=1e-10
+    ), "EKF appears to use post-prediction state for Jacobian (violates Eq. 3.22)"
 
     print("Jacobian Evaluation Point Test (Eq. 3.22):")
     print(f"  Pre-prediction state x_{{k-1}}:  {x_pre}")
@@ -540,6 +543,3 @@ if __name__ == "__main__":
     print("=" * 70)
     print("ALL CHECKS PASSED")
     print("=" * 70)
-
-
-

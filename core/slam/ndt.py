@@ -429,13 +429,9 @@ def ndt_align(
     """
     # Validate inputs
     if source_scan.ndim != 2 or source_scan.shape[1] != 2:
-        raise ValueError(
-            f"source_scan must have shape (N, 2), got {source_scan.shape}"
-        )
+        raise ValueError(f"source_scan must have shape (N, 2), got {source_scan.shape}")
     if target_scan.ndim != 2 or target_scan.shape[1] != 2:
-        raise ValueError(
-            f"target_scan must have shape (M, 2), got {target_scan.shape}"
-        )
+        raise ValueError(f"target_scan must have shape (M, 2), got {target_scan.shape}")
 
     if source_scan.shape[0] == 0:
         raise ValueError("source_scan is empty")
@@ -534,8 +530,11 @@ def ndt_align(
             return current_pose, iteration + 1, current_score, False
 
         if alpha * float(np.linalg.norm(delta)) < tolerance:
-            return current_pose, iteration + 1, current_score, (
-                current_score < NO_MATCH_SCORE
+            return (
+                current_pose,
+                iteration + 1,
+                current_score,
+                (current_score < NO_MATCH_SCORE),
             )
 
     return current_pose, max_iterations, current_score, False
@@ -578,5 +577,3 @@ def ndt_covariance(
     cov = np.diag([sigma_xy**2, sigma_xy**2, sigma_yaw**2])
 
     return cov
-
-

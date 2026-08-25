@@ -65,46 +65,73 @@ VALUE_TOL = 1e-9
 #: null`` and that is not an omission.
 RECIPES = {
     "ch2_coords_san_francisco": (
-        "generate_ch2_coordinate_transforms_dataset.py", ["--preset", "san_francisco"]),
+        "generate_ch2_coordinate_transforms_dataset.py",
+        ["--preset", "san_francisco"],
+    ),
     "ch3_estimator_nonlinear": (
-        "generate_ch3_estimator_comparison_dataset.py", ["--preset", "nonlinear"]),
+        "generate_ch3_estimator_comparison_dataset.py",
+        ["--preset", "nonlinear"],
+    ),
     "ch3_estimator_high_nonlinear": (
-        "generate_ch3_estimator_comparison_dataset.py", ["--preset", "high_nonlinearity"]),
+        "generate_ch3_estimator_comparison_dataset.py",
+        ["--preset", "high_nonlinearity"],
+    ),
     "ch4_rf_2d_square": (
-        "generate_ch4_rf_2d_positioning_dataset.py", ["--preset", "baseline"]),
+        "generate_ch4_rf_2d_positioning_dataset.py",
+        ["--preset", "baseline"],
+    ),
     "ch4_rf_2d_optimal": (
-        "generate_ch4_rf_2d_positioning_dataset.py", ["--preset", "optimal"]),
+        "generate_ch4_rf_2d_positioning_dataset.py",
+        ["--preset", "optimal"],
+    ),
     "ch4_rf_2d_linear": (
-        "generate_ch4_rf_2d_positioning_dataset.py", ["--preset", "poor_geometry"]),
+        "generate_ch4_rf_2d_positioning_dataset.py",
+        ["--preset", "poor_geometry"],
+    ),
     "ch4_rf_2d_nlos": (
-        "generate_ch4_rf_2d_positioning_dataset.py", ["--preset", "nlos"]),
+        "generate_ch4_rf_2d_positioning_dataset.py",
+        ["--preset", "nlos"],
+    ),
     "ch5_wifi_fingerprint_grid": (
-        "generate_ch5_wifi_fingerprint_dataset.py", ["--preset", "baseline"]),
+        "generate_ch5_wifi_fingerprint_dataset.py",
+        ["--preset", "baseline"],
+    ),
     "ch5_wifi_fingerprint_dense": (
-        "generate_ch5_wifi_fingerprint_dataset.py", ["--preset", "dense"]),
+        "generate_ch5_wifi_fingerprint_dataset.py",
+        ["--preset", "dense"],
+    ),
     "ch5_wifi_fingerprint_sparse": (
-        "generate_ch5_wifi_fingerprint_dataset.py", ["--preset", "sparse"]),
+        "generate_ch5_wifi_fingerprint_dataset.py",
+        ["--preset", "sparse"],
+    ),
     "ch6_env_sensors_heading_altitude": (
-        "generate_ch6_env_sensors_dataset.py", ["--preset", "baseline"]),
+        "generate_ch6_env_sensors_dataset.py",
+        ["--preset", "baseline"],
+    ),
     "ch6_foot_zupt_walk": ("generate_ch6_zupt_dataset.py", []),
-    "ch6_pdr_corridor_walk": (
-        "generate_ch6_pdr_dataset.py", ["--preset", "baseline"]),
+    "ch6_pdr_corridor_walk": ("generate_ch6_pdr_dataset.py", ["--preset", "baseline"]),
     "ch6_strapdown_basic": ("generate_ch6_strapdown_dataset.py", []),
     "ch6_wheel_odom_square": (
-        "generate_ch6_wheel_odom_dataset.py", ["--preset", "baseline"]),
-    "ch7_slam_2d_square": (
-        "generate_ch7_slam_2d_dataset.py", ["--preset", "baseline"]),
+        "generate_ch6_wheel_odom_dataset.py",
+        ["--preset", "baseline"],
+    ),
+    "ch7_slam_2d_square": ("generate_ch7_slam_2d_dataset.py", ["--preset", "baseline"]),
     "ch7_slam_2d_high_drift": (
-        "generate_ch7_slam_2d_dataset.py", ["--preset", "high_drift"]),
+        "generate_ch7_slam_2d_dataset.py",
+        ["--preset", "high_drift"],
+    ),
     "ch8_fusion_2d_imu_uwb": ("generate_ch8_fusion_2d_imu_uwb_dataset.py", []),
     # Explicit flags, not --preset nlos_severe: that preset is the 1.5 m bias
     # case and this dataset is the 0.8 m one. This is the invocation its own
     # README documents, and the one --all-variants uses.
     "ch8_fusion_2d_imu_uwb_nlos": (
         "generate_ch8_fusion_2d_imu_uwb_dataset.py",
-        ["--nlos-anchors", "1", "2", "--nlos-bias", "0.8"]),
+        ["--nlos-anchors", "1", "2", "--nlos-bias", "0.8"],
+    ),
     "ch8_fusion_2d_imu_uwb_timeoffset": (
-        "generate_ch8_fusion_2d_imu_uwb_dataset.py", ["--preset", "time_offset_50ms"]),
+        "generate_ch8_fusion_2d_imu_uwb_dataset.py",
+        ["--preset", "time_offset_50ms"],
+    ),
 }
 
 
@@ -188,16 +215,28 @@ def test_regenerating_reproduces_the_shipped_arrays(dataset, tmp_path):
     shipped = DATA / dataset
 
     proc = subprocess.run(
-        [sys.executable, str(REPO_ROOT / "scripts" / generator),
-         *extra, "--output", str(tmp_path)],
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        timeout=900, cwd=REPO_ROOT,
-        env={**__import__("os").environ,
-             "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg"},
+        [
+            sys.executable,
+            str(REPO_ROOT / "scripts" / generator),
+            *extra,
+            "--output",
+            str(tmp_path),
+        ],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+        timeout=900,
+        cwd=REPO_ROOT,
+        env={
+            **__import__("os").environ,
+            "PYTHONIOENCODING": "utf-8",
+            "MPLBACKEND": "Agg",
+        },
     )
-    assert proc.returncode == 0, (
-        f"regenerating {dataset} failed:\n{proc.stdout[-1500:]}\n{proc.stderr[-1500:]}"
-    )
+    assert (
+        proc.returncode == 0
+    ), f"regenerating {dataset} failed:\n{proc.stdout[-1500:]}\n{proc.stderr[-1500:]}"
 
     # --output must win over --preset. It did not always: a preset overwrote it
     # unconditionally, so passing both regenerated the *shipped* dataset in

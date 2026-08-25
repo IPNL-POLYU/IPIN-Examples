@@ -8,5 +8,3 @@ Structure:
     test_ch6_examples.py - Tests Ch6 dataset README code blocks
     (future) test_ch8_examples.py - Tests Ch8 dataset README code blocks
 """
-
-

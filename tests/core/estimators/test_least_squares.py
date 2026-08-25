@@ -380,9 +380,7 @@ class TestRobustLeastSquares(unittest.TestCase):
         A = np.array([[1, 0], [1, 0], [1, 0], [0, 1], [0, 1], [0, 1]])
         b = np.array([1.0, 1.1, 5.0, 2.0, 2.1, -3.0])  # Two outliers
 
-        x_robust, P, weights = robust_least_squares(
-            A, b, method="tukey", threshold=2.0
-        )
+        x_robust, P, weights = robust_least_squares(A, b, method="tukey", threshold=2.0)
 
         # Outliers should have zero or near-zero weight
         self.assertLess(weights[2], 0.1)
@@ -442,9 +440,7 @@ class TestRobustLeastSquares(unittest.TestCase):
         A = np.ones((6, 1))  # 6 measurements of same quantity
         b = np.array([1.0, 1.1, 0.95, 1.05, 10.0, -5.0])  # Two severe outliers
 
-        x_gm, P_gm, weights_gm = robust_least_squares(
-            A, b, method="gm", threshold=2.0
-        )
+        x_gm, P_gm, weights_gm = robust_least_squares(A, b, method="gm", threshold=2.0)
 
         # Outliers (indices 4, 5) should have very low weights
         self.assertLess(weights_gm[4], 0.1)  # 10.0 outlier
@@ -499,9 +495,7 @@ class TestRobustLeastSquares(unittest.TestCase):
         _, _, weights_cauchy = robust_least_squares(
             A, b, method="cauchy", threshold=1.5
         )
-        _, _, weights_gm = robust_least_squares(
-            A, b, method="gm", threshold=1.5
-        )
+        _, _, weights_gm = robust_least_squares(A, b, method="gm", threshold=1.5)
 
         # G-M should downweight the outlier more than Cauchy
         self.assertLess(weights_gm[-1], weights_cauchy[-1])
@@ -524,4 +518,3 @@ class TestRobustLeastSquares(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

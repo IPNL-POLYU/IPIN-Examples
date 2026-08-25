@@ -43,10 +43,10 @@ def find_correspondences(
     For each point in the source cloud, finds the closest point in the target
     cloud using a KD-tree for efficient nearest-neighbor search. Correspondences
     are gated by the distance threshold d_threshold as described in Eq. (7.11):
-    
+
         b_{i,j} = { 0  if ||p_{i,t-1} - T p_{j,t}|| > d_threshold
                   { 1  otherwise
-    
+
     This implements the binary selector for valid point pairs in ICP.
 
     Args:
@@ -189,7 +189,7 @@ def align_svd(
     Given corresponding point sets, computes the rigid transformation
     (rotation + translation) that minimizes the point-to-point error in Eq. (7.10).
     The SVD-based solution is described in Section 7.3.1 text after Eq. (7.11).
-    
+
     The book mentions that to solve Eq. (7.10), a nonlinear optimizer can be used,
     or the rotation matrix can be solved first by SVD, then the translation can be
     computed as: Δx = p̄_{t-1} - (Ĉ p̄_t), where p̄ denotes the geometric center.
@@ -245,9 +245,7 @@ def align_svd(
 
     N = source_points.shape[0]
     if N < 2:
-        raise ValueError(
-            f"Need at least 2 correspondences for SVD alignment, got {N}"
-        )
+        raise ValueError(f"Need at least 2 correspondences for SVD alignment, got {N}")
 
     # Step 1: Compute centroids
     centroid_source = np.mean(source_points, axis=0)  # shape (2,)
@@ -358,13 +356,9 @@ def icp_point_to_point(
     """
     # Validate inputs
     if source_scan.ndim != 2 or source_scan.shape[1] != 2:
-        raise ValueError(
-            f"source_scan must have shape (N, 2), got {source_scan.shape}"
-        )
+        raise ValueError(f"source_scan must have shape (N, 2), got {source_scan.shape}")
     if target_scan.ndim != 2 or target_scan.shape[1] != 2:
-        raise ValueError(
-            f"target_scan must have shape (M, 2), got {target_scan.shape}"
-        )
+        raise ValueError(f"target_scan must have shape (M, 2), got {target_scan.shape}")
 
     if source_scan.shape[0] == 0:
         raise ValueError("source_scan is empty")
@@ -488,4 +482,3 @@ def compute_icp_covariance(
     cov = np.diag([sigma_xy**2, sigma_xy**2, sigma_yaw**2])
 
     return cov
-

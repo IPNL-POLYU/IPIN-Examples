@@ -51,18 +51,10 @@ class TestObservabilityMatrix(unittest.TestCase):
         #      [0, 0, 0, 1]]
 
         dt = 0.1
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
         # Observe velocity only
-        H = np.array([
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        H = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
 
         F_sequence = [F] * 10
         H_sequence = [H] * 10
@@ -77,28 +69,26 @@ class TestObservabilityMatrix(unittest.TestCase):
         """Test that adding direct measurements increases rank."""
         # Same system as above, but with occasional position measurements
         dt = 0.1
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
-        H_velocity = np.array([
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        H_velocity = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
 
-        H_position = np.array([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0]
-        ])
+        H_position = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
 
         # Sequence: velocity, velocity, position, velocity, ...
         F_sequence = [F] * 10
-        H_sequence = [H_velocity, H_velocity, H_position, H_velocity,
-                      H_velocity, H_position, H_velocity, H_velocity,
-                      H_position, H_velocity]
+        H_sequence = [
+            H_velocity,
+            H_velocity,
+            H_position,
+            H_velocity,
+            H_velocity,
+            H_position,
+            H_velocity,
+            H_velocity,
+            H_position,
+            H_velocity,
+        ]
 
         O_EKF, rank, s = compute_observability_matrix(H_sequence, F_sequence)
 
@@ -127,11 +117,7 @@ class TestObservabilityMatrix(unittest.TestCase):
         # H2 * F2 * F1 = [1, 0] * [[1, dt], [0, 1]] * [[1, dt], [0, 1]]
         #              = [1, dt] * [[1, dt], [0, 1]] = [1, 2*dt]
 
-        expected_O = np.array([
-            [1, 0],
-            [1, dt],
-            [1, 2*dt]
-        ])
+        expected_O = np.array([[1, 0], [1, dt], [1, 2 * dt]])
 
         np.testing.assert_allclose(O_EKF, expected_O, atol=1e-10)
 
@@ -166,27 +152,28 @@ class TestUnobservableStateAnalysis(unittest.TestCase):
         # Only velocity is observable
 
         # Construct O that only sees velocity subspace
-        O_EKF = np.array([
-            [0, 0, 1, 0],
-            [0, 0, 0, 1],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1],
-        ])
+        O_EKF = np.array(
+            [
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+                [0, 0, 1, 0],
+                [0, 0, 0, 1],
+            ]
+        )
 
         U, s, Vt = np.linalg.svd(O_EKF, full_matrices=False)
         rank = np.sum(s > 1e-10)
 
         analysis = analyze_unobservable_states(
-            O_EKF, rank,
-            state_names=['px', 'py', 'vx', 'vy']
+            O_EKF, rank, state_names=["px", "py", "vx", "vy"]
         )
 
-        self.assertEqual(analysis['n_states'], 4)
-        self.assertEqual(analysis['n_observable'], 2)
-        self.assertEqual(analysis['n_unobservable'], 2)
+        self.assertEqual(analysis["n_states"], 4)
+        self.assertEqual(analysis["n_observable"], 2)
+        self.assertEqual(analysis["n_unobservable"], 2)
 
         # Null space should span position subspace
-        null_space = analysis['unobservable_modes']
+        null_space = analysis["unobservable_modes"]
         self.assertEqual(null_space.shape, (4, 2))
 
         # Check that null space vectors have zero velocity components
@@ -203,8 +190,8 @@ class TestUnobservableStateAnalysis(unittest.TestCase):
 
         analysis = analyze_unobservable_states(O_EKF, rank)
 
-        self.assertEqual(analysis['n_unobservable'], 0)
-        self.assertEqual(analysis['unobservable_modes'].shape[1], 0)
+        self.assertEqual(analysis["n_unobservable"], 0)
+        self.assertEqual(analysis["unobservable_modes"].shape[1], 0)
 
     def test_singular_values_analysis(self):
         """Test that singular values are returned correctly."""
@@ -216,11 +203,9 @@ class TestUnobservableStateAnalysis(unittest.TestCase):
         analysis = analyze_unobservable_states(O_EKF, rank)
 
         # Check singular values
-        self.assertGreater(len(analysis['singular_values']), 0)
+        self.assertGreater(len(analysis["singular_values"]), 0)
         np.testing.assert_allclose(
-            analysis['singular_values'],
-            [10, 5, 0.1, 0],
-            atol=1e-10
+            analysis["singular_values"], [10, 5, 0.1, 0], atol=1e-10
         )
 
 
@@ -229,26 +214,15 @@ class TestObservabilityIntegration(unittest.TestCase):
 
     def test_odometry_vs_position_fix_scenario(self):
         """Test odometry-only vs odometry+position scenario.
-        
+
         This is the key scenario from the observability demo.
         """
         dt = 0.1
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
-        H_odometry = np.array([
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        H_odometry = np.array([[0, 0, 1, 0], [0, 0, 0, 1]])
 
-        H_position = np.array([
-            [1, 0, 0, 0],
-            [0, 1, 0, 0]
-        ])
+        H_position = np.array([[1, 0, 0, 0], [0, 1, 0, 0]])
 
         # Scenario A: Odometry only
         F_seq_odom = [F] * 20
@@ -259,8 +233,13 @@ class TestObservabilityIntegration(unittest.TestCase):
 
         # Scenario B: Odometry + occasional position fixes
         F_seq_fix = [F] * 20
-        H_seq_fix = [H_odometry] * 5 + [H_position] + [H_odometry] * 5 + \
-                     [H_position] + [H_odometry] * 8
+        H_seq_fix = (
+            [H_odometry] * 5
+            + [H_position]
+            + [H_odometry] * 5
+            + [H_position]
+            + [H_odometry] * 8
+        )
 
         O_fix, rank_fix, _ = compute_observability_matrix(H_seq_fix, F_seq_fix)
         analysis_fix = analyze_unobservable_states(O_fix, rank_fix)
@@ -269,8 +248,7 @@ class TestObservabilityIntegration(unittest.TestCase):
         self.assertLess(rank_odom, 4)  # Odometry-only not fully observable
         self.assertEqual(rank_fix, 4)  # With fixes, fully observable
         self.assertGreater(
-            analysis_odom['n_unobservable'],
-            analysis_fix['n_unobservable']
+            analysis_odom["n_unobservable"], analysis_fix["n_unobservable"]
         )
 
 
@@ -369,6 +347,5 @@ class TestFGOObservabilityMatrix(unittest.TestCase):
             compute_fgo_observability_matrix(graph)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

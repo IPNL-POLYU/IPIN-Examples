@@ -44,27 +44,29 @@ from core.fusion import load_fusion_dataset, run_lc_fusion
 
 def evaluate_results(dataset: Dict, history: Dict) -> Dict:
     """Evaluate fusion results against ground truth."""
-    truth = dataset['truth']
+    truth = dataset["truth"]
 
     # Interpolate truth to estimated timestamps
-    p_true_interp = np.column_stack([
-        np.interp(history['t'], truth['t'], truth['p_xy'][:, 0]),
-        np.interp(history['t'], truth['t'], truth['p_xy'][:, 1])
-    ])
+    p_true_interp = np.column_stack(
+        [
+            np.interp(history["t"], truth["t"], truth["p_xy"][:, 0]),
+            np.interp(history["t"], truth["t"], truth["p_xy"][:, 1]),
+        ]
+    )
 
     # Extract estimated positions
-    p_est = history['x_est'][:, :2]
+    p_est = history["x_est"][:, :2]
 
     # Compute errors
     errors = compute_position_errors(p_true_interp, p_est)
     rmse = compute_position_rmse(errors)
 
     metrics = {
-        'rmse_2d': rmse,
-        'rmse_x': np.sqrt(np.mean(errors[:, 0]**2)),
-        'rmse_y': np.sqrt(np.mean(errors[:, 1]**2)),
-        'max_error': np.max(np.linalg.norm(errors, axis=1)),
-        'final_error': np.linalg.norm(errors[-1])
+        "rmse_2d": rmse,
+        "rmse_x": np.sqrt(np.mean(errors[:, 0] ** 2)),
+        "rmse_y": np.sqrt(np.mean(errors[:, 1] ** 2)),
+        "max_error": np.max(np.linalg.norm(errors, axis=1)),
+        "final_error": np.linalg.norm(errors[-1]),
     }
 
     return metrics
@@ -72,73 +74,97 @@ def evaluate_results(dataset: Dict, history: Dict) -> Dict:
 
 def plot_results(dataset: Dict, history: Dict, save_path: str = None) -> None:
     """Generate LC fusion results plots."""
-    truth = dataset['truth']
-    anchors = dataset['uwb_anchors']
+    truth = dataset["truth"]
+    anchors = dataset["uwb_anchors"]
 
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
     # 1. Trajectory plot
     ax = axes[0, 0]
-    ax.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1], 'k-', label='Truth', linewidth=2)
-    ax.plot(history['x_est'][:, 0], history['x_est'][:, 1], 'b-', label='LC EKF', alpha=0.7)
+    ax.plot(truth["p_xy"][:, 0], truth["p_xy"][:, 1], "k-", label="Truth", linewidth=2)
+    ax.plot(
+        history["x_est"][:, 0], history["x_est"][:, 1], "b-", label="LC EKF", alpha=0.7
+    )
 
     # Plot UWB position fixes
-    if len(history['uwb_positions']) > 0:
-        ax.scatter(history['uwb_positions'][:, 0], history['uwb_positions'][:, 1],
-                  s=20, c='orange', alpha=0.3, label='UWB Fixes', zorder=2)
+    if len(history["uwb_positions"]) > 0:
+        ax.scatter(
+            history["uwb_positions"][:, 0],
+            history["uwb_positions"][:, 1],
+            s=20,
+            c="orange",
+            alpha=0.3,
+            label="UWB Fixes",
+            zorder=2,
+        )
 
-    ax.scatter(anchors[:, 0], anchors[:, 1], s=100, c='red', marker='^',
-              label='UWB Anchors', zorder=5)
-    ax.set_xlabel('X [m]')
-    ax.set_ylabel('Y [m]')
-    ax.set_title('Trajectory: LC IMU + UWB Fusion')
+    ax.scatter(
+        anchors[:, 0],
+        anchors[:, 1],
+        s=100,
+        c="red",
+        marker="^",
+        label="UWB Anchors",
+        zorder=5,
+    )
+    ax.set_xlabel("X [m]")
+    ax.set_ylabel("Y [m]")
+    ax.set_title("Trajectory: LC IMU + UWB Fusion")
     ax.legend()
     ax.grid(True)
-    ax.axis('equal')
+    ax.axis("equal")
 
     # 2. Position error
     ax = axes[0, 1]
-    p_true_interp = np.column_stack([
-        np.interp(history['t'], truth['t'], truth['p_xy'][:, 0]),
-        np.interp(history['t'], truth['t'], truth['p_xy'][:, 1])
-    ])
-    errors = history['x_est'][:, :2] - p_true_interp
+    p_true_interp = np.column_stack(
+        [
+            np.interp(history["t"], truth["t"], truth["p_xy"][:, 0]),
+            np.interp(history["t"], truth["t"], truth["p_xy"][:, 1]),
+        ]
+    )
+    errors = history["x_est"][:, :2] - p_true_interp
     error_norm = np.linalg.norm(errors, axis=1)
-    ax.plot(history['t'], error_norm, 'b-')
-    ax.set_xlabel('Time [s]')
-    ax.set_ylabel('Position Error [m]')
-    ax.set_title('Position Error vs Time')
+    ax.plot(history["t"], error_norm, "b-")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Position Error [m]")
+    ax.set_title("Position Error vs Time")
     ax.grid(True)
 
     # 3. NIS plot
     ax = axes[1, 0]
-    if len(history['nis']) > 0:
-        nis = np.array(history['nis'])
-        accepted = np.array(history['gated'])
+    if len(history["nis"]) > 0:
+        nis = np.array(history["nis"])
+        accepted = np.array(history["gated"])
 
-        ax.plot(nis[accepted], 'g.', label='Accepted', markersize=4)
+        ax.plot(nis[accepted], "g.", label="Accepted", markersize=4)
         if np.any(~accepted):
-            ax.plot(np.where(~accepted)[0], nis[~accepted], 'rx',
-                   label='Rejected', markersize=6)
+            ax.plot(
+                np.where(~accepted)[0],
+                nis[~accepted],
+                "rx",
+                label="Rejected",
+                markersize=6,
+            )
 
         # Chi-square bounds for m=2 DOF (position is 2D)
         from core.fusion import chi_square_bounds
-        lower, upper = chi_square_bounds(dof=2, confidence=0.95)
-        ax.axhline(upper, color='r', linestyle='--', label='95% bounds')
-        ax.axhline(lower, color='r', linestyle='--')
 
-        ax.set_xlabel('UWB Update Index')
-        ax.set_ylabel('NIS (Normalized Innovation Squared)')
-        ax.set_title('Innovation Consistency (NIS) - 2 DOF')
+        lower, upper = chi_square_bounds(dof=2, confidence=0.95)
+        ax.axhline(upper, color="r", linestyle="--", label="95% bounds")
+        ax.axhline(lower, color="r", linestyle="--")
+
+        ax.set_xlabel("UWB Update Index")
+        ax.set_ylabel("NIS (Normalized Innovation Squared)")
+        ax.set_title("Innovation Consistency (NIS) - 2 DOF")
         ax.legend()
         ax.grid(True)
 
     # 4. Covariance trace
     ax = axes[1, 1]
-    ax.plot(history['t'], history['P_trace'], 'b-')
-    ax.set_xlabel('Time [s]')
-    ax.set_ylabel('Trace(P)')
-    ax.set_title('Covariance Trace')
+    ax.plot(history["t"], history["P_trace"], "b-")
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Trace(P)")
+    ax.set_title("Covariance Trace")
     ax.grid(True)
 
     plt.tight_layout()
@@ -162,24 +188,19 @@ def main():
         "--data",
         type=str,
         default="data/sim/ch8_fusion_2d_imu_uwb",
-        help="Path to fusion dataset directory"
+        help="Path to fusion dataset directory",
     )
     parser.add_argument(
-        "--no-gating",
-        action="store_true",
-        help="Disable chi-square gating"
+        "--no-gating", action="store_true", help="Disable chi-square gating"
     )
     parser.add_argument(
         "--confidence",
         type=float,
         default=0.95,
-        help="Gating confidence level (default: 0.95 for 95%% confidence)"
+        help="Gating confidence level (default: 0.95 for 95%% confidence)",
     )
     parser.add_argument(
-        "--save",
-        type=str,
-        default=None,
-        help="Path to save results figure"
+        "--save", type=str, default=None, help="Path to save results figure"
     )
 
     args = parser.parse_args()
@@ -193,13 +214,13 @@ def main():
         dataset,
         use_gating=not args.no_gating,
         gate_confidence=args.confidence,
-        verbose=True
+        verbose=True,
     )
 
     # Evaluate
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Evaluation Metrics")
-    print("="*70)
+    print("=" * 70)
     metrics = evaluate_results(dataset, history)
     print(f"  RMSE (2D)    : {metrics['rmse_2d']:.3f} m")
     print(f"  RMSE (X)     : {metrics['rmse_x']:.3f} m")
@@ -209,11 +230,12 @@ def main():
     print("")
 
     # Plot
-    save_path = args.save if args.save else "ch8_sensor_fusion/figs/lc_uwb_imu_results.svg"
+    save_path = (
+        args.save if args.save else "ch8_sensor_fusion/figs/lc_uwb_imu_results.svg"
+    )
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
     plot_results(dataset, history, save_path=save_path)
 
 
 if __name__ == "__main__":
     main()
-

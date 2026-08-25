@@ -22,10 +22,10 @@ Example usage:
     ... )
     >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
     >>> z_query = np.array([-50, -60, -70])
-    >>> 
+    >>>
     >>> # Deterministic
     >>> x_hat_nn = nn_localize(z_query, db, floor_id=0)
-    >>> 
+    >>>
     >>> # Probabilistic
     >>> model = fit_gaussian_naive_bayes(db)
     >>> x_hat_map = map_localize(z_query, model, floor_id=0)
@@ -101,4 +101,3 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
-

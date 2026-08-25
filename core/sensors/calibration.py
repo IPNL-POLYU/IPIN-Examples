@@ -94,14 +94,14 @@ def allan_variance(
         >>> duration = 3600  # 1 hour
         >>> N = int(fs * duration)
         >>> t = np.arange(N) / fs
-        >>> 
+        >>>
         >>> # White noise + bias drift
         >>> gyro = 0.001 * np.random.randn(N)  # angle random walk
         >>> gyro += 0.01 * np.cumsum(np.random.randn(N)) / fs  # bias drift
-        >>> 
+        >>>
         >>> # Compute Allan deviation
         >>> taus, adev = allan_variance(gyro, fs)
-        >>> 
+        >>>
         >>> # Plot (log-log) to identify noise sources
         >>> # import matplotlib.pyplot as plt
         >>> # plt.loglog(taus, adev)
@@ -467,12 +467,12 @@ def arw_to_noise_std(arw: float, dt: float) -> float:
         >>> taus, adev = allan_variance(gyro_data, fs=100.0)
         >>> arw = identify_random_walk(taus, adev, tau_target=1.0)
         >>> print(f"ARW: {np.rad2deg(arw):.4f} deg/√s")
-        >>> 
+        >>>
         >>> # Convert to per-sample noise (Eq. 6.58)
         >>> dt = 1.0 / 100.0  # 100 Hz sampling
         >>> sigma_omega = arw_to_noise_std(arw, dt)
         >>> print(f"Per-sample noise: {np.rad2deg(sigma_omega):.4f} deg/s")
-        >>> 
+        >>>
         >>> # Use in simulation
         >>> gyro_noise = np.random.randn(N) * sigma_omega
 
@@ -523,7 +523,7 @@ def noise_std_to_arw(sigma: float, dt: float) -> float:
         >>> # Known noise level from sensor datasheet
         >>> sigma_omega = np.deg2rad(0.1)  # 0.1 deg/s per sample
         >>> dt = 1.0 / 100.0  # 100 Hz
-        >>> 
+        >>>
         >>> # Compute equivalent ARW
         >>> arw = noise_std_to_arw(sigma_omega, dt)
         >>> print(f"ARW: {np.rad2deg(arw):.4f} deg/√s")
@@ -670,5 +670,3 @@ def characterize_imu_noise(
         }
 
     return results
-
-

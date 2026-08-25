@@ -70,9 +70,11 @@ class TestNamedENUOffsets(unittest.TestCase):
         cls.example = run_example(MODULE)
         cls.reported = {
             match.group("name"): np.array(
-                [float(match.group("e")),
-                 float(match.group("n")),
-                 float(match.group("u"))]
+                [
+                    float(match.group("e")),
+                    float(match.group("n")),
+                    float(match.group("u")),
+                ]
             )
             for match in TARGET_BLOCK.finditer(cls.example.process.stdout)
         }
@@ -102,7 +104,7 @@ class TestNamedENUOffsets(unittest.TestCase):
         )
 
     def test_each_offset_returns_the_metres_it_is_named_for(self) -> None:
-        """"100m East" is 100 m east, not 100 units of whatever the code did."""
+        """ "100m East" is 100 m east, not 100 units of whatever the code did."""
         for name, expected in NAMED_OFFSETS.items():
             with self.subTest(target=name):
                 actual = self.reported.get(name)

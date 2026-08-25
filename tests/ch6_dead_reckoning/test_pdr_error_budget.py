@@ -55,7 +55,7 @@ def pdr_run():
         gyro_rrw_rad_s_sqrt_s=0.0,
         accel_bias_mps2=units.mg_to_mps2(10.0),
         accel_vrw_mps_sqrt_s=units.mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.01),
-        grade='consumer (high gyro drift)',
+        grade="consumer (high gyro drift)",
     )
 
     t, pos_true, heading_true, accel, gyro, mag, expected_steps = (

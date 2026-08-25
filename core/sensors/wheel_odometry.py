@@ -388,5 +388,3 @@ def wheel_odom_update(
     p_next = odom_pos_update(p, v_m, dt)
 
     return p_next
-
-

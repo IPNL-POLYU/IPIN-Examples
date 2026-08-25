@@ -19,34 +19,32 @@ import warnings
 
 
 def compute_observability_matrix(
-    F: np.ndarray,
-    H: np.ndarray,
-    n_steps: Optional[int] = None
+    F: np.ndarray, H: np.ndarray, n_steps: Optional[int] = None
 ) -> np.ndarray:
     """
     Compute the observability matrix for a linear system.
-    
+
     For a linear system:
         x_{k+1} = F x_k
         z_k = H x_k
-    
+
     The observability matrix is:
         O = [H]
             [H*F]
             [H*F^2]
-            [...] 
+            [...]
             [H*F^(n-1)]
-    
+
     where n is the state dimension.
-    
+
     Args:
         F: State transition matrix, shape (n, n)
         H: Measurement matrix, shape (m, n)
         n_steps: Number of steps to use (default: n, the state dimension)
-    
+
     Returns:
         Observability matrix O, shape (m*n_steps, n)
-    
+
     Example:
         >>> # Position-only observable system
         >>> F = np.array([[1, 1], [0, 1]])  # [pos, vel]
@@ -54,14 +52,14 @@ def compute_observability_matrix(
         >>> O = compute_observability_matrix(F, H)
         >>> np.linalg.matrix_rank(O)  # Should be 2 (full rank)
         2
-        
+
         >>> # Unobservable system (constant offset)
         >>> F = np.array([[1, 0], [0, 1]])  # No dynamics
         >>> H = np.array([[1, 0]])  # Observe x only
         >>> O = compute_observability_matrix(F, H)
         >>> np.linalg.matrix_rank(O)  # Should be 1 (y unobservable)
         1
-    
+
     References:
         Linear system theory, Chapter 8
     """
@@ -78,9 +76,7 @@ def compute_observability_matrix(
     m_meas = H.shape[0]
 
     if H.shape[1] != n_states:
-        raise ValueError(
-            f"H shape {H.shape} incompatible with F shape {F.shape}"
-        )
+        raise ValueError(f"H shape {H.shape} incompatible with F shape {F.shape}")
 
     if n_steps is None:
         n_steps = n_states
@@ -90,7 +86,7 @@ def compute_observability_matrix(
 
     H_Fi = H.copy()
     for i in range(n_steps):
-        O[i * m_meas:(i + 1) * m_meas, :] = H_Fi
+        O[i * m_meas : (i + 1) * m_meas, :] = H_Fi
         H_Fi = H_Fi @ F  # H * F^i
 
     return O
@@ -100,49 +96,49 @@ def check_observability(
     F: np.ndarray,
     H: np.ndarray,
     n_steps: Optional[int] = None,
-    tolerance: float = 1e-10
+    tolerance: float = 1e-10,
 ) -> Tuple[bool, int, np.ndarray]:
     """
-    Check if a linear system is observable.
-    
-    A system is observable if all states can be determined from measurements.
-    This is checked by computing the rank of the observability matrix.
-    
-    Args:
-        F: State transition matrix, shape (n, n)
-        H: Measurement matrix, shape (m, n)
-        n_steps: Number of steps for observability matrix (default: n)
-        tolerance: Numerical tolerance for rank computation
-    
-    Returns:
-        Tuple of (is_observable, rank, singular_values):
-            - is_observable: True if system is fully observable
-            - rank: Rank of observability matrix
-            - singular_values: Singular values of O (for diagnost
+        Check if a linear system is observable.
 
-ics)
-    
-    Example:
-        >>> # Observable system
-        >>> F = np.eye(2)
-        >>> H = np.eye(2)
-        >>> is_obs, rank, _ = check_observability(F, H)
-        >>> is_obs
-        True
-        >>> rank
-        2
-        
-        >>> # Unobservable system (position bias)
-        >>> F = np.eye(2)
-        >>> H = np.array([[1, -1]])  # Observe difference only
-        >>> is_obs, rank, _ = check_observability(F, H)
-        >>> is_obs
-        False
-        >>> rank
-        1
-    
-    References:
-        Chapter 8, Observability Analysis
+        A system is observable if all states can be determined from measurements.
+        This is checked by computing the rank of the observability matrix.
+
+        Args:
+            F: State transition matrix, shape (n, n)
+            H: Measurement matrix, shape (m, n)
+            n_steps: Number of steps for observability matrix (default: n)
+            tolerance: Numerical tolerance for rank computation
+
+        Returns:
+            Tuple of (is_observable, rank, singular_values):
+                - is_observable: True if system is fully observable
+                - rank: Rank of observability matrix
+                - singular_values: Singular values of O (for diagnost
+
+    ics)
+
+        Example:
+            >>> # Observable system
+            >>> F = np.eye(2)
+            >>> H = np.eye(2)
+            >>> is_obs, rank, _ = check_observability(F, H)
+            >>> is_obs
+            True
+            >>> rank
+            2
+
+            >>> # Unobservable system (position bias)
+            >>> F = np.eye(2)
+            >>> H = np.array([[1, -1]])  # Observe difference only
+            >>> is_obs, rank, _ = check_observability(F, H)
+            >>> is_obs
+            False
+            >>> rank
+            1
+
+        References:
+            Chapter 8, Observability Analysis
     """
     O = compute_observability_matrix(F, H, n_steps)
 
@@ -156,34 +152,32 @@ ics)
     else:
         rank = np.sum(singular_values > tolerance * singular_values[0])
 
-    is_observable = (rank == n_states)
+    is_observable = rank == n_states
 
     return is_observable, rank, singular_values
 
 
 def check_range_only_observability_2d(
-    anchors: np.ndarray,
-    position: np.ndarray,
-    warn: bool = True
+    anchors: np.ndarray, position: np.ndarray, warn: bool = True
 ) -> Tuple[bool, str]:
     """
     Check observability for 2D range-only positioning.
-    
+
     For range-only measurements in 2D:
     - Need at least 3 non-colinear anchors
     - Position must not be at an anchor (singularity)
     - Better geometry = better observability
-    
+
     Args:
         anchors: Anchor positions, shape (N, 2)
         position: Receiver position, shape (2,)
         warn: If True, issue warnings for poor observability
-    
+
     Returns:
         Tuple of (is_observable, message):
             - is_observable: True if position is observable
             - message: Description of observability issue
-    
+
     Example:
         >>> # Good configuration
         >>> anchors = np.array([[0, 0], [10, 0], [5, 10]])
@@ -191,7 +185,7 @@ def check_range_only_observability_2d(
         >>> is_obs, msg = check_range_only_observability_2d(anchors, position)
         >>> is_obs
         True
-        
+
         >>> # Bad: colinear anchors
         >>> anchors = np.array([[0, 0], [5, 0], [10, 0]])
         >>> position = np.array([5.0, 1.0])
@@ -200,7 +194,7 @@ def check_range_only_observability_2d(
         False
         >>> 'colinear' in msg.lower()
         True
-    
+
     References:
         Range-based positioning (Chapter 4), Observability (Chapter 8)
     """
@@ -228,26 +222,24 @@ def check_range_only_observability_2d(
 
 
 def estimate_observability_time_constant(
-    F: np.ndarray,
-    H: np.ndarray,
-    dt: float = 1.0
+    F: np.ndarray, H: np.ndarray, dt: float = 1.0
 ) -> float:
     """
     Estimate time constant for observability to manifest.
-    
+
     For systems where observability depends on dynamics (e.g., velocity
     observable through position changes), estimates how long it takes
     for the state to become observable.
-    
+
     Args:
         F: State transition matrix (discrete time)
         H: Measurement matrix
         dt: Time step (seconds)
-    
+
     Returns:
         Estimated time constant (seconds) for observability
         Returns np.inf if unobservable
-    
+
     Example:
         >>> # Constant velocity: velocity observable after some motion
         >>> F = np.array([[1, 0.1], [0, 1]])  # dt=0.1s
@@ -277,6 +269,3 @@ def estimate_observability_time_constant(
     tau = n_states * dt / min_sv
 
     return tau
-
-
-

@@ -25,12 +25,23 @@ class TestICPConvergence:
         """Generate a simple rectangular scan pattern."""
         np.random.seed(42)
         # Create rectangle with some internal points
-        scan = np.array([
-            [0, 0], [1, 0], [2, 0], [3, 0],
-            [0, 1], [3, 1],
-            [0, 2], [3, 2],
-            [0, 3], [1, 3], [2, 3], [3, 3],
-        ], dtype=float)
+        scan = np.array(
+            [
+                [0, 0],
+                [1, 0],
+                [2, 0],
+                [3, 0],
+                [0, 1],
+                [3, 1],
+                [0, 2],
+                [3, 2],
+                [0, 3],
+                [1, 3],
+                [2, 3],
+                [3, 3],
+            ],
+            dtype=float,
+        )
         # Add small noise
         scan += np.random.normal(0, 0.01, scan.shape)
         return scan
@@ -63,8 +74,12 @@ class TestICPConvergence:
         # Assertions
         assert converged, "ICP should converge for simple translation"
         assert iters < 20, f"ICP should converge quickly, took {iters} iterations"
-        np.testing.assert_allclose(pose, true_translation, atol=0.05,
-                                   err_msg="ICP should recover true translation")
+        np.testing.assert_allclose(
+            pose,
+            true_translation,
+            atol=0.05,
+            err_msg="ICP should recover true translation",
+        )
         assert residual < 0.1, f"Final residual {residual} too high"
 
     def test_icp_pure_translation_large(self, simple_scan):
@@ -81,8 +96,12 @@ class TestICPConvergence:
 
         # Assertions
         assert converged, "ICP should converge for large translation"
-        np.testing.assert_allclose(pose, true_translation, atol=0.1,
-                                   err_msg="ICP should recover true translation")
+        np.testing.assert_allclose(
+            pose,
+            true_translation,
+            atol=0.1,
+            err_msg="ICP should recover true translation",
+        )
         assert residual < 1.0, f"Final residual {residual} too high"
 
     def test_icp_rotation_30deg(self, simple_scan):
@@ -105,8 +124,12 @@ class TestICPConvergence:
         # Assertions
         assert converged, "ICP should converge with rotation and good guess"
         assert iters < 50, f"ICP should converge reasonably fast, took {iters}"
-        np.testing.assert_allclose(pose, true_pose, atol=0.15,
-                                   err_msg="ICP should recover rotation + translation")
+        np.testing.assert_allclose(
+            pose,
+            true_pose,
+            atol=0.15,
+            err_msg="ICP should recover rotation + translation",
+        )
         assert residual < 1.0, f"Final residual {residual} too high"
 
     def test_icp_rotation_small(self, simple_scan):
@@ -127,8 +150,9 @@ class TestICPConvergence:
 
         # Assertions
         assert converged, "ICP should converge with moderate rotation"
-        np.testing.assert_allclose(pose, true_pose, atol=0.15,
-                                   err_msg="ICP should recover moderate rotation")
+        np.testing.assert_allclose(
+            pose, true_pose, atol=0.15, err_msg="ICP should recover moderate rotation"
+        )
         assert residual < 1.0, f"Final residual {residual} too high"
 
     def test_icp_with_good_initial_guess(self, dense_scan):
@@ -139,22 +163,27 @@ class TestICPConvergence:
         # With moderate initial guess
         moderate_guess = np.array([1.0, 1.5, 0.1])
         pose_moderate, iters_moderate, _, converged_moderate = icp_point_to_point(
-            dense_scan, target, initial_pose=moderate_guess,
+            dense_scan,
+            target,
+            initial_pose=moderate_guess,
             max_iterations=100,
         )
 
         # With good initial guess
         good_guess = true_pose + np.array([0.1, 0.1, 0.05])
         pose_with_init, iters_with_init, _, converged_with_init = icp_point_to_point(
-            dense_scan, target, initial_pose=good_guess,
+            dense_scan,
+            target,
+            initial_pose=good_guess,
             max_iterations=100,
         )
 
         # Assertions
         assert converged_moderate, "ICP should converge with moderate guess"
         assert converged_with_init, "ICP should converge with good guess"
-        assert iters_with_init <= iters_moderate, \
-            "Better initial guess should not increase iterations"
+        assert (
+            iters_with_init <= iters_moderate
+        ), "Better initial guess should not increase iterations"
 
         # Good guess should be reasonably accurate
         np.testing.assert_allclose(pose_with_init, true_pose, atol=0.25)
@@ -183,8 +212,12 @@ class TestICPConvergence:
         # Assertions
         assert converged, "ICP should converge despite noise"
         # Allow larger tolerance due to noise
-        np.testing.assert_allclose(pose, true_pose, atol=0.25,
-                                   err_msg="ICP should approximately recover pose with noise")
+        np.testing.assert_allclose(
+            pose,
+            true_pose,
+            atol=0.25,
+            err_msg="ICP should approximately recover pose with noise",
+        )
         # Residual will be higher due to noise
         assert residual < 5.0, f"Residual {residual} unexpectedly high"
 
@@ -211,8 +244,9 @@ class TestICPConvergence:
 
         # Assertions
         assert converged, "ICP should handle partial overlap"
-        np.testing.assert_allclose(pose, true_pose, atol=0.2,
-                                   err_msg="ICP should work with partial overlap")
+        np.testing.assert_allclose(
+            pose, true_pose, atol=0.2, err_msg="ICP should work with partial overlap"
+        )
 
     def test_icp_fixed_seed_reproducibility(self, simple_scan):
         """Test that ICP is reproducible with fixed random seed."""
@@ -229,7 +263,9 @@ class TestICPConvergence:
         )
 
         # Should be identical
-        np.testing.assert_array_equal(pose1, pose2, err_msg="ICP should be deterministic")
+        np.testing.assert_array_equal(
+            pose1, pose2, err_msg="ICP should be deterministic"
+        )
         assert iters1 == iters2, "Iteration count should be identical"
         assert res1 == res2, "Residual should be identical"
         assert conv1 == conv2, "Convergence status should be identical"
@@ -243,11 +279,9 @@ class TestICPRegressionThresholds:
         np.random.seed(100)
 
         # Generate structured scan
-        scan = np.array([
-            [i, j]
-            for i in np.linspace(0, 5, 10)
-            for j in np.linspace(0, 5, 10)
-        ]) + np.random.normal(0, 0.01, (100, 2))
+        scan = np.array(
+            [[i, j] for i in np.linspace(0, 5, 10) for j in np.linspace(0, 5, 10)]
+        ) + np.random.normal(0, 0.01, (100, 2))
 
         true_pose = np.array([1.0, 1.5, np.pi / 16])  # ~11 degrees
         target = se2_apply(true_pose, scan)
@@ -262,10 +296,14 @@ class TestICPRegressionThresholds:
         # Regression threshold
         assert converged, "Must converge"
         pose_error = np.linalg.norm(pose[:2] - true_pose[:2])
-        assert pose_error < 0.10, f"Position error {pose_error:.4f}m exceeds 10cm threshold"
+        assert (
+            pose_error < 0.10
+        ), f"Position error {pose_error:.4f}m exceeds 10cm threshold"
 
         angle_error = np.abs(pose[2] - true_pose[2])
-        assert angle_error < np.deg2rad(5), f"Angle error {np.rad2deg(angle_error):.2f}deg exceeds 5deg threshold"
+        assert angle_error < np.deg2rad(
+            5
+        ), f"Angle error {np.rad2deg(angle_error):.2f}deg exceeds 5deg threshold"
 
     def test_icp_accuracy_threshold_with_noise(self):
         """Regression: ICP should achieve <15cm RMSE with 5cm noise."""
@@ -279,16 +317,15 @@ class TestICPRegressionThresholds:
         target_clean = se2_apply(true_pose, scan)
         target = target_clean + np.random.normal(0, 0.05, target_clean.shape)
 
-        pose, _, _, converged = icp_point_to_point(
-            scan, target, max_iterations=100
-        )
+        pose, _, _, converged = icp_point_to_point(scan, target, max_iterations=100)
 
         # Regression threshold (more lenient due to noise)
         assert converged, "Must converge"
         pose_error = np.linalg.norm(pose[:2] - true_pose[:2])
-        assert pose_error < 0.15, f"Position error {pose_error:.4f}m exceeds 15cm threshold with noise"
+        assert (
+            pose_error < 0.15
+        ), f"Position error {pose_error:.4f}m exceeds 15cm threshold with noise"
 
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

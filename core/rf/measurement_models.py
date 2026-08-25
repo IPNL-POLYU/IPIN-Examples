@@ -341,7 +341,9 @@ def simulate_rtt_measurement(
 
     # Add noise to processing time if std > 0
     if processing_time_std > 0:
-        processing_time_actual = processing_time + _rng(rng).standard_normal() * processing_time_std
+        processing_time_actual = (
+            processing_time + _rng(rng).standard_normal() * processing_time_std
+        )
     else:
         processing_time_actual = processing_time
 
@@ -363,11 +365,11 @@ def simulate_rtt_measurement(
     )
 
     info = {
-        'true_range': true_range,
-        'true_travel_time': true_travel_time,
-        'processing_time_actual': processing_time_actual,
-        'clock_drift_actual': clock_drift_actual,
-        'range_estimate': range_estimate,
+        "true_range": true_range,
+        "true_travel_time": true_travel_time,
+        "processing_time_actual": processing_time_actual,
+        "clock_drift_actual": clock_drift_actual,
+        "range_estimate": range_estimate,
     }
 
     return rtt, info
@@ -680,14 +682,14 @@ def simulate_rss_measurement(
     distance_error_factor = 10 ** (-total_fading_db / (10 * path_loss_exp))
 
     info = {
-        'true_distance': true_distance,
-        'rss_true': rss_true,
-        'omega_long_db': omega_long_db,
-        'omega_short_db': omega_short_db,
-        'omega_short_samples': omega_short_samples,
-        'distance_estimate': distance_estimate,
-        'distance_error_factor': distance_error_factor,
-        'short_fading_model': short_fading_model,
+        "true_distance": true_distance,
+        "rss_true": rss_true,
+        "omega_long_db": omega_long_db,
+        "omega_short_db": omega_short_db,
+        "omega_short_samples": omega_short_samples,
+        "distance_estimate": distance_estimate,
+        "distance_error_factor": distance_error_factor,
+        "short_fading_model": short_fading_model,
     }
 
     return rss_measured, info
@@ -841,9 +843,7 @@ def tdoa_measurement_vector(
     for i in range(n_anchors):
         if i == reference_anchor_idx:
             continue
-        range_diff = tdoa_range_difference(
-            anchors[i], reference_anchor, agent_pos
-        )
+        range_diff = tdoa_range_difference(anchors[i], reference_anchor, agent_pos)
         tdoa_measurements.append(range_diff)
 
     return np.array(tdoa_measurements)
@@ -1177,6 +1177,3 @@ def aoa_angle_vector(
             angles.append(azimuth)
 
     return np.array(angles)
-
-
-

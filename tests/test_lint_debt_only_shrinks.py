@@ -8,28 +8,31 @@ files, it did not, and not narrowly:
     black   237 of 288 files would be reformatted
     mypy    404 errors in core/ alone
 
+Black passes now, and ruff is at 951. mypy is untouched at 406 errors in
+core/, and is the honest remaining gap.
+
 A reader who followed that section got thousands of complaints and reasonably
 concluded they had broken something. The README says what is true now; this
 holds the ruff half of it so the number cannot quietly grow back.
 
-**Most of the original number was whitespace and is gone.** 4737 W293 (a blank
-line containing spaces) and 131 W291 accounted for 83% of it. Ruff fixed 3961
-of them, and every one of the 3961 changed lines was verified to differ only by
-trailing whitespace before the change was believed.
+**Whitespace was 83% of the original number and is gone**, in two passes that
+are worth telling apart. `ruff --fix` cleared 3961 of the 4868 W291/W293 and
+refused the rest, because they sat inside string literals where whitespace is
+content rather than layout. Running black then cleared 889 of the remaining
+907 -- **black knows which triple-quoted strings are docstrings**, and
+normalises those, where ruff could only see a string. A tool declining an
+unsafe fix was right; the answer was a tool that could tell the difference, not
+`--unsafe-fixes`.
 
-**Ruff declined to fix the rest, and it was right to.** The 907 that remain sit
-inside docstrings, where the whitespace is string content rather than layout --
-and in this repository that content is *printed*, because every example now
-passes `description=__doc__` to argparse. A tool refusing an unsafe fix is not
-an obstacle to work around with `--unsafe-fixes`.
+The twelve W293 still here sit in argparse `epilog=` strings, which are not
+docstrings and whose blank lines are printed. Black leaves them, correctly.
 
 **What is left is mostly not lint at all.** 727 of the remaining findings are
 UP006/UP045/UP035/UP007 -- `List[int]` for `list[int]`, `Optional[X]` for
 `X | None`. Those became legal only when the floor moved to 3.10, they are
-mechanical, and they are worth doing in their own change rather than smuggled
-into this one. The ~200 after that are the ones with actual content: 41 `zip()`
-calls without `strict=`, which truncate silently to the shorter argument, are
-the interesting ones.
+mechanical, and they are worth doing in their own change. The ~140 after that
+are the ones with actual content: 41 `zip()` calls without `strict=`, which
+truncate silently to the shorter argument, are the interesting ones.
 
 Per-rule rather than a single total on purpose: a total lets ten fixed W293
 pay for ten new B905, which is the opposite of what a ratchet is for.
@@ -61,22 +64,23 @@ SOURCE_DIRS = (
 
 #: Findings per rule today. Only ever edit these downwards.
 #:
-#: W293/W291 are docstring whitespace ruff will not safely fix, see the module
-#: docstring. UP0xx are the annotation modernisations that the 3.10 floor made
-#: available. B905 is the one group worth reading before fixing: `zip()` without
-#: `strict=` truncates to the shorter argument without saying so.
+#: UP0xx are the annotation modernisations that the 3.10 floor made available,
+#: and are the bulk of what is left. B905 is the one group worth reading before
+#: fixing: `zip()` without `strict=` truncates to the shorter argument without
+#: saying so. The twelve remaining W293 sit inside argparse `epilog` strings,
+#: where the whitespace is content that gets printed rather than layout --
+#: black leaves those alone, correctly, and so should you.
 BASELINE = {
-    "W293": 831,
     "UP006": 386,
     "UP045": 178,
     "UP035": 123,
     "I001": 84,
-    "W291": 70,
     "B905": 41,
     "UP007": 38,
     "B007": 28,
     "B028": 14,
     "E712": 13,
+    "W293": 12,
     "E731": 7,
     "B904": 6,
     "E741": 4,

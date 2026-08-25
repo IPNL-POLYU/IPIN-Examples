@@ -25,7 +25,7 @@ class TestStampedMeasurement(unittest.TestCase):
             sensor="uwb_range",
             z=np.array([5.67]),
             R=np.array([[0.01]]),
-            meta={"anchor_id": 3}
+            meta={"anchor_id": 3},
         )
 
         self.assertEqual(meas.t, 1.234)
@@ -41,7 +41,7 @@ class TestStampedMeasurement(unittest.TestCase):
             sensor="imu_accel",
             z=np.array([0.1, 0.05, 9.81]),
             R=np.diag([0.01, 0.01, 0.02]),
-            meta={"frame": "body"}
+            meta={"frame": "body"},
         )
 
         self.assertEqual(len(meas.z), 3)
@@ -51,10 +51,7 @@ class TestStampedMeasurement(unittest.TestCase):
     def test_empty_meta_default(self) -> None:
         """Test that meta defaults to empty dict."""
         meas = StampedMeasurement(
-            t=1.0,
-            sensor="test",
-            z=np.array([1.0]),
-            R=np.array([[1.0]])
+            t=1.0, sensor="test", z=np.array([1.0]), R=np.array([[1.0]])
         )
 
         self.assertEqual(meas.meta, {})
@@ -63,10 +60,7 @@ class TestStampedMeasurement(unittest.TestCase):
         """Test that negative timestamp raises ValueError."""
         with self.assertRaises(ValueError):
             StampedMeasurement(
-                t=-1.0,
-                sensor="test",
-                z=np.array([1.0]),
-                R=np.array([[1.0]])
+                t=-1.0, sensor="test", z=np.array([1.0]), R=np.array([[1.0]])
             )
 
     def test_invalid_timestamp_type_raises(self) -> None:
@@ -76,18 +70,13 @@ class TestStampedMeasurement(unittest.TestCase):
                 t="invalid",  # type: ignore
                 sensor="test",
                 z=np.array([1.0]),
-                R=np.array([[1.0]])
+                R=np.array([[1.0]]),
             )
 
     def test_empty_sensor_name_raises(self) -> None:
         """Test that empty sensor name raises ValueError."""
         with self.assertRaises(ValueError):
-            StampedMeasurement(
-                t=1.0,
-                sensor="",
-                z=np.array([1.0]),
-                R=np.array([[1.0]])
-            )
+            StampedMeasurement(t=1.0, sensor="", z=np.array([1.0]), R=np.array([[1.0]]))
 
     def test_measurement_not_1d_raises(self) -> None:
         """Test that 2D measurement array raises ValueError."""
@@ -96,17 +85,14 @@ class TestStampedMeasurement(unittest.TestCase):
                 t=1.0,
                 sensor="test",
                 z=np.array([[1.0, 2.0]]),  # 2D
-                R=np.array([[1.0]])
+                R=np.array([[1.0]]),
             )
 
     def test_covariance_not_2d_raises(self) -> None:
         """Test that 1D covariance array raises ValueError."""
         with self.assertRaises(ValueError):
             StampedMeasurement(
-                t=1.0,
-                sensor="test",
-                z=np.array([1.0]),
-                R=np.array([1.0])  # 1D
+                t=1.0, sensor="test", z=np.array([1.0]), R=np.array([1.0])  # 1D
             )
 
     def test_covariance_dimension_mismatch_raises(self) -> None:
@@ -116,7 +102,7 @@ class TestStampedMeasurement(unittest.TestCase):
                 t=1.0,
                 sensor="test",
                 z=np.array([1.0, 2.0]),  # 2D measurement
-                R=np.array([[1.0]])       # 1x1 covariance
+                R=np.array([[1.0]]),  # 1x1 covariance
             )
 
     def test_asymmetric_covariance_raises(self) -> None:
@@ -126,7 +112,7 @@ class TestStampedMeasurement(unittest.TestCase):
                 t=1.0,
                 sensor="test",
                 z=np.array([1.0, 2.0]),
-                R=np.array([[1.0, 0.5], [0.3, 1.0]])  # not symmetric
+                R=np.array([[1.0, 0.5], [0.3, 1.0]]),  # not symmetric
             )
 
     def test_negative_definite_covariance_raises(self) -> None:
@@ -136,7 +122,7 @@ class TestStampedMeasurement(unittest.TestCase):
                 t=1.0,
                 sensor="test",
                 z=np.array([1.0, 2.0]),
-                R=np.array([[-1.0, 0.0], [0.0, 1.0]])  # negative eigenvalue
+                R=np.array([[-1.0, 0.0], [0.0, 1.0]]),  # negative eigenvalue
             )
 
     def test_positive_semidefinite_covariance_allowed(self) -> None:
@@ -146,7 +132,7 @@ class TestStampedMeasurement(unittest.TestCase):
             t=1.0,
             sensor="test",
             z=np.array([1.0, 2.0]),
-            R=np.array([[1.0, 1.0], [1.0, 1.0]])  # rank 1, positive semi-definite
+            R=np.array([[1.0, 1.0], [1.0, 1.0]]),  # rank 1, positive semi-definite
         )
 
         # Should not raise
@@ -282,4 +268,3 @@ class TestTimeSyncModel(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -312,15 +312,10 @@ def generate_dataset(
     print("\nStep 2: Placing beacons...")
     if n_beacons == 4:
         # Square arrangement
-        beacons = np.array([
-            [-15, -15],
-            [15, -15],
-            [15, 15],
-            [-15, 15]
-        ], dtype=float)
+        beacons = np.array([[-15, -15], [15, -15], [15, 15], [-15, 15]], dtype=float)
     elif n_beacons == 8:
         # Octagon arrangement
-        angles = np.linspace(0, 2*np.pi, n_beacons, endpoint=False)
+        angles = np.linspace(0, 2 * np.pi, n_beacons, endpoint=False)
         radius = 20.0
         beacons = radius * np.column_stack([np.cos(angles), np.sin(angles)])
     else:
@@ -329,7 +324,9 @@ def generate_dataset(
         beacons = rng.uniform(-20, 20, (n_beacons, 2))
 
     print(f"  Beacons: {n_beacons}")
-    print(f"  Configuration: {'square' if n_beacons == 4 else 'octagon' if n_beacons == 8 else 'random'}")
+    print(
+        f"  Configuration: {'square' if n_beacons == 4 else 'octagon' if n_beacons == 8 else 'random'}"
+    )
 
     # Generate measurements
     print("\nStep 3: Generating measurements...")
@@ -345,9 +342,12 @@ def generate_dataset(
     print(f"  Outlier rate: {outlier_rate*100:.1f}%")
 
     # Compute measurement statistics
-    true_ranges = np.array([[np.linalg.norm(states[i, :2] - beacons[j])
-                             for j in range(len(beacons))]
-                            for i in range(len(states))])
+    true_ranges = np.array(
+        [
+            [np.linalg.norm(states[i, :2] - beacons[j]) for j in range(len(beacons))]
+            for i in range(len(states))
+        ]
+    )
     range_errors = ranges - true_ranges
     range_rmse = np.sqrt(np.mean(range_errors**2))
 
@@ -382,7 +382,7 @@ def generate_dataset(
             "3.11-3.19 (KF)",
             "3.21 (EKF)",
             "3.24-3.30 (UKF)",
-            "3.32-3.34 (PF)"
+            "3.32-3.34 (PF)",
         ],
         "seed": seed,
     }
@@ -461,7 +461,10 @@ Book Reference: Chapter 3, Sections 3.2-3.4
         help="Trajectory type (default: circular)",
     )
     traj_group.add_argument(
-        "--duration", type=float, default=30.0, help="Duration in seconds (default: 30.0)"
+        "--duration",
+        type=float,
+        default=30.0,
+        help="Duration in seconds (default: 30.0)",
     )
     traj_group.add_argument(
         "--dt", type=float, default=0.1, help="Time step in seconds (default: 0.1)"
@@ -476,17 +479,28 @@ Book Reference: Chapter 3, Sections 3.2-3.4
     # Noise parameters
     noise_group = parser.add_argument_group("Noise Parameters")
     noise_group.add_argument(
-        "--range-noise", type=float, default=0.5, help="Range noise std (m) (default: 0.5)"
+        "--range-noise",
+        type=float,
+        default=0.5,
+        help="Range noise std (m) (default: 0.5)",
     )
     noise_group.add_argument(
-        "--bearing-noise", type=float, default=5.0, help="Bearing noise std (deg) (default: 5.0)"
+        "--bearing-noise",
+        type=float,
+        default=5.0,
+        help="Bearing noise std (deg) (default: 5.0)",
     )
     noise_group.add_argument(
-        "--outlier-rate", type=float, default=0.0, help="Outlier rate 0-1 (default: 0.0)"
+        "--outlier-rate",
+        type=float,
+        default=0.0,
+        help="Outlier rate 0-1 (default: 0.0)",
     )
 
     # Other
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed (default: 42)"
+    )
 
     args = parser.parse_args()
 
@@ -507,4 +521,3 @@ Book Reference: Chapter 3, Sections 3.2-3.4
 
 if __name__ == "__main__":
     main()
-

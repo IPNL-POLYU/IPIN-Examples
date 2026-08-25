@@ -35,22 +35,22 @@ def ray_segment_intersection(
     segment_end: np.ndarray,
 ) -> Tuple[Optional[np.ndarray], float]:
     """Compute intersection between a ray and a line segment.
-    
+
     Uses parametric line equations to find intersection:
         Ray: P = origin + t * direction (t >= 0)
         Segment: Q = start + s * (end - start) (0 <= s <= 1)
-    
+
     Args:
         ray_origin: Ray starting point [x, y].
         ray_direction: Ray direction vector [dx, dy] (should be normalized).
         segment_start: Segment start point [x, y].
         segment_end: Segment end point [x, y].
-    
+
     Returns:
         Tuple of (intersection_point, distance):
             - intersection_point: [x, y] if intersection exists, None otherwise
             - distance: Distance along ray to intersection (inf if no intersection)
-    
+
     Notes:
         - Ray direction should be normalized for distance to be meaningful
         - Returns None if ray doesn't intersect segment or intersection is behind ray
@@ -67,7 +67,7 @@ def ray_segment_intersection(
 
     # Check for degenerate segment (zero length)
     if s_len_sq < 1e-10:
-        return None, float('inf')
+        return None, float("inf")
 
     # Solve for intersection using Cramer's rule
     # Ray: o + t*d, Segment: s_start + u*s_dir
@@ -83,7 +83,7 @@ def ray_segment_intersection(
 
     # Check if ray and segment are parallel
     if abs(det) < 1e-10:
-        return None, float('inf')
+        return None, float("inf")
 
     # Solve for t and u
     t = (diff[0] * s_dir[1] - diff[1] * s_dir[0]) / det
@@ -91,7 +91,7 @@ def ray_segment_intersection(
 
     # Check validity: t >= 0 (ray goes forward), 0 <= u <= 1 (point on segment)
     if t < 0 or u < 0 or u > 1:
-        return None, float('inf')
+        return None, float("inf")
 
     # Compute intersection point
     intersection = o + t * d
@@ -110,14 +110,14 @@ def generate_scan_with_occlusion(
     rng=None,
 ) -> np.ndarray:
     """Generate 2D LiDAR scan with proper occlusion handling using ray-casting.
-    
+
     Simulates a 2D LiDAR sensor that casts rays in 360 directions around the
     robot. For each ray, finds the CLOSEST wall intersection, properly handling
     occlusions where near objects block far objects.
-    
+
     This corrects the bug in `generate_dense_wall_scan` which included all
     walls within range regardless of occlusion.
-    
+
     Args:
         pose: Robot pose [x, y, yaw] in global frame.
         walls: List of (start_point, end_point) tuples defining wall segments.
@@ -127,11 +127,11 @@ def generate_scan_with_occlusion(
         noise_std: Standard deviation of range measurement noise (meters).
         min_range: Minimum sensor range (meters). Points closer than this are
                   filtered out to simulate sensor blind zone.
-    
+
     Returns:
         Point cloud in robot's local frame, shape (M, 2) where M <= num_rays.
         Each point is [x_local, y_local].
-    
+
     Example:
         >>> walls = [
         ...     (np.array([0, 0]), np.array([10, 0])),  # Bottom wall
@@ -140,7 +140,7 @@ def generate_scan_with_occlusion(
         >>> pose = np.array([5.0, 5.0, 0.0])
         >>> scan = generate_scan_with_occlusion(pose, walls, num_rays=360)
         >>> print(f"Generated {len(scan)} points")
-    
+
     Notes:
         - Ray-casting ensures only the CLOSEST hit is recorded per ray direction
         - Properly handles occlusions: near obstacles block far walls
@@ -209,24 +209,24 @@ def generate_dense_wall_scan(
     rng=None,
 ) -> np.ndarray:
     """Generate dense LiDAR scan from walls (legacy, without occlusion handling).
-    
+
     [DEPRECATED] This function has a known occlusion bug: it includes points
     from ALL walls within range, even if they are blocked by closer obstacles.
-    
+
     Use `generate_scan_with_occlusion()` instead for physically accurate scans.
-    
+
     This function is kept for backward compatibility with existing code.
-    
+
     Args:
         pose: Robot pose [x, y, yaw].
         walls: List of (start_point, end_point) tuples defining wall segments.
         max_range: Maximum sensor range in meters.
         noise_std: Standard deviation of measurement noise.
         points_per_wall: Number of points to sample per wall segment.
-    
+
     Returns:
         Point cloud in robot local frame, shape (M, 2).
-    
+
     Warning:
         This function does NOT handle occlusions properly. Near objects do not
         block far objects, resulting in non-physical scan data.

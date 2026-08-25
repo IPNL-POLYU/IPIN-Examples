@@ -208,9 +208,7 @@ def se2_inverse(p: Union[np.ndarray, Pose2]) -> np.ndarray:
     return np.array([x_inv, y_inv, yaw_inv], dtype=np.float64)
 
 
-def se2_apply(
-    p: Union[np.ndarray, Pose2], points: np.ndarray
-) -> np.ndarray:
+def se2_apply(p: Union[np.ndarray, Pose2], points: np.ndarray) -> np.ndarray:
     """
     Transform 2D points by an SE(2) pose.
 
@@ -271,9 +269,7 @@ def se2_apply(
 
     # Validate points shape
     if points.ndim != 2 or points.shape[1] != 2:
-        raise ValueError(
-            f"points must have shape (N, 2), got {points.shape}"
-        )
+        raise ValueError(f"points must have shape (N, 2), got {points.shape}")
 
     x, y, yaw = p
 
@@ -426,5 +422,3 @@ def se2_from_matrix(T: np.ndarray) -> np.ndarray:
     yaw = np.arctan2(T[1, 0], T[0, 0])
 
     return np.array([x, y, yaw], dtype=np.float64)
-
-

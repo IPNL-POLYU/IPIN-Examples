@@ -39,7 +39,9 @@ from core.fingerprinting import (
     load_fingerprint_database,
 )
 
-DB_PATH = Path(__file__).resolve().parents[2] / "data" / "sim" / "ch5_wifi_fingerprint_grid"
+DB_PATH = (
+    Path(__file__).resolve().parents[2] / "data" / "sim" / "ch5_wifi_fingerprint_grid"
+)
 QUERY_NOISE_DBM = 3.0
 N_QUERIES = 120
 
@@ -56,8 +58,9 @@ def _queries(db, n=N_QUERIES, noise=QUERY_NOISE_DBM, seed=42):
     out = []
     for _ in range(n):
         idx = int(rng.integers(0, db.n_reference_points))
-        out.append((feats[idx] + rng.standard_normal(db.n_features) * noise,
-                    int(floors[idx])))
+        out.append(
+            (feats[idx] + rng.standard_normal(db.n_features) * noise, int(floors[idx]))
+        )
     return out
 
 
@@ -98,7 +101,9 @@ class TestCoarseFloorClassification(unittest.TestCase):
         """
         db = _load()
         predicted = {
-            hierarchical_localize(z, db, coarse_method="floor", fine_method="knn", k=5)[1]["coarse_floor"]
+            hierarchical_localize(z, db, coarse_method="floor", fine_method="knn", k=5)[
+                1
+            ]["coarse_floor"]
             for z, _ in _queries(db)
         }
 
@@ -107,7 +112,10 @@ class TestCoarseFloorClassification(unittest.TestCase):
     def test_coarse_floor_is_accurate_well_above_chance(self):
         db = _load()
         hits = [
-            hierarchical_localize(z, db, coarse_method="floor", fine_method="knn", k=5)[1]["coarse_floor"] == floor
+            hierarchical_localize(z, db, coarse_method="floor", fine_method="knn", k=5)[
+                1
+            ]["coarse_floor"]
+            == floor
             for z, floor in _queries(db)
         ]
 
@@ -122,7 +130,8 @@ class TestCoarseFloorClassification(unittest.TestCase):
         for z, _ in _queries(db, n=25):
             expected = int(floors[int(np.argmin(np.linalg.norm(feats - z, axis=1)))])
             _, info = hierarchical_localize(
-                z, db, coarse_method="floor", fine_method="knn", k=5)
+                z, db, coarse_method="floor", fine_method="knn", k=5
+            )
 
             self.assertEqual(info["coarse_floor"], expected)
 
@@ -151,9 +160,11 @@ class TestExactHitsAreAnArtefactOfTheQueryDesign(unittest.TestCase):
             z = feats[idx] + rng.standard_normal(db.n_features) * QUERY_NOISE_DBM
             truth = locations[idx]
             pos_map, _ = hierarchical_localize(
-                z, db, coarse_method="floor", fine_method="map")
+                z, db, coarse_method="floor", fine_method="map"
+            )
             pos_knn, _ = hierarchical_localize(
-                z, db, coarse_method="floor", fine_method="knn", k=5)
+                z, db, coarse_method="floor", fine_method="knn", k=5
+            )
             map_zero += np.linalg.norm(pos_map - truth) < 1e-9
             knn_zero += np.linalg.norm(pos_knn - truth) < 1e-9
 
@@ -169,12 +180,15 @@ class TestTrainingRecallIsNotAccuracy(unittest.TestCase):
         cls.db = _load()
         cls.feats = cls.db.get_mean_features()
         cls.rf = fit_classifier(
-            cls.db, classifier_type="random_forest", zone_type="rp", n_estimators=100)
+            cls.db, classifier_type="random_forest", zone_type="rp", n_estimators=100
+        )
 
     def test_recall_on_training_vectors_is_perfect_by_construction(self):
         """One sample per class: fitting them is guaranteed, not informative."""
         hits = [
-            np.allclose(self.rf.predict(self.feats[i])[0], self.db.locations[i], atol=0.1)
+            np.allclose(
+                self.rf.predict(self.feats[i])[0], self.db.locations[i], atol=0.1
+            )
             for i in range(self.db.n_reference_points)
         ]
 
@@ -188,7 +202,8 @@ class TestTrainingRecallIsNotAccuracy(unittest.TestCase):
             idx = int(rng.integers(0, self.db.n_reference_points))
             z = self.feats[idx] + rng.standard_normal(self.db.n_features) * 2.0
             hits.append(
-                np.allclose(self.rf.predict(z)[0], self.db.locations[idx], atol=0.1))
+                np.allclose(self.rf.predict(z)[0], self.db.locations[idx], atol=0.1)
+            )
 
         self.assertLess(float(np.mean(hits)), 1.0)
         self.assertGreater(float(np.mean(hits)), 0.5)

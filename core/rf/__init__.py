@@ -104,4 +104,3 @@ __all__ = [
     "compute_dop_map",
     "position_error_from_dop",
 ]
-

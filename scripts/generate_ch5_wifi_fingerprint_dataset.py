@@ -33,16 +33,16 @@ def log_distance_path_loss(
 ) -> float:
     """
     Compute RSS using log-distance path-loss model.
-    
+
     Model: P(d) = P0 - 10*n*log10(d/d0) + X_sigma
-    
+
     Args:
         d: Distance from AP to reference point (meters).
         P0: Reference power at distance d0 (dBm).
         d0: Reference distance (meters).
         n: Path-loss exponent (2.0 = free space, 2-4 = indoor).
         sigma: Shadow fading standard deviation (dBm).
-    
+
     Returns:
         RSS in dBm.
     """
@@ -72,7 +72,7 @@ def generate_wifi_fingerprint_database(
 ) -> FingerprintDatabase:
     """
     Generate synthetic Wi-Fi fingerprint database.
-    
+
     Args:
         area_size: (width, height) in meters.
         grid_spacing: Distance between reference points (meters).
@@ -84,7 +84,7 @@ def generate_wifi_fingerprint_database(
                           If > 1, creates multi-sample DB (M, S, N) for
                           proper μ and σ estimation per Eq. 5.6.
         seed: Random seed for reproducibility.
-    
+
     Returns:
         FingerprintDatabase with multi-floor RSS fingerprints.
     """
@@ -101,24 +101,30 @@ def generate_wifi_fingerprint_database(
     print(f"{'='*60}")
     print(f"Area size: {width}m × {height}m")
     print(f"Grid spacing: {grid_spacing}m")
-    print(f"Grid dimensions: {len(x_coords)} × {len(y_coords)} = {len(x_coords) * len(y_coords)} RPs per floor")
+    print(
+        f"Grid dimensions: {len(x_coords)} × {len(y_coords)} = {len(x_coords) * len(y_coords)} RPs per floor"
+    )
     print(f"Floors: {n_floors}")
     print(f"Total reference points: {len(x_coords) * len(y_coords) * n_floors}")
     print(f"Access points: {n_aps}")
-    print(f"Samples per RP: {n_samples_per_rp} {'(multi-sample DB)' if n_samples_per_rp > 1 else '(single-sample DB)'}")
+    print(
+        f"Samples per RP: {n_samples_per_rp} {'(multi-sample DB)' if n_samples_per_rp > 1 else '(single-sample DB)'}"
+    )
 
     # Generate AP positions (strategic placement on walls/ceiling)
     # APs at corners, mid-walls, and center ceiling of first floor
-    ap_positions = np.array([
-        [0, 0, 2.5],           # Corner 1 (wall)
-        [width, 0, 2.5],       # Corner 2 (wall)
-        [width, height, 2.5],  # Corner 3 (wall)
-        [0, height, 2.5],      # Corner 4 (wall)
-        [width/2, 0, 2.5],     # Mid-wall 1
-        [width/2, height, 2.5],# Mid-wall 2
-        [0, height/2, 2.5],    # Mid-wall 3
-        [width, height/2, 2.5],# Mid-wall 4
-    ])[:n_aps]
+    ap_positions = np.array(
+        [
+            [0, 0, 2.5],  # Corner 1 (wall)
+            [width, 0, 2.5],  # Corner 2 (wall)
+            [width, height, 2.5],  # Corner 3 (wall)
+            [0, height, 2.5],  # Corner 4 (wall)
+            [width / 2, 0, 2.5],  # Mid-wall 1
+            [width / 2, height, 2.5],  # Mid-wall 2
+            [0, height / 2, 2.5],  # Mid-wall 3
+            [width, height / 2, 2.5],  # Mid-wall 4
+        ]
+    )[:n_aps]
 
     ap_ids = [f"AP{i+1}" for i in range(n_aps)]
 
@@ -296,20 +302,29 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         type=str,
         default=None,
         help="Output directory. Defaults to the preset's own directory, or "
-             "data/sim/ch5_wifi_fingerprint_grid without a preset. Given "
-             "explicitly it always wins -- a preset does not override it.",
+        "data/sim/ch5_wifi_fingerprint_grid without a preset. Given "
+        "explicitly it always wins -- a preset does not override it.",
     )
 
     # Area parameters
     area_group = parser.add_argument_group("Area Parameters")
     area_group.add_argument(
-        "--area-width", type=float, default=50.0, help="Area width in meters (default: 50.0)"
+        "--area-width",
+        type=float,
+        default=50.0,
+        help="Area width in meters (default: 50.0)",
     )
     area_group.add_argument(
-        "--area-height", type=float, default=50.0, help="Area height in meters (default: 50.0)"
+        "--area-height",
+        type=float,
+        default=50.0,
+        help="Area height in meters (default: 50.0)",
     )
     area_group.add_argument(
-        "--grid-spacing", type=float, default=5.0, help="Grid spacing in meters (default: 5.0)"
+        "--grid-spacing",
+        type=float,
+        default=5.0,
+        help="Grid spacing in meters (default: 5.0)",
     )
 
     # Building parameters
@@ -318,7 +333,10 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         "--n-floors", type=int, default=3, help="Number of floors (default: 3)"
     )
     building_group.add_argument(
-        "--floor-height", type=float, default=3.0, help="Floor height in meters (default: 3.0)"
+        "--floor-height",
+        type=float,
+        default=3.0,
+        help="Floor height in meters (default: 3.0)",
     )
 
     # AP parameters
@@ -330,13 +348,17 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     # Survey parameters
     survey_group = parser.add_argument_group("Survey Parameters")
     survey_group.add_argument(
-        "--n-samples", type=int, default=1,
+        "--n-samples",
+        type=int,
+        default=1,
         help="Number of RSS samples per RP (default: 1). "
-             "Use >1 for multi-sample DB to estimate μ and σ per Eq. 5.6"
+        "Use >1 for multi-sample DB to estimate μ and σ per Eq. 5.6",
     )
 
     # Other
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed (default: 42)"
+    )
 
     args = parser.parse_args()
 
@@ -415,10 +437,12 @@ Book Reference: Chapter 5, Sections 5.1-5.3
     print("\nValidation Results:")
     print("  OK Database loaded successfully")
     print("  OK All validation checks passed")
-    if 'floor_coverage' in stats:
+    if "floor_coverage" in stats:
         print(f"  Floor coverage: {stats['floor_coverage']}")
-    if 'feature_variance_min' in stats and 'feature_variance_max' in stats:
-        print(f"  Feature variance: min={stats['feature_variance_min']:.2f}, max={stats['feature_variance_max']:.2f}")
+    if "feature_variance_min" in stats and "feature_variance_max" in stats:
+        print(
+            f"  Feature variance: min={stats['feature_variance_min']:.2f}, max={stats['feature_variance_max']:.2f}"
+        )
 
     # Per-floor statistics
     print("\nPer-Floor Statistics:")
@@ -427,7 +451,9 @@ Book Reference: Chapter 5, Sections 5.1-5.3
         n_rps = np.sum(mask)
         rss_mean = db.features[mask].mean()
         rss_std = db.features[mask].std()
-        print(f"  Floor {floor_id}: {n_rps} RPs, RSS mean={rss_mean:.1f} dBm, std={rss_std:.1f} dBm")
+        print(
+            f"  Floor {floor_id}: {n_rps} RPs, RSS mean={rss_mean:.1f} dBm, std={rss_std:.1f} dBm"
+        )
 
     print(f"\n{'='*60}")
     print("SUCCESS: Dataset generation complete!")
@@ -436,4 +462,3 @@ Book Reference: Chapter 5, Sections 5.1-5.3
 
 if __name__ == "__main__":
     main()
-

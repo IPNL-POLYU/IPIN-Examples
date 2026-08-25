@@ -90,9 +90,9 @@ def generate_trajectory(
         n_total = n_poses_per_side * 4
         for i in range(n_total):
             t = 2 * np.pi * i / n_total
-            x = size/2 * np.sin(t)
-            y = size/4 * np.sin(2 * t)
-            yaw = np.arctan2(size/2 * np.cos(2 * t), size/2 * np.cos(t))
+            x = size / 2 * np.sin(t)
+            y = size / 4 * np.sin(2 * t)
+            yaw = np.arctan2(size / 2 * np.cos(2 * t), size / 2 * np.cos(t))
             poses.append(np.array([x, y, yaw]))
 
     elif trajectory_type == "random_walk":
@@ -103,7 +103,7 @@ def generate_trajectory(
         for _ in range(n_poses_per_side * 4):
             # Random forward/turn
             forward = rng.uniform(0.5, 2.0)
-            turn = rng.uniform(-np.pi/6, np.pi/6)
+            turn = rng.uniform(-np.pi / 6, np.pi / 6)
 
             # Update pose
             pose[2] += turn
@@ -143,11 +143,7 @@ def generate_landmarks(
     x_max, y_max = positions.max(axis=0) + area_margin
 
     # Generate random landmarks in area
-    landmarks = rng.uniform(
-        [x_min, y_min],
-        [x_max, y_max],
-        (n_landmarks, 2)
-    )
+    landmarks = rng.uniform([x_min, y_min], [x_max, y_max], (n_landmarks, 2))
 
     return landmarks
 
@@ -306,8 +302,7 @@ def save_dataset(
 
     # Save scans (as compressed numpy)
     np.savez_compressed(
-        output_dir / "scans.npz",
-        **{f"scan_{i}": scan for i, scan in enumerate(scans)}
+        output_dir / "scans.npz", **{f"scan_{i}": scan for i, scan in enumerate(scans)}
     )
 
     # Save loop closures
@@ -428,9 +423,7 @@ def generate_dataset(
 
     # Add odometry noise
     print("\nStep 4: Adding odometry drift...")
-    odom_poses = add_odometry_noise(
-        true_poses, translation_noise, rotation_noise, seed
-    )
+    odom_poses = add_odometry_noise(true_poses, translation_noise, rotation_noise, seed)
     drift_error = np.linalg.norm(
         np.array(odom_poses[-1][:2]) - np.array(true_poses[-1][:2])
     )
@@ -440,7 +433,9 @@ def generate_dataset(
 
     # Detect loop closures
     print("\nStep 5: Detecting loop closures...")
-    loop_closures = detect_loop_closures(true_poses, min_index_diff=15, max_distance=2.0)
+    loop_closures = detect_loop_closures(
+        true_poses, min_index_diff=15, max_distance=2.0
+    )
     print(f"  Loop closures detected: {len(loop_closures)}")
     if loop_closures:
         print(f"  Examples: {loop_closures[:3]}")
@@ -553,10 +548,16 @@ Book Reference: Chapter 7, Sections 7.2-7.3
         help="Trajectory type (default: square)",
     )
     traj_group.add_argument(
-        "--size", type=float, default=20.0, help="Trajectory size in meters (default: 20.0)"
+        "--size",
+        type=float,
+        default=20.0,
+        help="Trajectory size in meters (default: 20.0)",
     )
     traj_group.add_argument(
-        "--n-poses-per-side", type=int, default=10, help="Poses per segment (default: 10)"
+        "--n-poses-per-side",
+        type=int,
+        default=10,
+        help="Poses per segment (default: 10)",
     )
 
     # Environment parameters
@@ -565,23 +566,37 @@ Book Reference: Chapter 7, Sections 7.2-7.3
         "--n-landmarks", type=int, default=50, help="Number of landmarks (default: 50)"
     )
     env_group.add_argument(
-        "--max-range", type=float, default=15.0, help="Sensor max range in meters (default: 15.0)"
+        "--max-range",
+        type=float,
+        default=15.0,
+        help="Sensor max range in meters (default: 15.0)",
     )
 
     # Noise parameters
     noise_group = parser.add_argument_group("Noise Parameters")
     noise_group.add_argument(
-        "--translation-noise", type=float, default=0.1, help="Odometry translation noise std (m) (default: 0.1)"
+        "--translation-noise",
+        type=float,
+        default=0.1,
+        help="Odometry translation noise std (m) (default: 0.1)",
     )
     noise_group.add_argument(
-        "--rotation-noise", type=float, default=0.02, help="Odometry rotation noise std (rad) (default: 0.02)"
+        "--rotation-noise",
+        type=float,
+        default=0.02,
+        help="Odometry rotation noise std (rad) (default: 0.02)",
     )
     noise_group.add_argument(
-        "--scan-noise", type=float, default=0.05, help="Scan range noise std (m) (default: 0.05)"
+        "--scan-noise",
+        type=float,
+        default=0.05,
+        help="Scan range noise std (m) (default: 0.05)",
     )
 
     # Other
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed (default: 42)"
+    )
 
     args = parser.parse_args()
 
@@ -603,4 +618,3 @@ Book Reference: Chapter 7, Sections 7.2-7.3
 
 if __name__ == "__main__":
     main()
-

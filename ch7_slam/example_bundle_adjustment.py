@@ -137,11 +137,7 @@ def generate_landmarks(
     Returns:
         Landmarks array, shape (n_landmarks, 3) in [x, y, z] format.
     """
-    landmarks = np.random.uniform(
-        -area_size / 2,
-        area_size / 2,
-        (n_landmarks, 3)
-    )
+    landmarks = np.random.uniform(-area_size / 2, area_size / 2, (n_landmarks, 3))
     # Ensure landmarks are at reasonable height
     landmarks[:, 2] = np.abs(landmarks[:, 2])  # Z should be positive
 
@@ -241,10 +237,7 @@ def add_noise_to_estimates(
     Returns:
         Tuple of (noisy_poses, noisy_landmarks).
     """
-    noisy_poses = [
-        pose + np.random.normal(0, pose_noise, pose.shape)
-        for pose in poses
-    ]
+    noisy_poses = [pose + np.random.normal(0, pose_noise, pose.shape) for pose in poses]
 
     noisy_landmarks = landmarks + np.random.normal(0, landmark_noise, landmarks.shape)
 
@@ -263,11 +256,11 @@ def create_ba_animation(
     fps: int = 3,
 ) -> None:
     """Create animated GIF showing bundle adjustment optimization.
-    
+
     Shows two panels:
     1. Top-down view: Camera poses, landmarks, and observation constraints
     2. Error vs iteration: Convergence curve with current marker
-    
+
     Args:
         poses_true: Ground truth camera poses
         landmarks_true: Ground truth 3D landmarks
@@ -297,34 +290,43 @@ def create_ba_animation(
     # Panel 1: Top-down view
     ax1.set_xlim(xlim)
     ax1.set_ylim(ylim)
-    ax1.set_xlabel('X (m)')
-    ax1.set_ylabel('Y (m)')
-    ax1.set_aspect('equal')
+    ax1.set_xlabel("X (m)")
+    ax1.set_ylabel("Y (m)")
+    ax1.set_aspect("equal")
     ax1.grid(True, alpha=0.3)
 
     # Static elements: ground truth
     true_xy = np.array([[p[0], p[1]] for p in poses_true])
-    ax1.plot(true_xy[:, 0], true_xy[:, 1], 'g-', linewidth=2, alpha=0.5, label='Truth')
-    ax1.scatter(landmarks_true[:, 0], landmarks_true[:, 1],
-                c='gray', marker='x', s=50, alpha=0.5, label='Landmarks (true)')
+    ax1.plot(true_xy[:, 0], true_xy[:, 1], "g-", linewidth=2, alpha=0.5, label="Truth")
+    ax1.scatter(
+        landmarks_true[:, 0],
+        landmarks_true[:, 1],
+        c="gray",
+        marker="x",
+        s=50,
+        alpha=0.5,
+        label="Landmarks (true)",
+    )
 
     # Dynamic elements
-    pose_scatter = ax1.scatter([], [], c='blue', marker='^', s=100, label='Cameras')
-    landmark_scatter = ax1.scatter([], [], c='red', marker='o', s=40, alpha=0.7, label='Landmarks')
+    pose_scatter = ax1.scatter([], [], c="blue", marker="^", s=100, label="Cameras")
+    landmark_scatter = ax1.scatter(
+        [], [], c="red", marker="o", s=40, alpha=0.7, label="Landmarks"
+    )
     constraint_lines = []
 
-    ax1.legend(loc='upper right', fontsize=8)
+    ax1.legend(loc="upper right", fontsize=8)
 
     # Panel 2: Error vs iteration
     ax2.set_xlim(-0.5, n_frames - 0.5)
     ax2.set_ylim(0, max(error_history) * 1.2)
-    ax2.set_xlabel('Iteration')
-    ax2.set_ylabel('Total Error')
-    ax2.set_title('Convergence')
+    ax2.set_xlabel("Iteration")
+    ax2.set_ylabel("Total Error")
+    ax2.set_title("Convergence")
     ax2.grid(True, alpha=0.3)
 
-    error_line, = ax2.plot([], [], 'b-', linewidth=2)
-    error_marker, = ax2.plot([], [], 'ro', markersize=10)
+    (error_line,) = ax2.plot([], [], "b-", linewidth=2)
+    (error_marker,) = ax2.plot([], [], "ro", markersize=10)
 
     # Pre-compute constraint subset for visualization (limit for clarity)
     constraint_pairs = []
@@ -358,23 +360,26 @@ def create_ba_animation(
         # Draw constraint lines (camera to landmark)
         for pose_id, landmark_id in constraint_pairs:
             px, py = poses_current[pose_id][0], poses_current[pose_id][1]
-            lx, ly = landmarks_current[landmark_id][0], landmarks_current[landmark_id][1]
-            line, = ax1.plot([px, lx], [py, ly], 'purple', linewidth=0.5, alpha=0.3)
+            lx, ly = (
+                landmarks_current[landmark_id][0],
+                landmarks_current[landmark_id][1],
+            )
+            (line,) = ax1.plot([px, lx], [py, ly], "purple", linewidth=0.5, alpha=0.3)
             constraint_lines.append(line)
 
         # Update error plot
-        error_line.set_data(range(frame + 1), error_history[:frame + 1])
+        error_line.set_data(range(frame + 1), error_history[: frame + 1])
         error_marker.set_data([frame], [error_history[frame]])
 
         # Update titles
-        ax1.set_title(f'Top View (iteration {frame})')
+        ax1.set_title(f"Top View (iteration {frame})")
 
         if frame == 0:
-            ax2.set_title('Convergence (initial)')
+            ax2.set_title("Convergence (initial)")
         elif frame == n_frames - 1:
-            ax2.set_title(f'Convergence (final error: {error_history[-1]:.4f})')
+            ax2.set_title(f"Convergence (final error: {error_history[-1]:.4f})")
         else:
-            ax2.set_title(f'Convergence (error: {error_history[frame]:.4f})')
+            ax2.set_title(f"Convergence (error: {error_history[frame]:.4f})")
 
         return artists
 
@@ -386,8 +391,13 @@ def create_ba_animation(
     print(f"   Creating animation with {n_frames} frames...")
     output_path = Path(output_path)
     written = save_animation(
-        fig, update, n_frames, output_path.parent, output_path.stem,
-        fps=fps, init=init,
+        fig,
+        update,
+        n_frames,
+        output_path.parent,
+        output_path.stem,
+        fps=fps,
+        init=init,
     )
 
     plt.close(fig)
@@ -427,51 +437,94 @@ def plot_bundle_adjustment_results(
 
     # Plot landmarks
     ax1.scatter(
-        landmarks_true[:, 0], landmarks_true[:, 1],
-        c='gray', marker='x', s=50, alpha=0.5, label='Landmarks (true)'
+        landmarks_true[:, 0],
+        landmarks_true[:, 1],
+        c="gray",
+        marker="x",
+        s=50,
+        alpha=0.5,
+        label="Landmarks (true)",
     )
     ax1.scatter(
-        landmarks_init[:, 0], landmarks_init[:, 1],
-        c='red', marker='o', s=30, alpha=0.3, label='Landmarks (init)'
+        landmarks_init[:, 0],
+        landmarks_init[:, 1],
+        c="red",
+        marker="o",
+        s=30,
+        alpha=0.3,
+        label="Landmarks (init)",
     )
     ax1.scatter(
-        landmarks_opt[:, 0], landmarks_opt[:, 1],
-        c='blue', marker='o', s=30, alpha=0.5, label='Landmarks (opt)'
+        landmarks_opt[:, 0],
+        landmarks_opt[:, 1],
+        c="blue",
+        marker="o",
+        s=30,
+        alpha=0.5,
+        label="Landmarks (opt)",
     )
 
     # Plot trajectories
-    ax1.plot(true_xy[:, 0], true_xy[:, 1], 'g-', linewidth=2, label='Poses (true)', alpha=0.7)
-    ax1.plot(init_xy[:, 0], init_xy[:, 1], 'r--', linewidth=2, label='Poses (init)', alpha=0.7)
-    ax1.plot(opt_xy[:, 0], opt_xy[:, 1], 'b-', linewidth=2, label='Poses (opt)', alpha=0.8)
+    ax1.plot(
+        true_xy[:, 0], true_xy[:, 1], "g-", linewidth=2, label="Poses (true)", alpha=0.7
+    )
+    ax1.plot(
+        init_xy[:, 0],
+        init_xy[:, 1],
+        "r--",
+        linewidth=2,
+        label="Poses (init)",
+        alpha=0.7,
+    )
+    ax1.plot(
+        opt_xy[:, 0], opt_xy[:, 1], "b-", linewidth=2, label="Poses (opt)", alpha=0.8
+    )
 
-    ax1.set_xlabel('X [m]', fontsize=11)
-    ax1.set_ylabel('Y [m]', fontsize=11)
-    ax1.set_title('Bundle Adjustment: Top View', fontsize=12, fontweight='bold')
+    ax1.set_xlabel("X [m]", fontsize=11)
+    ax1.set_ylabel("Y [m]", fontsize=11)
+    ax1.set_title("Bundle Adjustment: Top View", fontsize=12, fontweight="bold")
     ax1.legend(fontsize=9)
     ax1.grid(True, alpha=0.3)
-    ax1.axis('equal')
+    ax1.axis("equal")
 
     # --- Plot 2: Position Errors ---
     ax2 = fig.add_subplot(132)
 
-    pose_errors_init = np.array([
-        np.linalg.norm(poses_init[i][:2] - poses_true[i][:2])
-        for i in range(len(poses_true))
-    ])
-    pose_errors_opt = np.array([
-        np.linalg.norm(poses_opt[i][:2] - poses_true[i][:2])
-        for i in range(len(poses_true))
-    ])
-
+    pose_errors_init = np.array(
+        [
+            np.linalg.norm(poses_init[i][:2] - poses_true[i][:2])
+            for i in range(len(poses_true))
+        ]
+    )
+    pose_errors_opt = np.array(
+        [
+            np.linalg.norm(poses_opt[i][:2] - poses_true[i][:2])
+            for i in range(len(poses_true))
+        ]
+    )
 
     pose_indices = np.arange(len(poses_true))
 
-    ax2.plot(pose_indices, pose_errors_init, 'r--', linewidth=2, label='Pose Error (init)', alpha=0.7)
-    ax2.plot(pose_indices, pose_errors_opt, 'b-', linewidth=2, label='Pose Error (opt)', alpha=0.8)
+    ax2.plot(
+        pose_indices,
+        pose_errors_init,
+        "r--",
+        linewidth=2,
+        label="Pose Error (init)",
+        alpha=0.7,
+    )
+    ax2.plot(
+        pose_indices,
+        pose_errors_opt,
+        "b-",
+        linewidth=2,
+        label="Pose Error (opt)",
+        alpha=0.8,
+    )
 
-    ax2.set_xlabel('Pose Index', fontsize=11)
-    ax2.set_ylabel('Position Error [m]', fontsize=11)
-    ax2.set_title('Camera Pose Errors', fontsize=12, fontweight='bold')
+    ax2.set_xlabel("Pose Index", fontsize=11)
+    ax2.set_ylabel("Position Error [m]", fontsize=11)
+    ax2.set_title("Camera Pose Errors", fontsize=12, fontweight="bold")
     ax2.legend(fontsize=9)
     ax2.grid(True, alpha=0.3)
 
@@ -479,11 +532,11 @@ def plot_bundle_adjustment_results(
     ax3 = fig.add_subplot(133)
 
     iterations = np.arange(len(error_history))
-    ax3.semilogy(iterations, error_history, 'b-', linewidth=2, marker='o', markersize=4)
+    ax3.semilogy(iterations, error_history, "b-", linewidth=2, marker="o", markersize=4)
 
-    ax3.set_xlabel('Iteration', fontsize=11)
-    ax3.set_ylabel('Total Error (log scale)', fontsize=11)
-    ax3.set_title('Bundle Adjustment Convergence', fontsize=12, fontweight='bold')
+    ax3.set_xlabel("Iteration", fontsize=11)
+    ax3.set_ylabel("Total Error (log scale)", fontsize=11)
+    ax3.set_title("Bundle Adjustment Convergence", fontsize=12, fontweight="bold")
     ax3.grid(True, alpha=0.3)
 
     plt.tight_layout()
@@ -499,7 +552,7 @@ def plot_bundle_adjustment_results(
 
 def main(animate: bool = False):
     """Run complete bundle adjustment example.
-    
+
     Args:
         animate: If True, generate animated GIF showing optimization.
     """
@@ -520,10 +573,10 @@ def main(animate: bool = False):
         fy=500.0,
         cx=320.0,
         cy=240.0,
-        k1=-0.05,   # Slight barrel distortion
-        k2=0.01,    # Secondary radial
-        p1=0.001,   # Tangential
-        p2=0.001,   # Tangential
+        k1=-0.05,  # Slight barrel distortion
+        k2=0.01,  # Secondary radial
+        p1=0.001,  # Tangential
+        p2=0.001,  # Tangential
     )
     print(f"   Camera: fx={intrinsics.fx}, fy={intrinsics.fy}")
     print(f"   Distortion: k1={intrinsics.k1}, k2={intrinsics.k2}")
@@ -568,17 +621,21 @@ def main(animate: bool = False):
     poses_init, landmarks_init = add_noise_to_estimates(
         poses_true,
         landmarks_true,
-        pose_noise=0.3,      # 30cm position, ~17deg heading (larger noise for better visualization)
-        landmark_noise=0.5,   # 50cm landmark position (increased from 10cm)
+        pose_noise=0.3,  # 30cm position, ~17deg heading (larger noise for better visualization)
+        landmark_noise=0.5,  # 50cm landmark position (increased from 10cm)
     )
 
-    pose_init_rmse = np.sqrt(np.mean([
-        np.linalg.norm(poses_init[i][:2] - poses_true[i][:2])**2
-        for i in range(n_poses)
-    ]))
-    landmark_init_rmse = np.sqrt(np.mean(
-        np.linalg.norm(landmarks_init - landmarks_true, axis=1)**2
-    ))
+    pose_init_rmse = np.sqrt(
+        np.mean(
+            [
+                np.linalg.norm(poses_init[i][:2] - poses_true[i][:2]) ** 2
+                for i in range(n_poses)
+            ]
+        )
+    )
+    landmark_init_rmse = np.sqrt(
+        np.mean(np.linalg.norm(landmarks_init - landmarks_true, axis=1) ** 2)
+    )
 
     print(f"   Initial pose RMSE: {pose_init_rmse:.4f} m")
     print(f"   Initial landmark RMSE: {landmark_init_rmse:.4f} m")
@@ -604,7 +661,7 @@ def main(animate: bool = False):
     n_factors = 0
     # Inverse covariance for the pixel measurements. Weighting each residual by
     # 1/sigma^2 = 4 is why graph.compute_error() is not in pixels.
-    pixel_info = np.eye(2) / (PIXEL_NOISE_STD ** 2)
+    pixel_info = np.eye(2) / (PIXEL_NOISE_STD**2)
 
     for pose_id, obs_list in observations.items():
         for landmark_id, observed_pixel in obs_list:
@@ -620,6 +677,7 @@ def main(animate: bool = False):
 
     # Add weak prior on first pose to prevent gauge freedom
     from core.slam.factors import create_prior_factor
+
     prior_info = np.diag([10.0, 10.0, 10.0])  # Weak prior
     prior_factor = create_prior_factor(0, poses_true[0], information=prior_info)
     graph.add_factor(prior_factor)
@@ -637,8 +695,10 @@ def main(animate: bool = False):
     initial_error = graph.compute_error()
     initial_px = reprojection_residuals_px(graph, n_factors - 1)
     print(f"   Initial cost (weighted sum of squares): {initial_error:.3f}")
-    print(f"   Initial reprojection error: {rms(initial_px):.1f} px RMS, "
-          f"worst {initial_px.max():.1f} px")
+    print(
+        f"   Initial reprojection error: {rms(initial_px):.1f} px RMS, "
+        f"worst {initial_px.max():.1f} px"
+    )
 
     # Track per-iteration states for animation
     poses_history = []
@@ -647,14 +707,16 @@ def main(animate: bool = False):
 
     # Store initial state
     poses_history.append([graph.variables[i].copy() for i in range(n_poses)])
-    landmarks_history.append(np.array([graph.variables[n_poses + i].copy() for i in range(n_landmarks)]))
+    landmarks_history.append(
+        np.array([graph.variables[n_poses + i].copy() for i in range(n_landmarks)])
+    )
 
     # Custom Levenberg-Marquardt loop to capture per-iteration states
     # LM is more stable for BA than pure Gauss-Newton
     max_iterations = 25
     tol = 1e-6  # Tighter tolerance for more iterations
     mu = 10.0  # Higher initial damping for slower, smoother convergence
-    nu = 1.5   # Smaller damping increase factor
+    nu = 1.5  # Smaller damping increase factor
 
     for iteration in range(max_iterations):
         # Build linearized system: H δx = b where b = -J^T Λ r
@@ -673,7 +735,9 @@ def main(animate: bool = False):
         saved_vars = {k: v.copy() for k, v in graph.variables.items()}
 
         # Apply update
-        graph._update_variables(delta_x * 0.3)  # Apply only 30% of step for slower convergence
+        graph._update_variables(
+            delta_x * 0.3
+        )  # Apply only 30% of step for slower convergence
 
         # Compute new error
         new_error = graph.compute_error()
@@ -703,7 +767,9 @@ def main(animate: bool = False):
 
         # Store state after this iteration
         poses_history.append([graph.variables[i].copy() for i in range(n_poses)])
-        landmarks_history.append(np.array([graph.variables[n_poses + i].copy() for i in range(n_landmarks)]))
+        landmarks_history.append(
+            np.array([graph.variables[n_poses + i].copy() for i in range(n_landmarks)])
+        )
 
         # Check convergence
         if abs(current_error - new_error) < tol:
@@ -720,8 +786,10 @@ def main(animate: bool = False):
     final_error = error_history[-1]
     final_px = reprojection_residuals_px(graph, n_factors - 1)
     print(f"   Final cost (weighted sum of squares): {final_error:.3f}")
-    print(f"   Final reprojection error: {rms(final_px):.2f} px RMS, "
-          f"worst {final_px.max():.2f} px")
+    print(
+        f"   Final reprojection error: {rms(final_px):.2f} px RMS, "
+        f"worst {final_px.max():.2f} px"
+    )
     print(f"   Iterations: {len(error_history) - 1}")
 
     # Report the cost drop as a factor, not a percentage.
@@ -738,10 +806,14 @@ def main(animate: bool = False):
     # The interpretable statements are the pixel RMS above -- which lands at
     # the 0.5 px noise the observations were generated with, i.e. the optimum
     # -- and the pose and landmark accuracy below.
-    print(f"   Cost reduced {initial_error / final_error:,.0f}x "
-          f"({100 * (1 - final_error / initial_error):.4f}%)")
-    print(f"   Final RMS is at the {PIXEL_NOISE_STD:.1f} px measurement noise "
-          f"floor, so the solve is converged, not merely improved.")
+    print(
+        f"   Cost reduced {initial_error / final_error:,.0f}x "
+        f"({100 * (1 - final_error / initial_error):.4f}%)"
+    )
+    print(
+        f"   Final RMS is at the {PIXEL_NOISE_STD:.1f} px measurement noise "
+        f"floor, so the solve is converged, not merely improved."
+    )
 
     # Extract optimized poses and landmarks
     poses_opt = [optimized_vars[i] for i in range(n_poses)]
@@ -753,14 +825,12 @@ def main(animate: bool = False):
     print("\n7. Evaluating bundle adjustment results...")
 
     # Pose errors
-    pose_errors_init = np.array([
-        np.linalg.norm(poses_init[i][:2] - poses_true[i][:2])
-        for i in range(n_poses)
-    ])
-    pose_errors_opt = np.array([
-        np.linalg.norm(poses_opt[i][:2] - poses_true[i][:2])
-        for i in range(n_poses)
-    ])
+    pose_errors_init = np.array(
+        [np.linalg.norm(poses_init[i][:2] - poses_true[i][:2]) for i in range(n_poses)]
+    )
+    pose_errors_opt = np.array(
+        [np.linalg.norm(poses_opt[i][:2] - poses_true[i][:2]) for i in range(n_poses)]
+    )
 
     pose_rmse_init = np.sqrt(np.mean(pose_errors_init**2))
     pose_rmse_opt = np.sqrt(np.mean(pose_errors_opt**2))
@@ -778,25 +848,35 @@ def main(animate: bool = False):
 
     print(f"   Landmark RMSE (initial): {landmark_rmse_init:.4f} m")
     print(f"   Landmark RMSE (optimized): {landmark_rmse_opt:.4f} m")
-    print(f"   Landmark improvement: {(1 - landmark_rmse_opt / landmark_rmse_init) * 100:.2f}%")
+    print(
+        f"   Landmark improvement: {(1 - landmark_rmse_opt / landmark_rmse_init) * 100:.2f}%"
+    )
 
     # ------------------------------------------------------------------------
     # 8. Visualize Results
     # ------------------------------------------------------------------------
     print("\n8. Visualizing results...")
     plot_bundle_adjustment_results(
-        poses_true, poses_init, poses_opt,
-        landmarks_true, landmarks_init, landmarks_opt,
-        error_history
+        poses_true,
+        poses_init,
+        poses_opt,
+        landmarks_true,
+        landmarks_init,
+        landmarks_opt,
+        error_history,
     )
 
     # Generate animation if requested
     if animate:
         print("\n9. Generating bundle adjustment animation...")
         create_ba_animation(
-            poses_true, landmarks_true,
-            poses_history, landmarks_history, error_history,
-            observations, n_poses,
+            poses_true,
+            landmarks_true,
+            poses_history,
+            landmarks_history,
+            error_history,
+            observations,
+            n_poses,
             output_path="ch7_slam/figs/bundle_adjustment.gif",
             fps=3,
         )
@@ -812,8 +892,10 @@ def main(animate: bool = False):
     print(f"  - Total observations: {total_observations}")
     # In pixels, not as a percentage of a weighted sum of squares. This line
     # printed "Reprojection error reduction: 100.0%" for a 99.998938% drop.
-    print(f"  - Reprojection error: {rms(initial_px):.1f} -> {rms(final_px):.2f} px RMS "
-          f"(noise floor {PIXEL_NOISE_STD:.1f} px)")
+    print(
+        f"  - Reprojection error: {rms(initial_px):.1f} -> {rms(final_px):.2f} px RMS "
+        f"(noise floor {PIXEL_NOISE_STD:.1f} px)"
+    )
     print(f"  - Pose accuracy: {pose_rmse_opt:.4f} m RMSE")
     print(f"  - Landmark accuracy: {landmark_rmse_opt:.4f} m RMSE")
     print()
@@ -830,10 +912,11 @@ if __name__ == "__main__":
         description="Chapter 7: Visual Bundle Adjustment Example"
     )
     parser.add_argument(
-        "--animate", action="store_true", default=False,
-        help="Generate animated GIF showing optimization process"
+        "--animate",
+        action="store_true",
+        default=False,
+        help="Generate animated GIF showing optimization process",
     )
     args = parser.parse_args()
 
     main(animate=args.animate)
-

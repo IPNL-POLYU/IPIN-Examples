@@ -60,6 +60,3 @@ __all__ = [
     "show_figures_if_requested",
     "set_axes_equal_3d",
 ]
-
-
-

@@ -17,23 +17,19 @@ from core.models import (
     ConstantVelocity2D,
     RangeMeasurement2D,
     RangeBearingMeasurement2D,
-    PositionMeasurement2D
+    PositionMeasurement2D,
 )
 
 
-def numerical_jacobian(
-    f: Callable,
-    x: np.ndarray,
-    epsilon: float = 1e-7
-) -> np.ndarray:
+def numerical_jacobian(f: Callable, x: np.ndarray, epsilon: float = 1e-7) -> np.ndarray:
     """
     Compute Jacobian numerically using central differences.
-    
+
     Args:
         f: Function that takes x and returns y
         x: Point at which to compute Jacobian
         epsilon: Step size for finite differences
-    
+
     Returns:
         Numerical Jacobian, shape (len(y), len(x))
     """
@@ -81,14 +77,18 @@ class TestMotionModelJacobians:
             F_analytical = model.F(dt)
 
             # Numerical Jacobian
-            def f(x_): return model.f(x_, dt=dt)
+            def f(x_):
+                return model.f(x_, dt=dt)
+
             F_numerical = numerical_jacobian(f, x)
 
             # Compare
             np.testing.assert_allclose(
-                F_analytical, F_numerical,
-                rtol=1e-5, atol=1e-8,
-                err_msg=f"Jacobian mismatch at x={x}"
+                F_analytical,
+                F_numerical,
+                rtol=1e-5,
+                atol=1e-8,
+                err_msg=f"Jacobian mismatch at x={x}",
             )
 
     def test_constant_velocity_2d_jacobian(self):
@@ -107,14 +107,18 @@ class TestMotionModelJacobians:
             F_analytical = model.F(dt)
 
             # Numerical
-            def f(x_): return model.f(x_, dt=dt)
+            def f(x_):
+                return model.f(x_, dt=dt)
+
             F_numerical = numerical_jacobian(f, x)
 
             # Compare
             np.testing.assert_allclose(
-                F_analytical, F_numerical,
-                rtol=1e-5, atol=1e-8,
-                err_msg=f"Jacobian mismatch at x={x}"
+                F_analytical,
+                F_numerical,
+                rtol=1e-5,
+                atol=1e-8,
+                err_msg=f"Jacobian mismatch at x={x}",
             )
 
     def test_motion_jacobian_shapes(self):
@@ -135,18 +139,13 @@ class TestMeasurementModelJacobians:
 
     def test_range_measurement_jacobian(self):
         """Test range-only measurement Jacobian."""
-        anchors = np.array([
-            [0.0, 0.0],
-            [10.0, 0.0],
-            [10.0, 10.0],
-            [0.0, 10.0]
-        ])
+        anchors = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 10.0], [0.0, 10.0]])
         model = RangeMeasurement2D(anchors)
 
         test_states = [
             np.array([5.0, 5.0, 1.0, 0.5]),  # Center
             np.array([2.0, 3.0, 0.0, 0.0]),  # Off-center
-            np.array([8.0, 7.0, -1.0, 1.5]), # Another point
+            np.array([8.0, 7.0, -1.0, 1.5]),  # Another point
         ]
 
         for x in test_states:
@@ -154,23 +153,23 @@ class TestMeasurementModelJacobians:
             H_analytical = model.H(x)
 
             # Numerical
-            def h(x_): return model.h(x_)
+            def h(x_):
+                return model.h(x_)
+
             H_numerical = numerical_jacobian(h, x)
 
             # Compare
             np.testing.assert_allclose(
-                H_analytical, H_numerical,
-                rtol=1e-4, atol=1e-7,
-                err_msg=f"Range Jacobian mismatch at x={x}"
+                H_analytical,
+                H_numerical,
+                rtol=1e-4,
+                atol=1e-7,
+                err_msg=f"Range Jacobian mismatch at x={x}",
             )
 
     def test_range_bearing_measurement_jacobian(self):
         """Test range-bearing measurement Jacobian."""
-        landmarks = np.array([
-            [0.0, 0.0],
-            [20.0, 0.0],
-            [20.0, 20.0]
-        ])
+        landmarks = np.array([[0.0, 0.0], [20.0, 0.0], [20.0, 20.0]])
         model = RangeBearingMeasurement2D(landmarks)
 
         test_states = [
@@ -184,15 +183,19 @@ class TestMeasurementModelJacobians:
             H_analytical = model.H(x)
 
             # Numerical
-            def h(x_): return model.h(x_)
+            def h(x_):
+                return model.h(x_)
+
             H_numerical = numerical_jacobian(h, x)
 
             # Compare
             # Note: Bearing Jacobians can be sensitive, so slightly higher tolerance
             np.testing.assert_allclose(
-                H_analytical, H_numerical,
-                rtol=1e-3, atol=1e-6,
-                err_msg=f"Range-Bearing Jacobian mismatch at x={x}"
+                H_analytical,
+                H_numerical,
+                rtol=1e-3,
+                atol=1e-6,
+                err_msg=f"Range-Bearing Jacobian mismatch at x={x}",
             )
 
     def test_position_measurement_jacobian(self):
@@ -209,14 +212,18 @@ class TestMeasurementModelJacobians:
             H_analytical = model.H(x)
 
             # Numerical
-            def h(x_): return model.h(x_)
+            def h(x_):
+                return model.h(x_)
+
             H_numerical = numerical_jacobian(h, x)
 
             # Compare
             np.testing.assert_allclose(
-                H_analytical, H_numerical,
-                rtol=1e-5, atol=1e-8,
-                err_msg=f"Position Jacobian mismatch at x={x}"
+                H_analytical,
+                H_numerical,
+                rtol=1e-5,
+                atol=1e-8,
+                err_msg=f"Position Jacobian mismatch at x={x}",
             )
 
     def test_measurement_jacobian_shapes(self):
@@ -258,7 +265,9 @@ class TestSingularityHandling:
         assert np.allclose(H[0, :], 0.0), "Expected zero Jacobian at singularity"
 
         # Second row should be normal
-        assert not np.allclose(H[1, :], 0.0), "Non-singular measurement should have non-zero Jacobian"
+        assert not np.allclose(
+            H[1, :], 0.0
+        ), "Non-singular measurement should have non-zero Jacobian"
 
     def test_range_bearing_at_landmark_singularity(self):
         """Test range-bearing at landmark position."""
@@ -340,11 +349,9 @@ class TestProcessNoise:
         Q2 = ConstantVelocity1D.Q(dt, q2)
 
         # Q should scale linearly with q
-        assert np.allclose(Q2, q2/q1 * Q1), "Q should scale linearly with q"
+        assert np.allclose(Q2, q2 / q1 * Q1), "Q should scale linearly with q"
 
 
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v", "--tb=short"])
-
-

@@ -73,10 +73,10 @@ def run_fusion_with_time_sync(
     apply_correction: bool = False,
     use_gating: bool = False,
     gate_confidence: float = 0.95,
-    verbose: bool = False
+    verbose: bool = False,
 ) -> Dict:
     """Run TC fusion with or without temporal calibration.
-    
+
     Args:
         dataset: Dataset dictionary
         apply_correction: Whether to apply TimeSyncModel correction
@@ -90,7 +90,7 @@ def run_fusion_with_time_sync(
             example_robust_tuning, which is where that failure mode belongs.
         gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
         verbose: Print progress
-    
+
     Returns:
         Results dictionary
     """
@@ -99,15 +99,15 @@ def run_fusion_with_time_sync(
         print(f"  Temporal correction: {'ENABLED' if apply_correction else 'DISABLED'}")
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
 
-    truth = dataset['truth']
-    imu = dataset['imu']
-    uwb = dataset['uwb']
-    anchors = dataset['uwb_anchors']
-    config = dataset['config']
+    truth = dataset["truth"]
+    imu = dataset["imu"]
+    uwb = dataset["uwb"]
+    anchors = dataset["uwb_anchors"]
+    config = dataset["config"]
 
     # Get time offset and drift from config
-    time_offset = config['temporal_calibration']['time_offset_sec']
-    clock_drift = config['temporal_calibration']['clock_drift']
+    time_offset = config["temporal_calibration"]["time_offset_sec"]
+    clock_drift = config["temporal_calibration"]["clock_drift"]
 
     if verbose and apply_correction:
         print(f"  Time offset: {time_offset*1000:.1f} ms")
@@ -125,16 +125,18 @@ def run_fusion_with_time_sync(
         uwb_time_sync = TimeSyncModel(offset=0.0, drift=0.0)
 
     # Initial state: [px, py, vx, vy, yaw] (follows StateIndex convention)
-    x0 = np.array([
-        truth['p_xy'][0, 0],   # px
-        truth['p_xy'][0, 1],   # py
-        truth['v_xy'][0, 0],   # vx
-        truth['v_xy'][0, 1],   # vy
-        truth['yaw'][0]        # yaw
-    ])
+    x0 = np.array(
+        [
+            truth["p_xy"][0, 0],  # px
+            truth["p_xy"][0, 1],  # py
+            truth["v_xy"][0, 0],  # vx
+            truth["v_xy"][0, 1],  # vy
+            truth["yaw"][0],  # yaw
+        ]
+    )
 
     # P0: covariances for [px, py, vx, vy, yaw]
-    P0 = np.diag([0.1, 0.1, 0.5, 0.5, 0.1])**2
+    P0 = np.diag([0.1, 0.1, 0.5, 0.5, 0.1]) ** 2
 
     # Process and measurement noise
     accel_noise_std = 0.1
@@ -150,34 +152,36 @@ def run_fusion_with_time_sync(
         Q=lambda dt: tc_process_noise_covariance(dt, accel_noise_std, gyro_noise_std),
         R=lambda: np.eye(4) * uwb_range_noise_std**2,
         x0=x0,
-        P0=P0
+        P0=P0,
     )
 
     # Prepare IMU data arrays (for interpolation)
-    t_imu_all = imu['t']
-    accel_xy_all = imu['accel_xy']
-    gyro_z_all = imu['gyro_z']
+    t_imu_all = imu["t"]
+    accel_xy_all = imu["accel_xy"]
+    gyro_z_all = imu["gyro_z"]
 
     # Prepare UWB measurements with corrected timestamps
     uwb_measurements: List[StampedMeasurement] = []
 
     # Add UWB (apply time sync correction if requested)
-    for i in range(len(uwb['t'])):
+    for i in range(len(uwb["t"])):
         # Convert UWB sensor time to fusion time
         if apply_correction:
-            t_fusion = uwb_time_sync.to_fusion_time(uwb['t'][i])
+            t_fusion = uwb_time_sync.to_fusion_time(uwb["t"][i])
         else:
-            t_fusion = uwb['t'][i]  # Use raw (incorrect) time
+            t_fusion = uwb["t"][i]  # Use raw (incorrect) time
 
         for j in range(anchors.shape[0]):
-            if not np.isnan(uwb['ranges'][i, j]):
-                uwb_measurements.append(StampedMeasurement(
-                    t=t_fusion,
-                    sensor='uwb',
-                    z=np.array([uwb['ranges'][i, j]]),
-                    R=np.array([[uwb_range_noise_std**2]]),
-                    meta={'anchor_id': j, 'anchor_pos': anchors[j]}
-                ))
+            if not np.isnan(uwb["ranges"][i, j]):
+                uwb_measurements.append(
+                    StampedMeasurement(
+                        t=t_fusion,
+                        sensor="uwb",
+                        z=np.array([uwb["ranges"][i, j]]),
+                        R=np.array([[uwb_range_noise_std**2]]),
+                        meta={"anchor_id": j, "anchor_pos": anchors[j]},
+                    )
+                )
 
     # Sort UWB by timestamp
     uwb_measurements.sort(key=lambda m: m.t)
@@ -186,12 +190,12 @@ def run_fusion_with_time_sync(
     from core.fusion import chi_square_gate, innovation, innovation_covariance
 
     history = {
-        't': [],
-        'x_est': [],
-        'P_trace': [],
-        'innovations': [],
-        'nis': [],
-        'gated': [],
+        "t": [],
+        "x_est": [],
+        "P_trace": [],
+        "innovations": [],
+        "nis": [],
+        "gated": [],
     }
 
     n_uwb_accepted = 0
@@ -209,11 +213,13 @@ def run_fusion_with_time_sync(
         while imu_idx < len(t_imu_all) - 1 and t_imu_all[imu_idx + 1] <= t_uwb:
             # Propagate using this IMU sample
             dt = t_imu_all[imu_idx + 1] - t_state
-            u = np.array([
-                accel_xy_all[imu_idx + 1, 0],
-                accel_xy_all[imu_idx + 1, 1],
-                gyro_z_all[imu_idx + 1]
-            ])
+            u = np.array(
+                [
+                    accel_xy_all[imu_idx + 1, 0],
+                    accel_xy_all[imu_idx + 1, 1],
+                    gyro_z_all[imu_idx + 1],
+                ]
+            )
             ekf.predict(u=u, dt=dt)
             t_state = t_imu_all[imu_idx + 1]
             imu_idx += 1
@@ -235,7 +241,7 @@ def run_fusion_with_time_sync(
                 continue
 
         # UWB range update
-        anchor_pos = uwb_meas.meta['anchor_pos']
+        anchor_pos = uwb_meas.meta["anchor_pos"]
 
         # Predict range
         state_pos = ekf.state[:2]
@@ -266,51 +272,52 @@ def run_fusion_with_time_sync(
             n_uwb_rejected += 1
 
         # Log
-        history['innovations'].append(float(np.abs(y[0])))
-        history['nis'].append(float(y @ np.linalg.inv(S) @ y))
-        history['gated'].append(accept)
+        history["innovations"].append(float(np.abs(y[0])))
+        history["nis"].append(float(y @ np.linalg.inv(S) @ y))
+        history["gated"].append(accept)
 
         # Record state at UWB measurement time
-        history['t'].append(t_uwb)
-        history['x_est'].append(ekf.state.copy())
-        history['P_trace'].append(np.trace(ekf.covariance))
+        history["t"].append(t_uwb)
+        history["x_est"].append(ekf.state.copy())
+        history["P_trace"].append(np.trace(ekf.covariance))
 
     # Propagate through remaining IMU samples
     while imu_idx < len(t_imu_all) - 1:
         dt = t_imu_all[imu_idx + 1] - t_state
-        u = np.array([
-            accel_xy_all[imu_idx + 1, 0],
-            accel_xy_all[imu_idx + 1, 1],
-            gyro_z_all[imu_idx + 1]
-        ])
+        u = np.array(
+            [
+                accel_xy_all[imu_idx + 1, 0],
+                accel_xy_all[imu_idx + 1, 1],
+                gyro_z_all[imu_idx + 1],
+            ]
+        )
         ekf.predict(u=u, dt=dt)
         t_state = t_imu_all[imu_idx + 1]
         imu_idx += 1
 
     # Convert to arrays
-    history['t'] = np.array(history['t'])
-    history['x_est'] = np.array(history['x_est'])
-    history['P_trace'] = np.array(history['P_trace'])
-    history['n_uwb_accepted'] = n_uwb_accepted
-    history['n_uwb_rejected'] = n_uwb_rejected
+    history["t"] = np.array(history["t"])
+    history["x_est"] = np.array(history["x_est"])
+    history["P_trace"] = np.array(history["P_trace"])
+    history["n_uwb_accepted"] = n_uwb_accepted
+    history["n_uwb_rejected"] = n_uwb_rejected
 
     if verbose:
         print(f"  Accepted: {n_uwb_accepted}")
         print(f"  Rejected: {n_uwb_rejected}")
         if n_uwb_accepted + n_uwb_rejected > 0:
-            print(f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%")
+            print(
+                f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%"
+            )
 
     return history
 
 
 def plot_temporal_calibration(
-    dataset: Dict,
-    no_correction: Dict,
-    with_correction: Dict,
-    save_path: str = None
+    dataset: Dict, no_correction: Dict, with_correction: Dict, save_path: str = None
 ) -> None:
     """Generate temporal calibration comparison plots.
-    
+
     Args:
         dataset: Dataset dictionary
         no_correction: Results without time sync correction
@@ -319,118 +326,216 @@ def plot_temporal_calibration(
             are used -- ``core.eval.save_figure`` writes svg, pdf and png, so
             any extension given here is ignored.
     """
-    truth = dataset['truth']
-    anchors = dataset['uwb_anchors']
-    config = dataset['config']
+    truth = dataset["truth"]
+    anchors = dataset["uwb_anchors"]
+    config = dataset["config"]
 
-    time_offset_ms = config['temporal_calibration']['time_offset_sec'] * 1000
-    clock_drift_ppm = config['temporal_calibration']['clock_drift'] * 1e6
+    time_offset_ms = config["temporal_calibration"]["time_offset_sec"] * 1000
+    clock_drift_ppm = config["temporal_calibration"]["clock_drift"] * 1e6
 
     fig = plt.figure(figsize=(16, 10))
     gs = GridSpec(2, 3, figure=fig, hspace=0.3, wspace=0.3)
 
     # Color scheme
-    color_truth = 'black'
-    color_no_corr = 'tab:red'
-    color_with_corr = 'tab:green'
+    color_truth = "black"
+    color_no_corr = "tab:red"
+    color_with_corr = "tab:green"
 
     # Helper function for errors
     def get_errors(history):
-        p_true_interp = np.column_stack([
-            np.interp(history['t'], truth['t'], truth['p_xy'][:, 0]),
-            np.interp(history['t'], truth['t'], truth['p_xy'][:, 1])
-        ])
-        errors = history['x_est'][:, :2] - p_true_interp
+        p_true_interp = np.column_stack(
+            [
+                np.interp(history["t"], truth["t"], truth["p_xy"][:, 0]),
+                np.interp(history["t"], truth["t"], truth["p_xy"][:, 1]),
+            ]
+        )
+        errors = history["x_est"][:, :2] - p_true_interp
         return np.linalg.norm(errors, axis=1)
 
     # 1. Trajectory without correction
     ax1 = fig.add_subplot(gs[0, 0])
-    ax1.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
-            color=color_truth, linewidth=2, label='Ground Truth', zorder=3)
-    ax1.plot(no_correction['x_est'][:, 0], no_correction['x_est'][:, 1],
-            color=color_no_corr, linewidth=1.5, alpha=0.7,
-            label='No Time Correction', zorder=2)
-    ax1.scatter(anchors[:, 0], anchors[:, 1], s=150, c='red', marker='^',
-               edgecolors='darkred', linewidths=2, label='UWB Anchors', zorder=5)
-    ax1.set_xlabel('X [m]')
-    ax1.set_ylabel('Y [m]')
-    ax1.set_title(f'Without Correction (offset={time_offset_ms:.0f}ms, drift={clock_drift_ppm:.0f}ppm)')
+    ax1.plot(
+        truth["p_xy"][:, 0],
+        truth["p_xy"][:, 1],
+        color=color_truth,
+        linewidth=2,
+        label="Ground Truth",
+        zorder=3,
+    )
+    ax1.plot(
+        no_correction["x_est"][:, 0],
+        no_correction["x_est"][:, 1],
+        color=color_no_corr,
+        linewidth=1.5,
+        alpha=0.7,
+        label="No Time Correction",
+        zorder=2,
+    )
+    ax1.scatter(
+        anchors[:, 0],
+        anchors[:, 1],
+        s=150,
+        c="red",
+        marker="^",
+        edgecolors="darkred",
+        linewidths=2,
+        label="UWB Anchors",
+        zorder=5,
+    )
+    ax1.set_xlabel("X [m]")
+    ax1.set_ylabel("Y [m]")
+    ax1.set_title(
+        f"Without Correction (offset={time_offset_ms:.0f}ms, drift={clock_drift_ppm:.0f}ppm)"
+    )
     ax1.legend(fontsize=8)
     ax1.grid(True, alpha=0.3)
-    ax1.axis('equal')
+    ax1.axis("equal")
 
     # 2. Trajectory with correction
     ax2 = fig.add_subplot(gs[0, 1])
-    ax2.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
-            color=color_truth, linewidth=2, label='Ground Truth', zorder=3)
-    ax2.plot(with_correction['x_est'][:, 0], with_correction['x_est'][:, 1],
-            color=color_with_corr, linewidth=1.5, alpha=0.7,
-            label='With Time Correction', zorder=2)
-    ax2.scatter(anchors[:, 0], anchors[:, 1], s=150, c='red', marker='^',
-               edgecolors='darkred', linewidths=2, label='UWB Anchors', zorder=5)
-    ax2.set_xlabel('X [m]')
-    ax2.set_ylabel('Y [m]')
-    ax2.set_title('With TimeSyncModel Correction')
+    ax2.plot(
+        truth["p_xy"][:, 0],
+        truth["p_xy"][:, 1],
+        color=color_truth,
+        linewidth=2,
+        label="Ground Truth",
+        zorder=3,
+    )
+    ax2.plot(
+        with_correction["x_est"][:, 0],
+        with_correction["x_est"][:, 1],
+        color=color_with_corr,
+        linewidth=1.5,
+        alpha=0.7,
+        label="With Time Correction",
+        zorder=2,
+    )
+    ax2.scatter(
+        anchors[:, 0],
+        anchors[:, 1],
+        s=150,
+        c="red",
+        marker="^",
+        edgecolors="darkred",
+        linewidths=2,
+        label="UWB Anchors",
+        zorder=5,
+    )
+    ax2.set_xlabel("X [m]")
+    ax2.set_ylabel("Y [m]")
+    ax2.set_title("With TimeSyncModel Correction")
     ax2.legend(fontsize=8)
     ax2.grid(True, alpha=0.3)
-    ax2.axis('equal')
+    ax2.axis("equal")
 
     # 3. Overlay comparison
     ax3 = fig.add_subplot(gs[0, 2])
-    ax3.plot(truth['p_xy'][:, 0], truth['p_xy'][:, 1],
-            color=color_truth, linewidth=2, label='Truth', zorder=4)
-    ax3.plot(no_correction['x_est'][:, 0], no_correction['x_est'][:, 1],
-            color=color_no_corr, linewidth=1.5, alpha=0.6,
-            label='No Correction', zorder=2)
-    ax3.plot(with_correction['x_est'][:, 0], with_correction['x_est'][:, 1],
-            color=color_with_corr, linewidth=1.5, alpha=0.8,
-            label='With Correction', zorder=3)
-    ax3.scatter(anchors[:, 0], anchors[:, 1], s=150, c='red', marker='^',
-               edgecolors='darkred', linewidths=2, zorder=5)
-    ax3.set_xlabel('X [m]')
-    ax3.set_ylabel('Y [m]')
-    ax3.set_title('Direct Comparison')
+    ax3.plot(
+        truth["p_xy"][:, 0],
+        truth["p_xy"][:, 1],
+        color=color_truth,
+        linewidth=2,
+        label="Truth",
+        zorder=4,
+    )
+    ax3.plot(
+        no_correction["x_est"][:, 0],
+        no_correction["x_est"][:, 1],
+        color=color_no_corr,
+        linewidth=1.5,
+        alpha=0.6,
+        label="No Correction",
+        zorder=2,
+    )
+    ax3.plot(
+        with_correction["x_est"][:, 0],
+        with_correction["x_est"][:, 1],
+        color=color_with_corr,
+        linewidth=1.5,
+        alpha=0.8,
+        label="With Correction",
+        zorder=3,
+    )
+    ax3.scatter(
+        anchors[:, 0],
+        anchors[:, 1],
+        s=150,
+        c="red",
+        marker="^",
+        edgecolors="darkred",
+        linewidths=2,
+        zorder=5,
+    )
+    ax3.set_xlabel("X [m]")
+    ax3.set_ylabel("Y [m]")
+    ax3.set_title("Direct Comparison")
     ax3.legend(fontsize=8)
     ax3.grid(True, alpha=0.3)
-    ax3.axis('equal')
+    ax3.axis("equal")
 
     # 4. Position error comparison
     ax4 = fig.add_subplot(gs[1, 0])
     error_no_corr = get_errors(no_correction)
     error_with_corr = get_errors(with_correction)
 
-    ax4.plot(no_correction['t'], error_no_corr, color=color_no_corr,
-            linewidth=1.5, label='No Correction')
-    ax4.plot(with_correction['t'], error_with_corr, color=color_with_corr,
-            linewidth=1.5, label='With Correction')
-    ax4.set_xlabel('Time [s]')
-    ax4.set_ylabel('Position Error [m]')
-    ax4.set_title('Position Error vs Time')
+    ax4.plot(
+        no_correction["t"],
+        error_no_corr,
+        color=color_no_corr,
+        linewidth=1.5,
+        label="No Correction",
+    )
+    ax4.plot(
+        with_correction["t"],
+        error_with_corr,
+        color=color_with_corr,
+        linewidth=1.5,
+        label="With Correction",
+    )
+    ax4.set_xlabel("Time [s]")
+    ax4.set_ylabel("Position Error [m]")
+    ax4.set_title("Position Error vs Time")
     ax4.legend()
     ax4.grid(True, alpha=0.3)
 
     # 5. NIS comparison
     ax5 = fig.add_subplot(gs[1, 1])
-    if len(no_correction['nis']) > 0:
-        nis_no_corr = np.array(no_correction['nis'])
-        nis_with_corr = np.array(with_correction['nis'])
+    if len(no_correction["nis"]) > 0:
+        nis_no_corr = np.array(no_correction["nis"])
+        nis_with_corr = np.array(with_correction["nis"])
 
         # Downsample for visibility
         step = max(1, len(nis_no_corr) // 500)
-        ax5.plot(nis_no_corr[::step], color=color_no_corr,
-                linewidth=0.5, alpha=0.5, label='No Correction')
-        ax5.plot(nis_with_corr[::step], color=color_with_corr,
-                linewidth=0.5, alpha=0.5, label='With Correction')
+        ax5.plot(
+            nis_no_corr[::step],
+            color=color_no_corr,
+            linewidth=0.5,
+            alpha=0.5,
+            label="No Correction",
+        )
+        ax5.plot(
+            nis_with_corr[::step],
+            color=color_with_corr,
+            linewidth=0.5,
+            alpha=0.5,
+            label="With Correction",
+        )
 
         # Chi-square bound
         from core.fusion import chi_square_threshold
-        threshold = chi_square_threshold(dof=1, confidence=0.95)
-        ax5.axhline(threshold, color='r', linestyle='--',
-                   linewidth=1.5, label=f'95% bound (chi^2={threshold:.2f})')
 
-        ax5.set_xlabel('UWB Update Index')
-        ax5.set_ylabel('NIS (1 DOF)')
-        ax5.set_title('Innovation Consistency (NIS)')
+        threshold = chi_square_threshold(dof=1, confidence=0.95)
+        ax5.axhline(
+            threshold,
+            color="r",
+            linestyle="--",
+            linewidth=1.5,
+            label=f"95% bound (chi^2={threshold:.2f})",
+        )
+
+        ax5.set_xlabel("UWB Update Index")
+        ax5.set_ylabel("NIS (1 DOF)")
+        ax5.set_title("Innovation Consistency (NIS)")
         ax5.set_ylim([0, min(20, np.percentile(nis_no_corr, 99))])
         ax5.legend()
         ax5.grid(True, alpha=0.3)
@@ -441,45 +546,76 @@ def plot_temporal_calibration(
     rmse_no_corr = compute_rmse(error_no_corr)
     rmse_with_corr = compute_rmse(error_with_corr)
 
-    metrics = ['RMSE\n[m]', 'Max Error\n[m]', 'Accept\nRate [%]']
+    metrics = ["RMSE\n[m]", "Max Error\n[m]", "Accept\nRate [%]"]
     no_corr_vals = [
         rmse_no_corr,
         np.max(error_no_corr),
-        100 * no_correction['n_uwb_accepted'] / (no_correction['n_uwb_accepted'] + no_correction['n_uwb_rejected'])
+        100
+        * no_correction["n_uwb_accepted"]
+        / (no_correction["n_uwb_accepted"] + no_correction["n_uwb_rejected"]),
     ]
     with_corr_vals = [
         rmse_with_corr,
         np.max(error_with_corr),
-        100 * with_correction['n_uwb_accepted'] / (with_correction['n_uwb_accepted'] + with_correction['n_uwb_rejected'])
+        100
+        * with_correction["n_uwb_accepted"]
+        / (with_correction["n_uwb_accepted"] + with_correction["n_uwb_rejected"]),
     ]
 
     x = np.arange(len(metrics))
     width = 0.35
 
-    bars1 = ax6.bar(x - width/2, no_corr_vals, width,
-                    label='No Correction', color=color_no_corr, alpha=0.7)
-    bars2 = ax6.bar(x + width/2, with_corr_vals, width,
-                    label='With Correction', color=color_with_corr, alpha=0.7)
+    bars1 = ax6.bar(
+        x - width / 2,
+        no_corr_vals,
+        width,
+        label="No Correction",
+        color=color_no_corr,
+        alpha=0.7,
+    )
+    bars2 = ax6.bar(
+        x + width / 2,
+        with_corr_vals,
+        width,
+        label="With Correction",
+        color=color_with_corr,
+        alpha=0.7,
+    )
 
-    ax6.set_ylabel('Value')
-    ax6.set_title('Metrics Comparison')
+    ax6.set_ylabel("Value")
+    ax6.set_title("Metrics Comparison")
     ax6.set_xticks(x)
     ax6.set_xticklabels(metrics, fontsize=9)
     ax6.legend()
-    ax6.grid(True, alpha=0.3, axis='y')
+    ax6.grid(True, alpha=0.3, axis="y")
 
     # Add value labels
     for bar, val in zip(bars1, no_corr_vals):
         height = bar.get_height()
-        ax6.text(bar.get_x() + bar.get_width()/2., height,
-                f'{val:.1f}', ha='center', va='bottom', fontsize=8)
+        ax6.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height,
+            f"{val:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
     for bar, val in zip(bars2, with_corr_vals):
         height = bar.get_height()
-        ax6.text(bar.get_x() + bar.get_width()/2., height,
-                f'{val:.1f}', ha='center', va='bottom', fontsize=8)
+        ax6.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height,
+            f"{val:.1f}",
+            ha="center",
+            va="bottom",
+            fontsize=8,
+        )
 
-    fig.suptitle(f'Temporal Calibration Demo (offset={time_offset_ms:.0f}ms, drift={clock_drift_ppm:.0f}ppm)',
-                fontsize=16, fontweight='bold')
+    fig.suptitle(
+        f"Temporal Calibration Demo (offset={time_offset_ms:.0f}ms, drift={clock_drift_ppm:.0f}ppm)",
+        fontsize=16,
+        fontweight="bold",
+    )
 
     if save_path:
         # Via save_figure, not plt.savefig: it writes the book's svg/pdf
@@ -502,28 +638,20 @@ def main():
         "--data",
         type=str,
         default="data/sim/ch8_fusion_2d_imu_uwb_timeoffset",
-        help="Path to time-offset dataset directory"
+        help="Path to time-offset dataset directory",
     )
     parser.add_argument(
-        "--save",
-        type=str,
-        default=None,
-        help="Path to save results figure"
+        "--save", type=str, default=None, help="Path to save results figure"
     )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="Random seed"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
 
     np.random.seed(args.seed)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Temporal Calibration Demo (Chapter 8)")
-    print("="*70)
+    print("=" * 70)
     print("\nKey Concept:")
     print("  Sensor clocks are not perfectly synchronized.")
     print("  -> Time offsets and clock drift cause fusion errors.")
@@ -535,8 +663,8 @@ def main():
     print(f"Loading time-offset dataset from: {args.data}")
     dataset = load_fusion_dataset(args.data)
 
-    time_offset_ms = dataset['config']['temporal_calibration']['time_offset_sec'] * 1000
-    clock_drift_ppm = dataset['config']['temporal_calibration']['clock_drift'] * 1e6
+    time_offset_ms = dataset["config"]["temporal_calibration"]["time_offset_sec"] * 1000
+    clock_drift_ppm = dataset["config"]["temporal_calibration"]["clock_drift"] * 1e6
 
     print("\nDataset info:")
     print(f"  IMU samples: {len(dataset['imu']['t'])}")
@@ -561,26 +689,30 @@ def main():
 
     # Compute RMSE
     def compute_final_rmse(history):
-        truth = dataset['truth']
-        p_true_interp = np.column_stack([
-            np.interp(history['t'], truth['t'], truth['p_xy'][:, 0]),
-            np.interp(history['t'], truth['t'], truth['p_xy'][:, 1])
-        ])
-        errors = history['x_est'][:, :2] - p_true_interp
+        truth = dataset["truth"]
+        p_true_interp = np.column_stack(
+            [
+                np.interp(history["t"], truth["t"], truth["p_xy"][:, 0]),
+                np.interp(history["t"], truth["t"], truth["p_xy"][:, 1]),
+            ]
+        )
+        errors = history["x_est"][:, :2] - p_true_interp
         return compute_position_rmse(errors)
 
     rmse_no_corr = compute_final_rmse(no_correction)
     rmse_with_corr = compute_final_rmse(with_correction)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Results Summary")
-    print("="*70)
+    print("=" * 70)
     print(f"{'Method':<30} {'RMSE [m]':>12} {'Improvement':>15}")
-    print("-"*70)
+    print("-" * 70)
     print(f"{'Without Time Correction':<30} {rmse_no_corr:>12.3f} {'(baseline)':>15}")
-    print(f"{'With TimeSyncModel':<30} {rmse_with_corr:>12.3f} "
-          f"{100*(rmse_no_corr-rmse_with_corr)/rmse_no_corr:>14.1f}%")
-    print("="*70)
+    print(
+        f"{'With TimeSyncModel':<30} {rmse_with_corr:>12.3f} "
+        f"{100*(rmse_no_corr-rmse_with_corr)/rmse_no_corr:>14.1f}%"
+    )
+    print("=" * 70)
 
     improvement = 100 * (rmse_no_corr - rmse_with_corr) / rmse_no_corr
 
@@ -589,30 +721,45 @@ def main():
     # What the offset costs is the difference between the two runs, and the
     # sanity check on it is kinematic -- a platform moving at v with its
     # ranges stamped Dt late is being fused against a position v*Dt away.
-    speed = float(np.mean(np.linalg.norm(dataset['truth']['v_xy'], axis=1)))
+    speed = float(np.mean(np.linalg.norm(dataset["truth"]["v_xy"], axis=1)))
     expected = speed * abs(time_offset_ms) / 1000.0
 
     print("\nKey Findings:")
-    print(f"  * Uncorrected: {rmse_no_corr:.3f} m RMSE; corrected: "
-          f"{rmse_with_corr:.3f} m")
-    print(f"  * So a {time_offset_ms:.1f} ms offset costs "
-          f"{rmse_no_corr - rmse_with_corr:.3f} m, and TimeSyncModel recovers "
-          f"it: {improvement:.1f}% better")
-    print(f"  * That is the order the kinematics predict: {speed:.2f} m/s for "
-          f"{abs(time_offset_ms):.0f} ms displaces the platform "
-          f"{expected:.3f} m")
-    print("  * Small here because the platform is slow. The cost scales with "
-          "speed, so the same clock error on a vehicle at 15 m/s is metres,")
-    print("    not centimetres -- that is why temporal alignment matters, "
-          "rather than any large number printed by this demo.")
+    print(
+        f"  * Uncorrected: {rmse_no_corr:.3f} m RMSE; corrected: "
+        f"{rmse_with_corr:.3f} m"
+    )
+    print(
+        f"  * So a {time_offset_ms:.1f} ms offset costs "
+        f"{rmse_no_corr - rmse_with_corr:.3f} m, and TimeSyncModel recovers "
+        f"it: {improvement:.1f}% better"
+    )
+    print(
+        f"  * That is the order the kinematics predict: {speed:.2f} m/s for "
+        f"{abs(time_offset_ms):.0f} ms displaces the platform "
+        f"{expected:.3f} m"
+    )
+    print(
+        "  * Small here because the platform is slow. The cost scales with "
+        "speed, so the same clock error on a vehicle at 15 m/s is metres,"
+    )
+    print(
+        "    not centimetres -- that is why temporal alignment matters, "
+        "rather than any large number printed by this demo."
+    )
     print("")
 
     # Plot
-    save_path = args.save if args.save else "ch8_sensor_fusion/figs/temporal_calibration_demo.svg"
+    save_path = (
+        args.save
+        if args.save
+        else "ch8_sensor_fusion/figs/temporal_calibration_demo.svg"
+    )
     Path(save_path).parent.mkdir(parents=True, exist_ok=True)
-    plot_temporal_calibration(dataset, no_correction, with_correction, save_path=save_path)
+    plot_temporal_calibration(
+        dataset, no_correction, with_correction, save_path=save_path
+    )
 
 
 if __name__ == "__main__":
     main()
-

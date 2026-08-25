@@ -125,10 +125,12 @@ class TestIMUInterpolation(unittest.TestCase):
         t_imu = np.arange(0, 1.0, 0.01)
 
         # Sinusoidal accelerometer data
-        accel = np.column_stack([
-            np.sin(2 * np.pi * 1.0 * t_imu),  # 1 Hz sine
-            np.cos(2 * np.pi * 1.0 * t_imu)
-        ])
+        accel = np.column_stack(
+            [
+                np.sin(2 * np.pi * 1.0 * t_imu),  # 1 Hz sine
+                np.cos(2 * np.pi * 1.0 * t_imu),
+            ]
+        )
         gyro = 0.1 * np.sin(2 * np.pi * 0.5 * t_imu)  # 0.5 Hz sine
 
         # Query at 10.5 Hz (UWB rate with slight offset)
@@ -139,11 +141,9 @@ class TestIMUInterpolation(unittest.TestCase):
         # Expected: linear interpolation between samples at 0.10 and 0.11
         # alpha = (0.105 - 0.10) / 0.01 = 0.5
         idx = 10  # t_imu[10] = 0.10
-        expected_u = 0.5 * np.array([
-            accel[idx, 0], accel[idx, 1], gyro[idx]
-        ]) + 0.5 * np.array([
-            accel[idx + 1, 0], accel[idx + 1, 1], gyro[idx + 1]
-        ])
+        expected_u = 0.5 * np.array(
+            [accel[idx, 0], accel[idx, 1], gyro[idx]]
+        ) + 0.5 * np.array([accel[idx + 1, 0], accel[idx + 1, 1], gyro[idx + 1]])
 
         np.testing.assert_array_almost_equal(u, expected_u, decimal=10)
         self.assertAlmostEqual(dt, 0.005, places=6)
@@ -154,13 +154,13 @@ class TestAsynchronousTimestampShift(unittest.TestCase):
 
     def test_half_imu_dt_shift(self) -> None:
         """Test that fusion handles UWB timestamps shifted by half IMU dt.
-        
+
         This is a regression test per the requirement: artificially shift
         UWB timestamps and ensure fusion still runs without collapsing.
         """
         # Create synthetic data
         dt_imu = 0.01  # 100 Hz
-        dt_uwb = 0.1   # 10 Hz
+        dt_uwb = 0.1  # 10 Hz
         duration = 5.0
 
         t_imu = np.arange(0, duration, dt_imu)
@@ -198,22 +198,26 @@ class TestAsynchronousTimestampShift(unittest.TestCase):
         """Test fusion robustness with random timestamp perturbations."""
         # Create synthetic data
         dt_imu = 0.01  # 100 Hz
-        dt_uwb = 0.1   # 10 Hz
+        dt_uwb = 0.1  # 10 Hz
         duration = 2.0
 
         t_imu = np.arange(0, duration, dt_imu)
 
         # Varying accelerometer data
-        accel = np.column_stack([
-            0.1 * np.sin(2 * np.pi * 0.5 * t_imu),
-            0.1 * np.cos(2 * np.pi * 0.5 * t_imu)
-        ])
+        accel = np.column_stack(
+            [
+                0.1 * np.sin(2 * np.pi * 0.5 * t_imu),
+                0.1 * np.cos(2 * np.pi * 0.5 * t_imu),
+            ]
+        )
         gyro = 0.05 * np.sin(2 * np.pi * 1.0 * t_imu)
 
         # UWB timestamps with random offsets (±5ms)
         np.random.seed(42)
         t_uwb_nominal = np.arange(0, duration, dt_uwb)
-        t_uwb_perturbed = t_uwb_nominal + np.random.uniform(-0.005, 0.005, len(t_uwb_nominal))
+        t_uwb_perturbed = t_uwb_nominal + np.random.uniform(
+            -0.005, 0.005, len(t_uwb_nominal)
+        )
 
         # Test interpolation at perturbed times
         for t_query in t_uwb_perturbed:
@@ -235,4 +239,3 @@ class TestAsynchronousTimestampShift(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

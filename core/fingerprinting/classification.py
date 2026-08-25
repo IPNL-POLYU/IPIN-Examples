@@ -43,11 +43,11 @@ from .types import Fingerprint, FingerprintDatabase, Location
 class ClassificationLocalizer:
     """
     Classification-based fingerprinting localizer.
-    
+
     This localizer treats positioning as a classification problem, as discussed
     in Chapter 5, Section 5.2. The classifier predicts a discrete location class
     (RP index, zone ID, or grid cell) from the fingerprint features.
-    
+
     Attributes:
         classifier: Trained scikit-learn classifier (RandomForest, SVM, etc.)
         locations: Reference point locations, shape (M, d)
@@ -55,7 +55,7 @@ class ClassificationLocalizer:
         floor_ids: Floor identifiers for each class
         label_encoder: Encoder for class labels
         meta: Metadata dictionary
-    
+
     References:
         Chapter 5, Section 5.2: Pattern Recognition Approaches
     """
@@ -75,13 +75,13 @@ class ClassificationLocalizer:
     ) -> Tuple[Location, dict]:
         """
         Predict location using classification.
-        
+
         Args:
             z: Query fingerprint, shape (N,)
             floor_id: Optional floor constraint. If provided, only considers
                      classes on that floor.
             return_proba: If True, returns class probabilities in info dict.
-        
+
         Returns:
             Tuple of (predicted_location, info_dict)
         """
@@ -115,10 +115,10 @@ def fit_classifier(
 ) -> ClassificationLocalizer:
     """
     Fit a classification-based localizer from fingerprint database.
-    
+
     This function implements the classification approach discussed in Chapter 5,
     Section 5.2, where positioning is framed as a pattern recognition problem.
-    
+
     Args:
         db: FingerprintDatabase containing training data
         classifier_type: Type of classifier:
@@ -131,14 +131,14 @@ def fit_classifier(
         floor_id: Optional floor to train on (None = all floors)
         **classifier_kwargs: Additional arguments for the classifier
                             (e.g., n_estimators for RandomForest)
-    
+
     Returns:
         Trained ClassificationLocalizer
-    
+
     Raises:
         ImportError: If scikit-learn is not installed
         ValueError: If zone_type is invalid or insufficient data
-    
+
     Examples:
         >>> # Direct classification (each RP is a class)
         >>> classifier = fit_classifier(
@@ -147,7 +147,7 @@ def fit_classifier(
         ...     zone_type="rp",
         ...     n_estimators=100
         ... )
-        
+
         >>> # Zone-based classification
         >>> classifier = fit_classifier(
         ...     db,
@@ -155,7 +155,7 @@ def fit_classifier(
         ...     zone_type="grid",
         ...     floor_id=0
         ... )
-    
+
     References:
         Chapter 5, Section 5.2: Pattern Recognition for fingerprinting
         mentions Random Forests, Decision Trees, and SVM classifiers.
@@ -287,7 +287,8 @@ def fit_floor_classifier(
     floor_labels = db.floor_ids
 
     clf = RandomForestClassifier(
-        n_estimators=n_estimators, random_state=random_state,
+        n_estimators=n_estimators,
+        random_state=random_state,
     )
     clf.fit(features, floor_labels)
     return clf
@@ -418,5 +419,3 @@ def hierarchical_localize(
     info["fine_position"] = pos
 
     return pos, info
-
-

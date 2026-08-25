@@ -232,14 +232,14 @@ class TestRTTModel:
         rtt, info = simulate_rtt_measurement(anchor, agent)
 
         # True range should be 15m
-        assert np.isclose(info['true_range'], 15.0)
+        assert np.isclose(info["true_range"], 15.0)
 
         # RTT should be 2 * 15 / c
         expected_rtt = 2.0 * 15.0 / SPEED_OF_LIGHT
         assert np.isclose(rtt, expected_rtt)
 
         # Range estimate should match true range
-        assert np.isclose(info['range_estimate'], 15.0, atol=1e-6)
+        assert np.isclose(info["range_estimate"], 15.0, atol=1e-6)
 
     def test_simulate_rtt_with_processing_time(self):
         """Test simulate_rtt_measurement with processing time."""
@@ -256,7 +256,7 @@ class TestRTTModel:
         assert np.isclose(rtt, expected_rtt)
 
         # Range estimate should still be correct
-        assert np.isclose(info['range_estimate'], 15.0, atol=1e-6)
+        assert np.isclose(info["range_estimate"], 15.0, atol=1e-6)
 
     def test_simulate_rtt_with_noise(self):
         """Test simulate_rtt_measurement with noise (Eq. 4.9)."""
@@ -269,12 +269,13 @@ class TestRTTModel:
         errors = []
         for _ in range(100):
             rtt, info = simulate_rtt_measurement(
-                anchor, agent,
+                anchor,
+                agent,
                 processing_time=50e-9,
                 processing_time_std=5e-9,
                 clock_drift_std=2e-9,
             )
-            errors.append(info['range_estimate'] - 15.0)
+            errors.append(info["range_estimate"] - 15.0)
 
         errors = np.array(errors)
 
@@ -374,19 +375,19 @@ class TestRSSFading:
         )
 
         # True distance should be 10m
-        assert np.isclose(info['true_distance'], 10.0)
+        assert np.isclose(info["true_distance"], 10.0)
 
         # RSS should match forward model
         expected_rss = -40.0 - 10 * 2.5 * np.log10(10.0)
         assert np.isclose(rss, expected_rss, atol=0.01)
-        assert np.isclose(info['rss_true'], expected_rss, atol=0.01)
+        assert np.isclose(info["rss_true"], expected_rss, atol=0.01)
 
         # No fading
-        assert info['omega_long_db'] == 0.0
-        assert info['omega_short_db'] == 0.0
+        assert info["omega_long_db"] == 0.0
+        assert info["omega_short_db"] == 0.0
 
         # Distance estimate should match true distance
-        assert np.isclose(info['distance_estimate'], 10.0, atol=0.01)
+        assert np.isclose(info["distance_estimate"], 10.0, atol=0.01)
 
     def test_simulate_rss_with_long_term_fading(self):
         """Test simulate_rss_measurement with long-term fading (Eq. 4.12)."""
@@ -397,19 +398,18 @@ class TestRSSFading:
 
         # Simulate with 6 dB long-term fading std
         rss, info = simulate_rss_measurement(
-            anchor, agent,
+            anchor,
+            agent,
             p_ref_dbm=-40.0,
             path_loss_exp=2.5,
             sigma_long_db=6.0,
         )
 
         # RSS should differ from true RSS by omega_long
-        assert np.isclose(
-            rss, info['rss_true'] + info['omega_long_db'], atol=1e-6
-        )
+        assert np.isclose(rss, info["rss_true"] + info["omega_long_db"], atol=1e-6)
 
         # omega_long should be non-zero
-        assert info['omega_long_db'] != 0.0
+        assert info["omega_long_db"] != 0.0
 
     def test_simulate_rss_short_term_gaussian_averaging(self):
         """Test that Gaussian short-term fading is reduced by averaging."""
@@ -422,28 +422,30 @@ class TestRSSFading:
         errors_no_avg = []
         for _ in range(100):
             rss, info = simulate_rss_measurement(
-                anchor, agent,
+                anchor,
+                agent,
                 p_ref_dbm=-40.0,
                 path_loss_exp=2.5,
                 sigma_short_linear=4.0,  # Interpreted as dB std for gaussian_db
                 n_samples_avg=1,
                 short_fading_model="gaussian_db",
             )
-            errors_no_avg.append(info['omega_short_db'])
+            errors_no_avg.append(info["omega_short_db"])
 
         # With 10-sample averaging
         np.random.seed(42)
         errors_with_avg = []
         for _ in range(100):
             rss, info = simulate_rss_measurement(
-                anchor, agent,
+                anchor,
+                agent,
                 p_ref_dbm=-40.0,
                 path_loss_exp=2.5,
                 sigma_short_linear=4.0,
                 n_samples_avg=10,
                 short_fading_model="gaussian_db",
             )
-            errors_with_avg.append(info['omega_short_db'])
+            errors_with_avg.append(info["omega_short_db"])
 
         # Averaging should reduce std by sqrt(10) ≈ 3.16
         std_no_avg = np.std(errors_no_avg)
@@ -465,14 +467,15 @@ class TestRSSFading:
         fading_values_db = []
         for _ in range(1000):
             rss, info = simulate_rss_measurement(
-                anchor, agent,
+                anchor,
+                agent,
                 p_ref_dbm=-40.0,
                 path_loss_exp=2.5,
                 sigma_short_linear=sigma_rayleigh,
                 n_samples_avg=1,
                 short_fading_model="rayleigh",
             )
-            fading_values_db.append(info['omega_short_db'])
+            fading_values_db.append(info["omega_short_db"])
 
         fading_values_db = np.array(fading_values_db)
 
@@ -501,28 +504,30 @@ class TestRSSFading:
         fading_no_avg = []
         for _ in range(200):
             rss, info = simulate_rss_measurement(
-                anchor, agent,
+                anchor,
+                agent,
                 p_ref_dbm=-40.0,
                 path_loss_exp=2.5,
                 sigma_short_linear=sigma_rayleigh,
                 n_samples_avg=1,
                 short_fading_model="rayleigh",
             )
-            fading_no_avg.append(info['omega_short_db'])
+            fading_no_avg.append(info["omega_short_db"])
 
         # With 10-sample averaging
         np.random.seed(42)
         fading_with_avg = []
         for _ in range(200):
             rss, info = simulate_rss_measurement(
-                anchor, agent,
+                anchor,
+                agent,
                 p_ref_dbm=-40.0,
                 path_loss_exp=2.5,
                 sigma_short_linear=sigma_rayleigh,
                 n_samples_avg=10,
                 short_fading_model="rayleigh",
             )
-            fading_with_avg.append(info['omega_short_db'])
+            fading_with_avg.append(info["omega_short_db"])
 
         # Averaging should significantly reduce variance
         std_no_avg = np.std(fading_no_avg)
@@ -537,7 +542,8 @@ class TestRSSFading:
         agent = np.array([10.0, 0.0])
 
         rss, info = simulate_rss_measurement(
-            anchor, agent,
+            anchor,
+            agent,
             p_ref_dbm=-40.0,
             path_loss_exp=2.5,
             sigma_short_linear=1.0,  # Non-zero but model is 'none'
@@ -545,8 +551,8 @@ class TestRSSFading:
         )
 
         # No short-term fading despite non-zero sigma
-        assert info['omega_short_db'] == 0.0
-        assert info['short_fading_model'] == "none"
+        assert info["omega_short_db"] == 0.0
+        assert info["short_fading_model"] == "none"
 
     def test_simulate_rss_invalid_fading_model(self):
         """Test that invalid fading model raises ValueError."""
@@ -555,7 +561,8 @@ class TestRSSFading:
 
         with pytest.raises(ValueError, match="short_fading_model must be one of"):
             simulate_rss_measurement(
-                anchor, agent,
+                anchor,
+                agent,
                 p_ref_dbm=-40.0,
                 short_fading_model="invalid_model",
             )
@@ -566,16 +573,14 @@ class TestRSSFading:
         agent = np.array([10.0, 0.0])
 
         # Default model
-        rss, info = simulate_rss_measurement(
-            anchor, agent, p_ref_dbm=-40.0
-        )
-        assert info['short_fading_model'] == "rayleigh"
+        rss, info = simulate_rss_measurement(anchor, agent, p_ref_dbm=-40.0)
+        assert info["short_fading_model"] == "rayleigh"
 
         # Explicit Gaussian
         rss, info = simulate_rss_measurement(
             anchor, agent, p_ref_dbm=-40.0, short_fading_model="gaussian_db"
         )
-        assert info['short_fading_model'] == "gaussian_db"
+        assert info["short_fading_model"] == "gaussian_db"
 
     def test_rss_fading_to_distance_error_eq413(self):
         """Test fading to distance error conversion (Eq. 4.13)."""
@@ -607,21 +612,22 @@ class TestRSSFading:
         agent = np.array([10.0, 0.0])
 
         rss, info = simulate_rss_measurement(
-            anchor, agent,
+            anchor,
+            agent,
             p_ref_dbm=-40.0,
             path_loss_exp=2.5,
             sigma_long_db=6.0,
         )
 
         # Check distance_error_factor matches Eq. 4.13
-        total_fading = info['omega_long_db'] + info['omega_short_db']
+        total_fading = info["omega_long_db"] + info["omega_short_db"]
         expected_factor = 10 ** (-total_fading / 25.0)
-        assert np.isclose(info['distance_error_factor'], expected_factor, atol=1e-6)
+        assert np.isclose(info["distance_error_factor"], expected_factor, atol=1e-6)
 
         # Check actual distance estimate follows multiplicative error
         # d̃ ≈ d * distance_error_factor
-        expected_distance = info['true_distance'] * info['distance_error_factor']
-        assert np.isclose(info['distance_estimate'], expected_distance, rtol=1e-3)
+        expected_distance = info["true_distance"] * info["distance_error_factor"]
+        assert np.isclose(info["distance_estimate"], expected_distance, rtol=1e-3)
 
     def test_simulate_rss_monte_carlo(self):
         """Test RSS simulation produces expected statistics."""
@@ -634,12 +640,13 @@ class TestRSSFading:
         distance_errors = []
         for _ in range(200):
             rss, info = simulate_rss_measurement(
-                anchor, agent,
+                anchor,
+                agent,
                 p_ref_dbm=-40.0,
                 path_loss_exp=2.5,
                 sigma_long_db=6.0,
             )
-            relative_error = (info['distance_estimate'] - 10.0) / 10.0
+            relative_error = (info["distance_estimate"] - 10.0) / 10.0
             distance_errors.append(relative_error)
 
         distance_errors = np.array(distance_errors)
@@ -952,4 +959,3 @@ class TestAOA:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

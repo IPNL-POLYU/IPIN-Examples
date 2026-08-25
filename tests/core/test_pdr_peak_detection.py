@@ -55,20 +55,16 @@ class TestPDRPeakDetection(unittest.TestCase):
         N = len(t)
 
         # Constant gravity only (no motion)
-        accel = np.column_stack([
-            np.zeros(N),
-            np.zeros(N),
-            -9.81 * np.ones(N)
-        ])
+        accel = np.column_stack([np.zeros(N), np.zeros(N), -9.81 * np.ones(N)])
 
         step_indices, accel_processed = detect_steps_peak_detector(
-            accel, dt=0.01, g=9.81,
-            min_peak_height=1.0, min_peak_distance=0.3
+            accel, dt=0.01, g=9.81, min_peak_height=1.0, min_peak_distance=0.3
         )
 
         # Should detect zero or very few steps
-        self.assertLess(len(step_indices), 5,
-                        "Stationary signal should not detect many steps")
+        self.assertLess(
+            len(step_indices), 5, "Stationary signal should not detect many steps"
+        )
 
     def test_detect_steps_synthetic_walking(self):
         """Detect steps in synthetic walking pattern."""
@@ -81,15 +77,10 @@ class TestPDRPeakDetection(unittest.TestCase):
         walking_amplitude = 2.5  # m/s²
         accel_z = -9.81 + walking_amplitude * np.sin(2 * np.pi * step_freq * t)
 
-        accel = np.column_stack([
-            np.zeros(N),
-            np.zeros(N),
-            accel_z
-        ])
+        accel = np.column_stack([np.zeros(N), np.zeros(N), accel_z])
 
         step_indices, accel_processed = detect_steps_peak_detector(
-            accel, dt=0.01, g=9.81,
-            min_peak_height=1.0, min_peak_distance=0.3
+            accel, dt=0.01, g=9.81, min_peak_height=1.0, min_peak_distance=0.3
         )
 
         # Expected: ~120 steps (60s * 2 Hz)
@@ -98,10 +89,16 @@ class TestPDRPeakDetection(unittest.TestCase):
 
         # Allow 50-200% of expected (detector tuning dependent)
         self.assertGreater(detected_steps, 0, "Should detect nonzero steps")
-        self.assertGreater(detected_steps, expected_steps * 0.5,
-                          f"Too few steps: {detected_steps} < {expected_steps * 0.5}")
-        self.assertLess(detected_steps, expected_steps * 2.0,
-                       f"Too many steps: {detected_steps} > {expected_steps * 2.0}")
+        self.assertGreater(
+            detected_steps,
+            expected_steps * 0.5,
+            f"Too few steps: {detected_steps} < {expected_steps * 0.5}",
+        )
+        self.assertLess(
+            detected_steps,
+            expected_steps * 2.0,
+            f"Too many steps: {detected_steps} > {expected_steps * 2.0}",
+        )
 
     def test_detect_steps_refractory_period(self):
         """Test that min_peak_distance prevents double-counting."""
@@ -111,25 +108,24 @@ class TestPDRPeakDetection(unittest.TestCase):
 
         # Two wider Gaussian peaks at t=5.0s and t=5.1s (wider to survive filtering)
         accel_z = -9.81 + 5.0 * (
-            np.exp(-((t - 5.0)**2) / 0.1) +
-            np.exp(-((t - 5.1)**2) / 0.1)
+            np.exp(-((t - 5.0) ** 2) / 0.1) + np.exp(-((t - 5.1) ** 2) / 0.1)
         )
 
-        accel = np.column_stack([
-            np.zeros(N),
-            np.zeros(N),
-            accel_z
-        ])
+        accel = np.column_stack([np.zeros(N), np.zeros(N), accel_z])
 
         # With refractory period of 0.3s, should detect only 1 step
         step_indices, _ = detect_steps_peak_detector(
-            accel, dt=0.01, g=9.81,
-            min_peak_height=1.0, min_peak_distance=0.3,
-            lowpass_cutoff=None  # Disable filter to preserve sharp peaks
+            accel,
+            dt=0.01,
+            g=9.81,
+            min_peak_height=1.0,
+            min_peak_distance=0.3,
+            lowpass_cutoff=None,  # Disable filter to preserve sharp peaks
         )
 
-        self.assertLessEqual(len(step_indices), 1,
-                            "Refractory period should prevent double-counting")
+        self.assertLessEqual(
+            len(step_indices), 1, "Refractory period should prevent double-counting"
+        )
 
     def test_detect_steps_without_filter(self):
         """Test peak detection without low-pass filter."""
@@ -144,17 +140,16 @@ class TestPDRPeakDetection(unittest.TestCase):
         noise = np.random.normal(0, 0.5, N)
         accel_z += noise
 
-        accel = np.column_stack([
-            np.zeros(N),
-            np.zeros(N),
-            accel_z
-        ])
+        accel = np.column_stack([np.zeros(N), np.zeros(N), accel_z])
 
         # Detect without filter (lowpass_cutoff=None)
         step_indices, accel_processed = detect_steps_peak_detector(
-            accel, dt=0.01, g=9.81,
-            min_peak_height=1.0, min_peak_distance=0.3,
-            lowpass_cutoff=None
+            accel,
+            dt=0.01,
+            g=9.81,
+            min_peak_height=1.0,
+            min_peak_distance=0.3,
+            lowpass_cutoff=None,
         )
 
         # Should still detect steps (but possibly noisier)
@@ -173,17 +168,16 @@ class TestPDRPeakDetection(unittest.TestCase):
         noise = 0.8 * np.sin(2 * np.pi * 20 * t)
         accel_z += noise
 
-        accel = np.column_stack([
-            np.zeros(N),
-            np.zeros(N),
-            accel_z
-        ])
+        accel = np.column_stack([np.zeros(N), np.zeros(N), accel_z])
 
         # Detect with filter (5 Hz cutoff)
         step_indices_filtered, _ = detect_steps_peak_detector(
-            accel, dt=0.01, g=9.81,
-            min_peak_height=1.0, min_peak_distance=0.3,
-            lowpass_cutoff=5.0
+            accel,
+            dt=0.01,
+            g=9.81,
+            min_peak_height=1.0,
+            min_peak_distance=0.3,
+            lowpass_cutoff=5.0,
         )
 
         # Expected: ~20 steps (10s * 2 Hz)
@@ -192,8 +186,11 @@ class TestPDRPeakDetection(unittest.TestCase):
 
         # With filtering, should be close to expected
         self.assertGreater(detected_steps, 0)
-        self.assertLess(abs(detected_steps - expected_steps) / expected_steps, 0.5,
-                       "Filtered detection should be within 50% of expected")
+        self.assertLess(
+            abs(detected_steps - expected_steps) / expected_steps,
+            0.5,
+            "Filtered detection should be within 50% of expected",
+        )
 
     def test_detect_steps_tunable_sensitivity(self):
         """Test that min_peak_height controls sensitivity."""
@@ -206,27 +203,24 @@ class TestPDRPeakDetection(unittest.TestCase):
         walking_amplitude = 1.0
         accel_z = -9.81 + walking_amplitude * np.sin(2 * np.pi * step_freq * t)
 
-        accel = np.column_stack([
-            np.zeros(N),
-            np.zeros(N),
-            accel_z
-        ])
+        accel = np.column_stack([np.zeros(N), np.zeros(N), accel_z])
 
         # High threshold (2.0 m/s²) - should detect few/no steps
         steps_high_thresh, _ = detect_steps_peak_detector(
-            accel, dt=0.01, g=9.81,
-            min_peak_height=2.0, min_peak_distance=0.3
+            accel, dt=0.01, g=9.81, min_peak_height=2.0, min_peak_distance=0.3
         )
 
         # Low threshold (0.5 m/s²) - should detect steps
         steps_low_thresh, _ = detect_steps_peak_detector(
-            accel, dt=0.01, g=9.81,
-            min_peak_height=0.5, min_peak_distance=0.3
+            accel, dt=0.01, g=9.81, min_peak_height=0.5, min_peak_distance=0.3
         )
 
         # Low threshold should detect more steps
-        self.assertGreaterEqual(len(steps_low_thresh), len(steps_high_thresh),
-                               "Lower threshold should detect more steps")
+        self.assertGreaterEqual(
+            len(steps_low_thresh),
+            len(steps_high_thresh),
+            "Lower threshold should detect more steps",
+        )
 
     def test_detect_steps_input_validation(self):
         """Test input validation for detect_steps_peak_detector."""
@@ -249,4 +243,3 @@ class TestPDRPeakDetection(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

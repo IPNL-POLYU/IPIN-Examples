@@ -66,7 +66,7 @@ class TestAdaptiveGatingManager(unittest.TestCase):
             else:
                 # Third reject: triggers inflation and forces accept
                 self.assertTrue(accept)  # Forced accept after adaptation
-                self.assertEqual(action, 'inflate_P')
+                self.assertEqual(action, "inflate_P")
                 self.assertEqual(self.mgr.total_adaptations, 1)
 
         # Counter should reset after adaptation
@@ -129,12 +129,12 @@ class TestAdaptiveGatingManager(unittest.TestCase):
 
         stats = self.mgr.get_stats()
 
-        self.assertEqual(stats['total_measurements'], 3)
-        self.assertEqual(stats['total_accepts'], 2)
-        self.assertEqual(stats['total_rejects'], 1)
-        self.assertAlmostEqual(stats['acceptance_rate'], 2.0 / 3.0)
-        self.assertEqual(stats['expected_nis'], 1)
-        self.assertAlmostEqual(stats['mean_nis'], (1.0 + 2.0 + 1.5) / 3.0)
+        self.assertEqual(stats["total_measurements"], 3)
+        self.assertEqual(stats["total_accepts"], 2)
+        self.assertEqual(stats["total_rejects"], 1)
+        self.assertAlmostEqual(stats["acceptance_rate"], 2.0 / 3.0)
+        self.assertEqual(stats["expected_nis"], 1)
+        self.assertAlmostEqual(stats["mean_nis"], (1.0 + 2.0 + 1.5) / 3.0)
 
     def test_reset(self):
         """Test reset functionality."""
@@ -199,9 +199,8 @@ class TestAdaptiveGatingIntegration(unittest.TestCase):
 
         # Verify stats show the issue
         stats = mgr.get_stats()
-        self.assertGreater(stats['mean_nis'], stats['expected_nis'] * 1.5)
+        self.assertGreater(stats["mean_nis"], stats["expected_nis"] * 1.5)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

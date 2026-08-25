@@ -114,8 +114,10 @@ class TestInitialGuessBasin(unittest.TestCase):
         """The practically relevant statement: a seed anywhere in the room is fine."""
         _, angle = sweeps()
         inside = (
-            (angle["xx"] >= ANCHORS[:, 0].min()) & (angle["xx"] <= ANCHORS[:, 0].max())
-            & (angle["yy"] >= ANCHORS[:, 1].min()) & (angle["yy"] <= ANCHORS[:, 1].max())
+            (angle["xx"] >= ANCHORS[:, 0].min())
+            & (angle["xx"] <= ANCHORS[:, 0].max())
+            & (angle["yy"] >= ANCHORS[:, 1].min())
+            & (angle["yy"] <= ANCHORS[:, 1].max())
         )
 
         self.assertGreater(int(np.sum(inside)), 100)

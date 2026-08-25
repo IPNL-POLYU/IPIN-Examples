@@ -97,11 +97,19 @@ class TestLoopClosureDetection(unittest.TestCase):
 
         # Create sequence with similar scans (loop closure scenario)
         # Use more points for better ICP convergence
-        scan_template = np.array([
-            [1.0, -0.5], [1.0, 0.0], [1.0, 0.5],
-            [2.0, -0.5], [2.0, 0.0], [2.0, 0.5],
-            [3.0, -0.5], [3.0, 0.0], [3.0, 0.5],
-        ])
+        scan_template = np.array(
+            [
+                [1.0, -0.5],
+                [1.0, 0.0],
+                [1.0, 0.5],
+                [2.0, -0.5],
+                [2.0, 0.0],
+                [2.0, 0.5],
+                [3.0, -0.5],
+                [3.0, 0.0],
+                [3.0, 0.5],
+            ]
+        )
 
         scans = []
         poses = []
@@ -113,10 +121,18 @@ class TestLoopClosureDetection(unittest.TestCase):
                 scans.append(scan_template + noise)
             else:
                 # Different scans
-                scans.append(np.array([
-                    [i + 0.5, -0.3], [i + 0.5, 0.0], [i + 0.5, 0.3],
-                    [i + 1.5, -0.3], [i + 1.5, 0.0], [i + 1.5, 0.3],
-                ]))
+                scans.append(
+                    np.array(
+                        [
+                            [i + 0.5, -0.3],
+                            [i + 0.5, 0.0],
+                            [i + 0.5, 0.3],
+                            [i + 1.5, -0.3],
+                            [i + 1.5, 0.0],
+                            [i + 1.5, 0.3],
+                        ]
+                    )
+                )
 
         loop_closures = detector.detect(scans, poses)
 
@@ -159,11 +175,19 @@ class TestLoopClosureDetection(unittest.TestCase):
 
         # Create similar scans with noise
         np.random.seed(42)
-        scan_template = np.array([
-            [1.0, -0.5], [1.0, 0.0], [1.0, 0.5],
-            [2.0, -0.5], [2.0, 0.0], [2.0, 0.5],
-            [3.0, -0.5], [3.0, 0.0], [3.0, 0.5],
-        ])
+        scan_template = np.array(
+            [
+                [1.0, -0.5],
+                [1.0, 0.0],
+                [1.0, 0.5],
+                [2.0, -0.5],
+                [2.0, 0.0],
+                [2.0, 0.5],
+                [3.0, -0.5],
+                [3.0, 0.0],
+                [3.0, 0.5],
+            ]
+        )
 
         scans = []
         for _ in range(15):
@@ -236,11 +260,19 @@ class TestLoopClosureVerification(unittest.TestCase):
 
         # Create similar scans with noise
         np.random.seed(42)
-        scan_template = np.array([
-            [1.0, -0.3], [1.0, 0.0], [1.0, 0.3],
-            [2.0, -0.3], [2.0, 0.0], [2.0, 0.3],
-            [3.0, -0.3], [3.0, 0.0], [3.0, 0.3],
-        ])
+        scan_template = np.array(
+            [
+                [1.0, -0.3],
+                [1.0, 0.0],
+                [1.0, 0.3],
+                [2.0, -0.3],
+                [2.0, 0.0],
+                [2.0, 0.3],
+                [3.0, -0.3],
+                [3.0, 0.0],
+                [3.0, 0.3],
+            ]
+        )
 
         scans = []
         for _ in range(12):
@@ -330,7 +362,9 @@ class TestLoopClosureIntegration(unittest.TestCase):
             poses.append(np.array([x, y, 0.0]))
 
             # Create scan (wall at fixed distance)
-            scan = np.array([[3.0, -1.0], [3.0, 0.0], [3.0, 1.0]]) + np.random.normal(0, 0.01, (3, 2))
+            scan = np.array([[3.0, -1.0], [3.0, 0.0], [3.0, 1.0]]) + np.random.normal(
+                0, 0.01, (3, 2)
+            )
             scans.append(scan)
 
         loop_closures = detector.detect(scans, poses)

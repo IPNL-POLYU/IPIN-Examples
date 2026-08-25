@@ -97,17 +97,30 @@ def generate_test_queries(
 
     if ap_positions is not None and pl_cfg:
         return _generate_queries_pathloss(
-            db, np.asarray(ap_positions), pl_cfg,
-            n_queries=n_queries, floor_id=floor_id, noise_std=noise_std,
+            db,
+            np.asarray(ap_positions),
+            pl_cfg,
+            n_queries=n_queries,
+            floor_id=floor_id,
+            noise_std=noise_std,
         )
 
     return _generate_queries_holdout(
-        db, n_queries=n_queries, floor_id=floor_id, noise_std=noise_std,
+        db,
+        n_queries=n_queries,
+        floor_id=floor_id,
+        noise_std=noise_std,
     )
 
 
 def _generate_queries_pathloss(
-    db, ap_positions, pl_cfg, *, n_queries, floor_id, noise_std,
+    db,
+    ap_positions,
+    pl_cfg,
+    *,
+    n_queries,
+    floor_id,
+    noise_std,
 ):
     """Physics-based query generation using the log-distance path-loss model."""
     p0 = pl_cfg.get("P0_dBm", -30.0)
@@ -127,10 +140,12 @@ def _generate_queries_pathloss(
     min_x, max_x = rp_locs[:, 0].min(), rp_locs[:, 0].max()
     min_y, max_y = rp_locs[:, 1].min(), rp_locs[:, 1].max()
 
-    true_locs = np.column_stack([
-        np.random.uniform(min_x, max_x, n_queries),
-        np.random.uniform(min_y, max_y, n_queries),
-    ])
+    true_locs = np.column_stack(
+        [
+            np.random.uniform(min_x, max_x, n_queries),
+            np.random.uniform(min_y, max_y, n_queries),
+        ]
+    )
 
     n_aps = len(ap_positions)
     query_fingerprints = np.empty((n_queries, n_aps))
@@ -281,17 +296,19 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
 
-    results.append({
-        "method": method_name,
-        "category": "Deterministic",
-        "errors": np.array(errors),
-        "times": np.array(times),
-        "rmse": np.sqrt(np.mean(np.array(errors)**2)),
-        "median": np.median(errors),
-        "p90": np.percentile(errors, 90),
-        "mean_time_ms": np.mean(times),
-        "ops_per_query": ops_per_query[method_name],
-    })
+    results.append(
+        {
+            "method": method_name,
+            "category": "Deterministic",
+            "errors": np.array(errors),
+            "times": np.array(times),
+            "rmse": np.sqrt(np.mean(np.array(errors) ** 2)),
+            "median": np.median(errors),
+            "p90": np.percentile(errors, 90),
+            "mean_time_ms": np.mean(times),
+            "ops_per_query": ops_per_query[method_name],
+        }
+    )
     print(f"RMSE={results[-1]['rmse']:.2f}m")
 
     # k-NN
@@ -300,23 +317,31 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     errors, times = [], []
     for query, true_loc in zip(queries, true_locs):
         t_start = time.perf_counter()
-        est_loc = knn_localize(query, db, k=3, metric="euclidean",
-                              weighting="inverse_distance", floor_id=floor_id)
+        est_loc = knn_localize(
+            query,
+            db,
+            k=3,
+            metric="euclidean",
+            weighting="inverse_distance",
+            floor_id=floor_id,
+        )
         t_end = time.perf_counter()
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
 
-    results.append({
-        "method": method_name,
-        "category": "Deterministic",
-        "errors": np.array(errors),
-        "times": np.array(times),
-        "rmse": np.sqrt(np.mean(np.array(errors)**2)),
-        "median": np.median(errors),
-        "p90": np.percentile(errors, 90),
-        "mean_time_ms": np.mean(times),
-        "ops_per_query": ops_per_query[method_name],
-    })
+    results.append(
+        {
+            "method": method_name,
+            "category": "Deterministic",
+            "errors": np.array(errors),
+            "times": np.array(times),
+            "rmse": np.sqrt(np.mean(np.array(errors) ** 2)),
+            "median": np.median(errors),
+            "p90": np.percentile(errors, 90),
+            "mean_time_ms": np.mean(times),
+            "ops_per_query": ops_per_query[method_name],
+        }
+    )
     print(f"RMSE={results[-1]['rmse']:.2f}m")
 
     # Probabilistic methods
@@ -338,17 +363,19 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
 
-    results.append({
-        "method": method_name,
-        "category": "Probabilistic",
-        "errors": np.array(errors),
-        "times": np.array(times),
-        "rmse": np.sqrt(np.mean(np.array(errors)**2)),
-        "median": np.median(errors),
-        "p90": np.percentile(errors, 90),
-        "mean_time_ms": np.mean(times),
-        "ops_per_query": ops_per_query[method_name],
-    })
+    results.append(
+        {
+            "method": method_name,
+            "category": "Probabilistic",
+            "errors": np.array(errors),
+            "times": np.array(times),
+            "rmse": np.sqrt(np.mean(np.array(errors) ** 2)),
+            "median": np.median(errors),
+            "p90": np.percentile(errors, 90),
+            "mean_time_ms": np.mean(times),
+            "ops_per_query": ops_per_query[method_name],
+        }
+    )
     print(f"RMSE={results[-1]['rmse']:.2f}m")
 
     # Posterior Mean (Full)
@@ -362,17 +389,19 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
 
-    results.append({
-        "method": method_name,
-        "category": "Probabilistic",
-        "errors": np.array(errors),
-        "times": np.array(times),
-        "rmse": np.sqrt(np.mean(np.array(errors)**2)),
-        "median": np.median(errors),
-        "p90": np.percentile(errors, 90),
-        "mean_time_ms": np.mean(times),
-        "ops_per_query": ops_per_query[method_name],
-    })
+    results.append(
+        {
+            "method": method_name,
+            "category": "Probabilistic",
+            "errors": np.array(errors),
+            "times": np.array(times),
+            "rmse": np.sqrt(np.mean(np.array(errors) ** 2)),
+            "median": np.median(errors),
+            "p90": np.percentile(errors, 90),
+            "mean_time_ms": np.mean(times),
+            "ops_per_query": ops_per_query[method_name],
+        }
+    )
     print(f"RMSE={results[-1]['rmse']:.2f}m")
 
     # Posterior Mean (Top-k) - Book guidance: typically sufficient
@@ -381,22 +410,26 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     errors, times = [], []
     for query, true_loc in zip(queries, true_locs):
         t_start = time.perf_counter()
-        est_loc = posterior_mean_localize(query, model_bayes, floor_id=floor_id, top_k=10)
+        est_loc = posterior_mean_localize(
+            query, model_bayes, floor_id=floor_id, top_k=10
+        )
         t_end = time.perf_counter()
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
 
-    results.append({
-        "method": method_name,
-        "category": "Probabilistic",
-        "errors": np.array(errors),
-        "times": np.array(times),
-        "rmse": np.sqrt(np.mean(np.array(errors)**2)),
-        "median": np.median(errors),
-        "p90": np.percentile(errors, 90),
-        "mean_time_ms": np.mean(times),
-        "ops_per_query": ops_per_query[method_name],
-    })
+    results.append(
+        {
+            "method": method_name,
+            "category": "Probabilistic",
+            "errors": np.array(errors),
+            "times": np.array(times),
+            "rmse": np.sqrt(np.mean(np.array(errors) ** 2)),
+            "median": np.median(errors),
+            "p90": np.percentile(errors, 90),
+            "mean_time_ms": np.mean(times),
+            "ops_per_query": ops_per_query[method_name],
+        }
+    )
     print(f"RMSE={results[-1]['rmse']:.2f}m")
 
     # Pattern Recognition
@@ -417,17 +450,19 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
 
-    results.append({
-        "method": method_name,
-        "category": "Pattern Recognition",
-        "errors": np.array(errors),
-        "times": np.array(times),
-        "rmse": np.sqrt(np.mean(np.array(errors)**2)),
-        "median": np.median(errors),
-        "p90": np.percentile(errors, 90),
-        "mean_time_ms": np.mean(times),
-        "ops_per_query": ops_per_query[method_name],
-    })
+    results.append(
+        {
+            "method": method_name,
+            "category": "Pattern Recognition",
+            "errors": np.array(errors),
+            "times": np.array(times),
+            "rmse": np.sqrt(np.mean(np.array(errors) ** 2)),
+            "median": np.median(errors),
+            "p90": np.percentile(errors, 90),
+            "mean_time_ms": np.mean(times),
+            "ops_per_query": ops_per_query[method_name],
+        }
+    )
     print(f"RMSE={results[-1]['rmse']:.2f}m")
 
     return results
@@ -442,9 +477,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     ).parse_args()
 
-    print("="*70)
+    print("=" * 70)
     print("Chapter 5: Fingerprinting Methods Comparison")
-    print("="*70)
+    print("=" * 70)
 
     # Load database
     print("\nLoading fingerprint database...")
@@ -455,83 +490,99 @@ def main():
     all_results = {}
 
     # Scenario 1: Baseline (low noise, single floor)
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SCENARIO 1: Baseline (low noise, single floor)")
-    print("="*70)
+    print("=" * 70)
 
     queries1, true_locs1, _ = generate_test_queries(
         db, n_queries=200, floor_id=0, noise_std=1.0, seed=42
     )
     all_results["Baseline"] = evaluate_scenario(
-        "Baseline (extra sigma=1dBm on top of 4dBm shadowing, Floor 0)", db, queries1, true_locs1, floor_id=0
+        "Baseline (extra sigma=1dBm on top of 4dBm shadowing, Floor 0)",
+        db,
+        queries1,
+        true_locs1,
+        floor_id=0,
     )
 
     # Scenario 2: Moderate noise
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SCENARIO 2: Moderate Noise")
-    print("="*70)
+    print("=" * 70)
 
     queries2, true_locs2, _ = generate_test_queries(
         db, n_queries=200, floor_id=0, noise_std=2.0, seed=43
     )
     all_results["Moderate Noise"] = evaluate_scenario(
-        "Moderate (extra sigma=2dBm on top of 4dBm shadowing, Floor 0)", db, queries2, true_locs2, floor_id=0
+        "Moderate (extra sigma=2dBm on top of 4dBm shadowing, Floor 0)",
+        db,
+        queries2,
+        true_locs2,
+        floor_id=0,
     )
 
     # Scenario 3: High noise
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("SCENARIO 3: High Noise")
-    print("="*70)
+    print("=" * 70)
 
     queries3, true_locs3, _ = generate_test_queries(
         db, n_queries=200, floor_id=0, noise_std=5.0, seed=44
     )
     all_results["High Noise"] = evaluate_scenario(
-        "High (extra sigma=5dBm on top of 4dBm shadowing, Floor 0)", db, queries3, true_locs3, floor_id=0
+        "High (extra sigma=5dBm on top of 4dBm shadowing, Floor 0)",
+        db,
+        queries3,
+        true_locs3,
+        floor_id=0,
     )
 
     # Print summary table
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("COMPREHENSIVE RESULTS SUMMARY")
-    print("="*70)
+    print("=" * 70)
 
     for scenario_name, results in all_results.items():
         print(f"\n{scenario_name}:")
-        print(f"{'Method':<20} {'Category':<20} {'RMSE (m)':<12} {'Median (m)':<12} {'P90 (m)':<12} {'Time (ms)':<12}")
-        print("-"*90)
+        print(
+            f"{'Method':<20} {'Category':<20} {'RMSE (m)':<12} {'Median (m)':<12} {'P90 (m)':<12} {'Time (ms)':<12}"
+        )
+        print("-" * 90)
         for r in results:
-            print(f"{r['method']:<20} {r['category']:<20} {r['rmse']:<12.2f} "
-                  f"{r['median']:<12.2f} {r['p90']:<12.2f} {r['mean_time_ms']:<12.3f}")
+            print(
+                f"{r['method']:<20} {r['category']:<20} {r['rmse']:<12.2f} "
+                f"{r['median']:<12.2f} {r['p90']:<12.2f} {r['mean_time_ms']:<12.3f}"
+            )
 
     # Visualizations
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Generating comparison visualizations...")
-    print("="*70)
+    print("=" * 70)
 
     fig = plt.figure(figsize=(18, 12))
 
     # Plot 1: RMSE comparison across scenarios
     ax1 = plt.subplot(3, 3, 1)
-    methods = [r['method'] for r in all_results["Baseline"]]
+    methods = [r["method"] for r in all_results["Baseline"]]
     x = np.arange(len(methods))
     width = 0.25
 
     for i, (scenario_name, results) in enumerate(all_results.items()):
-        rmses = [r['rmse'] for r in results]
-        ax1.bar(x + i*width, rmses, width, label=scenario_name, alpha=0.8)
+        rmses = [r["rmse"] for r in results]
+        ax1.bar(x + i * width, rmses, width, label=scenario_name, alpha=0.8)
 
-    ax1.set_ylabel('RMSE (m)')
-    ax1.set_title('RMSE Comparison Across Scenarios')
+    ax1.set_ylabel("RMSE (m)")
+    ax1.set_title("RMSE Comparison Across Scenarios")
     ax1.set_xticks(x + width)
-    ax1.set_xticklabels(methods, rotation=45, ha='right', fontsize=8)
+    ax1.set_xticklabels(methods, rotation=45, ha="right", fontsize=8)
     ax1.legend(fontsize=8)
-    ax1.grid(True, alpha=0.3, axis='y')
+    ax1.grid(True, alpha=0.3, axis="y")
 
     # Plot 2: Error CDF (Baseline scenario)
     ax2 = plt.subplot(3, 3, 2)
     plot_error_cdf(
-        {r['method']: r['errors'] for r in all_results["Baseline"]},
-        title='Error CDF (Baseline)',
+        {r["method"]: r["errors"] for r in all_results["Baseline"]},
+        title="Error CDF (Baseline)",
         ax=ax2,
         title_fontweight="normal",
     )
@@ -540,26 +591,26 @@ def main():
 
     # Plot 3: Computation time comparison
     ax3 = plt.subplot(3, 3, 3)
-    methods = [r['method'] for r in all_results["Baseline"]]
-    ops = [r['ops_per_query'] for r in all_results["Baseline"]]
-    colors = ['blue', 'cyan', 'red', 'orange', 'green', 'purple']
-    ax3.barh(methods, ops, color=colors[:len(methods)], alpha=0.7)
-    ax3.set_xscale('log')
-    ax3.set_xlabel('Operations per query')
-    ax3.set_title('Per-Query Cost (Baseline)')
-    ax3.grid(True, alpha=0.3, axis='x')
+    methods = [r["method"] for r in all_results["Baseline"]]
+    ops = [r["ops_per_query"] for r in all_results["Baseline"]]
+    colors = ["blue", "cyan", "red", "orange", "green", "purple"]
+    ax3.barh(methods, ops, color=colors[: len(methods)], alpha=0.7)
+    ax3.set_xscale("log")
+    ax3.set_xlabel("Operations per query")
+    ax3.set_title("Per-Query Cost (Baseline)")
+    ax3.grid(True, alpha=0.3, axis="x")
 
     # Plot 4: Box plot comparison (Baseline)
     ax4 = plt.subplot(3, 3, 4)
-    error_data = [r['errors'] for r in all_results["Baseline"]]
+    error_data = [r["errors"] for r in all_results["Baseline"]]
     bp = ax4.boxplot(error_data, tick_labels=methods, patch_artist=True)
-    colors_box = ['lightblue', 'lightcyan', 'lightcoral', 'lightsalmon', 'lightgreen']
-    for patch, color in zip(bp['boxes'], colors_box):
+    colors_box = ["lightblue", "lightcyan", "lightcoral", "lightsalmon", "lightgreen"]
+    for patch, color in zip(bp["boxes"], colors_box):
         patch.set_facecolor(color)
-    ax4.set_ylabel('Positioning Error (m)')
-    ax4.set_title('Error Distribution (Baseline)')
-    plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
-    ax4.grid(True, alpha=0.3, axis='y')
+    ax4.set_ylabel("Positioning Error (m)")
+    ax4.set_title("Error Distribution (Baseline)")
+    plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45, ha="right", fontsize=8)
+    ax4.grid(True, alpha=0.3, axis="y")
 
     # Plot 5: Robustness to noise (RMSE vs noise std)
     ax5 = plt.subplot(3, 3, 5)
@@ -569,13 +620,15 @@ def main():
     for i, method in enumerate(methods):
         rmses = []
         for scenario_name in scenario_names:
-            method_result = [r for r in all_results[scenario_name] if r['method'] == method][0]
-            rmses.append(method_result['rmse'])
-        ax5.plot(noise_levels, rmses, 'o-', label=method, linewidth=2, markersize=6)
+            method_result = [
+                r for r in all_results[scenario_name] if r["method"] == method
+            ][0]
+            rmses.append(method_result["rmse"])
+        ax5.plot(noise_levels, rmses, "o-", label=method, linewidth=2, markersize=6)
 
-    ax5.set_xlabel('RSS Noise Std (dBm)')
-    ax5.set_ylabel('RMSE (m)')
-    ax5.set_title('Robustness to Measurement Noise')
+    ax5.set_xlabel("RSS Noise Std (dBm)")
+    ax5.set_ylabel("RMSE (m)")
+    ax5.set_title("Robustness to Measurement Noise")
     ax5.legend(fontsize=7)
     ax5.grid(True, alpha=0.3)
 
@@ -589,13 +642,19 @@ def main():
     # match the per-query cost panel above, so a method reads the same in both.
     ax6 = plt.subplot(3, 3, 6)
     for r, color in zip(all_results["Baseline"], colors):
-        ax6.scatter(r['ops_per_query'], r['rmse'], s=150, alpha=0.7,
-                    color=color, label=r['method'])
+        ax6.scatter(
+            r["ops_per_query"],
+            r["rmse"],
+            s=150,
+            alpha=0.7,
+            color=color,
+            label=r["method"],
+        )
     ax6.legend(fontsize=7)
-    ax6.set_xscale('log')
-    ax6.set_xlabel('Operations per query')
-    ax6.set_ylabel('RMSE (m)')
-    ax6.set_title('Cost vs Accuracy Trade-off')
+    ax6.set_xscale("log")
+    ax6.set_xlabel("Operations per query")
+    ax6.set_ylabel("RMSE (m)")
+    ax6.set_title("Cost vs Accuracy Trade-off")
     ax6.grid(True, alpha=0.3)
 
     # Plot 7: Category comparison
@@ -603,74 +662,77 @@ def main():
     categories = ["Deterministic", "Probabilistic", "Pattern Recognition"]
     cat_rmses = {}
     for cat in categories:
-        cat_methods = [r for r in all_results["Baseline"] if r['category'] == cat]
-        cat_rmses[cat] = [r['rmse'] for r in cat_methods]
+        cat_methods = [r for r in all_results["Baseline"] if r["category"] == cat]
+        cat_rmses[cat] = [r["rmse"] for r in cat_methods]
 
     positions = [1, 2, 3]
-    bp = ax7.boxplot(cat_rmses.values(), positions=positions, tick_labels=cat_rmses.keys(),
-                    patch_artist=True)
-    for patch in bp['boxes']:
-        patch.set_facecolor('lightyellow')
-    ax7.set_ylabel('RMSE (m)')
-    ax7.set_title('Performance by Category')
-    plt.setp(ax7.xaxis.get_majorticklabels(), rotation=15, ha='right')
-    ax7.grid(True, alpha=0.3, axis='y')
+    bp = ax7.boxplot(
+        cat_rmses.values(),
+        positions=positions,
+        tick_labels=cat_rmses.keys(),
+        patch_artist=True,
+    )
+    for patch in bp["boxes"]:
+        patch.set_facecolor("lightyellow")
+    ax7.set_ylabel("RMSE (m)")
+    ax7.set_title("Performance by Category")
+    plt.setp(ax7.xaxis.get_majorticklabels(), rotation=15, ha="right")
+    ax7.grid(True, alpha=0.3, axis="y")
 
     # Plot 8: Percentile comparison
     ax8 = plt.subplot(3, 3, 8)
     x = np.arange(len(methods))
-    p50 = [r['median'] for r in all_results["Baseline"]]
-    p90 = [r['p90'] for r in all_results["Baseline"]]
+    p50 = [r["median"] for r in all_results["Baseline"]]
+    p90 = [r["p90"] for r in all_results["Baseline"]]
     width = 0.35
-    ax8.bar(x - width/2, p50, width, label='Median (P50)', alpha=0.8)
-    ax8.bar(x + width/2, p90, width, label='P90', alpha=0.8)
-    ax8.set_ylabel('Error (m)')
-    ax8.set_title('Median vs P90 Errors')
+    ax8.bar(x - width / 2, p50, width, label="Median (P50)", alpha=0.8)
+    ax8.bar(x + width / 2, p90, width, label="P90", alpha=0.8)
+    ax8.set_ylabel("Error (m)")
+    ax8.set_title("Median vs P90 Errors")
     ax8.set_xticks(x)
-    ax8.set_xticklabels(methods, rotation=45, ha='right', fontsize=8)
+    ax8.set_xticklabels(methods, rotation=45, ha="right", fontsize=8)
     ax8.legend()
-    ax8.grid(True, alpha=0.3, axis='y')
+    ax8.grid(True, alpha=0.3, axis="y")
 
     # Plot 9: Summary radar chart
-    ax9 = plt.subplot(3, 3, 9, projection='polar')
+    ax9 = plt.subplot(3, 3, 9, projection="polar")
 
     # Normalize metrics for radar chart
     baseline_results = all_results["Baseline"]
-    metrics = ['RMSE', 'Median', 'P90']
+    metrics = ["RMSE", "Median", "P90"]
 
     # Select 3 representative methods
     selected_methods = ["NN (Euclidean)", "MAP", "Linear Regression"]
-    angles = np.linspace(0, 2*np.pi, len(metrics), endpoint=False).tolist()
+    angles = np.linspace(0, 2 * np.pi, len(metrics), endpoint=False).tolist()
     angles += angles[:1]
 
     for method_name in selected_methods:
-        method_result = [r for r in baseline_results if r['method'] == method_name][0]
+        method_result = [r for r in baseline_results if r["method"] == method_name][0]
         values = [
-            method_result['rmse'] / 10,  # Normalize
-            method_result['median'] / 10,
-            method_result['p90'] / 15,
+            method_result["rmse"] / 10,  # Normalize
+            method_result["median"] / 10,
+            method_result["p90"] / 15,
         ]
         values += values[:1]
-        ax9.plot(angles, values, 'o-', linewidth=2, label=method_name)
+        ax9.plot(angles, values, "o-", linewidth=2, label=method_name)
         ax9.fill(angles, values, alpha=0.15)
 
     ax9.set_xticks(angles[:-1])
     ax9.set_xticklabels(metrics)
     ax9.set_ylim(0, 1)
-    ax9.set_title('Performance Profile\n(Normalized)', pad=20)
-    ax9.legend(loc='upper right', bbox_to_anchor=(1.3, 1.0), fontsize=8)
+    ax9.set_title("Performance Profile\n(Normalized)", pad=20)
+    ax9.legend(loc="upper right", bbox_to_anchor=(1.3, 1.0), fontsize=8)
     ax9.grid(True)
 
     plt.tight_layout()
 
     # Save (svg + pdf + png via the shared layer)
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "comparison_all_methods")
+    paths = save_figure(fig, Path(__file__).parent / "figs", "comparison_all_methods")
     print(f"Saved: {paths[0]}")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("COMPARISON COMPLETE!")
-    print("="*70)
+    print("=" * 70)
     print("\nKey Insights:")
     print("  1. Speed: Linear Regression >> NN > k-NN ~= MAP ~= Posterior Mean")
     print("  2. Accuracy (low noise): Probabilistic ~= k-NN > NN > Linear Reg")
@@ -710,4 +772,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

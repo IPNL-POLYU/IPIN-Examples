@@ -59,6 +59,7 @@ def create_range_bearing_innovation_func(n_landmarks: int):
     Returns:
         innovation_func(z, z_pred) -> innovation vector with wrapped bearings.
     """
+
     def innovation_func(z: np.ndarray, z_pred: np.ndarray) -> np.ndarray:
         innovation = np.zeros_like(z)
         for i in range(n_landmarks):
@@ -73,33 +74,33 @@ def create_range_bearing_innovation_func(n_landmarks: int):
 
 def load_estimator_dataset(data_dir: str) -> Dict:
     """Load estimator dataset from directory.
-    
+
     Args:
         data_dir: Path to dataset directory (e.g., 'data/sim/ch3_estimator_nonlinear')
-    
+
     Returns:
         Dictionary with time, ground truth, and measurements
     """
     path = Path(data_dir)
 
     data = {
-        't': np.loadtxt(path / 'time.txt'),
-        'beacons': np.loadtxt(path / 'beacons.txt'),
-        'true_states': np.loadtxt(path / 'ground_truth_states.txt'),
-        'range_meas': np.loadtxt(path / 'range_measurements.txt'),
-        'bearing_meas': np.loadtxt(path / 'bearing_measurements.txt'),
+        "t": np.loadtxt(path / "time.txt"),
+        "beacons": np.loadtxt(path / "beacons.txt"),
+        "true_states": np.loadtxt(path / "ground_truth_states.txt"),
+        "range_meas": np.loadtxt(path / "range_measurements.txt"),
+        "bearing_meas": np.loadtxt(path / "bearing_measurements.txt"),
     }
 
     # Load config
-    with open(path / 'config.json') as f:
-        data['config'] = json.load(f)
+    with open(path / "config.json") as f:
+        data["config"] = json.load(f)
 
     return data
 
 
 def run_with_dataset(data_dir: str) -> None:
     """Run EKF example using pre-generated dataset.
-    
+
     Args:
         data_dir: Path to dataset directory
     """
@@ -110,13 +111,13 @@ def run_with_dataset(data_dir: str) -> None:
 
     # Load dataset
     data = load_estimator_dataset(data_dir)
-    config = data['config']
+    config = data["config"]
 
-    t = data['t']
-    landmarks = data['beacons']
-    true_states = data['true_states']
-    range_meas = data['range_meas']
-    bearing_meas = data['bearing_meas']
+    t = data["t"]
+    landmarks = data["beacons"]
+    true_states = data["true_states"]
+    range_meas = data["range_meas"]
+    bearing_meas = data["bearing_meas"]
 
     dt = t[1] - t[0] if len(t) > 1 else 0.5
     n_steps = len(t) - 1
@@ -130,7 +131,9 @@ def run_with_dataset(data_dir: str) -> None:
     else:
         print("  [OK] Landmark geometry is valid")
 
-    is_obs, obs_msg = check_range_only_observability_2d(landmarks, initial_pos, warn=False)
+    is_obs, obs_msg = check_range_only_observability_2d(
+        landmarks, initial_pos, warn=False
+    )
     if is_obs:
         print("  [OK] Position is observable from range measurements")
     else:
@@ -140,26 +143,22 @@ def run_with_dataset(data_dir: str) -> None:
     print(f"  Duration: {t[-1]:.1f} s ({n_steps} steps)")
     print(f"  Time step: {dt:.2f} s")
     print(f"  Landmarks: {len(landmarks)}")
-    print(f"  Range noise: {config.get('measurements', {}).get('range_noise_std', 'N/A')} m")
-    print(f"  Bearing noise: {np.rad2deg(config.get('measurements', {}).get('bearing_noise_std', 0)):.2f}°")
+    print(
+        f"  Range noise: {config.get('measurements', {}).get('range_noise_std', 'N/A')} m"
+    )
+    print(
+        f"  Bearing noise: {np.rad2deg(config.get('measurements', {}).get('bearing_noise_std', 0)):.2f}°"
+    )
 
     # Process model: constant velocity
     def process_model(x, u, dt_val):
-        F = np.array([
-            [1, 0, dt_val, 0],
-            [0, 1, 0, dt_val],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt_val, 0], [0, 1, 0, dt_val], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def process_jacobian(x, u, dt_val):
-        return np.array([
-            [1, 0, dt_val, 0],
-            [0, 1, 0, dt_val],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        return np.array(
+            [[1, 0, dt_val, 0], [0, 1, 0, dt_val], [0, 0, 1, 0], [0, 0, 0, 1]]
+        )
 
     # Measurement model: range and bearing to landmarks
     def measurement_model(x):
@@ -186,23 +185,25 @@ def run_with_dataset(data_dir: str) -> None:
                 H.extend([[0, 0, 0, 0], [0, 0, 0, 0]])
             else:
                 # Range Jacobian: ∂r/∂[x,y] = [-dx/r, -dy/r]
-                H.append([-dx/r, -dy/r, 0, 0])
+                H.append([-dx / r, -dy / r, 0, 0])
                 # Bearing Jacobian: ∂θ/∂[x,y] = [dy/r², -dx/r²]
-                H.append([dy/r_sq, -dx/r_sq, 0, 0])
+                H.append([dy / r_sq, -dx / r_sq, 0, 0])
         return np.array(H)
 
     # Noise covariances
-    q = config.get('process', {}).get('noise_std', 0.5)
-    range_std = config.get('measurements', {}).get('range_noise_std', 0.5)
-    bearing_std = config.get('measurements', {}).get('bearing_noise_std', 0.05)
+    q = config.get("process", {}).get("noise_std", 0.5)
+    range_std = config.get("measurements", {}).get("range_noise_std", 0.5)
+    bearing_std = config.get("measurements", {}).get("bearing_noise_std", 0.05)
 
     def Q_func(dt_val):
-        return q * np.array([
-            [dt_val**3/3, 0, dt_val**2/2, 0],
-            [0, dt_val**3/3, 0, dt_val**2/2],
-            [dt_val**2/2, 0, dt_val, 0],
-            [0, dt_val**2/2, 0, dt_val]
-        ])
+        return q * np.array(
+            [
+                [dt_val**3 / 3, 0, dt_val**2 / 2, 0],
+                [0, dt_val**3 / 3, 0, dt_val**2 / 2],
+                [dt_val**2 / 2, 0, dt_val, 0],
+                [0, dt_val**2 / 2, 0, dt_val],
+            ]
+        )
 
     def R_func():
         R_diag = []
@@ -221,10 +222,15 @@ def run_with_dataset(data_dir: str) -> None:
     print("\nRunning Extended Kalman Filter...")
     print("  (Using angle wrapping for bearing innovations)")
     ekf = ExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0_est, P0,
-        innovation_func=innovation_func
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0_est,
+        P0,
+        innovation_func=innovation_func,
     )
 
     estimates = [x0_est.copy()]
@@ -234,7 +240,7 @@ def run_with_dataset(data_dir: str) -> None:
         # Form measurement from dataset
         z = []
         for i in range(len(landmarks)):
-            z.extend([range_meas[k+1, i], bearing_meas[k+1, i]])
+            z.extend([range_meas[k + 1, i], bearing_meas[k + 1, i]])
         z = np.array(z)
 
         ekf.predict(dt=dt)
@@ -258,16 +264,45 @@ def run_with_dataset(data_dir: str) -> None:
     # Visualization
     print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle('EKF Range-Bearing Positioning (Dataset)', fontsize=14, fontweight='bold')
+    fig.suptitle(
+        "EKF Range-Bearing Positioning (Dataset)", fontsize=14, fontweight="bold"
+    )
 
     # Trajectory
     ax = axes[0, 0]
-    ax.scatter(landmarks[:, 0], landmarks[:, 1], s=200, c="red", marker="^",
-               label="Landmarks", zorder=3, edgecolors="black", linewidths=2)
-    ax.plot(true_states[:, 0], true_states[:, 1], "g-", linewidth=2, label="True Trajectory")
+    ax.scatter(
+        landmarks[:, 0],
+        landmarks[:, 1],
+        s=200,
+        c="red",
+        marker="^",
+        label="Landmarks",
+        zorder=3,
+        edgecolors="black",
+        linewidths=2,
+    )
+    ax.plot(
+        true_states[:, 0], true_states[:, 1], "g-", linewidth=2, label="True Trajectory"
+    )
     ax.plot(estimates[:, 0], estimates[:, 1], "b--", linewidth=2, label="EKF Estimate")
-    ax.scatter(true_states[0, 0], true_states[0, 1], s=150, c="green", marker="o", label="Start", zorder=3)
-    ax.scatter(true_states[-1, 0], true_states[-1, 1], s=150, c="orange", marker="s", label="End", zorder=3)
+    ax.scatter(
+        true_states[0, 0],
+        true_states[0, 1],
+        s=150,
+        c="green",
+        marker="o",
+        label="Start",
+        zorder=3,
+    )
+    ax.scatter(
+        true_states[-1, 0],
+        true_states[-1, 1],
+        s=150,
+        c="orange",
+        marker="s",
+        label="End",
+        zorder=3,
+    )
     ax.set_xlabel("X Position [m]")
     ax.set_ylabel("Y Position [m]")
     ax.set_title("2D Trajectory")
@@ -305,8 +340,7 @@ def run_with_dataset(data_dir: str) -> None:
 
     plt.tight_layout()
 
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "ch3_ekf_range_bearing")
+    paths = save_figure(fig, Path(__file__).parent / "figs", "ch3_ekf_range_bearing")
     print(f"Plot saved: {paths[0]}")
 
     show_figures_if_requested()
@@ -334,12 +368,14 @@ def example_2d_range_bearing_positioning():
     n_steps = int(t_max / dt)
 
     # Landmark positions (known)
-    landmarks = np.array([
-        [0.0, 0.0],
-        [20.0, 0.0],
-        [20.0, 20.0],
-        [0.0, 20.0],
-    ])
+    landmarks = np.array(
+        [
+            [0.0, 0.0],
+            [20.0, 0.0],
+            [20.0, 20.0],
+            [0.0, 20.0],
+        ]
+    )
 
     print("\nSimulation Parameters:")
     print(f"  Time step: {dt} s")
@@ -357,7 +393,9 @@ def example_2d_range_bearing_positioning():
     else:
         print("  [OK] Landmark geometry is valid")
 
-    is_obs, obs_msg = check_range_only_observability_2d(landmarks, true_x0[:2], warn=False)
+    is_obs, obs_msg = check_range_only_observability_2d(
+        landmarks, true_x0[:2], warn=False
+    )
     if is_obs:
         print("  [OK] Position is observable from range measurements")
     else:
@@ -365,21 +403,11 @@ def example_2d_range_bearing_positioning():
 
     # Process model: constant velocity in 2D
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def process_jacobian(x, u, dt):
-        return np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # Measurement model: range and bearing to all landmarks
     def measurement_model(x):
@@ -418,13 +446,16 @@ def example_2d_range_bearing_positioning():
 
     # Process noise covariance
     q = 0.5
+
     def Q_func(dt):
-        return q * np.array([
-            [dt**3/3, 0, dt**2/2, 0],
-            [0, dt**3/3, 0, dt**2/2],
-            [dt**2/2, 0, dt, 0],
-            [0, dt**2/2, 0, dt]
-        ])
+        return q * np.array(
+            [
+                [dt**3 / 3, 0, dt**2 / 2, 0],
+                [0, dt**3 / 3, 0, dt**2 / 2],
+                [dt**2 / 2, 0, dt, 0],
+                [0, dt**2 / 2, 0, dt],
+            ]
+        )
 
     # Measurement noise covariance
     range_std = 0.5
@@ -469,10 +500,15 @@ def example_2d_range_bearing_positioning():
     print("\nRunning Extended Kalman Filter...")
     print("  (Using angle wrapping for bearing innovations)")
     ekf = ExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0_est, P0,
-        innovation_func=innovation_func
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0_est,
+        P0,
+        innovation_func=innovation_func,
     )
 
     estimates = [x0_est.copy()]
@@ -495,8 +531,12 @@ def example_2d_range_bearing_positioning():
     velocity_errors = np.linalg.norm(estimates[:, 2:] - true_states[:, 2:], axis=1)
 
     print("\nResults:")
-    print(f"  Final true position: ({true_states[-1, 0]:.2f}, {true_states[-1, 1]:.2f}) m")
-    print(f"  Final estimated position: ({estimates[-1, 0]:.2f}, {estimates[-1, 1]:.2f}) m")
+    print(
+        f"  Final true position: ({true_states[-1, 0]:.2f}, {true_states[-1, 1]:.2f}) m"
+    )
+    print(
+        f"  Final estimated position: ({estimates[-1, 0]:.2f}, {estimates[-1, 1]:.2f}) m"
+    )
     print(f"  Final position error: {position_errors[-1]:.4f} m")
     print(f"  Mean position error: {np.mean(position_errors[5:]):.4f} m")
     print(f"  Final velocity error: {velocity_errors[-1]:.4f} m/s")
@@ -506,14 +546,41 @@ def example_2d_range_bearing_positioning():
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
 
     ax = axes[0, 0]
-    ax.scatter(landmarks[:, 0], landmarks[:, 1], s=200, c="red", marker="^",
-               label="Landmarks", zorder=3, edgecolors="black", linewidths=2)
-    ax.plot(true_states[:, 0], true_states[:, 1], "g-", linewidth=2, label="True Trajectory")
+    ax.scatter(
+        landmarks[:, 0],
+        landmarks[:, 1],
+        s=200,
+        c="red",
+        marker="^",
+        label="Landmarks",
+        zorder=3,
+        edgecolors="black",
+        linewidths=2,
+    )
+    ax.plot(
+        true_states[:, 0], true_states[:, 1], "g-", linewidth=2, label="True Trajectory"
+    )
     ax.plot(estimates[:, 0], estimates[:, 1], "b--", linewidth=2, label="EKF Estimate")
-    ax.scatter(true_states[0, 0], true_states[0, 1], s=150, c="green", marker="o",
-               label="Start", zorder=3, edgecolors="black")
-    ax.scatter(true_states[-1, 0], true_states[-1, 1], s=150, c="orange", marker="s",
-               label="End", zorder=3, edgecolors="black")
+    ax.scatter(
+        true_states[0, 0],
+        true_states[0, 1],
+        s=150,
+        c="green",
+        marker="o",
+        label="Start",
+        zorder=3,
+        edgecolors="black",
+    )
+    ax.scatter(
+        true_states[-1, 0],
+        true_states[-1, 1],
+        s=150,
+        c="orange",
+        marker="s",
+        label="End",
+        zorder=3,
+        edgecolors="black",
+    )
 
     P_final = covariances[-1]
     pos_cov = P_final[:2, :2]
@@ -521,8 +588,17 @@ def example_2d_range_bearing_positioning():
     angle = np.arctan2(eigenvectors[1, 0], eigenvectors[0, 0])
     width, height = 2 * 2 * np.sqrt(eigenvalues)
     from matplotlib.patches import Ellipse
-    ellipse = Ellipse(estimates[-1, :2], width, height, angle=np.rad2deg(angle),
-                      facecolor="blue", alpha=0.2, edgecolor="blue", linewidth=2)
+
+    ellipse = Ellipse(
+        estimates[-1, :2],
+        width,
+        height,
+        angle=np.rad2deg(angle),
+        facecolor="blue",
+        alpha=0.2,
+        edgecolor="blue",
+        linewidth=2,
+    )
     ax.add_patch(ellipse)
 
     ax.set_xlabel("X Position [m]", fontsize=12)
@@ -560,8 +636,7 @@ def example_2d_range_bearing_positioning():
     ax.grid(True, alpha=0.3)
 
     plt.tight_layout()
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "ch3_ekf_range_bearing")
+    paths = save_figure(fig, Path(__file__).parent / "figs", "ch3_ekf_range_bearing")
     print(f"Plot saved as: {paths[0]}")
     show_figures_if_requested()
 
@@ -583,11 +658,13 @@ Examples:
   
   # Run with high nonlinearity scenario
   python example_ekf_range_bearing.py --data ch3_estimator_high_nonlinear
-        """
+        """,
     )
     parser.add_argument(
-        "--data", type=str, default=None,
-        help="Dataset name or path (e.g., 'ch3_estimator_nonlinear' or full path)"
+        "--data",
+        type=str,
+        default=None,
+        help="Dataset name or path (e.g., 'ch3_estimator_nonlinear' or full path)",
     )
 
     args = parser.parse_args()
@@ -598,7 +675,9 @@ Examples:
         if not data_path.exists():
             data_path = resolve_data_path(Path("data/sim") / args.data)
         if not data_path.exists():
-            print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
+            print(
+                f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'"
+            )
             print("\nAvailable datasets:")
             sim_dir = resolve_data_path(Path("data/sim"))
             if sim_dir.exists():

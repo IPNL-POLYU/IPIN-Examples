@@ -24,7 +24,7 @@ def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
 
     This function implements the distance metric D(·, ·) used in Eq. (5.1)
     and Eq. (5.2) of Chapter 5.
-    
+
     **Missing AP Handling:**
     If either z or f contains NaN values (representing missing AP readings),
     the distance is computed only over dimensions where both values are present.
@@ -48,7 +48,7 @@ def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
         >>> d_manh = distance(z, f, metric='manhattan')
         >>> print(f"Euclidean: {d_eucl:.2f}, Manhattan: {d_manh:.2f}")
         Euclidean: 3.46, Manhattan: 6.00
-        
+
         >>> # With missing values (NaN)
         >>> z_missing = np.array([-50, np.nan, -70])
         >>> f_missing = np.array([-52, -58, np.nan])
@@ -98,7 +98,7 @@ def pairwise_distances(
 
     This function evaluates the distance metric required in Eq. (5.1)
     across all reference fingerprints i = 1, ..., M.
-    
+
     **Missing AP Handling:**
     If z or any row of F contains NaN values, distances are computed only
     over dimensions where both values are present. If no overlapping dimensions
@@ -125,7 +125,7 @@ def pairwise_distances(
         >>> distances = pairwise_distances(z, F, metric='euclidean')
         >>> print(distances)
         [3.46 4.47 7.07]
-        
+
         >>> # With missing values
         >>> z_missing = np.array([-50, np.nan, -70])
         >>> F_missing = np.array([[-52, -58, np.nan],  # Only AP1 overlaps
@@ -292,13 +292,13 @@ def knn_localize(
     Examples:
         >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> z_query = np.array([-51, -61, -71])
-        >>> 
+        >>>
         >>> # Standard k-NN with k=3
         >>> x_hat = knn_localize(z_query, db, k=3, floor_id=0)
-        >>> 
+        >>>
         >>> # k-NN with uniform weights (simple average)
         >>> x_hat_uniform = knn_localize(z_query, db, k=5, weighting='uniform')
-        >>> 
+        >>>
         >>> # k-NN with inverse distance weighting (default)
         >>> x_hat_weighted = knn_localize(z_query, db, k=5, weighting='inverse_distance')
 
@@ -376,4 +376,3 @@ def knn_localize(
     x_hat = np.sum(weights[:, np.newaxis] * k_locations, axis=0) / weights_sum
 
     return x_hat
-

@@ -105,18 +105,34 @@ def _style_3d(ax, elev: float = VIEW_ELEV, azim: float = VIEW_AZIM) -> None:
 
 def _draw_reference(ax, axis_names=("X", "Y", "Z")) -> None:
     """Draw the faint unrotated frame, without labels, behind the subject."""
-    plot_frame_3d(ax, None, alpha=0.22, linewidth=1.4, linestyle="--",
-                  axis_names=axis_names, show_labels=False)
+    plot_frame_3d(
+        ax,
+        None,
+        alpha=0.22,
+        linewidth=1.4,
+        linestyle="--",
+        axis_names=axis_names,
+        show_labels=False,
+    )
 
 
 def _draw_rotation_axis(ax, axis: str, radius: float = 1.45) -> None:
     """Mark the axis a rotation happens about, as a dashed grey line."""
-    direction = {"x": np.array([1.0, 0.0, 0.0]),
-                 "y": np.array([0.0, 1.0, 0.0]),
-                 "z": np.array([0.0, 0.0, 1.0])}[axis]
+    direction = {
+        "x": np.array([1.0, 0.0, 0.0]),
+        "y": np.array([0.0, 1.0, 0.0]),
+        "z": np.array([0.0, 0.0, 1.0]),
+    }[axis]
     span = np.outer(np.array([-radius, radius]), direction)
-    ax.plot(span[:, 0], span[:, 1], span[:, 2],
-            color="0.25", linestyle=":", linewidth=2.0, zorder=0)
+    ax.plot(
+        span[:, 0],
+        span[:, 1],
+        span[:, 2],
+        color="0.25",
+        linestyle=":",
+        linewidth=2.0,
+        zorder=0,
+    )
 
 
 def plot_euler_convention(angle_deg: float = 35.0) -> plt.Figure:
@@ -133,14 +149,26 @@ def plot_euler_convention(angle_deg: float = 35.0) -> plt.Figure:
     """
     angle = np.deg2rad(angle_deg)
     panels = [
-        (f"Yaw  psi = {angle_deg:g} deg, about Z\nEq. (2.14)",
-         euler_to_rotation_matrix(0.0, 0.0, angle), YAW_AXIS),
-        (f"Roll  phi = {angle_deg:g} deg, about Y\nEq. (2.15)",
-         euler_to_rotation_matrix(angle, 0.0, 0.0), ROLL_AXIS),
-        (f"Pitch  theta = {angle_deg:g} deg, about X\nEq. (2.16)",
-         euler_to_rotation_matrix(0.0, angle, 0.0), PITCH_AXIS),
-        ("Composed C = Rx(theta) Ry(phi) Rz(psi)\nEq. (2.17)",
-         euler_to_rotation_matrix(angle, angle, angle), None),
+        (
+            f"Yaw  psi = {angle_deg:g} deg, about Z\nEq. (2.14)",
+            euler_to_rotation_matrix(0.0, 0.0, angle),
+            YAW_AXIS,
+        ),
+        (
+            f"Roll  phi = {angle_deg:g} deg, about Y\nEq. (2.15)",
+            euler_to_rotation_matrix(angle, 0.0, 0.0),
+            ROLL_AXIS,
+        ),
+        (
+            f"Pitch  theta = {angle_deg:g} deg, about X\nEq. (2.16)",
+            euler_to_rotation_matrix(0.0, angle, 0.0),
+            PITCH_AXIS,
+        ),
+        (
+            "Composed C = Rx(theta) Ry(phi) Rz(psi)\nEq. (2.17)",
+            euler_to_rotation_matrix(angle, angle, angle),
+            None,
+        ),
     ]
 
     fig = plt.figure(figsize=(14, 4.2))
@@ -162,9 +190,9 @@ def plot_euler_convention(angle_deg: float = 35.0) -> plt.Figure:
     return fig
 
 
-def plot_passive_vs_active(roll_deg: float = 0.0,
-                           pitch_deg: float = 0.0,
-                           yaw_deg: float = 50.0) -> plt.Figure:
+def plot_passive_vs_active(
+    roll_deg: float = 0.0, pitch_deg: float = 0.0, yaw_deg: float = 50.0
+) -> plt.Figure:
     """Figure 2: the passive/active transpose trap.
 
     Chapter 2's C is passive: ``x_new = C x_old`` rotates the *coordinates*.
@@ -188,10 +216,8 @@ def plot_passive_vs_active(roll_deg: float = 0.0,
     fig = plt.figure(figsize=(11, 4.6))
     for index, (title, matrix) in enumerate(
         [
-            ("Passive: C, Eq. (2.21)\n'x_new = C x_old' -- rotates coordinates",
-             C),
-            ("Active: C^T, Ch. 6 Eq. (6.13)\nbody-to-map -- rotates the vector",
-             C.T),
+            ("Passive: C, Eq. (2.21)\n'x_new = C x_old' -- rotates coordinates", C),
+            ("Active: C^T, Ch. 6 Eq. (6.13)\nbody-to-map -- rotates the vector", C.T),
         ],
         start=1,
     ):
@@ -254,7 +280,8 @@ def plot_gimbal_lock() -> plt.Figure:
         _style_3d(ax, **gimbal_view)
         ax.set_title(
             f"roll = 90, yaw = {yaw_deg:g}, pitch = {pitch_deg:g}\n"
-            "(identical to its neighbour -- that is the lock)", fontsize=9
+            "(identical to its neighbour -- that is the lock)",
+            fontsize=9,
         )
 
     # Show numerically that the recovery collapses to a single angle.
@@ -299,9 +326,7 @@ def plot_frame_chain() -> plt.Figure:
     """
     # ENU->NED as an explicit matrix, obtained by mapping the basis vectors
     # through the library function rather than hard-coding it here.
-    C_enu_to_ned = np.column_stack(
-        [enu_to_ned(basis) for basis in np.eye(3)]
-    )
+    C_enu_to_ned = np.column_stack([enu_to_ned(basis) for basis in np.eye(3)])
 
     attitude = euler_to_rotation_matrix(
         np.deg2rad(15.0), np.deg2rad(10.0), np.deg2rad(40.0)
@@ -310,8 +335,11 @@ def plot_frame_chain() -> plt.Figure:
     panels = [
         ("ENU (local tangent)\nEast, North, Up", np.eye(3), ("E", "N", "U")),
         ("NED, Eq. (2.5)\nNorth, East, Down", C_enu_to_ned, ("N", "E", "D")),
-        ("Body, Eqs. (2.6)/(2.7)\nroll 15, pitch 10, yaw 40",
-         attitude, ("x", "y", "z")),
+        (
+            "Body, Eqs. (2.6)/(2.7)\nroll 15, pitch 10, yaw 40",
+            attitude,
+            ("x", "y", "z"),
+        ),
     ]
 
     fig = plt.figure(figsize=(12, 4.4))

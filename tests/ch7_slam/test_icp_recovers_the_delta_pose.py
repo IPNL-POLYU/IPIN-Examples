@@ -70,10 +70,13 @@ def _arc_scan(n=400, seed=0):
     radius = rng.uniform(4.0, 8.0, size=n)
     arc = np.stack([radius * np.cos(angles), radius * np.sin(angles)], axis=1)
 
-    wall = np.stack([
-        rng.uniform(-2.0, 2.0, size=n // 5),
-        rng.uniform(6.0, 7.0, size=n // 5),
-    ], axis=1)
+    wall = np.stack(
+        [
+            rng.uniform(-2.0, 2.0, size=n // 5),
+            rng.uniform(6.0, 7.0, size=n // 5),
+        ],
+        axis=1,
+    )
 
     return np.concatenate([arc, wall], axis=0).astype(np.float64)
 
@@ -187,8 +190,12 @@ def test_se2_relative_matches_compose_of_the_inverse():
 
     rng = np.random.default_rng(0)
     for _ in range(100):
-        a = np.array([rng.uniform(-5, 5), rng.uniform(-5, 5), rng.uniform(-np.pi, np.pi)])
-        b = np.array([rng.uniform(-5, 5), rng.uniform(-5, 5), rng.uniform(-np.pi, np.pi)])
+        a = np.array(
+            [rng.uniform(-5, 5), rng.uniform(-5, 5), rng.uniform(-np.pi, np.pi)]
+        )
+        b = np.array(
+            [rng.uniform(-5, 5), rng.uniform(-5, 5), rng.uniform(-np.pi, np.pi)]
+        )
 
         assert se2_relative(a, b) == pytest.approx(
             se2_compose(se2_inverse(a), b), abs=1e-12

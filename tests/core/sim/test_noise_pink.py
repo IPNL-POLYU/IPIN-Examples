@@ -120,7 +120,9 @@ class TestPinkNoise1fFFT(unittest.TestCase):
 
         # Generate combined white + pink noise (realistic IMU scenario)
         white = rng.standard_normal(N) * 0.3  # ARW component (dominant at short tau)
-        pink = pink_noise_1f_fft(N, fs, rng=rng) * 1.0  # BI component (dominant at mid tau)
+        pink = (
+            pink_noise_1f_fft(N, fs, rng=rng) * 1.0
+        )  # BI component (dominant at mid tau)
         combined = white + pink
 
         # Compute Allan deviation
@@ -209,7 +211,12 @@ class TestScaleToBiasInstability(unittest.TestCase):
         bi_factor = 0.5  # non-standard factor
 
         pink_scaled = scale_to_bias_instability(
-            pink_unit, target_bi_rad_s, allan_variance, tau_grid, fs, bi_factor=bi_factor
+            pink_unit,
+            target_bi_rad_s,
+            allan_variance,
+            tau_grid,
+            fs,
+            bi_factor=bi_factor,
         )
 
         # Compute Allan deviation
@@ -281,4 +288,3 @@ class TestIntegration(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

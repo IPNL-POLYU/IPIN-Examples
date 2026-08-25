@@ -87,7 +87,7 @@ class TestGaussNewton2DRangePositioning(unittest.TestCase):
 
     def test_covariance_is_positive_semidefinite(self):
         """Test that returned covariance is positive semi-definite.
-        
+
         Note: With exact measurements (m=n), covariance may have near-zero
         eigenvalues due to numerical precision. We check for positive
         semi-definiteness with a tolerance.
@@ -195,9 +195,7 @@ class TestWeightedNonlinearLS(unittest.TestCase):
         y[3] += 3.0  # Add 3m error to last measurement
 
         # Without weights (uniform)
-        result_unweighted = gauss_newton(
-            self.h, self.jacobian, y, np.array([5.0, 5.0])
-        )
+        result_unweighted = gauss_newton(self.h, self.jacobian, y, np.array([5.0, 5.0]))
 
         # With weights: downweight the bad measurement
         weights = np.array([1.0, 1.0, 1.0, 0.01])
@@ -248,10 +246,10 @@ class TestRobustNonlinearLS(unittest.TestCase):
     def test_huber_rejects_outlier(self):
         """Test Huber loss downweights outlier measurement."""
         # Use more anchors to provide redundancy for robust estimation
-        anchors_extended = np.array([
-            [0, 0], [10, 0], [0, 10], [10, 10],
-            [5, 0], [0, 5], [10, 5], [5, 10]
-        ], dtype=float)
+        anchors_extended = np.array(
+            [[0, 0], [10, 0], [0, 10], [10, 10], [5, 0], [0, 5], [10, 5], [5, 10]],
+            dtype=float,
+        )
         true_pos = np.array([3.0, 4.0])
 
         def h_ext(x):
@@ -312,9 +310,7 @@ class TestRobustNonlinearLS(unittest.TestCase):
         result_cauchy = robust_gauss_newton(
             self.h, self.jacobian, y_outlier, x0, loss="cauchy"
         )
-        result_gm = robust_gauss_newton(
-            self.h, self.jacobian, y_outlier, x0, loss="gm"
-        )
+        result_gm = robust_gauss_newton(self.h, self.jacobian, y_outlier, x0, loss="gm")
 
         # G-M should downweight outlier more
         self.assertLess(result_gm.weights[3], result_cauchy.weights[3])
@@ -354,26 +350,21 @@ class TestSolveNonlinearLS(unittest.TestCase):
     def test_method_gn(self):
         """Test method='gn' uses Gauss-Newton."""
         x0 = np.array([5.0, 5.0])
-        result = solve_nonlinear_ls(
-            self.h, self.jacobian, self.y, x0, method="gn"
-        )
+        result = solve_nonlinear_ls(self.h, self.jacobian, self.y, x0, method="gn")
         assert_allclose(result.x, self.true_pos, atol=1e-6)
 
     def test_method_lm(self):
         """Test method='lm' uses Levenberg-Marquardt."""
         x0 = np.array([5.0, 5.0])
-        result = solve_nonlinear_ls(
-            self.h, self.jacobian, self.y, x0, method="lm"
-        )
+        result = solve_nonlinear_ls(self.h, self.jacobian, self.y, x0, method="lm")
         assert_allclose(result.x, self.true_pos, atol=1e-6)
 
     def test_robust_loss_parameter(self):
         """Test robust_loss parameter activates robust estimation."""
         # Use more anchors for redundancy
-        anchors_ext = np.array([
-            [0, 0], [10, 0], [0, 10], [10, 10],
-            [5, 0], [0, 5]
-        ], dtype=float)
+        anchors_ext = np.array(
+            [[0, 0], [10, 0], [0, 10], [10, 10], [5, 0], [0, 5]], dtype=float
+        )
         true_pos = np.array([3.0, 4.0])
 
         def h_ext(x):
@@ -402,9 +393,7 @@ class TestSolveNonlinearLS(unittest.TestCase):
         """Test that invalid method raises ValueError."""
         x0 = np.array([5.0, 5.0])
         with self.assertRaises(ValueError):
-            solve_nonlinear_ls(
-                self.h, self.jacobian, self.y, x0, method="invalid"
-            )
+            solve_nonlinear_ls(self.h, self.jacobian, self.y, x0, method="invalid")
 
 
 class TestInputValidation(unittest.TestCase):
@@ -412,6 +401,7 @@ class TestInputValidation(unittest.TestCase):
 
     def setUp(self):
         """Setup simple measurement model."""
+
         def h(x):
             return np.array([x[0], x[1]])
 
@@ -425,45 +415,34 @@ class TestInputValidation(unittest.TestCase):
         """Test that 2D y raises error."""
         with self.assertRaises(ValueError):
             gauss_newton(
-                self.h, self.jacobian,
-                y=np.array([[1], [2]]),  # 2D
-                x0=np.array([0, 0])
+                self.h, self.jacobian, y=np.array([[1], [2]]), x0=np.array([0, 0])  # 2D
             )
 
     def test_x0_must_be_1d(self):
         """Test that 2D x0 raises error."""
         with self.assertRaises(ValueError):
             gauss_newton(
-                self.h, self.jacobian,
-                y=np.array([1, 2]),
-                x0=np.array([[0], [0]])  # 2D
+                self.h, self.jacobian, y=np.array([1, 2]), x0=np.array([[0], [0]])  # 2D
             )
 
     def test_jacobian_shape_validation(self):
         """Test that wrong Jacobian shape raises error."""
+
         def bad_jacobian(x):
             return np.eye(3)  # Wrong shape
 
         with self.assertRaises(ValueError):
-            gauss_newton(
-                self.h, bad_jacobian,
-                y=np.array([1, 2]),
-                x0=np.array([0, 0])
-            )
+            gauss_newton(self.h, bad_jacobian, y=np.array([1, 2]), x0=np.array([0, 0]))
 
     def test_h_output_shape_validation(self):
         """Test that wrong h output shape raises error."""
+
         def bad_h(x):
             return np.array([x[0]])  # Wrong length
 
         with self.assertRaises(ValueError):
-            gauss_newton(
-                bad_h, self.jacobian,
-                y=np.array([1, 2]),
-                x0=np.array([0, 0])
-            )
+            gauss_newton(bad_h, self.jacobian, y=np.array([1, 2]), x0=np.array([0, 0]))
 
 
 if __name__ == "__main__":
     unittest.main()
-

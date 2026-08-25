@@ -20,7 +20,14 @@ class TestFingerprintDatabase:
         # Create a simple 2D database with 6 RPs on 2 floors
         db = FingerprintDatabase(
             locations=np.array(
-                [[0.0, 0.0], [5.0, 0.0], [10.0, 0.0], [0.0, 5.0], [5.0, 5.0], [10.0, 5.0]]
+                [
+                    [0.0, 0.0],
+                    [5.0, 0.0],
+                    [10.0, 0.0],
+                    [0.0, 5.0],
+                    [5.0, 5.0],
+                    [10.0, 5.0],
+                ]
             ),
             features=np.array(
                 [
@@ -256,5 +263,3 @@ class TestTypeAliases:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-

@@ -76,12 +76,14 @@ _CACHE = {}
 
 
 def _q_func(dt):
-    return Q_SCALE * np.array([
-        [dt ** 3 / 3, 0, dt ** 2 / 2, 0],
-        [0, dt ** 3 / 3, 0, dt ** 2 / 2],
-        [dt ** 2 / 2, 0, dt, 0],
-        [0, dt ** 2 / 2, 0, dt],
-    ])
+    return Q_SCALE * np.array(
+        [
+            [dt**3 / 3, 0, dt**2 / 2, 0],
+            [0, dt**3 / 3, 0, dt**2 / 2],
+            [dt**2 / 2, 0, dt, 0],
+            [0, dt**2 / 2, 0, dt],
+        ]
+    )
 
 
 def _iekf_errors(seed, range_std=RANGE_STD, bearing_std=BEARING_STD):
@@ -101,29 +103,37 @@ def _iekf_errors(seed, range_std=RANGE_STD, bearing_std=BEARING_STD):
     def r_func():
         diag = []
         for _ in landmarks:
-            diag.extend([range_std ** 2, bearing_std ** 2])
+            diag.extend([range_std**2, bearing_std**2])
         return np.diag(diag)
 
     innovation = create_range_bearing_innovation_func(len(landmarks))
     common = (process_model, process_jac, meas_model, meas_jac, _q_func, r_func)
     ekf = ExtendedKalmanFilter(
-        *common, X0_EST.copy(), P0.copy(), innovation_func=innovation)
+        *common, X0_EST.copy(), P0.copy(), innovation_func=innovation
+    )
     iekf = IteratedExtendedKalmanFilter(
-        *common, X0_EST.copy(), P0.copy(), max_iterations=5,
-        convergence_tol=1e-6, innovation_func=innovation)
+        *common,
+        X0_EST.copy(),
+        P0.copy(),
+        max_iterations=5,
+        convergence_tol=1e-6,
+        innovation_func=innovation,
+    )
 
     np.random.seed(seed)  # legacy stream, as the example uses
     true_states, state = [true_x0.copy()], true_x0.copy()
     for _ in range(N_STEPS):
         state = process_model(state, None, DT) + np.random.multivariate_normal(
-            np.zeros(4), _q_func(DT))
+            np.zeros(4), _q_func(DT)
+        )
         true_states.append(state.copy())
 
     measurements = []
     for state in true_states[1:]:
         truth = meas_model(state)
-        measurements.append(truth + np.random.multivariate_normal(
-            np.zeros(len(truth)), r_func()))
+        measurements.append(
+            truth + np.random.multivariate_normal(np.zeros(len(truth)), r_func())
+        )
 
     ekf_est, iekf_est = [X0_EST.copy()], [X0_EST.copy()]
     for z in measurements:
@@ -161,32 +171,36 @@ class TestWlsImprovementIsModest(unittest.TestCase):
         anchors, truth = setup_positioning_scenario()
         h, jacobian = create_range_model(anchors)
         stds = np.array([0.05, 0.3, 0.3, 0.3])
-        W = np.diag(1.0 / stds ** 2)
+        W = np.diag(1.0 / stds**2)
         x0 = np.array([5.0, 5.0])
         A = jacobian(x0)
 
         rng = np.random.default_rng(seed)
         e_wls, e_ls = [], []
         for _ in range(trials):
-            y = np.array([
-                np.linalg.norm(truth - anchors[i]) + rng.normal(0, stds[i])
-                for i in range(len(anchors))
-            ])
+            y = np.array(
+                [
+                    np.linalg.norm(truth - anchors[i]) + rng.normal(0, stds[i])
+                    for i in range(len(anchors))
+                ]
+            )
             r = y - h(x0)
-            e_wls.append(np.linalg.norm(x0 + weighted_least_squares(A, r, W)[0] - truth))
+            e_wls.append(
+                np.linalg.norm(x0 + weighted_least_squares(A, r, W)[0] - truth)
+            )
             e_ls.append(np.linalg.norm(x0 + linear_least_squares(A, r)[0] - truth))
         return np.asarray(e_wls), np.asarray(e_ls)
 
     def test_weighting_helps_on_average(self):
         e_wls, e_ls = self._errors()
-        rms_gain = 1.0 - np.sqrt((e_wls ** 2).mean()) / np.sqrt((e_ls ** 2).mean())
+        rms_gain = 1.0 - np.sqrt((e_wls**2).mean()) / np.sqrt((e_ls**2).mean())
 
         self.assertGreater(rms_gain, 0.05)
 
     def test_the_gain_is_far_below_the_single_draw_that_was_reported(self):
         """36.7% was a lucky realisation, not the method's accuracy."""
         e_wls, e_ls = self._errors()
-        rms_gain = 1.0 - np.sqrt((e_wls ** 2).mean()) / np.sqrt((e_ls ** 2).mean())
+        rms_gain = 1.0 - np.sqrt((e_wls**2).mean()) / np.sqrt((e_ls**2).mean())
 
         self.assertLess(rms_gain, 0.25)
 
@@ -205,10 +219,12 @@ class TestWlsImprovementIsModest(unittest.TestCase):
         """
         anchors, truth = setup_positioning_scenario()
         np.random.seed(7)
-        drawn = np.array([
-            compute_ranges(truth, anchors[i:i + 1], noise_std=0.0)[0]
-            for i in range(len(anchors))
-        ])
+        drawn = np.array(
+            [
+                compute_ranges(truth, anchors[i : i + 1], noise_std=0.0)[0]
+                for i in range(len(anchors))
+            ]
+        )
         exact = np.array([np.linalg.norm(truth - a) for a in anchors])
 
         np.testing.assert_allclose(drawn, exact, atol=1e-12)

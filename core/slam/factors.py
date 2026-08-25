@@ -154,7 +154,7 @@ def create_loop_closure_factor(
 
     The close-loop constraint from Eq. (7.22):
         residual = ln((ΔT_ij')^{-1} T_i^{-1} T_j)^∨
-    
+
     where:
         - T_i = pose at earlier time i (pose_id_from)
         - T_j = pose at later time j (pose_id_to)
@@ -500,7 +500,7 @@ def create_reprojection_factor(
         Implements the reprojection residual from Section 7.4.2 (Bundle Adjustment):
             - Eq. (7.70): Bundle adjustment objective function
               {R_i, t_i, p_k} = argmin Σ ||p_pixel - π(R_i p_k + t_i)||²
-            
+
         Note: This implementation uses SE(2) planar poses [x, y, yaw] instead of
         full SE(3) poses (R_i, t_i) from Eq. (7.70). This is a pedagogical
         simplification for 2D SLAM examples. The reprojection error principle
@@ -530,7 +530,9 @@ def create_reprojection_factor(
         information = np.eye(2) / (pixel_std**2)
 
     if observed_pixel.shape != (2,):
-        raise ValueError(f"observed_pixel must be shape (2,), got {observed_pixel.shape}")
+        raise ValueError(
+            f"observed_pixel must be shape (2,), got {observed_pixel.shape}"
+        )
 
     def residual_func(variables: list[np.ndarray]) -> np.ndarray:
         """
@@ -561,7 +563,9 @@ def create_reprojection_factor(
             elif landmark.shape[0] == 3:
                 lx, ly, lz = landmark
             else:
-                raise ValueError(f"Landmark must be 2D or 3D, got shape {landmark.shape}")
+                raise ValueError(
+                    f"Landmark must be 2D or 3D, got shape {landmark.shape}"
+                )
 
             # Relative position in map frame
             dx_map = lx - x_cam
@@ -653,4 +657,3 @@ def create_reprojection_factor(
     )
 
     return factor
-

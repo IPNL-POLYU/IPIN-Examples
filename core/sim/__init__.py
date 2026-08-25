@@ -7,7 +7,7 @@ realistic sensor measurements, consistent with the sensor models in Chapter 6.
 Modules:
     imu_from_trajectory: Generate IMU measurements (accel, gyro) from trajectory
     noise_pink: Generate 1/f (pink) noise for bias instability simulation
-    
+
 The forward models implement the correct physics:
     - Accelerometers measure specific force (reaction force), not acceleration
     - Gyroscopes measure angular velocity in body frame
@@ -36,15 +36,3 @@ __all__ = [
 ]
 
 __version__ = "1.0.0"
-
-
-
-
-
-
-
-
-
-
-
-

@@ -22,8 +22,10 @@ from core.utils import angle_diff
 
 def create_bearing_only_innovation_func():
     """Create innovation function that wraps all measurements as bearings."""
+
     def innovation_func(z: np.ndarray, z_pred: np.ndarray) -> np.ndarray:
         return np.array([angle_diff(z[i], z_pred[i]) for i in range(len(z))])
+
     return innovation_func
 
 
@@ -32,6 +34,7 @@ class TestEKFAngleWrapping(unittest.TestCase):
 
     def setUp(self):
         """Setup bearing-only tracking scenario."""
+
         # Process model: constant angular velocity
         def process_model(x, u, dt):
             # State: [angle, angular_velocity]
@@ -69,10 +72,15 @@ class TestEKFAngleWrapping(unittest.TestCase):
 
         # EKF without angle wrapping
         ekf_no_wrap = ExtendedKalmanFilter(
-            self.process_model, self.process_jacobian,
-            self.measurement_model, self.measurement_jacobian,
-            self.Q_func, self.R_func, x0.copy(), P0.copy(),
-            innovation_func=None  # No wrapping!
+            self.process_model,
+            self.process_jacobian,
+            self.measurement_model,
+            self.measurement_jacobian,
+            self.Q_func,
+            self.R_func,
+            x0.copy(),
+            P0.copy(),
+            innovation_func=None,  # No wrapping!
         )
 
         # True trajectory crosses pi -> -pi
@@ -103,8 +111,9 @@ class TestEKFAngleWrapping(unittest.TestCase):
         # Should have at least one large error when crossing pi
         max_error = max(errors_no_wrap)
         # Without wrapping, when we cross pi, innovation can be ~2*pi instead of small
-        self.assertGreater(max_error, 1.0,
-                           f"Expected large error without wrapping, got {max_error}")
+        self.assertGreater(
+            max_error, 1.0, f"Expected large error without wrapping, got {max_error}"
+        )
 
     def test_ekf_with_wrapping_handles_pi_crossing(self):
         """Test that EKF WITH angle wrapping correctly handles pi <-> -pi crossing."""
@@ -115,10 +124,15 @@ class TestEKFAngleWrapping(unittest.TestCase):
         # EKF with angle wrapping
         innovation_func = create_bearing_only_innovation_func()
         ekf_wrap = ExtendedKalmanFilter(
-            self.process_model, self.process_jacobian,
-            self.measurement_model, self.measurement_jacobian,
-            self.Q_func, self.R_func, x0.copy(), P0.copy(),
-            innovation_func=innovation_func
+            self.process_model,
+            self.process_jacobian,
+            self.measurement_model,
+            self.measurement_jacobian,
+            self.Q_func,
+            self.R_func,
+            x0.copy(),
+            P0.copy(),
+            innovation_func=innovation_func,
         )
 
         # True trajectory crosses pi -> -pi
@@ -151,8 +165,9 @@ class TestEKFAngleWrapping(unittest.TestCase):
 
         # With wrapping, errors should remain small throughout
         max_error = max(errors_wrap)
-        self.assertLess(max_error, 0.5,
-                        f"Expected small error with wrapping, got {max_error}")
+        self.assertLess(
+            max_error, 0.5, f"Expected small error with wrapping, got {max_error}"
+        )
 
     def test_pi_crossing_scenario_detailed(self):
         """Detailed test showing exactly what happens at pi crossing."""
@@ -169,16 +184,22 @@ class TestEKFAngleWrapping(unittest.TestCase):
         innovation_wrap = angle_diff(z, z_pred)  # ~ +0.3 (CORRECT!)
 
         # Verify
-        self.assertLess(abs(innovation_wrap), 0.5,
-                        "Wrapped innovation should be small")
-        self.assertGreater(abs(innovation_no_wrap), 5.0,
-                           "Unwrapped innovation should be large (~2*pi)")
+        self.assertLess(abs(innovation_wrap), 0.5, "Wrapped innovation should be small")
+        self.assertGreater(
+            abs(innovation_no_wrap), 5.0, "Unwrapped innovation should be large (~2*pi)"
+        )
 
         print("\nPi Crossing Test:")
-        print(f"  z_pred (predicted bearing): {np.rad2deg(z_pred):.1f} deg (+179.4 deg)")
+        print(
+            f"  z_pred (predicted bearing): {np.rad2deg(z_pred):.1f} deg (+179.4 deg)"
+        )
         print(f"  z (true bearing):           {np.rad2deg(z):.1f} deg (-177.1 deg)")
-        print(f"  Innovation WITHOUT wrap:    {np.rad2deg(innovation_no_wrap):.1f} deg (WRONG!)")
-        print(f"  Innovation WITH wrap:       {np.rad2deg(innovation_wrap):.1f} deg (CORRECT)")
+        print(
+            f"  Innovation WITHOUT wrap:    {np.rad2deg(innovation_no_wrap):.1f} deg (WRONG!)"
+        )
+        print(
+            f"  Innovation WITH wrap:       {np.rad2deg(innovation_wrap):.1f} deg (CORRECT)"
+        )
 
 
 class TestIEKFAngleWrapping(unittest.TestCase):
@@ -186,6 +207,7 @@ class TestIEKFAngleWrapping(unittest.TestCase):
 
     def test_iekf_with_wrapping_handles_pi_crossing(self):
         """Test IEKF with angle wrapping at pi crossing."""
+
         # Process model: constant angular velocity
         def process_model(x, u, dt):
             return np.array([x[0] + x[1] * dt, x[1]])
@@ -214,11 +236,16 @@ class TestIEKFAngleWrapping(unittest.TestCase):
         # IEKF with angle wrapping
         innovation_func = create_bearing_only_innovation_func()
         iekf = IteratedExtendedKalmanFilter(
-            process_model, process_jacobian,
-            measurement_model, measurement_jacobian,
-            Q_func, R_func, x0.copy(), P0.copy(),
+            process_model,
+            process_jacobian,
+            measurement_model,
+            measurement_jacobian,
+            Q_func,
+            R_func,
+            x0.copy(),
+            P0.copy(),
             innovation_func=innovation_func,
-            max_iterations=3
+            max_iterations=3,
         )
 
         # Cross pi
@@ -241,8 +268,11 @@ class TestIEKFAngleWrapping(unittest.TestCase):
 
         # With wrapping, errors should remain small
         max_error = max(errors)
-        self.assertLess(max_error, 0.5,
-                        f"IEKF with wrapping should have small error, got {max_error}")
+        self.assertLess(
+            max_error,
+            0.5,
+            f"IEKF with wrapping should have small error, got {max_error}",
+        )
 
 
 class TestUKFAngleWrapping(unittest.TestCase):
@@ -250,6 +280,7 @@ class TestUKFAngleWrapping(unittest.TestCase):
 
     def test_ukf_with_wrapping_handles_pi_crossing(self):
         """Test UKF with angle wrapping at pi crossing."""
+
         # Process model: constant angular velocity
         def process_model(x, u, dt):
             return np.array([x[0] + x[1] * dt, x[1]])
@@ -272,9 +303,13 @@ class TestUKFAngleWrapping(unittest.TestCase):
         # UKF with angle wrapping
         innovation_func = create_bearing_only_innovation_func()
         ukf = UnscentedKalmanFilter(
-            process_model, measurement_model,
-            Q_func, R_func, x0.copy(), P0.copy(),
-            innovation_func=innovation_func
+            process_model,
+            measurement_model,
+            Q_func,
+            R_func,
+            x0.copy(),
+            P0.copy(),
+            innovation_func=innovation_func,
         )
 
         # Cross pi
@@ -297,23 +332,12 @@ class TestUKFAngleWrapping(unittest.TestCase):
 
         # With wrapping, errors should remain small
         max_error = max(errors)
-        self.assertLess(max_error, 0.5,
-                        f"UKF with wrapping should have small error, got {max_error}")
+        self.assertLess(
+            max_error,
+            0.5,
+            f"UKF with wrapping should have small error, got {max_error}",
+        )
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-

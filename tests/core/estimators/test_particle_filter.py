@@ -32,8 +32,12 @@ def test_weight_update_matches_eq_3_34():
         return _gauss_pdf(z - H @ x, R)
 
     pf = ParticleFilter(
-        pm, lik, n_particles=200, x0=np.array([0.0, 0.0]),
-        P0=np.eye(2), resample_threshold=0.0,  # never resample
+        pm,
+        lik,
+        n_particles=200,
+        x0=np.array([0.0, 0.0]),
+        P0=np.eye(2),
+        resample_threshold=0.0,  # never resample
     )
     particles = pf.particles.copy()
     z = np.array([0.3])
@@ -48,8 +52,11 @@ def test_systematic_resampling_is_unbiased():
     """Systematic resampling reproduces the weighted mean of the particles."""
     np.random.seed(1)
     pf = ParticleFilter(
-        lambda x, u, dt: x, lambda z, x: 1.0, n_particles=50000,
-        x0=np.array([0.0]), P0=np.array([[1.0]]),
+        lambda x, u, dt: x,
+        lambda z, x: 1.0,
+        n_particles=50000,
+        x0=np.array([0.0]),
+        P0=np.array([[1.0]]),
     )
     # Impose a skewed weight distribution, then resample.
     pf.particles = np.linspace(-3, 3, 50000).reshape(-1, 1)
@@ -67,8 +74,11 @@ def test_systematic_resampling_is_unbiased():
 def test_effective_sample_size():
     """N_eff = 1/sum(w^2): N for uniform, 1 for a single dominant particle."""
     pf = ParticleFilter(
-        lambda x, u, dt: x, lambda z, x: 1.0, n_particles=100,
-        x0=np.array([0.0]), P0=np.array([[1.0]]),
+        lambda x, u, dt: x,
+        lambda z, x: 1.0,
+        n_particles=100,
+        x0=np.array([0.0]),
+        P0=np.array([[1.0]]),
     )
     assert np.isclose(pf._effective_sample_size(), 100.0)
     pf.weights = np.zeros(100)

@@ -5,4 +5,3 @@ and rotation representations for indoor positioning applications.
 
 Reference: Chapter 2 of the IPIN book
 """
-

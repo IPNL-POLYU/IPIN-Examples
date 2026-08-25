@@ -90,9 +90,7 @@ class TestMethodsActuallyMove(unittest.TestCase):
         cls.results = {
             "IMU Only": run_imu_only(t, accel, gyro, initial, frame)[:, :2],
             "IMU + ZUPT": zupt_pos[:, :2],
-            "Wheel Odom": run_wheel_odom(
-                t, wheel, gyro, initial, LEVER_ARM_A
-            )[:, :2],
+            "Wheel Odom": run_wheel_odom(t, wheel, gyro, initial, LEVER_ARM_A)[:, :2],
             "PDR (Mag)": pdr_pos[:, :2],
         }
 

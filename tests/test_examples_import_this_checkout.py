@@ -130,9 +130,7 @@ def test_the_check_reads_the_shapes_it_has_to_distinguish():
 
     # Bootstrap after the import: present, useless, and must not pass.
     reversed_order = ast.parse(
-        "import sys\n"
-        "from core.eval import save_figure\n"
-        "sys.path.insert(0, '.')\n"
+        "import sys\n" "from core.eval import save_figure\n" "sys.path.insert(0, '.')\n"
     )
     assert _bootstrap_lines(reversed_order)[0] > _first_core_import(reversed_order)
 

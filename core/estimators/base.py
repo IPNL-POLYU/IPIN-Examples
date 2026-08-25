@@ -76,6 +76,3 @@ class BatchEstimator(ABC):
             Tuple of (state_estimate, covariance_matrix).
         """
         pass
-
-
-

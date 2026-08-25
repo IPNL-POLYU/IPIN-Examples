@@ -40,7 +40,9 @@ class TestAoaBearingDirection(unittest.TestCase):
 
             with self.subTest(anchor=tuple(anchor)):
                 np.testing.assert_allclose(
-                    direction, span / np.linalg.norm(span), atol=1e-9,
+                    direction,
+                    span / np.linalg.norm(span),
+                    atol=1e-9,
                     err_msg="psi does not point from the agent toward the anchor",
                 )
 
@@ -57,12 +59,15 @@ class TestAoaBearingDirection(unittest.TestCase):
 
             with self.subTest(anchor=tuple(anchor)):
                 np.testing.assert_allclose(
-                    anchor + distance * toward, AGENT, atol=1e-9,
+                    anchor + distance * toward,
+                    AGENT,
+                    atol=1e-9,
                     err_msg="the anchor-to-agent ray does not reach the agent",
                 )
                 wrong = anchor + distance * (-toward)
                 self.assertGreater(
-                    float(np.linalg.norm(wrong - AGENT)), distance,
+                    float(np.linalg.norm(wrong - AGENT)),
+                    distance,
                     "the un-negated ray should move away from the agent",
                 )
 

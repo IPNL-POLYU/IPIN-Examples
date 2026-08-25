@@ -98,32 +98,32 @@ class FrameConvention:
         - Eq. (6.52)-(6.53): Magnetometer heading (must match frame)
     """
 
-    map_frame: Literal['ENU', 'NED'] = 'ENU'
-    map_axes: tuple[str, str, str] = ('x=East', 'y=North', 'z=Up')
+    map_frame: Literal["ENU", "NED"] = "ENU"
+    map_axes: tuple[str, str, str] = ("x=East", "y=North", "z=Up")
     gravity_direction: Literal[-1, +1] = -1
-    heading_zero_direction: Literal['East', 'North'] = 'East'
-    heading_increases_towards: Literal['North', 'East'] = 'North'
-    quaternion_convention: Literal['scalar_first', 'scalar_last'] = 'scalar_first'
-    quaternion_meaning: Literal['body_to_map', 'map_to_body'] = 'body_to_map'
+    heading_zero_direction: Literal["East", "North"] = "East"
+    heading_increases_towards: Literal["North", "East"] = "North"
+    quaternion_convention: Literal["scalar_first", "scalar_last"] = "scalar_first"
+    quaternion_meaning: Literal["body_to_map", "map_to_body"] = "body_to_map"
     body_frame_axes: tuple[str, str, str] = (
-        'x=forward',
-        'y=left',
-        'z=up',
+        "x=forward",
+        "y=left",
+        "z=up",
     )
 
     def __post_init__(self) -> None:
         """Validate frame convention consistency."""
         # Validate map frame matches axes and gravity
-        if self.map_frame == 'ENU':
-            expected_axes = ('x=East', 'y=North', 'z=Up')
+        if self.map_frame == "ENU":
+            expected_axes = ("x=East", "y=North", "z=Up")
             expected_gravity = -1
-            expected_heading_zero = 'East'
-            expected_heading_increases = 'North'
-        elif self.map_frame == 'NED':
-            expected_axes = ('x=North', 'y=East', 'z=Down')
+            expected_heading_zero = "East"
+            expected_heading_increases = "North"
+        elif self.map_frame == "NED":
+            expected_axes = ("x=North", "y=East", "z=Down")
             expected_gravity = +1
-            expected_heading_zero = 'North'
-            expected_heading_increases = 'East'
+            expected_heading_zero = "North"
+            expected_heading_increases = "East"
         else:
             raise ValueError(
                 f"map_frame must be 'ENU' or 'NED', got '{self.map_frame}'"
@@ -171,11 +171,11 @@ class FrameConvention:
             >>> print(frame.heading_zero_direction)  # 'East'
         """
         return cls(
-            map_frame='ENU',
-            map_axes=('x=East', 'y=North', 'z=Up'),
+            map_frame="ENU",
+            map_axes=("x=East", "y=North", "z=Up"),
             gravity_direction=-1,
-            heading_zero_direction='East',
-            heading_increases_towards='North',
+            heading_zero_direction="East",
+            heading_increases_towards="North",
         )
 
     @classmethod
@@ -195,11 +195,11 @@ class FrameConvention:
             >>> print(frame.gravity_direction)  # +1
         """
         return cls(
-            map_frame='NED',
-            map_axes=('x=North', 'y=East', 'z=Down'),
+            map_frame="NED",
+            map_axes=("x=North", "y=East", "z=Down"),
             gravity_direction=+1,
-            heading_zero_direction='North',
-            heading_increases_towards='East',
+            heading_zero_direction="North",
+            heading_increases_towards="East",
         )
 
     def gravity_vector(self, g_mag: float = 9.81) -> np.ndarray:
@@ -300,13 +300,13 @@ class FrameConvention:
 class IMUNoiseParams:
     """
     IMU noise and bias parameters with explicit units in field names.
-    
+
     This dataclass eliminates ambiguity in IMU specification by making units
     explicit in every field name. All values are stored in SI units (rad/s, m/s²)
     with the original specification units documented.
-    
+
     Key principle: ALWAYS use explicit unit names to prevent deg/hr vs deg/s bugs!
-    
+
     Attributes:
         gyro_bias_rad_s: Gyroscope bias instability (rad/s).
                          Spec sheet unit: deg/hr.
@@ -328,7 +328,7 @@ class IMUNoiseParams:
                               Typical values: 0.001-0.1 m/s/√hr.
         grade: IMU grade ('consumer', 'tactical', 'navigation').
                For documentation purposes only.
-    
+
     Example:
         >>> from core.sensors.units import (
         ...     deg_per_hour_to_rad_per_sec,
@@ -336,7 +336,7 @@ class IMUNoiseParams:
         ...     mg_to_mps2,
         ...     mps_per_sqrt_hour_to_mps_per_sqrt_sec
         ... )
-        >>> 
+        >>>
         >>> # Consumer-grade IMU (explicit unit conversions)
         >>> params = IMUNoiseParams(
         ...     gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(10.0),
@@ -348,13 +348,13 @@ class IMUNoiseParams:
         ... )
         >>> print(f"Gyro bias: {params.gyro_bias_rad_s:.6e} rad/s")
         Gyro bias: 4.848137e-05 rad/s
-    
+
     Related Equations:
         - Eq. (6.5): Gyro measurement model (b_G term)
         - Eq. (6.6): Gyro bias correction
         - Eq. (6.9): Accelerometer measurement model (b_A term)
         - Eqs. (6.56)-(6.58): Allan variance analysis
-    
+
     Notes:
         - Use core.sensors.units module for ALL conversions
         - Print diagnostics should use units.format_* functions
@@ -366,18 +366,18 @@ class IMUNoiseParams:
     gyro_rrw_rad_s_sqrt_s: float
     accel_bias_mps2: float
     accel_vrw_mps_sqrt_s: float
-    grade: str = 'unknown'
+    grade: str = "unknown"
 
     @classmethod
     def consumer_grade(cls) -> "IMUNoiseParams":
         """
         Create typical consumer-grade IMU noise parameters.
-        
+
         Based on typical smartphone/tablet IMU specifications.
-        
+
         Returns:
             Consumer-grade IMU parameters.
-        
+
         Example:
             >>> params = IMUNoiseParams.consumer_grade()
             >>> print(params.grade)  # 'consumer'
@@ -391,20 +391,24 @@ class IMUNoiseParams:
 
         return cls(
             gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(10.0),  # 10 deg/hr
-            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.1),  # 0.1 deg/√hr
+            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(
+                0.1
+            ),  # 0.1 deg/√hr
             gyro_rrw_rad_s_sqrt_s=0.0,
             accel_bias_mps2=mg_to_mps2(10.0),  # 10 mg
-            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.01),  # 0.01 m/s/√hr
-            grade='consumer',
+            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(
+                0.01
+            ),  # 0.01 m/s/√hr
+            grade="consumer",
         )
 
     @classmethod
     def tactical_grade(cls) -> "IMUNoiseParams":
         """
         Create typical tactical-grade IMU noise parameters.
-        
+
         Based on mid-range fiber optic gyro (FOG) or MEMS specifications.
-        
+
         Returns:
             Tactical-grade IMU parameters.
         """
@@ -417,20 +421,24 @@ class IMUNoiseParams:
 
         return cls(
             gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(1.0),  # 1 deg/hr
-            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.01),  # 0.01 deg/√hr
+            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(
+                0.01
+            ),  # 0.01 deg/√hr
             gyro_rrw_rad_s_sqrt_s=0.0,
             accel_bias_mps2=mg_to_mps2(1.0),  # 1 mg
-            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.001),  # 0.001 m/s/√hr
-            grade='tactical',
+            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(
+                0.001
+            ),  # 0.001 m/s/√hr
+            grade="tactical",
         )
 
     @classmethod
     def navigation_grade(cls) -> "IMUNoiseParams":
         """
         Create typical navigation-grade IMU noise parameters.
-        
+
         Based on ring laser gyro (RLG) specifications.
-        
+
         Returns:
             Navigation-grade IMU parameters.
         """
@@ -443,20 +451,24 @@ class IMUNoiseParams:
 
         return cls(
             gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(0.01),  # 0.01 deg/hr
-            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.001),  # 0.001 deg/√hr
+            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(
+                0.001
+            ),  # 0.001 deg/√hr
             gyro_rrw_rad_s_sqrt_s=0.0,
             accel_bias_mps2=mg_to_mps2(0.1),  # 0.1 mg
-            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.0001),  # 0.0001 m/s/√hr
-            grade='navigation',
+            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(
+                0.0001
+            ),  # 0.0001 m/s/√hr
+            grade="navigation",
         )
 
     def format_specs(self) -> str:
         """
         Format IMU specifications for human-readable display.
-        
+
         Returns:
             Multi-line formatted string with all parameters.
-        
+
         Example:
             >>> params = IMUNoiseParams.consumer_grade()
             >>> print(params.format_specs())
@@ -524,9 +536,7 @@ class ImuSeries:
         """Validate shape consistency of IMU data."""
         # Validate t is 1D
         if self.t.ndim != 1:
-            raise ValueError(
-                f"ImuSeries.t must be 1D array, got shape {self.t.shape}"
-            )
+            raise ValueError(f"ImuSeries.t must be 1D array, got shape {self.t.shape}")
 
         n_samples = self.t.shape[0]
 
@@ -747,19 +757,13 @@ class NavStateQPVP:
     def __post_init__(self) -> None:
         """Validate shape and basic consistency of navigation state."""
         if self.q.shape != (4,):
-            raise ValueError(
-                f"NavStateQPVP.q must have shape (4,), got {self.q.shape}"
-            )
+            raise ValueError(f"NavStateQPVP.q must have shape (4,), got {self.q.shape}")
 
         if self.v.shape != (3,):
-            raise ValueError(
-                f"NavStateQPVP.v must have shape (3,), got {self.v.shape}"
-            )
+            raise ValueError(f"NavStateQPVP.v must have shape (3,), got {self.v.shape}")
 
         if self.p.shape != (3,):
-            raise ValueError(
-                f"NavStateQPVP.p must have shape (3,), got {self.p.shape}"
-            )
+            raise ValueError(f"NavStateQPVP.p must have shape (3,), got {self.p.shape}")
 
         # Warn if quaternion is not normalized (tolerance 1e-3)
         q_norm = np.linalg.norm(self.q)
@@ -857,5 +861,3 @@ class NavStateQPVPBias:
                 f"(||q|| = {q_norm:.6f}). Consider normalizing.",
                 UserWarning,
             )
-
-

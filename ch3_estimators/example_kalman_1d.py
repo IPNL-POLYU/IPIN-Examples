@@ -83,7 +83,9 @@ def example_1d_constant_velocity():
     print("\nSimulation Parameters:")
     print(f"  Time step: {dt} s")
     print(f"  Duration: {t_max} s ({n_steps} steps)")
-    print(f"  True initial state: position={true_x0[0]:.1f} m, velocity={true_x0[1]:.1f} m/s")
+    print(
+        f"  True initial state: position={true_x0[0]:.1f} m, velocity={true_x0[1]:.1f} m/s"
+    )
     print(f"  Measurement noise: {measurement_std:.2f} m (std dev)")
     print(f"  Process noise intensity: {q:.2f}")
 
@@ -195,7 +197,12 @@ def example_1d_constant_velocity():
     # Plot 3: Position Error
     ax = axes[1, 0]
     ax.plot(time, position_errors, "r-", linewidth=2, label="Position Error")
-    ax.axhline(y=measurement_std, color="k", linestyle="--", label=f"Measurement Noise ({measurement_std} m)")
+    ax.axhline(
+        y=measurement_std,
+        color="k",
+        linestyle="--",
+        label=f"Measurement Noise ({measurement_std} m)",
+    )
     ax.set_xlabel("Time [s]", fontsize=12)
     ax.set_ylabel("Position Error [m]", fontsize=12)
     ax.set_title("Position Estimation Error", fontsize=14, fontweight="bold")
@@ -241,6 +248,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

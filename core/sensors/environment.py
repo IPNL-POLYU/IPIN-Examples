@@ -36,23 +36,23 @@ from core.sensors.types import FrameConvention
 def wrap_angle_diff(angle1: float, angle2: float) -> float:
     """
     Compute the smallest signed difference between two angles.
-    
+
     Returns angle1 - angle2 wrapped to [-π, π].
     This ensures the result is always the shortest angular distance.
-    
+
     Args:
         angle1: First angle (radians).
         angle2: Second angle (radians).
-    
+
     Returns:
         Signed difference angle1 - angle2 in range [-π, π].
         Positive means angle1 is counter-clockwise from angle2.
-    
+
     Example:
         >>> # 350° - 10° should give -20° (not +340°)
         >>> diff = wrap_angle_diff(np.deg2rad(350), np.deg2rad(10))
         >>> print(f"{np.rad2deg(diff):.1f}°")  # -20.0°
-        
+
         >>> # 10° - 350° should give +20° (not -340°)
         >>> diff = wrap_angle_diff(np.deg2rad(10), np.deg2rad(350))
         >>> print(f"{np.rad2deg(diff):.1f}°")  # 20.0°
@@ -74,7 +74,7 @@ def mag_tilt_compensate(
     Implements Eq. (6.52) in Chapter 6:
         M_x = m̃_x cos(θ) + m̃_z sin(θ)
         M_y = m̃_y cos(ϕ) + m̃_x sin(θ)sin(ϕ) - m̃_z cos(θ)sin(ϕ)
-    
+
     where θ = pitch, ϕ = roll, and [m̃_x, m̃_y, m̃_z] = mag_b. The third
     (vertical) component is Mz = m̃_y sin(ϕ) - m̃_x sin(θ)cos(ϕ) + m̃_z cos(θ)cos(ϕ).
 
@@ -118,7 +118,7 @@ def mag_tilt_compensate(
         >>> pitch = 0.0
         >>> mag_comp = mag_tilt_compensate(mag, roll, pitch)
         >>> print(mag_comp)  # [20, 0, -40] (unchanged when level)
-        >>> 
+        >>>
         >>> # Tilted device: 30° pitch
         >>> pitch_30 = np.deg2rad(30)
         >>> mag_comp = mag_tilt_compensate(mag, 0.0, pitch_30)
@@ -320,7 +320,7 @@ def pressure_to_altitude(
         >>> # At sea level (p = p0)
         >>> h = pressure_to_altitude(p=101325, p0=101325)
         >>> print(f"{h:.1f} m")  # 0.0 m
-        >>> 
+        >>>
         >>> # One floor up (~3m, pressure drops ~36 Pa)
         >>> p_floor1 = 101325 - 36
         >>> h = pressure_to_altitude(p=p_floor1, p0=101325)
@@ -388,7 +388,7 @@ def detect_floor_change(
         >>> # No significant change
         >>> change = detect_floor_change(10.0, 10.2, floor_height=3.0)
         >>> print(change)  # 0
-        >>> 
+        >>>
         >>> # Went up one floor
         >>> change = detect_floor_change(10.0, 13.5, floor_height=3.0)
         >>> print(change)  # +1
@@ -556,5 +556,3 @@ def compensate_hard_iron(
     mag_corrected = mag_raw - offset
 
     return mag_corrected
-
-

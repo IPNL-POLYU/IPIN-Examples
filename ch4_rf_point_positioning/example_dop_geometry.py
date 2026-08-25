@@ -82,9 +82,7 @@ SEED = 1
 def gdop_at(position, anchors=ANCHORS):
     """GDOP at a position for the given anchors, or inf if singular."""
     try:
-        return compute_dop(compute_geometry_matrix(anchors, position, "toa"))[
-            "GDOP"
-        ]
+        return compute_dop(compute_geometry_matrix(anchors, position, "toa"))["GDOP"]
     except (np.linalg.LinAlgError, ValueError):
         return np.inf
 
@@ -170,29 +168,58 @@ def _draw_frame(axes, walk, index):
 
     # --- GDOP field with the receiver walking through it
     image = axes[0].imshow(
-        np.clip(walk["field"], 1.0, GDOP_CLIP), extent=FIELD_EXTENT,
-        origin="lower", cmap="jet", aspect="equal", vmin=1.0, vmax=GDOP_CLIP,
+        np.clip(walk["field"], 1.0, GDOP_CLIP),
+        extent=FIELD_EXTENT,
+        origin="lower",
+        cmap="jet",
+        aspect="equal",
+        vmin=1.0,
+        vmax=GDOP_CLIP,
     )
-    axes[0].plot(ANCHORS[:, 0], ANCHORS[:, 1], "ws", markersize=9,
-                 markeredgecolor="black", markeredgewidth=1.5, label="anchors")
-    axes[0].plot(walk["walk"][: index + 1, 0], walk["walk"][: index + 1, 1],
-                 "-", color="white", linewidth=1.2, alpha=0.7)
+    axes[0].plot(
+        ANCHORS[:, 0],
+        ANCHORS[:, 1],
+        "ws",
+        markersize=9,
+        markeredgecolor="black",
+        markeredgewidth=1.5,
+        label="anchors",
+    )
+    axes[0].plot(
+        walk["walk"][: index + 1, 0],
+        walk["walk"][: index + 1, 1],
+        "-",
+        color="white",
+        linewidth=1.2,
+        alpha=0.7,
+    )
 
     # Monte-Carlo cloud of actual fixes, and the DOP-predicted 3-sigma ellipse.
     rng = np.random.default_rng(1000 + index)
     cloud = rng.multivariate_normal(position, walk["covariances"][index], 150)
-    axes[0].scatter(cloud[:, 0], cloud[:, 1], s=4, c="white", alpha=0.35,
-                    zorder=4)
+    axes[0].scatter(cloud[:, 0], cloud[:, 1], s=4, c="white", alpha=0.35, zorder=4)
     eigenvalues, eigenvectors = np.linalg.eigh(walk["covariances"][index])
     angle = np.degrees(np.arctan2(eigenvectors[1, -1], eigenvectors[0, -1]))
     ellipse = Ellipse(
-        position, 2 * 3 * np.sqrt(eigenvalues[-1]),
-        2 * 3 * np.sqrt(eigenvalues[0]), angle=angle, facecolor="none",
-        edgecolor="white", linewidth=2.0, zorder=5,
+        position,
+        2 * 3 * np.sqrt(eigenvalues[-1]),
+        2 * 3 * np.sqrt(eigenvalues[0]),
+        angle=angle,
+        facecolor="none",
+        edgecolor="white",
+        linewidth=2.0,
+        zorder=5,
     )
     axes[0].add_patch(ellipse)
-    axes[0].plot(*position, "o", color="magenta", markersize=8,
-                 markeredgecolor="white", zorder=6, label="receiver")
+    axes[0].plot(
+        *position,
+        "o",
+        color="magenta",
+        markersize=8,
+        markeredgecolor="white",
+        zorder=6,
+        label="receiver",
+    )
 
     axes[0].set_xlim(FIELD_EXTENT[0], FIELD_EXTENT[1])
     axes[0].set_ylim(FIELD_EXTENT[2], FIELD_EXTENT[3])
@@ -208,10 +235,22 @@ def _draw_frame(axes, walk, index):
 
     # --- DOP prediction against Monte-Carlo truth
     steps = np.arange(1, index + 2)
-    axes[1].plot(steps, walk["predicted"][: index + 1], "-", color="tab:blue",
-                 linewidth=2.0, label="predicted: GDOP x range_std")
-    axes[1].plot(steps, walk["mc_rms"][: index + 1], "o", color="tab:red",
-                 markersize=5, label="measured: TOA solver RMS")
+    axes[1].plot(
+        steps,
+        walk["predicted"][: index + 1],
+        "-",
+        color="tab:blue",
+        linewidth=2.0,
+        label="predicted: GDOP x range_std",
+    )
+    axes[1].plot(
+        steps,
+        walk["mc_rms"][: index + 1],
+        "o",
+        color="tab:red",
+        markersize=5,
+        label="measured: TOA solver RMS",
+    )
     axes[1].set_xlim(0.5, N_STEPS + 0.5)
     axes[1].set_ylim(0, max(walk["predicted"].max(), walk["mc_rms"].max()) * 1.1)
     axes[1].grid(alpha=0.3)
@@ -278,10 +317,22 @@ def plot_dop_summary(walk) -> plt.Figure:
     # Redraw the error panel over the whole walk.
     steps = np.arange(1, N_STEPS + 1)
     axes[1].clear()
-    axes[1].plot(steps, walk["predicted"], "-", color="tab:blue",
-                 linewidth=2.0, label="predicted: GDOP x range_std")
-    axes[1].plot(steps, walk["mc_rms"], "o", color="tab:red", markersize=5,
-                 label="measured: TOA solver RMS")
+    axes[1].plot(
+        steps,
+        walk["predicted"],
+        "-",
+        color="tab:blue",
+        linewidth=2.0,
+        label="predicted: GDOP x range_std",
+    )
+    axes[1].plot(
+        steps,
+        walk["mc_rms"],
+        "o",
+        color="tab:red",
+        markersize=5,
+        label="measured: TOA solver RMS",
+    )
     axes[1].set_xlim(0.5, N_STEPS + 0.5)
     axes[1].set_ylim(0, max(walk["predicted"].max(), walk["mc_rms"].max()) * 1.1)
     axes[1].grid(alpha=0.3)
@@ -308,10 +359,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Dilution of precision and geometry (Chapter 4)"
     )
-    parser.add_argument("--out-dir", default=str(FIGS_DIR),
-                        help="Output directory for figures")
-    parser.add_argument("--animate", action="store_true", default=False,
-                        help="Also render the DOP-geometry GIF (slower)")
+    parser.add_argument(
+        "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
+    )
+    parser.add_argument(
+        "--animate",
+        action="store_true",
+        default=False,
+        help="Also render the DOP-geometry GIF (slower)",
+    )
     args = parser.parse_args()
 
     print("=" * 70)
@@ -321,23 +377,34 @@ def main() -> None:
     walk = run_walk()
     agreement = np.abs(walk["predicted"] - walk["mc_rms"]) / walk["predicted"]
 
-    print(f"  Four anchors clustered in a {int(ANCHORS[:, 0].max())} m corner, "
-          f"range noise {RANGE_STD:.0f} m")
-    print(f"  Receiver GDOP: {walk['gdop'][0]:.1f} beside the cluster "
-          f"-> {walk['gdop'][-1]:.1f} far down the corridor")
-    print(f"  DOP prediction vs Monte-Carlo RMS: mean disagreement "
-          f"{agreement.mean() * 100:.1f}%")
-    print(f"  position error grows {walk['mc_rms'][-1] / walk['mc_rms'][0]:.0f}x "
-          f"with an optimal solver and fixed noise -- pure geometry\n")
+    print(
+        f"  Four anchors clustered in a {int(ANCHORS[:, 0].max())} m corner, "
+        f"range noise {RANGE_STD:.0f} m"
+    )
+    print(
+        f"  Receiver GDOP: {walk['gdop'][0]:.1f} beside the cluster "
+        f"-> {walk['gdop'][-1]:.1f} far down the corridor"
+    )
+    print(
+        f"  DOP prediction vs Monte-Carlo RMS: mean disagreement "
+        f"{agreement.mean() * 100:.1f}%"
+    )
+    print(
+        f"  position error grows {walk['mc_rms'][-1] / walk['mc_rms'][0]:.0f}x "
+        f"with an optimal solver and fixed noise -- pure geometry\n"
+    )
 
     paths = save_figure(plot_dop_summary(walk), args.out_dir, "ch4_dop_geometry")
-    print(f"  saved ch4_dop_geometry: "
-          f"{', '.join(p.suffix.lstrip('.') for p in paths)}")
+    print(
+        f"  saved ch4_dop_geometry: "
+        f"{', '.join(p.suffix.lstrip('.') for p in paths)}"
+    )
 
     if args.animate:
         fig, update, n_frames = animate_dop(walk)
-        path = save_animation(fig, update, n_frames, args.out_dir,
-                              "ch4_dop_geometry", fps=4)
+        path = save_animation(
+            fig, update, n_frames, args.out_dir, "ch4_dop_geometry", fps=4
+        )
         plt.close(fig)
         size_mb = path.stat().st_size / (1024 * 1024)
         print(f"  saved {path.name}: {n_frames} frames, {size_mb:.2f} MB")

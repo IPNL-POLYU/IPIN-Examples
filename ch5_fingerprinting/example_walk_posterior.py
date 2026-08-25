@@ -84,10 +84,7 @@ def _build_l_walk(locations):
     Returns:
         List of indices into ``locations`` tracing the walk.
     """
-    key = {
-        (round(float(x)), round(float(y))): i
-        for i, (x, y) in enumerate(locations)
-    }
+    key = {(round(float(x)), round(float(y))): i for i, (x, y) in enumerate(locations)}
     x_max = int(round(locations[:, 0].max()))
     y_max = int(round(locations[:, 1].max()))
     step = int(round(np.min(np.diff(np.unique(locations[:, 0])))))
@@ -164,40 +161,84 @@ def _draw_frame(axes, walk, index):
     # near 0.9, the rest near 1e-4 -- so the gamma-compressed norm is what
     # lifts the runner-up cells enough to see where the mass sits.
     scatter = axes[0].scatter(
-        locations[:, 0], locations[:, 1], c=posterior, s=160,
-        cmap=POSTERIOR_CMAP, norm=POSTERIOR_NORM, marker="s",
+        locations[:, 0],
+        locations[:, 1],
+        c=posterior,
+        s=160,
+        cmap=POSTERIOR_CMAP,
+        norm=POSTERIOR_NORM,
+        marker="s",
     )
-    axes[0].plot(walk["true_xy"][: index + 1, 0],
-                 walk["true_xy"][: index + 1, 1],
-                 "-", color="white", linewidth=1.2, alpha=0.6)
-    axes[0].scatter(*truth, marker="*", s=280, c="red",
-                    edgecolors="white", linewidths=1.5, zorder=6,
-                    label="true position")
+    axes[0].plot(
+        walk["true_xy"][: index + 1, 0],
+        walk["true_xy"][: index + 1, 1],
+        "-",
+        color="white",
+        linewidth=1.2,
+        alpha=0.6,
+    )
+    axes[0].scatter(
+        *truth,
+        marker="*",
+        s=280,
+        c="red",
+        edgecolors="white",
+        linewidths=1.5,
+        zorder=6,
+        label="true position",
+    )
     # Hollow ring, so the bright peak cell it sits on stays visible -- a solid
     # marker would hide the very cell it reports and make the runner-up look
     # like the answer.
-    axes[0].scatter(*estimate, marker="o", s=260, facecolors="none",
-                    edgecolors="white", linewidths=2.5, zorder=6,
-                    label="MAP estimate (peak cell)")
+    axes[0].scatter(
+        *estimate,
+        marker="o",
+        s=260,
+        facecolors="none",
+        edgecolors="white",
+        linewidths=2.5,
+        zorder=6,
+        label="MAP estimate (peak cell)",
+    )
     if error > ALIASING_THRESHOLD:
-        axes[0].plot([truth[0], estimate[0]], [truth[1], estimate[1]],
-                     "--", color="red", linewidth=1.8, zorder=5)
+        axes[0].plot(
+            [truth[0], estimate[0]],
+            [truth[1], estimate[1]],
+            "--",
+            color="red",
+            linewidth=1.8,
+            zorder=5,
+        )
     axes[0].set_xlabel("x [m]")
     axes[0].set_ylabel("y [m]")
     axes[0].set_aspect("equal")
     axes[0].legend(fontsize=8, loc="upper left", framealpha=0.9)
-    verdict = "ALIASED: MAP jumped to a radio-similar spot" if (
-        error > ALIASING_THRESHOLD) else "MAP on target"
+    verdict = (
+        "ALIASED: MAP jumped to a radio-similar spot"
+        if (error > ALIASING_THRESHOLD)
+        else "MAP on target"
+    )
     axes[0].set_title(
         f"step {index + 1}/{len(walk['errors'])}   -   {verdict}", fontsize=10
     )
 
     # --- error trace, with the aliasing threshold marked
     steps = np.arange(1, index + 2)
-    axes[1].plot(steps, walk["errors"][: index + 1], "-o", color="tab:blue",
-                 markersize=4, linewidth=1.5)
-    axes[1].axhline(ALIASING_THRESHOLD, color="red", linestyle="--",
-                    linewidth=1.3, label=f"aliasing (> {ALIASING_THRESHOLD:.0f} m)")
+    axes[1].plot(
+        steps,
+        walk["errors"][: index + 1],
+        "-o",
+        color="tab:blue",
+        markersize=4,
+        linewidth=1.5,
+    )
+    axes[1].axhline(
+        ALIASING_THRESHOLD,
+        color="red",
+        linestyle="--",
+        linewidth=1.3,
+        label=f"aliasing (> {ALIASING_THRESHOLD:.0f} m)",
+    )
     axes[1].set_xlim(0.5, len(walk["errors"]) + 0.5)
     axes[1].set_ylim(-1, max(walk["errors"].max() * 1.1, 12))
     axes[1].grid(alpha=0.3)
@@ -216,8 +257,9 @@ def _draw_frame(axes, walk, index):
 def _add_posterior_colorbar(fig, axes):
     """Attach the single shared p(x|z) colorbar to the heat-map axes."""
     mappable = plt.cm.ScalarMappable(norm=POSTERIOR_NORM, cmap=POSTERIOR_CMAP)
-    fig.colorbar(mappable, ax=axes[0], fraction=0.046, pad=0.04,
-                 label="p(x | z), Eq. (5.3)")
+    fig.colorbar(
+        mappable, ax=axes[0], fraction=0.046, pad=0.04, label="p(x | z), Eq. (5.3)"
+    )
 
 
 def animate_walk(walk):
@@ -250,9 +292,7 @@ def animate_walk(walk):
 def plot_walk_summary(walk) -> plt.Figure:
     """Static counterpart: an aliased step beside the error trace."""
     aliased = np.where(walk["errors"] > ALIASING_THRESHOLD)[0]
-    highlight = int(aliased[0]) if len(aliased) else int(
-        np.argmax(walk["errors"])
-    )
+    highlight = int(aliased[0]) if len(aliased) else int(np.argmax(walk["errors"]))
 
     fig, axes = plt.subplots(1, 2, figsize=(13, 5.2))
     _draw_frame(axes, walk, highlight)
@@ -261,13 +301,18 @@ def plot_walk_summary(walk) -> plt.Figure:
     # Redraw the error panel over the whole walk, not just up to the step.
     steps = np.arange(1, len(walk["errors"]) + 1)
     axes[1].clear()
-    axes[1].plot(steps, walk["errors"], "-o", color="tab:blue", markersize=4,
-                 linewidth=1.5)
-    axes[1].axhline(ALIASING_THRESHOLD, color="red", linestyle="--",
-                    linewidth=1.3, label=f"aliasing (> {ALIASING_THRESHOLD:.0f} m)")
+    axes[1].plot(
+        steps, walk["errors"], "-o", color="tab:blue", markersize=4, linewidth=1.5
+    )
+    axes[1].axhline(
+        ALIASING_THRESHOLD,
+        color="red",
+        linestyle="--",
+        linewidth=1.3,
+        label=f"aliasing (> {ALIASING_THRESHOLD:.0f} m)",
+    )
     for step in aliased:
-        axes[1].scatter(step + 1, walk["errors"][step], s=90, c="red",
-                        zorder=5)
+        axes[1].scatter(step + 1, walk["errors"][step], s=90, c="red", zorder=5)
     axes[1].set_xlim(0.5, len(walk["errors"]) + 0.5)
     axes[1].set_ylim(-1, max(walk["errors"].max() * 1.1, 12))
     axes[1].grid(alpha=0.3)
@@ -295,14 +340,21 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Fingerprint posterior along a walk (Chapter 5)"
     )
-    parser.add_argument("--data", default=DEFAULT_DATA,
-                        help="Fingerprint database directory")
-    parser.add_argument("--out-dir", default=str(FIGS_DIR),
-                        help="Output directory for figures")
-    parser.add_argument("--noise", type=float, default=NOISE_STD,
-                        help="Measurement noise std in dB")
-    parser.add_argument("--animate", action="store_true", default=False,
-                        help="Also render the walking-posterior GIF (slower)")
+    parser.add_argument(
+        "--data", default=DEFAULT_DATA, help="Fingerprint database directory"
+    )
+    parser.add_argument(
+        "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
+    )
+    parser.add_argument(
+        "--noise", type=float, default=NOISE_STD, help="Measurement noise std in dB"
+    )
+    parser.add_argument(
+        "--animate",
+        action="store_true",
+        default=False,
+        help="Also render the walking-posterior GIF (slower)",
+    )
     args = parser.parse_args()
 
     print("=" * 70)
@@ -313,25 +365,32 @@ def main() -> None:
     errors = walk["errors"]
     aliased = int(np.sum(errors > ALIASING_THRESHOLD))
 
-    print(f"  L-walk of {len(errors)} reference points, "
-          f"noise {args.noise:.0f} dB")
-    print(f"  posterior peaks on a median of "
-          f"{int(np.median(walk['hot_counts']))} cell(s) -- it stays sharp")
-    print(f"  MAP error:  median {np.median(errors):.1f} m   "
-          f"mean {errors.mean():.1f} m   max {errors.max():.1f} m")
-    print(f"  aliasing jumps (> {ALIASING_THRESHOLD:.0f} m): "
-          f"{aliased} of {len(errors)} steps")
+    print(f"  L-walk of {len(errors)} reference points, " f"noise {args.noise:.0f} dB")
+    print(
+        f"  posterior peaks on a median of "
+        f"{int(np.median(walk['hot_counts']))} cell(s) -- it stays sharp"
+    )
+    print(
+        f"  MAP error:  median {np.median(errors):.1f} m   "
+        f"mean {errors.mean():.1f} m   max {errors.max():.1f} m"
+    )
+    print(
+        f"  aliasing jumps (> {ALIASING_THRESHOLD:.0f} m): "
+        f"{aliased} of {len(errors)} steps"
+    )
     print("  -> the median says 'perfect', the mean says otherwise\n")
 
-    paths = save_figure(plot_walk_summary(walk), args.out_dir,
-                        "ch5_walk_posterior")
-    print(f"  saved ch5_walk_posterior: "
-          f"{', '.join(p.suffix.lstrip('.') for p in paths)}")
+    paths = save_figure(plot_walk_summary(walk), args.out_dir, "ch5_walk_posterior")
+    print(
+        f"  saved ch5_walk_posterior: "
+        f"{', '.join(p.suffix.lstrip('.') for p in paths)}"
+    )
 
     if args.animate:
         fig, update, n_frames = animate_walk(walk)
-        path = save_animation(fig, update, n_frames, args.out_dir,
-                              "ch5_walk_posterior", fps=3)
+        path = save_animation(
+            fig, update, n_frames, args.out_dir, "ch5_walk_posterior", fps=3
+        )
         plt.close(fig)
         size_mb = path.stat().st_size / (1024 * 1024)
         print(f"  saved {path.name}: {n_frames} frames, {size_mb:.2f} MB")

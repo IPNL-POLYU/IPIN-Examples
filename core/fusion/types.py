@@ -16,11 +16,11 @@ import numpy as np
 @dataclass(frozen=True)
 class StampedMeasurement:
     """Generic time-stamped measurement packet used by fusion demos.
-    
+
     This structure provides a unified interface for multi-sensor fusion,
     supporting different sensor types with varying measurement dimensions
     and covariances.
-    
+
     Attributes:
         t: Timestamp in seconds (float, monotonic time).
         sensor: Sensor identifier (e.g., 'imu', 'uwb_range', 'lidar_odom').
@@ -28,7 +28,7 @@ class StampedMeasurement:
         R: Measurement covariance matrix (m x m where m = len(z)).
         meta: Optional metadata dictionary for sensor-specific information
               (e.g., anchor_id for UWB, frame_id for camera).
-    
+
     Example:
         >>> # UWB range measurement to anchor 3
         >>> uwb_meas = StampedMeasurement(
@@ -38,7 +38,7 @@ class StampedMeasurement:
         ...     R=np.array([[0.01]]),
         ...     meta={'anchor_id': 3}
         ... )
-        
+
         >>> # IMU acceleration measurement
         >>> imu_meas = StampedMeasurement(
         ...     t=1.234,
@@ -71,7 +71,9 @@ class StampedMeasurement:
         if not isinstance(self.z, np.ndarray):
             raise TypeError(f"Measurement z must be numpy array, got {type(self.z)}")
         if self.z.ndim != 1:
-            raise ValueError(f"Measurement z must be 1D array, got shape {self.z.shape}")
+            raise ValueError(
+                f"Measurement z must be 1D array, got shape {self.z.shape}"
+            )
 
         # Validate covariance matrix
         if not isinstance(self.R, np.ndarray):
@@ -93,37 +95,39 @@ class StampedMeasurement:
         # Check positive semi-definite (all eigenvalues >= 0)
         eigvals = np.linalg.eigvalsh(self.R)
         if np.any(eigvals < -1e-10):  # small negative tolerance for numerical errors
-            raise ValueError(f"Covariance R must be positive semi-definite, got eigenvalues {eigvals}")
+            raise ValueError(
+                f"Covariance R must be positive semi-definite, got eigenvalues {eigvals}"
+            )
 
 
 @dataclass(frozen=True)
 class TimeSyncModel:
     """Map sensor-local time to a common fusion time.
-    
+
     This model handles temporal calibration between sensors by accounting for
     constant time offsets and clock drift. Essential for Chapter 8 temporal
     calibration demos (Section 8.5).
-    
+
     The transformation is:
         t_fusion = (1 + drift) * t_sensor + offset
-    
+
     Attributes:
         offset: Constant time offset in seconds. Positive offset means the
                 sensor clock is ahead of the fusion clock.
         drift: Clock drift rate in seconds/second (dimensionless). A drift
                of 0.001 means the sensor gains 1 ms per second.
-    
+
     Example:
         >>> # Sensor clock is 0.5 seconds behind fusion clock
         >>> sync = TimeSyncModel(offset=-0.5, drift=0.0)
         >>> sync.to_fusion_time(10.0)  # sensor time
         9.5  # fusion time
-        
+
         >>> # Sensor clock drifts +1 ms per second and is 0.2s ahead
         >>> sync = TimeSyncModel(offset=0.2, drift=0.001)
         >>> sync.to_fusion_time(100.0)
         100.3  # = 100 * 1.001 + 0.2
-    
+
     References:
         Chapter 8, Section 8.5 (Temporal Calibration and Synchronization)
     """
@@ -142,21 +146,22 @@ class TimeSyncModel:
         # Warn about unrealistic drift values (typically < 100 ppm = 0.0001)
         if abs(self.drift) > 0.01:
             import warnings
+
             warnings.warn(
                 f"Clock drift of {self.drift} (= {self.drift * 1e6:.0f} ppm) "
                 f"is unusually large. Typical values are < 100 ppm (0.0001).",
-                UserWarning
+                UserWarning,
             )
 
     def to_fusion_time(self, t_sensor: float) -> float:
         """Convert sensor-local time to fusion time.
-        
+
         Args:
             t_sensor: Timestamp in sensor-local time (seconds).
-        
+
         Returns:
             Timestamp in fusion time (seconds).
-        
+
         Example:
             >>> sync = TimeSyncModel(offset=0.5, drift=0.001)
             >>> sync.to_fusion_time(10.0)
@@ -166,13 +171,13 @@ class TimeSyncModel:
 
     def to_sensor_time(self, t_fusion: float) -> float:
         """Convert fusion time to sensor-local time (inverse operation).
-        
+
         Args:
             t_fusion: Timestamp in fusion time (seconds).
-        
+
         Returns:
             Timestamp in sensor-local time (seconds).
-        
+
         Example:
             >>> sync = TimeSyncModel(offset=0.5, drift=0.001)
             >>> t_fus = sync.to_fusion_time(10.0)
@@ -183,13 +188,13 @@ class TimeSyncModel:
 
     def is_synchronized(self, tolerance: float = 1e-6) -> bool:
         """Check if the sensor is already synchronized (identity transform).
-        
+
         Args:
             tolerance: Tolerance for offset and drift (default 1 microsecond).
-        
+
         Returns:
             True if both offset and drift are within tolerance of zero.
-        
+
         Example:
             >>> TimeSyncModel(offset=0.0, drift=0.0).is_synchronized()
             True
@@ -197,5 +202,3 @@ class TimeSyncModel:
             False
         """
         return abs(self.offset) < tolerance and abs(self.drift) < tolerance
-
-

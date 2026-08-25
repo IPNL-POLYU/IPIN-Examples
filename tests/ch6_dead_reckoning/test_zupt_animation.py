@@ -40,13 +40,18 @@ class TestZuptDriftAnimation(unittest.TestCase):
         frame = FrameConvention.create_enu()
         imu_params = IMUNoiseParams.consumer_grade()
 
-        (cls.t, cls.pos_true, vel_true, quat_true,
-         accel_body, gyro_body, cls.stance_mask) = generate_walking_trajectory(
+        (
+            cls.t,
+            cls.pos_true,
+            vel_true,
+            quat_true,
+            accel_body,
+            gyro_body,
+            cls.stance_mask,
+        ) = generate_walking_trajectory(
             duration=21.0, dt=0.01, step_freq=2.0, step_length=0.7, frame=frame
         )
-        accel_meas, gyro_meas = add_imu_noise(
-            accel_body, gyro_body, 0.01, imu_params
-        )
+        accel_meas, gyro_meas = add_imu_noise(accel_body, gyro_body, 0.01, imu_params)
         initial_state = NavStateQPVP(
             q=quat_true[0].copy(), v=vel_true[0].copy(), p=cls.pos_true[0].copy()
         )
@@ -55,17 +60,19 @@ class TestZuptDriftAnimation(unittest.TestCase):
             cls.t, accel_meas, gyro_meas, initial_state, frame
         )
         cls.pos_zupt, _, cls.detections = run_imu_with_zupt_ekf(
-            cls.t, accel_meas, gyro_meas, initial_state, frame, imu_params,
-            window_size=10, gamma=1000.0,
+            cls.t,
+            accel_meas,
+            gyro_meas,
+            initial_state,
+            frame,
+            imu_params,
+            window_size=10,
+            gamma=1000.0,
         )
 
     def _errors(self):
-        error_imu = np.linalg.norm(
-            self.pos_imu[:, :2] - self.pos_true[:, :2], axis=1
-        )
-        error_zupt = np.linalg.norm(
-            self.pos_zupt[:, :2] - self.pos_true[:, :2], axis=1
-        )
+        error_imu = np.linalg.norm(self.pos_imu[:, :2] - self.pos_true[:, :2], axis=1)
+        error_zupt = np.linalg.norm(self.pos_zupt[:, :2] - self.pos_true[:, :2], axis=1)
         return error_imu, error_zupt
 
     def test_zupt_bounds_the_drift(self):
@@ -74,8 +81,8 @@ class TestZuptDriftAnimation(unittest.TestCase):
 
         self.assertLess(error_zupt[-1], error_imu[-1])
         self.assertLess(
-            np.sqrt(np.mean(error_zupt ** 2)),
-            0.5 * np.sqrt(np.mean(error_imu ** 2)),
+            np.sqrt(np.mean(error_zupt**2)),
+            0.5 * np.sqrt(np.mean(error_imu**2)),
         )
 
     def test_trajectory_contains_stance_and_swing(self):
@@ -86,8 +93,13 @@ class TestZuptDriftAnimation(unittest.TestCase):
     def test_animation_renders_every_frame(self):
         """Frame count matches the request and each frame draws."""
         fig, update, n_frames = animate_zupt_drift(
-            self.t, self.pos_true, self.pos_imu, self.pos_zupt,
-            self.stance_mask, self.detections, n_frames=6,
+            self.t,
+            self.pos_true,
+            self.pos_imu,
+            self.pos_zupt,
+            self.stance_mask,
+            self.detections,
+            n_frames=6,
         )
         try:
             self.assertEqual(n_frames, 6)
@@ -100,8 +112,13 @@ class TestZuptDriftAnimation(unittest.TestCase):
     def test_animation_stays_small(self):
         """Committed binaries live in git history forever."""
         fig, update, n_frames = animate_zupt_drift(
-            self.t, self.pos_true, self.pos_imu, self.pos_zupt,
-            self.stance_mask, self.detections, n_frames=8,
+            self.t,
+            self.pos_true,
+            self.pos_imu,
+            self.pos_zupt,
+            self.stance_mask,
+            self.detections,
+            n_frames=8,
         )
         try:
             with tempfile.TemporaryDirectory() as tmp:

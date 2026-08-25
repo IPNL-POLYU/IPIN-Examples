@@ -77,7 +77,9 @@ class TestShortTauParametersComeBack:
             recovered["accel"]["velocity_random_walk"] / injected_si(GRADE)["accel_vrw"]
         )
 
-        assert 0.8 < ratio < 1.2, f"accel VRW recovered {ratio:.2f}x the injected value."
+        assert (
+            0.8 < ratio < 1.2
+        ), f"accel VRW recovered {ratio:.2f}x the injected value."
 
     def test_gyro_bias_instability_within_a_factor_of_two(self, recovered):
         """Looser on purpose: the shoulder is broad and the minimum is noisy."""
@@ -86,9 +88,9 @@ class TestShortTauParametersComeBack:
             / injected_si(GRADE)["gyro_bias_instability"]
         )
 
-        assert 0.5 < ratio < 2.0, (
-            f"gyro bias instability recovered {ratio:.2f}x the injected value."
-        )
+        assert (
+            0.5 < ratio < 2.0
+        ), f"gyro bias instability recovered {ratio:.2f}x the injected value."
 
 
 class TestTheReportedNumbersAgreeWithTheReferenceTable:

@@ -25,14 +25,14 @@ Main components:
 Example usage:
     >>> from core.slam import Pose2, se2_compose, se2_inverse, se2_apply
     >>> import numpy as np
-    >>> 
+    >>>
     >>> # Create poses
     >>> p1 = Pose2(x=0.0, y=0.0, yaw=0.0)
     >>> p2 = Pose2(x=1.0, y=0.0, yaw=np.pi/2)
-    >>> 
+    >>>
     >>> # Compose poses
     >>> p_composed = se2_compose(p1.to_array(), p2.to_array())
-    >>> 
+    >>>
     >>> # Transform points
     >>> points = np.array([[1, 0], [0, 1]])
     >>> points_transformed = se2_apply(p2.to_array(), points)
@@ -163,4 +163,3 @@ __all__ = [
 ]
 
 __version__ = "0.1.0"
-

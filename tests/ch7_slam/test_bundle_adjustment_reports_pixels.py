@@ -54,19 +54,23 @@ def _graph_with_known_residuals(reprojection, prior):
     graph = FactorGraph()
     graph.add_variable(0, np.zeros(2))
     for r in reprojection:
-        graph.add_factor(Factor(
-            variable_ids=[0],
-            residual_func=lambda _x, r=np.asarray(r, dtype=float): r,
-            jacobian_func=lambda _x: [np.zeros((2, 2))],
-            information=np.eye(2) / (PIXEL_NOISE_STD ** 2),
-        ))
+        graph.add_factor(
+            Factor(
+                variable_ids=[0],
+                residual_func=lambda _x, r=np.asarray(r, dtype=float): r,
+                jacobian_func=lambda _x: [np.zeros((2, 2))],
+                information=np.eye(2) / (PIXEL_NOISE_STD**2),
+            )
+        )
     # The gauge prior is appended last and its residual is in metres.
-    graph.add_factor(Factor(
-        variable_ids=[0],
-        residual_func=lambda _x, r=np.asarray(prior, dtype=float): r,
-        jacobian_func=lambda _x: [np.zeros((2, 2))],
-        information=np.eye(2),
-    ))
+    graph.add_factor(
+        Factor(
+            variable_ids=[0],
+            residual_func=lambda _x, r=np.asarray(prior, dtype=float): r,
+            jacobian_func=lambda _x: [np.zeros((2, 2))],
+            information=np.eye(2),
+        )
+    )
     return graph
 
 
@@ -105,7 +109,7 @@ class TestResidualsAreReportedInPixels(unittest.TestCase):
         pixels = rms(reprojection_residuals_px(graph, 8))
 
         self.assertAlmostEqual(pixels, 5.0)
-        self.assertAlmostEqual(cost, 8 * 25.0 / PIXEL_NOISE_STD ** 2)
+        self.assertAlmostEqual(cost, 8 * 25.0 / PIXEL_NOISE_STD**2)
         self.assertGreater(cost / pixels, 100.0)
 
     def test_the_cost_grows_with_observation_count_and_the_rms_does_not(self):

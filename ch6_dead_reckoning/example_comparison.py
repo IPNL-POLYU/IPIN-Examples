@@ -76,9 +76,7 @@ C_SPEED_TO_BODY = np.array(
 )
 
 
-def _speed_envelope(
-    tau: np.ndarray, duration: float, ramp: float
-) -> np.ndarray:
+def _speed_envelope(tau: np.ndarray, duration: float, ramp: float) -> np.ndarray:
     """Raised-cosine trapezoid rising 0->1, holding, then falling 1->0.
 
     A walker does not reach 1.2 m/s in one 10 ms sample. Stepping the speed
@@ -103,9 +101,7 @@ def _speed_envelope(
     rising = tau < ramp
     env[rising] = 0.5 * (1.0 - np.cos(np.pi * tau[rising] / ramp))
     falling = tau > duration - ramp
-    env[falling] = 0.5 * (
-        1.0 - np.cos(np.pi * (duration - tau[falling]) / ramp)
-    )
+    env[falling] = 0.5 * (1.0 - np.cos(np.pi * (duration - tau[falling]) / ramp))
     return np.clip(env, 0.0, 1.0)
 
 
@@ -250,9 +246,7 @@ def generate_mixed_trajectory(
         end = min(n_samples, k + walk_samples)
         if end > k:
             tau = np.arange(end - k) * dt
-            speed[k:end] = v_walk * _speed_envelope(
-                tau, walk_samples * dt, ramp_time
-            )
+            speed[k:end] = v_walk * _speed_envelope(tau, walk_samples * dt, ramp_time)
             heading_true[k:end] = current_heading
         k = end
         if k >= n_samples:
@@ -263,9 +257,7 @@ def generate_mixed_trajectory(
         end = min(n_samples, k + stop_samples)
         heading_true[k:end] = current_heading
         if seg + 1 < len(segment_headings):
-            delta_psi = _wrap_to_pi(
-                segment_headings[seg + 1] - segment_headings[seg]
-            )
+            delta_psi = _wrap_to_pi(segment_headings[seg + 1] - segment_headings[seg])
             turn_start = k + int(round((stop_duration - turn_time) / 2.0 / dt))
             turn_end = min(n_samples, turn_start + int(round(turn_time / dt)))
             if turn_end > turn_start:
@@ -293,11 +285,7 @@ def generate_mixed_trajectory(
     # Vertical gait. The envelope is the normalised speed, so the bob fades in
     # and out with the walk instead of switching on at a stance boundary.
     bob_vel_amplitude = bob_accel_mps2 / (2.0 * np.pi * step_freq)
-    vel_up = (
-        (speed / v_walk)
-        * bob_vel_amplitude
-        * np.cos(2.0 * np.pi * step_freq * t)
-    )
+    vel_up = (speed / v_walk) * bob_vel_amplitude * np.cos(2.0 * np.pi * step_freq * t)
 
     vel_true = np.column_stack(
         [speed * np.cos(heading_true), speed * np.sin(heading_true), vel_up]
@@ -342,9 +330,7 @@ def generate_mixed_trajectory(
             np.zeros(n_samples),
         ]
     )
-    vel_wheel_body = np.column_stack(
-        [speed, np.zeros(n_samples), np.zeros(n_samples)]
-    )
+    vel_wheel_body = np.column_stack([speed, np.zeros(n_samples), np.zeros(n_samples)])
     vel_wheel_body += omega_cross_lever
     wheel_speed_true = vel_wheel_body @ C_SPEED_TO_BODY
 
@@ -471,9 +457,7 @@ def run_imu_only(
     pos[0] = p
 
     for k in range(1, n_samples):
-        q, v, p = strapdown_update(
-            q, v, p, gyro[k - 1], accel[k - 1], dt, frame=frame
-        )
+        q, v, p = strapdown_update(q, v, p, gyro[k - 1], accel[k - 1], dt, frame=frame)
         pos[k] = p
     return pos
 
@@ -522,9 +506,7 @@ def run_imu_zupt(
     sigma_g = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
 
     for k in range(1, n_samples):
-        q, v, p = strapdown_update(
-            q, v, p, gyro[k - 1], accel[k - 1], dt, frame=frame
-        )
+        q, v, p = strapdown_update(q, v, p, gyro[k - 1], accel[k - 1], dt, frame=frame)
 
         # Windowed ZUPT detection (OFFLINE/POST-PROCESSING)
         # Uses centered window (includes future samples) - appropriate for batch
@@ -536,9 +518,7 @@ def run_imu_zupt(
         gyro_window = gyro[window_start:window_end]
 
         if len(accel_window) >= window_size // 2:
-            if detect_zupt_windowed(
-                accel_window, gyro_window, sigma_a, sigma_g, gamma
-            ):
+            if detect_zupt_windowed(accel_window, gyro_window, sigma_a, sigma_g, gamma):
                 v = np.zeros(3)
                 zupt_detected[k] = True
 
@@ -573,17 +553,36 @@ def run_wheel_odom(
 
     for k in range(1, n_samples):
         p = wheel_odom_update(
-            p, q, wheel[k - 1], gyro[k - 1], lever_arm, dt,
+            p,
+            q,
+            wheel[k - 1],
+            gyro[k - 1],
+            lever_arm,
+            dt,
             C_S_A=C_SPEED_TO_BODY,
         )
         # Update quaternion from gyro
         q_new = q.copy()
-        dq = 0.5 * dt * np.array([
-            -q[1]*gyro[k-1,0] - q[2]*gyro[k-1,1] - q[3]*gyro[k-1,2],
-            q[0]*gyro[k-1,0] + q[2]*gyro[k-1,2] - q[3]*gyro[k-1,1],
-            q[0]*gyro[k-1,1] - q[1]*gyro[k-1,2] + q[3]*gyro[k-1,0],
-            q[0]*gyro[k-1,2] + q[1]*gyro[k-1,1] - q[2]*gyro[k-1,0]
-        ])
+        dq = (
+            0.5
+            * dt
+            * np.array(
+                [
+                    -q[1] * gyro[k - 1, 0]
+                    - q[2] * gyro[k - 1, 1]
+                    - q[3] * gyro[k - 1, 2],
+                    q[0] * gyro[k - 1, 0]
+                    + q[2] * gyro[k - 1, 2]
+                    - q[3] * gyro[k - 1, 1],
+                    q[0] * gyro[k - 1, 1]
+                    - q[1] * gyro[k - 1, 2]
+                    + q[3] * gyro[k - 1, 0],
+                    q[0] * gyro[k - 1, 2]
+                    + q[1] * gyro[k - 1, 1]
+                    - q[2] * gyro[k - 1, 0],
+                ]
+            )
+        )
         q = q_new + dq
         q = q / np.linalg.norm(q)
         pos[k] = p
@@ -697,11 +696,11 @@ def plot_comparison(
     fig1 = plot_trajectory_2d(
         pos_true[:, :2],
         {name: pos[:, :2] for name, pos in results.items()},
-        title='IMU alone drifts to 54 m RMSE; ZUPT cuts it to 8.8, odometry and PDR to under a metre',
-        axis_labels=('East [m]', 'North [m]'),
+        title="IMU alone drifts to 54 m RMSE; ZUPT cuts it to 8.8, odometry and PDR to under a metre",
+        axis_labels=("East [m]", "North [m]"),
         zoom_to_truth=True,
     )
-    paths = save_figure(fig1, figs_dir, 'comparison_trajectories')
+    paths = save_figure(fig1, figs_dir, "comparison_trajectories")
     print(f"  [OK] Saved: {paths[0]}")
 
     # Figure 2: error magnitude over time. Log scale because unaided IMU drift
@@ -710,37 +709,33 @@ def plot_comparison(
     fig2 = plot_error_magnitude_time(
         errors,
         t=t,
-        title='Chapter 6 Comparison: Position Error vs Time',
+        title="Chapter 6 Comparison: Position Error vs Time",
         log_scale=True,
     )
-    paths = save_figure(fig2, figs_dir, 'comparison_error_time')
+    paths = save_figure(fig2, figs_dir, "comparison_error_time")
     print(f"  [OK] Saved: {paths[0]}")
 
     # Figure 3: error CDF.
-    fig3 = plot_error_cdf(
-        errors, title='Chapter 6 Comparison: Error CDF'
-    )
-    paths = save_figure(fig3, figs_dir, 'comparison_error_cdf')
+    fig3 = plot_error_cdf(errors, title="Chapter 6 Comparison: Error CDF")
+    paths = save_figure(fig3, figs_dir, "comparison_error_cdf")
     print(f"  [OK] Saved: {paths[0]}")
 
-    plt.close('all')
+    plt.close("all")
 
     # Compute metrics
     metrics = {}
     for name, pos in results.items():
         error = np.linalg.norm(errors[name], axis=1)
         metrics[name] = {
-            'rmse': float(np.sqrt(np.mean(error**2))),
-            'final': float(error[-1]),
-            'median': float(np.median(error)),
-            'p90': float(np.percentile(error, 90)),
+            "rmse": float(np.sqrt(np.mean(error**2))),
+            "final": float(error[-1]),
+            "median": float(np.median(error)),
+            "p90": float(np.percentile(error, 90)),
             # Horizontal path length. A method that has silently stopped
             # tracking still scores well on error alone, because this ground
             # truth returns to its own start point -- so report the distance
             # actually traced next to it.
-            'path': float(
-                np.sum(np.linalg.norm(np.diff(pos[:, :2], axis=0), axis=1))
-            ),
+            "path": float(np.sum(np.linalg.norm(np.diff(pos[:, :2], axis=0), axis=1))),
         }
 
     return metrics
@@ -755,9 +750,9 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
     ).parse_args()
 
-    print("\n" + "="*75)
+    print("\n" + "=" * 75)
     print("Chapter 6: COMPREHENSIVE COMPARISON of Dead Reckoning Methods")
-    print("="*75)
+    print("=" * 75)
     print("\nCompares all major DR approaches on a common trajectory.")
     print("Demonstrates trade-offs and the critical need for drift correction.\n")
 
@@ -779,9 +774,17 @@ def main() -> None:
     print()
 
     print("Generating trajectory with correct IMU forward model...")
-    (t, pos_true, vel_true, accel_body, gyro_body, heading_true, mag_body,
-     stance, wheel_true) = generate_mixed_trajectory(
-        duration, dt, frame, lever_arm_a=LEVER_ARM_A)
+    (
+        t,
+        pos_true,
+        vel_true,
+        accel_body,
+        gyro_body,
+        heading_true,
+        mag_body,
+        stance,
+        wheel_true,
+    ) = generate_mixed_trajectory(duration, dt, frame, lever_arm_a=LEVER_ARM_A)
 
     total_dist = np.sum(np.linalg.norm(np.diff(pos_true[:, :2], axis=0), axis=1))
     print(f"  Total distance:  {total_dist:.1f} m (horizontal)")
@@ -789,8 +792,8 @@ def main() -> None:
 
     print("\nAdding sensor noise...")
     accel_meas, gyro_meas, mag_meas, wheel_meas = add_sensor_noise(
-        accel_body, gyro_body, mag_body, wheel_true, dt, imu_params,
-        seed=DEFAULT_SEED)
+        accel_body, gyro_body, mag_body, wheel_true, dt, imu_params, seed=DEFAULT_SEED
+    )
 
     initial = NavStateQPVP(q=np.array([1, 0, 0, 0]), v=vel_true[0], p=pos_true[0])
 
@@ -800,77 +803,99 @@ def main() -> None:
 
     print("  1. IMU only (pure strapdown)...")
     start = time.time()
-    methods['IMU Only'] = run_imu_only(t, accel_meas, gyro_meas, initial, frame)
+    methods["IMU Only"] = run_imu_only(t, accel_meas, gyro_meas, initial, frame)
     print(f"     Time: {time.time()-start:.3f} s")
 
     print("  2. IMU + ZUPT (windowed, Eq. 6.44)...")
     start = time.time()
-    methods['IMU + ZUPT'], zupt_detected = run_imu_zupt(
-        t, accel_meas, gyro_meas, initial, frame, imu_params)
+    methods["IMU + ZUPT"], zupt_detected = run_imu_zupt(
+        t, accel_meas, gyro_meas, initial, frame, imu_params
+    )
     print(f"     Time: {time.time()-start:.3f} s")
-    print(f"     ZUPT fired on {100 * zupt_detected.mean():.1f}% of samples "
-          f"({100 * stance.mean():.1f}% truly stationary)")
+    print(
+        f"     ZUPT fired on {100 * zupt_detected.mean():.1f}% of samples "
+        f"({100 * stance.mean():.1f}% truly stationary)"
+    )
 
     print("  3. Wheel Odometry...")
     start = time.time()
-    methods['Wheel Odom'] = run_wheel_odom(
-        t, wheel_meas, gyro_meas, initial, LEVER_ARM_A)
+    methods["Wheel Odom"] = run_wheel_odom(
+        t, wheel_meas, gyro_meas, initial, LEVER_ARM_A
+    )
     print(f"     Time: {time.time()-start:.3f} s")
 
     print("  4. PDR (step-and-heading)...")
     start = time.time()
-    methods['PDR (Mag)'], step_count = run_pdr(t, accel_meas, mag_meas, height)
+    methods["PDR (Mag)"], step_count = run_pdr(t, accel_meas, mag_meas, height)
     print(f"     Time: {time.time()-start:.3f} s")
     print(f"     Steps detected:  {step_count}")
 
-    figs_dir = Path(__file__).parent / 'figs'
+    figs_dir = Path(__file__).parent / "figs"
     figs_dir.mkdir(exist_ok=True)
 
     print("\nGenerating comparison plots...")
     metrics = plot_comparison(t, pos_true, methods, figs_dir)
 
     # Print comparison table
-    print("\n" + "="*75)
+    print("\n" + "=" * 75)
     print("RESULTS - Performance Comparison (horizontal error)")
-    print("="*75)
-    print(f"\n{'Method':<20} {'RMSE [m]':>10} {'Final [m]':>10} {'Median [m]':>10} "
-          f"{'90% [m]':>10} {'Path [m]':>10}")
-    print("-"*75)
-    print(f"{'(ground truth)':<20} {'-':>10} {'-':>10} {'-':>10} {'-':>10} "
-          f"{total_dist:>10.1f}")
+    print("=" * 75)
+    print(
+        f"\n{'Method':<20} {'RMSE [m]':>10} {'Final [m]':>10} {'Median [m]':>10} "
+        f"{'90% [m]':>10} {'Path [m]':>10}"
+    )
+    print("-" * 75)
+    print(
+        f"{'(ground truth)':<20} {'-':>10} {'-':>10} {'-':>10} {'-':>10} "
+        f"{total_dist:>10.1f}"
+    )
 
-    for name in ['IMU Only', 'IMU + ZUPT', 'Wheel Odom', 'PDR (Mag)']:
+    for name in ["IMU Only", "IMU + ZUPT", "Wheel Odom", "PDR (Mag)"]:
         m = metrics[name]
-        print(f"{name:<20} {m['rmse']:>10.2f} {m['final']:>10.2f} "
-              f"{m['median']:>10.2f} {m['p90']:>10.2f} {m['path']:>10.1f}")
+        print(
+            f"{name:<20} {m['rmse']:>10.2f} {m['final']:>10.2f} "
+            f"{m['median']:>10.2f} {m['p90']:>10.2f} {m['path']:>10.1f}"
+        )
 
     print(f"\nFigures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
-    print("="*75)
+    print("=" * 75)
     print("KEY INSIGHTS:")
     zupt_reduction = 100 * (
-        1 - metrics['IMU + ZUPT']['rmse'] / metrics['IMU Only']['rmse']
+        1 - metrics["IMU + ZUPT"]["rmse"] / metrics["IMU Only"]["rmse"]
     )
-    pdr_overrun = 100 * (metrics['PDR (Mag)']['path'] / total_dist - 1)
-    print(f"  1. IMU-only: UNBOUNDED. {metrics['IMU Only']['final']:.0f} m off "
-          f"after {duration:.0f} s, tracing {metrics['IMU Only']['path']:.0f} m "
-          f"for a {total_dist:.0f} m walk.")
-    print( "     Unusable without corrections.")
-    print(f"  2. IMU+ZUPT: {zupt_reduction:.0f}% RMSE reduction "
-          f"({metrics['IMU Only']['rmse']:.0f} m -> "
-          f"{metrics['IMU + ZUPT']['rmse']:.1f} m), detector active on "
-          f"{100 * zupt_detected.mean():.0f}% of samples.")
-    print( "     Velocity is reset while standing but attitude is never "
-           "corrected, so error still grows -- far more slowly.")
-    print(f"  3. Wheel Odom: BOUNDED. Error follows distance, not time: RMSE "
-          f"{metrics['Wheel Odom']['rmse']:.2f} m over {total_dist:.0f} m, set "
-          f"by the 2% encoder scale error.")
-    print( "     'Final' is near zero only because the loop closes on its own "
-           "start point; read 'Path' instead.")
-    print(f"  4. PDR: BOUNDED, heading-limited. {step_count} detected steps "
-          f"cover {metrics['PDR (Mag)']['path']:.1f} m against "
-          f"{total_dist:.1f} m ({pdr_overrun:+.1f}%), RMSE "
-          f"{metrics['PDR (Mag)']['rmse']:.2f} m.")
+    pdr_overrun = 100 * (metrics["PDR (Mag)"]["path"] / total_dist - 1)
+    print(
+        f"  1. IMU-only: UNBOUNDED. {metrics['IMU Only']['final']:.0f} m off "
+        f"after {duration:.0f} s, tracing {metrics['IMU Only']['path']:.0f} m "
+        f"for a {total_dist:.0f} m walk."
+    )
+    print("     Unusable without corrections.")
+    print(
+        f"  2. IMU+ZUPT: {zupt_reduction:.0f}% RMSE reduction "
+        f"({metrics['IMU Only']['rmse']:.0f} m -> "
+        f"{metrics['IMU + ZUPT']['rmse']:.1f} m), detector active on "
+        f"{100 * zupt_detected.mean():.0f}% of samples."
+    )
+    print(
+        "     Velocity is reset while standing but attitude is never "
+        "corrected, so error still grows -- far more slowly."
+    )
+    print(
+        f"  3. Wheel Odom: BOUNDED. Error follows distance, not time: RMSE "
+        f"{metrics['Wheel Odom']['rmse']:.2f} m over {total_dist:.0f} m, set "
+        f"by the 2% encoder scale error."
+    )
+    print(
+        "     'Final' is near zero only because the loop closes on its own "
+        "start point; read 'Path' instead."
+    )
+    print(
+        f"  4. PDR: BOUNDED, heading-limited. {step_count} detected steps "
+        f"cover {metrics['PDR (Mag)']['path']:.1f} m against "
+        f"{total_dist:.1f} m ({pdr_overrun:+.1f}%), RMSE "
+        f"{metrics['PDR (Mag)']['rmse']:.2f} m."
+    )
     print()
     print("  The 'Path' column is the check that makes the rest meaningful: a")
     print("  method frozen at the origin scores well on error alone, because this")
@@ -881,7 +906,7 @@ def main() -> None:
     print("             - Use wheel encoders for vehicles")
     print("             - Use magnetometer for heading reference")
     print("             - Best: Multi-sensor fusion (Chapter 8)")
-    print("="*75)
+    print("=" * 75)
     print()
     show_figures_if_requested()
 

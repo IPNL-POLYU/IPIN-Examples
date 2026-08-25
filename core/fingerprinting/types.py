@@ -64,7 +64,7 @@ class FingerprintDatabase:
         ... )
         >>> print(f"Database has {db.n_reference_points} RPs on {db.n_floors} floor(s)")
         Database has 3 RPs on 1 floor(s)
-        
+
         >>> # Create database with multiple samples per RP (shape: M, S, N)
         >>> features_multi = np.array([
         ...     [[-50, -60, -70], [-51, -59, -71], [-49, -61, -69]],  # RP1: 3 samples
@@ -154,7 +154,7 @@ class FingerprintDatabase:
     def n_samples_per_rp(self) -> Optional[int]:
         """
         Number of samples (S) per reference point.
-        
+
         Returns:
             int: Number of samples if features is 3D (M, S, N).
             None: If features is 2D (M, N) indicating single sample.
@@ -229,10 +229,10 @@ class FingerprintDatabase:
     def get_mean_features(self) -> np.ndarray:
         """
         Get mean features across samples.
-        
+
         Handles NaN values (missing AP readings) using nanmean, which
         computes the mean while ignoring NaN values.
-        
+
         Returns:
             Mean feature array of shape (M, N).
             If single-sample format, returns features as-is.
@@ -246,20 +246,22 @@ class FingerprintDatabase:
     def get_std_features(self, min_std: float = 0.0) -> np.ndarray:
         """
         Get standard deviation of features across samples.
-        
+
         Handles NaN values (missing AP readings) using nanstd, which
         computes the standard deviation while ignoring NaN values.
-        
+
         Args:
             min_std: Minimum std to return (floor for numerical stability).
-        
+
         Returns:
             Std array of shape (M, N).
             If single-sample format, returns array filled with min_std.
             If multi-sample format, returns std over samples axis (ignoring NaN).
         """
         if self.has_multiple_samples:
-            stds = np.nanstd(self.features, axis=1, ddof=1)  # Sample std over S, ignore NaN
+            stds = np.nanstd(
+                self.features, axis=1, ddof=1
+            )  # Sample std over S, ignore NaN
             # Apply floor
             stds = np.maximum(stds, min_std)
             # If all samples at an RP for a feature are NaN, nanstd returns NaN
@@ -272,7 +274,11 @@ class FingerprintDatabase:
 
     def __repr__(self) -> str:
         """Readable string representation."""
-        samples_str = f", samples_per_rp={self.n_samples_per_rp}" if self.has_multiple_samples else ""
+        samples_str = (
+            f", samples_per_rp={self.n_samples_per_rp}"
+            if self.has_multiple_samples
+            else ""
+        )
         return (
             f"FingerprintDatabase("
             f"n_rps={self.n_reference_points}, "
@@ -280,4 +286,3 @@ class FingerprintDatabase:
             f"location_dim={self.location_dim}, "
             f"floors={self.floor_list.tolist()})"
         )
-

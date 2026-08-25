@@ -27,6 +27,7 @@ from typing import Dict, List, Optional, Set, Tuple
 # Try to import yaml, fall back to basic parsing if not available
 try:
     import yaml
+
     HAS_YAML = True
 except ImportError:
     HAS_YAML = False
@@ -45,10 +46,10 @@ def find_project_root() -> Path:
 
 def parse_equation_index(index_path: Path) -> List[Dict]:
     """Parse the equation_index.yml file.
-    
+
     Args:
         index_path: Path to equation_index.yml
-        
+
     Returns:
         List of equation entries from the YAML file
     """
@@ -73,15 +74,15 @@ def parse_equation_index(index_path: Path) -> List[Dict]:
 
 def find_equation_references_in_code(root: Path) -> Dict[str, List[Tuple[str, int]]]:
     """Find all equation references in Python source files.
-    
+
     Searches for patterns like:
     - "Eq. (2.1)"
     - "Eqs. (3.1)-(3.3)"
     - "Reference: Eq. (4.5)"
-    
+
     Args:
         root: Project root directory
-        
+
     Returns:
         Dict mapping equation IDs to list of (file_path, line_number) tuples
     """
@@ -89,11 +90,11 @@ def find_equation_references_in_code(root: Path) -> Dict[str, List[Tuple[str, in
 
     # Patterns to search for
     patterns = [
-        r'Eq\.\s*\((\d+\.\d+)\)',           # Eq. (2.1)
-        r'Eqs\.\s*\((\d+\.\d+)\)',          # Eqs. (3.1) - captures first
-        r'Equation\s*\((\d+\.\d+)\)',       # Equation (2.1)
+        r"Eq\.\s*\((\d+\.\d+)\)",  # Eq. (2.1)
+        r"Eqs\.\s*\((\d+\.\d+)\)",  # Eqs. (3.1) - captures first
+        r"Equation\s*\((\d+\.\d+)\)",  # Equation (2.1)
     ]
-    combined_pattern = '|'.join(patterns)
+    combined_pattern = "|".join(patterns)
 
     # Search in core/ and ch*/ directories
     search_dirs = [root / "core"] + list(root.glob("ch*_*"))
@@ -105,7 +106,7 @@ def find_equation_references_in_code(root: Path) -> Dict[str, List[Tuple[str, in
         for py_file in search_dir.rglob("*.py"):
             try:
                 content = py_file.read_text(encoding="utf-8")
-                for line_num, line in enumerate(content.split('\n'), 1):
+                for line_num, line in enumerate(content.split("\n"), 1):
                     for match in re.finditer(combined_pattern, line):
                         eq_num = match.group(1) or match.group(2) or match.group(3)
                         if eq_num:
@@ -122,10 +123,10 @@ def find_equation_references_in_code(root: Path) -> Dict[str, List[Tuple[str, in
 
 def extract_equations_from_index(entries: List[Dict]) -> Set[str]:
     """Extract equation IDs from parsed index entries.
-    
+
     Args:
         entries: List of equation entries from YAML
-        
+
     Returns:
         Set of equation IDs (e.g., {"Eq. (2.1)", "Eq. (2.2)", ...})
     """
@@ -142,11 +143,11 @@ def extract_equations_from_index(entries: List[Dict]) -> Set[str]:
 
 def check_file_paths(entries: List[Dict], root: Path) -> List[str]:
     """Check that file paths in the index exist.
-    
+
     Args:
         entries: List of equation entries from YAML
         root: Project root directory
-        
+
     Returns:
         List of error messages for missing files
     """
@@ -159,7 +160,9 @@ def check_file_paths(entries: List[Dict], root: Path) -> List[str]:
             if isinstance(file_info, dict):
                 path = file_info.get("path", "")
                 if path and not (root / path).exists():
-                    errors.append(f"Missing file: {path} (referenced by {entry.get('eq', 'unknown')})")
+                    errors.append(
+                        f"Missing file: {path} (referenced by {entry.get('eq', 'unknown')})"
+                    )
     return errors
 
 
@@ -198,9 +201,7 @@ def check_objects(entries: List[Dict], root: Path) -> List[str]:
 
             if file_path not in cache:
                 try:
-                    cache[file_path] = ast.parse(
-                        file_path.read_text(encoding="utf-8")
-                    )
+                    cache[file_path] = ast.parse(file_path.read_text(encoding="utf-8"))
                 except (OSError, SyntaxError):
                     cache[file_path] = None
             tree = cache[file_path]
@@ -226,9 +227,10 @@ def _resolve_object(tree: ast.Module, dotted_name: str) -> bool:
 
     for segment in dotted_name.split("."):
         for node in scope:
-            if isinstance(
-                node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-            ) and node.name == segment:
+            if (
+                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef))
+                and node.name == segment
+            ):
                 scope = list(getattr(node, "body", []))
                 break
             if isinstance(node, ast.Assign) and any(
@@ -318,17 +320,15 @@ def main():
     parser = argparse.ArgumentParser(
         description="Check equation index consistency",
         formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog=__doc__
+        epilog=__doc__,
     )
     parser.add_argument(
-        "--verbose", "-v",
-        action="store_true",
-        help="Show detailed output"
+        "--verbose", "-v", action="store_true", help="Show detailed output"
     )
     parser.add_argument(
         "--strict",
         action="store_true",
-        help="Fail if any equations in code are not in index"
+        help="Fail if any equations in code are not in index",
     )
     args = parser.parse_args()
 
@@ -426,11 +426,15 @@ def main():
     print()
 
     # Determine exit code
-    if args.strict and (missing_from_index or path_errors or object_errors or unverified):
+    if args.strict and (
+        missing_from_index or path_errors or object_errors or unverified
+    ):
         print("[FAILED] (strict mode)")
         return 1
     elif path_errors or object_errors or unverified:
-        print("[WARNING] (unresolved file paths, object references, or unverified equations)")
+        print(
+            "[WARNING] (unresolved file paths, object references, or unverified equations)"
+        )
         return 0
     else:
         print("[PASSED]")
@@ -439,4 +443,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main())
-

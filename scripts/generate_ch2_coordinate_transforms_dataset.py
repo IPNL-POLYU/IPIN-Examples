@@ -84,9 +84,9 @@ def generate_building_trajectory_llh(
     half = building_size_m / 2.0
     north_m = rng.uniform(-half, half, n_points)
     east_m = rng.uniform(-half, half, n_points)
-    offsets = np.array([
-        enu_to_llh_offset(e, n, lat_center) for e, n in zip(east_m, north_m)
-    ])
+    offsets = np.array(
+        [enu_to_llh_offset(e, n, lat_center) for e, n in zip(east_m, north_m)]
+    )
 
     # Generate random positions within building footprint
     lats = lat_center + offsets[:, 0]
@@ -116,9 +116,9 @@ def generate_rotation_sequence(
 
     # Random rotations (typical for handheld device)
     # Roll/Pitch: ±30°, Yaw: full 360°
-    roll = rng.uniform(-np.pi/6, np.pi/6, n_points)
-    pitch = rng.uniform(-np.pi/6, np.pi/6, n_points)
-    yaw = rng.uniform(0, 2*np.pi, n_points)
+    roll = rng.uniform(-np.pi / 6, np.pi / 6, n_points)
+    pitch = rng.uniform(-np.pi / 6, np.pi / 6, n_points)
+    yaw = rng.uniform(0, 2 * np.pi, n_points)
 
     return np.column_stack([roll, pitch, yaw])
 
@@ -273,16 +273,27 @@ def generate_dataset(
 
     # Convert to ECEF
     print("\nStep 2: Converting LLH -> ECEF...")
-    ecef = np.array([llh_to_ecef(lat, lon, h) for lat, lon, h in zip(lats, lons, heights)])
-    print(f"  ECEF X range: {ecef[:, 0].min()/1e3:.1f}km to {ecef[:, 0].max()/1e3:.1f}km")
-    print(f"  ECEF Y range: {ecef[:, 1].min()/1e3:.1f}km to {ecef[:, 1].max()/1e3:.1f}km")
-    print(f"  ECEF Z range: {ecef[:, 2].min()/1e3:.1f}km to {ecef[:, 2].max()/1e3:.1f}km")
+    ecef = np.array(
+        [llh_to_ecef(lat, lon, h) for lat, lon, h in zip(lats, lons, heights)]
+    )
+    print(
+        f"  ECEF X range: {ecef[:, 0].min()/1e3:.1f}km to {ecef[:, 0].max()/1e3:.1f}km"
+    )
+    print(
+        f"  ECEF Y range: {ecef[:, 1].min()/1e3:.1f}km to {ecef[:, 1].max()/1e3:.1f}km"
+    )
+    print(
+        f"  ECEF Z range: {ecef[:, 2].min()/1e3:.1f}km to {ecef[:, 2].max()/1e3:.1f}km"
+    )
 
     # Convert to ENU
     print("\nStep 3: Converting ECEF -> ENU (local frame)...")
-    enu = np.array([ecef_to_enu(pt[0], pt[1], pt[2],
-                                  lat_center, lon_center, height_ground)
-                    for pt in ecef])
+    enu = np.array(
+        [
+            ecef_to_enu(pt[0], pt[1], pt[2], lat_center, lon_center, height_ground)
+            for pt in ecef
+        ]
+    )
     print(f"  ENU East range: {enu[:, 0].min():.1f}m to {enu[:, 0].max():.1f}m")
     print(f"  ENU North range: {enu[:, 1].min():.1f}m to {enu[:, 1].max():.1f}m")
     print(f"  ENU Up range: {enu[:, 2].min():.1f}m to {enu[:, 2].max():.1f}m")
@@ -301,15 +312,20 @@ def generate_dataset(
     print("\nStep 5: Generating rotation representations...")
     euler = generate_rotation_sequence(n_points, seed)
     quaternions = np.array([euler_to_quat(e[0], e[1], e[2]) for e in euler])
-    rotation_matrices = np.array([euler_to_rotation_matrix(e[0], e[1], e[2]) for e in euler])
-    print(f"  Euler angles: roll ±{np.rad2deg(np.abs(euler[:, 0]).max()):.1f}°, "
-          f"pitch ±{np.rad2deg(np.abs(euler[:, 1]).max()):.1f}°, "
-          f"yaw 0-{np.rad2deg(euler[:, 2].max()):.1f}°")
+    rotation_matrices = np.array(
+        [euler_to_rotation_matrix(e[0], e[1], e[2]) for e in euler]
+    )
+    print(
+        f"  Euler angles: roll ±{np.rad2deg(np.abs(euler[:, 0]).max()):.1f}°, "
+        f"pitch ±{np.rad2deg(np.abs(euler[:, 1]).max()):.1f}°, "
+        f"yaw 0-{np.rad2deg(euler[:, 2].max()):.1f}°"
+    )
 
     # Verify rotation round-trip
     print("\nStep 6: Verifying rotation round-trips...")
-    euler_from_quat = np.array([rotation_matrix_to_euler(quat_to_rotation_matrix(q))
-                                  for q in quaternions])
+    euler_from_quat = np.array(
+        [rotation_matrix_to_euler(quat_to_rotation_matrix(q)) for q in quaternions]
+    )
     # Wrap the difference to [-pi, pi] before taking its size. Yaw is sampled on
     # [0, 2pi) but recovered on (-pi, pi], so an exact round-trip of 4.4307 rad
     # comes back as -1.8525 rad and a raw subtraction calls that 2pi of error.
@@ -343,7 +359,7 @@ def generate_dataset(
             "2.1 (LLH->ECEF)",
             "2.2 (ECEF->LLH)",
             "2.3 (ECEF->ENU)",
-            "2.5-2.10 (Rotations)"
+            "2.5-2.10 (Rotations)",
         ],
         "seed": seed,
     }
@@ -419,23 +435,34 @@ Book Reference: Chapter 2, Sections 2.1-2.3
     # Location parameters
     loc_group = parser.add_argument_group("Location Parameters")
     loc_group.add_argument(
-        "--latitude", type=float, default=37.7749, help="Center latitude in degrees (default: 37.7749)"
+        "--latitude",
+        type=float,
+        default=37.7749,
+        help="Center latitude in degrees (default: 37.7749)",
     )
     loc_group.add_argument(
-        "--longitude", type=float, default=-122.4194, help="Center longitude in degrees (default: -122.4194)"
+        "--longitude",
+        type=float,
+        default=-122.4194,
+        help="Center longitude in degrees (default: -122.4194)",
     )
 
     # Building parameters
     building_group = parser.add_argument_group("Building Parameters")
     building_group.add_argument(
-        "--building-size", type=float, default=50.0, help="Building footprint size in meters (default: 50.0)"
+        "--building-size",
+        type=float,
+        default=50.0,
+        help="Building footprint size in meters (default: 50.0)",
     )
     building_group.add_argument(
         "--n-points", type=int, default=20, help="Number of sample points (default: 20)"
     )
 
     # Other
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed (default: 42)"
+    )
 
     args = parser.parse_args()
 
@@ -453,4 +480,3 @@ Book Reference: Chapter 2, Sections 2.1-2.3
 
 if __name__ == "__main__":
     main()
-

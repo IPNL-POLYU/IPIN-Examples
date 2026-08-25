@@ -43,7 +43,9 @@ from core.sensors import mag_heading, wrap_angle_diff
 
 DATA_DIR = (
     Path(__file__).resolve().parents[2]
-    / "data" / "sim" / "ch6_env_sensors_heading_altitude"
+    / "data"
+    / "sim"
+    / "ch6_env_sensors_heading_altitude"
 )
 
 
@@ -57,13 +59,17 @@ class TestHeadingErrorIsWrapped(unittest.TestCase):
         att = np.loadtxt(DATA_DIR / "ground_truth_attitude.txt")
         mag = np.loadtxt(DATA_DIR / "magnetometer.txt")
         cls.yaw_true = att[:, 2]
-        cls.heading_est = np.array([
-            mag_heading(mag[k], att[k, 0], att[k, 1], declination=0.0)
-            for k in range(len(att))
-        ])
-        cls.error = np.abs(np.array([
-            wrap_angle_diff(e, y) for e, y in zip(cls.heading_est, cls.yaw_true)
-        ]))
+        cls.heading_est = np.array(
+            [
+                mag_heading(mag[k], att[k, 0], att[k, 1], declination=0.0)
+                for k in range(len(att))
+            ]
+        )
+        cls.error = np.abs(
+            np.array(
+                [wrap_angle_diff(e, y) for e, y in zip(cls.heading_est, cls.yaw_true)]
+            )
+        )
 
     def test_the_trajectory_still_exercises_the_wrap(self) -> None:
         """Guard the guard: the true yaw must leave (-pi, pi].
@@ -73,7 +79,8 @@ class TestHeadingErrorIsWrapped(unittest.TestCase):
         file would quietly stop testing anything.
         """
         self.assertGreater(
-            self.yaw_true.max(), np.pi,
+            self.yaw_true.max(),
+            np.pi,
             "the building walk no longer drives yaw past pi, so the wrap this "
             "file exists to check is no longer exercised.",
         )
@@ -94,7 +101,8 @@ class TestHeadingErrorIsWrapped(unittest.TestCase):
         """
         naive = self._naive_reduction()
         self.assertGreater(
-            int((naive < 0).sum()), 0,
+            int((naive < 0).sum()),
+            0,
             "the naive reduction no longer produces negative errors here, so "
             "this dataset no longer demonstrates the defect and the check "
             "below has stopped discriminating.",
@@ -109,7 +117,8 @@ class TestHeadingErrorIsWrapped(unittest.TestCase):
         naive_mean = float(np.rad2deg(self._naive_reduction()).mean())
         reported = self.config["performance"]["magnetometer_heading"]["mean_error_deg"]
         self.assertGreater(
-            abs(reported - naive_mean), 0.05,
+            abs(reported - naive_mean),
+            0.05,
             f"config.json's {reported:.4f} deg matches the naive reduction "
             f"({naive_mean:.4f}), which counts negative errors toward the mean.",
         )
@@ -128,9 +137,11 @@ class TestHeadingErrorIsWrapped(unittest.TestCase):
         ):
             with self.subTest(metric=name):
                 self.assertAlmostEqual(
-                    reported[name], actual, delta=0.05,
+                    reported[name],
+                    actual,
+                    delta=0.05,
                     msg=f"config.json says {name}={reported[name]:.4f}, the "
-                        f"shipped data gives {actual:.4f}.",
+                    f"shipped data gives {actual:.4f}.",
                 )
 
 

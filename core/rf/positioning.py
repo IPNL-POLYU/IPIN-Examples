@@ -106,9 +106,7 @@ class SolveOutcome:
     def max_solved_m(self) -> float:
         """Worst error among the fixes that actually solved."""
         return (
-            float(self.errors[self.solved].max())
-            if self.solved.any()
-            else float("nan")
+            float(self.errors[self.solved].max()) if self.solved.any() else float("nan")
         )
 
     def summary(self) -> dict:
@@ -233,9 +231,7 @@ def build_tdoa_covariance(
     n_anchors = len(sigmas)
 
     if ref_idx < 0 or ref_idx >= n_anchors:
-        raise ValueError(
-            f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}"
-        )
+        raise ValueError(f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}")
 
     # Reference anchor variance
     sigma_ref_sq = sigmas[ref_idx] ** 2
@@ -396,9 +392,7 @@ class TOAPositioner:
         position = np.asarray(initial_guess, dtype=float).copy()
 
         if len(ranges) != self.n_anchors:
-            raise ValueError(
-                f"Expected {self.n_anchors} ranges, got {len(ranges)}"
-            )
+            raise ValueError(f"Expected {self.n_anchors} ranges, got {len(ranges)}")
 
         # Initialize weight matrix based on method
         if self.method == "iterative_ls":
@@ -407,9 +401,7 @@ class TOAPositioner:
         elif self.method == "iterative_wls":
             # Eq. 4.23: W = Σ^{-1}
             if covariance is None:
-                raise ValueError(
-                    "method='iterative_wls' requires covariance parameter"
-                )
+                raise ValueError("method='iterative_wls' requires covariance parameter")
             W = np.linalg.inv(covariance)
         elif self.method == "range_weighted":
             # Heuristic: will be updated each iteration
@@ -423,9 +415,7 @@ class TOAPositioner:
 
         for iteration in range(max_iters):
             # Compute predicted ranges and residuals (Eq. 4.16)
-            predicted_ranges = np.linalg.norm(
-                self.anchors - position, axis=1
-            )
+            predicted_ranges = np.linalg.norm(self.anchors - position, axis=1)
             residuals = ranges - predicted_ranges
 
             # Check convergence
@@ -994,7 +984,9 @@ class AOAPositioner:
         def _fill(slot, sigma):
             if sigma is None:
                 return
-            sigma_arr = np.broadcast_to(np.asarray(sigma, dtype=float), (self.n_anchors,))
+            sigma_arr = np.broadcast_to(
+                np.asarray(sigma, dtype=float), (self.n_anchors,)
+            )
             variances[slot] = np.maximum(sigma_arr**2, 1e-12)
 
         if self.is_3d:
@@ -1317,9 +1309,7 @@ class AOAPositioner:
             )
 
         if residual not in ("angle", "tan"):
-            raise ValueError(
-                f"residual must be 'angle' or 'tan', got {residual!r}"
-            )
+            raise ValueError(f"residual must be 'angle' or 'tan', got {residual!r}")
         use_angle_residual = residual == "angle"
 
         # sigma_sin_theta and sigma_tan_psi describe noise in the *transformed*
@@ -1343,10 +1333,11 @@ class AOAPositioner:
 
         # Determine weight matrix source
         n_meas = len(z_measured)
-        use_sigma_weights = (
-            weights is None and
-            (sigma_theta is not None or sigma_psi is not None or
-             sigma_sin_theta is not None or sigma_tan_psi is not None)
+        use_sigma_weights = weights is None and (
+            sigma_theta is not None
+            or sigma_psi is not None
+            or sigma_sin_theta is not None
+            or sigma_tan_psi is not None
         )
 
         # Initialize weight matrix
@@ -1553,9 +1544,7 @@ def aoa_ove_solve(
     if anchors.shape[1] != 3:
         raise ValueError("OVE requires 3D anchors with shape (N, 3)")
     if len(elevation_angles) != n_anchors or len(azimuth_angles) != n_anchors:
-        raise ValueError(
-            f"Expected {n_anchors} elevation and azimuth angles each"
-        )
+        raise ValueError(f"Expected {n_anchors} elevation and azimuth angles each")
 
     # Build the S_a matrix and z_a vector (Eq. 4.84)
     S_a = np.zeros((n_anchors, 3))
@@ -1774,9 +1763,7 @@ def aoa_ple_solve_3d(
     if anchors.shape[1] != 3:
         raise ValueError("PLE_3D requires 3D anchors with shape (N, 3)")
     if len(elevation_angles) != n_anchors or len(azimuth_angles) != n_anchors:
-        raise ValueError(
-            f"Expected {n_anchors} elevation and azimuth angles each"
-        )
+        raise ValueError(f"Expected {n_anchors} elevation and azimuth angles each")
 
     # Step 1: Solve 2D position using azimuth only
     anchors_2d = anchors[:, :2]
@@ -1877,21 +1864,15 @@ def toa_fang_solver(
 
     # Validate inputs
     if dim != 2:
-        raise ValueError(
-            f"Fang's algorithm currently supports 2D only, got dim={dim}"
-        )
+        raise ValueError(f"Fang's algorithm currently supports 2D only, got dim={dim}")
     if n_anchors < 3:
         raise ValueError(
             f"Fang's algorithm requires at least 3 anchors, got {n_anchors}"
         )
     if len(ranges) != n_anchors:
-        raise ValueError(
-            f"Expected {n_anchors} ranges, got {len(ranges)}"
-        )
+        raise ValueError(f"Expected {n_anchors} ranges, got {len(ranges)}")
     if ref_idx < 0 or ref_idx >= n_anchors:
-        raise ValueError(
-            f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}"
-        )
+        raise ValueError(f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}")
 
     # Reference anchor position and range
     x_ref = anchors[ref_idx]  # [x_e^ref, x_n^ref]
@@ -1916,9 +1897,10 @@ def toa_fang_solver(
 
         # Eq. 4.47: y^i = d_i² - d_ref² - (x_e^i² - x_e^ref²) - (x_n^i² - x_n^ref²)
         y_a[row] = (
-            d_i**2 - d_ref**2
-            - (x_i[0]**2 - x_ref[0]**2)
-            - (x_i[1]**2 - x_ref[1]**2)
+            d_i**2
+            - d_ref**2
+            - (x_i[0] ** 2 - x_ref[0] ** 2)
+            - (x_i[1] ** 2 - x_ref[1] ** 2)
         )
 
     # Solve: x_a = (H_a^T H_a)^{-1} H_a^T y_a (Eq. 4.49)
@@ -2030,9 +2012,7 @@ def tdoa_chan_solver(
 
     # Validate inputs
     if dim != 2:
-        raise ValueError(
-            f"Chan's algorithm currently supports 2D only, got dim={dim}"
-        )
+        raise ValueError(f"Chan's algorithm currently supports 2D only, got dim={dim}")
     if n_anchors < 4:
         raise ValueError(
             f"Chan's algorithm requires at least 4 anchors, got {n_anchors}"
@@ -2042,9 +2022,7 @@ def tdoa_chan_solver(
             f"Expected {n_anchors-1} TDOA measurements, got {len(tdoa_measurements)}"
         )
     if ref_idx < 0 or ref_idx >= n_anchors:
-        raise ValueError(
-            f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}"
-        )
+        raise ValueError(f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}")
 
     # Reference anchor position
     x_ref = anchors[ref_idx]  # [x_e^ref, x_n^ref]
@@ -2072,9 +2050,7 @@ def tdoa_chan_solver(
 
         # Eq. 4.60: y^i = (Δd^i)² - [(x_e^i² + x_n^i²) - (x_e^ref² + x_n^ref²)]
         y_a[row] = (
-            delta_d**2
-            - (x_i[0]**2 + x_i[1]**2)
-            + (x_ref[0]**2 + x_ref[1]**2)
+            delta_d**2 - (x_i[0] ** 2 + x_i[1] ** 2) + (x_ref[0] ** 2 + x_ref[1] ** 2)
         )
 
     # Step 1: Initial LS solution (Eq. 4.49 applied to Chan's formulation)

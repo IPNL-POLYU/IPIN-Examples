@@ -470,14 +470,17 @@ class TestNDTAlign:
         poses = {}
         for step_size in (0.05, 0.1, 0.3, 0.5, 1.0):
             pose, _, _, converged = ndt_align(
-                source, target, voxel_size=1.0, step_size=step_size,
+                source,
+                target,
+                voxel_size=1.0,
+                step_size=step_size,
                 max_iterations=200,
             )
             poses[step_size] = pose
             assert converged, f"step_size={step_size} did not converge"
-            assert np.linalg.norm(pose[:2] - true_pose[:2]) < 0.1, (
-                f"step_size={step_size} landed at {pose}, truth {true_pose}"
-            )
+            assert (
+                np.linalg.norm(pose[:2] - true_pose[:2]) < 0.1
+            ), f"step_size={step_size} landed at {pose}, truth {true_pose}"
 
         spread = max(
             np.linalg.norm(a[:2] - b[:2])
@@ -604,7 +607,11 @@ class TestNDTIntegration:
 
         # Step 3: Run alignment
         final_pose, iters, final_score, converged = ndt_align(
-            source, target, initial_pose=initial_pose, voxel_size=2.0, max_iterations=100
+            source,
+            target,
+            initial_pose=initial_pose,
+            voxel_size=2.0,
+            max_iterations=100,
         )
 
         # NDT should complete without errors
@@ -614,4 +621,3 @@ class TestNDTIntegration:
         # Step 4: Compute covariance
         cov = ndt_covariance(source, ndt_map, final_pose, voxel_size=2.0)
         assert cov.shape == (3, 3)
-

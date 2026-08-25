@@ -44,10 +44,11 @@ from tests.example_runner import WORKSPACE_ROOT, run_example
 #: One dataset-reading example per chapter that has one, with arguments that
 #: force the dataset path to be exercised rather than the inline-data branch.
 DATASET_EXAMPLES = [
-    ("ch2_coords.example_coordinate_transforms",
-     ("--data", "ch2_coords_san_francisco")),
-    ("ch3_estimators.example_ekf_range_bearing",
-     ("--data", "ch3_estimator_nonlinear")),
+    (
+        "ch2_coords.example_coordinate_transforms",
+        ("--data", "ch2_coords_san_francisco"),
+    ),
+    ("ch3_estimators.example_ekf_range_bearing", ("--data", "ch3_estimator_nonlinear")),
     # --compare-geometry is the silent-skip path: three hardcoded dataset names,
     # each `continue`d past with a message if the path does not resolve.
     ("ch4_rf_point_positioning.example_comparison", ("--compare-geometry",)),
@@ -88,9 +89,8 @@ def test_example_finds_its_dataset_from_its_chapter_directory(module, args):
         f"{module} ran from its chapter directory and reported {found} -- its "
         "dataset did not resolve. Dataset paths must go through "
         "core.utils.resolve_data_path, which tries the working directory and "
-        "then the repository root; a bare Path(\"data/sim\") / name only works "
-        "when the reader happens to be standing at the root.\n\n"
-        + output[-2000:]
+        'then the repository root; a bare Path("data/sim") / name only works '
+        "when the reader happens to be standing at the root.\n\n" + output[-2000:]
     )
 
 
@@ -109,6 +109,5 @@ def test_the_same_example_is_clean_from_the_repository_root(module, args):
     assert run.process.returncode == 0, output[-2000:]
     assert not [m for m in FAILURE_MARKERS if m in output], (
         f"{module} does not resolve its dataset even from the repository root, "
-        "so the chapter-directory check next door proves nothing.\n\n"
-        + output[-2000:]
+        "so the chapter-directory check next door proves nothing.\n\n" + output[-2000:]
     )

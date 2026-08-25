@@ -132,8 +132,12 @@ def test_file_structure_lists_every_example(chapter):
 @pytest.mark.parametrize("chapter", _chapters(), ids=lambda p: p.name)
 def test_file_structure_entries_exist(chapter):
     """Every file the tree names resolves, at both levels of nesting."""
-    absent = [name for name in _entries(_block(chapter)) if not (REPO_ROOT / name).exists()]
-    assert not absent, f"{chapter.name}/README.md's File Structure names absent files: {absent}"
+    absent = [
+        name for name in _entries(_block(chapter)) if not (REPO_ROOT / name).exists()
+    ]
+    assert (
+        not absent
+    ), f"{chapter.name}/README.md's File Structure names absent files: {absent}"
 
 
 def test_the_parser_reads_the_shapes_that_fooled_it():
@@ -161,9 +165,9 @@ def test_the_parser_reads_the_shapes_that_fooled_it():
     assert "ch7_slam/example_pose_graph_slam.py" in entries
     assert "ch7_slam/figs/slam_with_maps.png" in entries, "nested entry lost"
     assert ".dev/ch7_prompts_1-6_COMPLETE.md" in entries, "hyphenated name truncated"
-    assert not any("ch7_prompt*" in e or e == ".dev/ch7_prompt" for e in entries), (
-        "a glob was truncated into a claim about a concrete file"
-    )
-    assert EXAMPLE.findall(block) == ["example_pose_graph_slam.py"], (
-        "test_example_*.py must not read as an example"
-    )
+    assert not any(
+        "ch7_prompt*" in e or e == ".dev/ch7_prompt" for e in entries
+    ), "a glob was truncated into a claim about a concrete file"
+    assert EXAMPLE.findall(block) == [
+        "example_pose_graph_slam.py"
+    ], "test_example_*.py must not read as an example"

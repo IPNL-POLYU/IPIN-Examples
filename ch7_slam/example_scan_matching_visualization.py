@@ -177,15 +177,32 @@ def plot_icp_correspondences(max_pairs: int = 45) -> plt.Figure:
         matched_source, matched_target, _ = find_correspondences(
             moved, target, max_distance=1.0
         )
-        ax.plot(target[:, 0], target[:, 1], ".", color="#1f77b4",
-                markersize=3, label="target scan")
-        ax.plot(moved[:, 0], moved[:, 1], ".", color="#d62728",
-                markersize=3, label="source scan")
+        ax.plot(
+            target[:, 0],
+            target[:, 1],
+            ".",
+            color="#1f77b4",
+            markersize=3,
+            label="target scan",
+        )
+        ax.plot(
+            moved[:, 0],
+            moved[:, 1],
+            ".",
+            color="#d62728",
+            markersize=3,
+            label="source scan",
+        )
         stride = max(1, len(matched_source) // max_pairs)
-        for src_pt, tgt_pt in zip(matched_source[::stride],
-                                  matched_target[::stride]):
-            ax.plot([src_pt[0], tgt_pt[0]], [src_pt[1], tgt_pt[1]],
-                    "-", color="0.4", linewidth=0.7, alpha=0.8)
+        for src_pt, tgt_pt in zip(matched_source[::stride], matched_target[::stride]):
+            ax.plot(
+                [src_pt[0], tgt_pt[0]],
+                [src_pt[1], tgt_pt[1]],
+                "-",
+                color="0.4",
+                linewidth=0.7,
+                alpha=0.8,
+            )
         ax.set_title(
             f"{title}\n{len(matched_source)} correspondences, Eq. (7.11)",
             fontsize=10,
@@ -196,8 +213,9 @@ def plot_icp_correspondences(max_pairs: int = 45) -> plt.Figure:
         ax.legend(fontsize=8, loc="upper right")
     axes[0].set_ylabel("y [m]")
 
-    axes[2].semilogy(np.arange(1, len(residuals) + 1), residuals,
-                     "o-", color="#2ca02c", markersize=4)
+    axes[2].semilogy(
+        np.arange(1, len(residuals) + 1), residuals, "o-", color="#2ca02c", markersize=4
+    )
     axes[2].set_title("Eq. (7.10) objective per iteration", fontsize=10)
     axes[2].set_xlabel("iteration")
     axes[2].set_ylabel("sum of squared distances")
@@ -225,8 +243,15 @@ def plot_ndt_voxels(voxel_size: float = 1.0) -> plt.Figure:
     ndt_map = build_ndt_map(target, voxel_size=voxel_size)
 
     fig, ax = plt.subplots(figsize=(7.5, 6.5))
-    ax.plot(target[:, 0], target[:, 1], ".", color="0.55", markersize=3,
-            label="target scan", zorder=1)
+    ax.plot(
+        target[:, 0],
+        target[:, 1],
+        ".",
+        color="0.55",
+        markersize=3,
+        label="target scan",
+        zorder=1,
+    )
 
     for cell in ndt_map.values():
         mean = np.asarray(cell["mean"], dtype=float)
@@ -267,9 +292,9 @@ def plot_ndt_voxels(voxel_size: float = 1.0) -> plt.Figure:
     return fig
 
 
-def plot_ndt_score_surface(voxel_size: float = 1.0,
-                           half_width: float = 1.6,
-                           resolution: int = 90) -> plt.Figure:
+def plot_ndt_score_surface(
+    voxel_size: float = 1.0, half_width: float = 1.6, resolution: int = 90
+) -> plt.Figure:
     """Figure 3: the (7.16) objective surface and the descent path.
 
     Args:
@@ -312,31 +337,59 @@ def plot_ndt_score_surface(voxel_size: float = 1.0,
     # Runs that differ only in step size now agree, so report the spread rather
     # than plotting each one on top of the others.
     by_step = {
-        step: ndt_align(source, target, voxel_size=voxel_size, step_size=step,
-                        max_iterations=200)[0]
+        step: ndt_align(
+            source, target, voxel_size=voxel_size, step_size=step, max_iterations=200
+        )[0]
         for step in (0.05, 0.1, 0.3, 0.5, 1.0)
     }
     spread = max(
         float(np.linalg.norm(a[:2] - b[:2]))
-        for a in by_step.values() for b in by_step.values()
+        for a in by_step.values()
+        for b in by_step.values()
     )
 
     fig, axes = plt.subplots(1, 2, figsize=(13.5, 5.6))
 
-    mesh = axes[0].pcolormesh(
-        offsets, offsets, scores, shading="auto", cmap="viridis"
-    )
+    mesh = axes[0].pcolormesh(offsets, offsets, scores, shading="auto", cmap="viridis")
     fig.colorbar(mesh, ax=axes[0], label="NDT score (lower is better)")
-    axes[0].plot(path[:, 0], path[:, 1], "-o", color="#ff7f0e", markersize=4,
-                 linewidth=1.4, markeredgecolor="k", markeredgewidth=0.4,
-                 label=f"Gauss-Newton path ({iterations} iters)")
-    axes[0].plot(TRUE_MOTION[0], TRUE_MOTION[1], "*", color="white",
-                 markersize=16, markeredgecolor="k",
-                 label="true alignment")
-    axes[0].plot(aligned_pose[0], aligned_pose[1], "o", color="#d62728",
-                 markersize=8, markeredgecolor="k", label="ndt_align result")
-    axes[0].plot(0.0, 0.0, "s", color="#ff7f0e", markersize=8,
-                 markeredgecolor="k", label="initial guess")
+    axes[0].plot(
+        path[:, 0],
+        path[:, 1],
+        "-o",
+        color="#ff7f0e",
+        markersize=4,
+        linewidth=1.4,
+        markeredgecolor="k",
+        markeredgewidth=0.4,
+        label=f"Gauss-Newton path ({iterations} iters)",
+    )
+    axes[0].plot(
+        TRUE_MOTION[0],
+        TRUE_MOTION[1],
+        "*",
+        color="white",
+        markersize=16,
+        markeredgecolor="k",
+        label="true alignment",
+    )
+    axes[0].plot(
+        aligned_pose[0],
+        aligned_pose[1],
+        "o",
+        color="#d62728",
+        markersize=8,
+        markeredgecolor="k",
+        label="ndt_align result",
+    )
+    axes[0].plot(
+        0.0,
+        0.0,
+        "s",
+        color="#ff7f0e",
+        markersize=8,
+        markeredgecolor="k",
+        label="initial guess",
+    )
     axes[0].set_xlabel("translation x [m]")
     axes[0].set_ylabel("translation y [m]")
     axes[0].set_title(
@@ -350,10 +403,14 @@ def plot_ndt_score_surface(voxel_size: float = 1.0,
 
     # Slice through the optimum so the basin and the roughness are both visible.
     row_at_truth = int(np.argmin(np.abs(offsets - TRUE_MOTION[1])))
-    axes[1].plot(offsets, scores[row_at_truth, :], "-", color="#1f77b4",
-                 linewidth=1.6)
-    axes[1].axvline(TRUE_MOTION[0], color="#d62728", linestyle="--",
-                    linewidth=1.2, label="true alignment")
+    axes[1].plot(offsets, scores[row_at_truth, :], "-", color="#1f77b4", linewidth=1.6)
+    axes[1].axvline(
+        TRUE_MOTION[0],
+        color="#d62728",
+        linestyle="--",
+        linewidth=1.2,
+        label="true alignment",
+    )
     axes[1].legend(fontsize=8)
     axes[1].set_xlabel(
         f"translation x [m]  (y = {offsets[row_at_truth]:.2f} m, true yaw)"
@@ -379,8 +436,9 @@ def plot_ndt_score_surface(voxel_size: float = 1.0,
     return fig
 
 
-def plot_convergence_basin(grid: int = 9, span: float = 1.6,
-                           tolerance: float = 0.25) -> plt.Figure:
+def plot_convergence_basin(
+    grid: int = 9, span: float = 1.6, tolerance: float = 0.25
+) -> plt.Figure:
     """Figure 4: which initial guesses each method recovers from.
 
     Args:
@@ -403,8 +461,10 @@ def plot_convergence_basin(grid: int = 9, span: float = 1.6,
             guess = np.array([dx, dy, 0.0])
 
             pose, _, _, _ = icp_point_to_point(
-                source, target, initial_pose=guess.copy(),
-                max_correspondence_distance=1.0
+                source,
+                target,
+                initial_pose=guess.copy(),
+                max_correspondence_distance=1.0,
             )
             icp_ok[row, col] = np.linalg.norm(pose[:2] - truth) < tolerance
 
@@ -422,8 +482,10 @@ def plot_convergence_basin(grid: int = 9, span: float = 1.6,
         for dy in offsets:
             for dx in offsets:
                 pose, _, _, _ = ndt_align(
-                    source, target, initial_pose=np.array([dx, dy, 0.0]),
-                    voxel_size=voxel_size
+                    source,
+                    target,
+                    initial_pose=np.array([dx, dy, 0.0]),
+                    voxel_size=voxel_size,
                 )
                 count += np.linalg.norm(pose[:2] - truth) < tolerance
         ndt_counts.append(count)
@@ -433,10 +495,18 @@ def plot_convergence_basin(grid: int = 9, span: float = 1.6,
         (axes[0], icp_ok, "ICP, max correspondence 1.0 m"),
         (axes[1], ndt_ok, "NDT, voxel 1.0 m"),
     ):
-        ax.pcolormesh(offsets, offsets, mask.astype(float), shading="auto",
-                      cmap="RdYlGn", vmin=0.0, vmax=1.0)
-        ax.plot(truth[0], truth[1], "*", color="white", markersize=16,
-                markeredgecolor="k")
+        ax.pcolormesh(
+            offsets,
+            offsets,
+            mask.astype(float),
+            shading="auto",
+            cmap="RdYlGn",
+            vmin=0.0,
+            vmax=1.0,
+        )
+        ax.plot(
+            truth[0], truth[1], "*", color="white", markersize=16, markeredgecolor="k"
+        )
         ax.set_aspect("equal")
         ax.set_xlabel("initial x offset [m]")
         ax.set_title(
@@ -446,10 +516,16 @@ def plot_convergence_basin(grid: int = 9, span: float = 1.6,
         )
     axes[0].set_ylabel("initial y offset [m]")
 
-    axes[2].plot(voxel_sizes, ndt_counts, "o-", color="#1f77b4",
-                 markersize=6, label="NDT")
-    axes[2].axhline(icp_ok.sum(), color="#d62728", linestyle="--",
-                    linewidth=1.4, label="ICP (for reference)")
+    axes[2].plot(
+        voxel_sizes, ndt_counts, "o-", color="#1f77b4", markersize=6, label="NDT"
+    )
+    axes[2].axhline(
+        icp_ok.sum(),
+        color="#d62728",
+        linestyle="--",
+        linewidth=1.4,
+        label="ICP (for reference)",
+    )
     axes[2].set_xlabel("NDT voxel size [m]")
     axes[2].set_ylabel(f"starts converging (of {icp_ok.size})")
     axes[2].set_ylim(0, icp_ok.size)
@@ -470,8 +546,7 @@ def plot_convergence_basin(grid: int = 9, span: float = 1.6,
     return fig
 
 
-def animate_icp_convergence(max_iterations: int = 18,
-                            max_pairs: int = 45) -> tuple:
+def animate_icp_convergence(max_iterations: int = 18, max_pairs: int = 45) -> tuple:
     """Build the ICP convergence animation, Section 7.3.1.
 
     The static figure shows the first and last iteration; what it cannot show
@@ -517,15 +592,32 @@ def animate_icp_convergence(max_iterations: int = 18,
             moved, target, max_distance=1.0
         )
 
-        axes[0].plot(target[:, 0], target[:, 1], ".", color="#1f77b4",
-                     markersize=3, label="target scan")
-        axes[0].plot(moved[:, 0], moved[:, 1], ".", color="#d62728",
-                     markersize=3, label="source scan")
+        axes[0].plot(
+            target[:, 0],
+            target[:, 1],
+            ".",
+            color="#1f77b4",
+            markersize=3,
+            label="target scan",
+        )
+        axes[0].plot(
+            moved[:, 0],
+            moved[:, 1],
+            ".",
+            color="#d62728",
+            markersize=3,
+            label="source scan",
+        )
         stride = max(1, len(matched_source) // max_pairs)
-        for src_pt, tgt_pt in zip(matched_source[::stride],
-                                  matched_target[::stride]):
-            axes[0].plot([src_pt[0], tgt_pt[0]], [src_pt[1], tgt_pt[1]],
-                         "-", color="0.4", linewidth=0.7, alpha=0.8)
+        for src_pt, tgt_pt in zip(matched_source[::stride], matched_target[::stride]):
+            axes[0].plot(
+                [src_pt[0], tgt_pt[0]],
+                [src_pt[1], tgt_pt[1]],
+                "-",
+                color="0.4",
+                linewidth=0.7,
+                alpha=0.8,
+            )
         axes[0].set_xlim(-6.5, 6.5)
         axes[0].set_ylim(-5.5, 5.5)
         axes[0].set_aspect("equal")
@@ -539,16 +631,19 @@ def animate_icp_convergence(max_iterations: int = 18,
             fontsize=10,
         )
 
-        axes[1].semilogy(np.arange(1, frame + 2), residuals[: frame + 1],
-                         "o-", color="#2ca02c", markersize=4)
+        axes[1].semilogy(
+            np.arange(1, frame + 2),
+            residuals[: frame + 1],
+            "o-",
+            color="#2ca02c",
+            markersize=4,
+        )
         axes[1].set_xlim(0.5, n_frames + 0.5)
         axes[1].set_ylim(min(residuals) * 0.6, max(residuals) * 1.6)
         axes[1].grid(alpha=0.3, which="both")
         axes[1].set_xlabel("iteration")
         axes[1].set_ylabel("sum of squared distances")
-        axes[1].set_title(
-            f"Eq. (7.10) objective: {residuals[frame]:.2f}", fontsize=10
-        )
+        axes[1].set_title(f"Eq. (7.10) objective: {residuals[frame]:.2f}", fontsize=10)
 
         fig.suptitle(
             "ICP convergence, Eqs. (7.10)-(7.11): correspondences are "
@@ -570,16 +665,20 @@ def main() -> None:
         "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
     )
     parser.add_argument(
-        "--animate", action="store_true", default=False,
-        help="Also render the ICP convergence GIF (slower)"
+        "--animate",
+        action="store_true",
+        default=False,
+        help="Also render the ICP convergence GIF (slower)",
     )
     args = parser.parse_args()
 
     print("=" * 70)
     print("Chapter 7, Section 7.3: Scan Matching Visualization")
     print("=" * 70)
-    print(f"True motion between scans: dx={TRUE_MOTION[0]:.2f} m, "
-          f"dy={TRUE_MOTION[1]:.2f} m, dyaw={np.rad2deg(TRUE_MOTION[2]):.1f} deg")
+    print(
+        f"True motion between scans: dx={TRUE_MOTION[0]:.2f} m, "
+        f"dy={TRUE_MOTION[1]:.2f} m, dyaw={np.rad2deg(TRUE_MOTION[2]):.1f} deg"
+    )
     print()
 
     figures = [
@@ -595,8 +694,9 @@ def main() -> None:
 
     if args.animate:
         fig, update, n_frames = animate_icp_convergence()
-        path = save_animation(fig, update, n_frames, args.out_dir,
-                              "ch7_icp_convergence", fps=4)
+        path = save_animation(
+            fig, update, n_frames, args.out_dir, "ch7_icp_convergence", fps=4
+        )
         plt.close(fig)
         size_mb = path.stat().st_size / (1024 * 1024)
         print(f"  saved {path.name}: {n_frames} frames, {size_mb:.2f} MB")

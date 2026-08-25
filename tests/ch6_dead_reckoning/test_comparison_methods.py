@@ -117,9 +117,7 @@ class TestMotionProfiles(unittest.TestCase):
         """Turn deltas have to take the short way round."""
         self.assertAlmostEqual(_wrap_to_pi(0.5), 0.5)
         # pi -> -pi/2 is a left turn of +pi/2, not a right turn of -3pi/2.
-        self.assertAlmostEqual(
-            _wrap_to_pi(-np.pi / 2 - np.pi), np.pi / 2, places=12
-        )
+        self.assertAlmostEqual(_wrap_to_pi(-np.pi / 2 - np.pi), np.pi / 2, places=12)
         self.assertAlmostEqual(_wrap_to_pi(3 * np.pi), np.pi, places=12)
         self.assertLessEqual(abs(_wrap_to_pi(100.0)), np.pi)
 
@@ -140,8 +138,11 @@ class TestMixedTrajectory(unittest.TestCase):
             cls.stance,
             cls.wheel_true,
         ) = generate_mixed_trajectory(
-            DURATION, DT, FrameConvention.create_enu(),
-            step_freq=STEP_FREQ, lever_arm_a=LEVER_ARM_A,
+            DURATION,
+            DT,
+            FrameConvention.create_enu(),
+            step_freq=STEP_FREQ,
+            lever_arm_a=LEVER_ARM_A,
         )
 
     def test_walk_follows_the_waypoints(self):
@@ -151,9 +152,7 @@ class TestMixedTrajectory(unittest.TestCase):
         )
         for waypoint in WAYPOINTS:
             distance = np.linalg.norm(self.pos_true[:, :2] - waypoint, axis=1)
-            self.assertLess(
-                distance.min(), 0.05, f"never reached waypoint {waypoint}"
-            )
+            self.assertLess(distance.min(), 0.05, f"never reached waypoint {waypoint}")
         np.testing.assert_allclose(self.pos_true[-1, :2], 0.0, atol=0.05)
 
     def test_walking_carries_gait_dynamics(self):
@@ -192,9 +191,7 @@ class TestMixedTrajectory(unittest.TestCase):
         """
         self.assertLess(np.abs(np.diff(self.heading_true)).max(), 0.05)
         # Three left turns: the walk ends 270 deg from where it started.
-        self.assertAlmostEqual(
-            np.rad2deg(self.heading_true[-1]), 270.0, delta=0.5
-        )
+        self.assertAlmostEqual(np.rad2deg(self.heading_true[-1]), 270.0, delta=0.5)
 
     def test_wheel_speed_is_forward_while_driving(self):
         """Straight driving reduces to the book's v^S = [0, v, 0] convention.
@@ -225,9 +222,7 @@ class TestMixedTrajectory(unittest.TestCase):
         estimate = run_wheel_odom(
             self.t, self.wheel_true, self.gyro_body, initial, LEVER_ARM_A
         )
-        error = np.linalg.norm(
-            estimate[:, :2] - self.pos_true[:, :2], axis=1
-        )
+        error = np.linalg.norm(estimate[:, :2] - self.pos_true[:, :2], axis=1)
         # The residual is the first-order quaternion integrator and the
         # one-sample lag between measurement and update, nothing else.
         self.assertLess(error.max(), 0.05)
@@ -240,14 +235,29 @@ class TestDetectors(unittest.TestCase):
     def setUpClass(cls):
         cls.imu_params = IMUNoiseParams.consumer_grade()
         (
-            cls.t, _, _, accel_body, gyro_body, _, mag_body, cls.stance,
+            cls.t,
+            _,
+            _,
+            accel_body,
+            gyro_body,
+            _,
+            mag_body,
+            cls.stance,
             wheel_true,
         ) = generate_mixed_trajectory(
-            DURATION, DT, FrameConvention.create_enu(),
-            step_freq=STEP_FREQ, lever_arm_a=LEVER_ARM_A,
+            DURATION,
+            DT,
+            FrameConvention.create_enu(),
+            step_freq=STEP_FREQ,
+            lever_arm_a=LEVER_ARM_A,
         )
         cls.accel_meas, cls.gyro_meas, cls.mag_meas, _ = add_sensor_noise(
-            accel_body, gyro_body, mag_body, wheel_true, DT, cls.imu_params,
+            accel_body,
+            gyro_body,
+            mag_body,
+            wheel_true,
+            DT,
+            cls.imu_params,
             seed=DEFAULT_SEED,
         )
 
@@ -266,14 +276,17 @@ class TestDetectors(unittest.TestCase):
         for k in range(1, len(self.t), 20):  # every 20th sample is plenty
             start, end = max(0, k - 5), min(len(self.t), k + 6)
             statistic[k] = zupt_test_statistic(
-                self.accel_meas[start:end], self.gyro_meas[start:end],
-                sigma_a, sigma_g,
+                self.accel_meas[start:end],
+                self.gyro_meas[start:end],
+                sigma_a,
+                sigma_g,
             )
 
         standing = np.nanmedian(statistic[self.stance])
         walking = np.nanmedian(statistic[~self.stance])
         self.assertGreater(
-            walking, 10 * standing,
+            walking,
+            10 * standing,
             f"no separation: {standing:.1f} standing vs {walking:.1f} walking",
         )
         # The example's default threshold has to land inside that gap.
@@ -287,13 +300,18 @@ class TestDetectors(unittest.TestCase):
         9.81 and found three "steps" in a 100 m walk.
         """
         step_indices, _ = detect_steps_peak_detector(
-            self.accel_meas, dt=DT, g=9.81, min_peak_height=1.0,
-            min_peak_distance=0.3, lowpass_cutoff=5.0,
+            self.accel_meas,
+            dt=DT,
+            g=9.81,
+            min_peak_height=1.0,
+            min_peak_distance=0.3,
+            lowpass_cutoff=5.0,
         )
         expected = np.sum(~self.stance) * DT * STEP_FREQ
         self.assertAlmostEqual(len(step_indices), expected, delta=0.1 * expected)
         self.assertEqual(
-            np.sum(self.stance[step_indices]), 0,
+            np.sum(self.stance[step_indices]),
+            0,
             "steps detected while the walker was standing still",
         )
 
@@ -307,13 +325,29 @@ class TestMethodsActuallyTrack(unittest.TestCase):
         imu_params = IMUNoiseParams.consumer_grade()
 
         (
-            cls.t, cls.pos_true, vel_true, accel_body, gyro_body, _, mag_body,
-            _, wheel_true,
+            cls.t,
+            cls.pos_true,
+            vel_true,
+            accel_body,
+            gyro_body,
+            _,
+            mag_body,
+            _,
+            wheel_true,
         ) = generate_mixed_trajectory(
-            DURATION, DT, frame, step_freq=STEP_FREQ, lever_arm_a=LEVER_ARM_A,
+            DURATION,
+            DT,
+            frame,
+            step_freq=STEP_FREQ,
+            lever_arm_a=LEVER_ARM_A,
         )
         accel_meas, gyro_meas, mag_meas, wheel_meas = add_sensor_noise(
-            accel_body, gyro_body, mag_body, wheel_true, DT, imu_params,
+            accel_body,
+            gyro_body,
+            mag_body,
+            wheel_true,
+            DT,
+            imu_params,
             seed=DEFAULT_SEED,
         )
         initial = NavStateQPVP(
@@ -325,9 +359,7 @@ class TestMethodsActuallyTrack(unittest.TestCase):
         )
         pdr_pos, cls.step_count = run_pdr(cls.t, accel_meas, mag_meas, 1.75)
         cls.results = {
-            "IMU Only": run_imu_only(
-                cls.t, accel_meas, gyro_meas, initial, frame
-            ),
+            "IMU Only": run_imu_only(cls.t, accel_meas, gyro_meas, initial, frame),
             "IMU + ZUPT": zupt_pos,
             "Wheel Odom": run_wheel_odom(
                 cls.t, wheel_meas, gyro_meas, initial, LEVER_ARM_A
@@ -349,7 +381,8 @@ class TestMethodsActuallyTrack(unittest.TestCase):
             with self.subTest(method=name):
                 path = path_length(pos[:, :2])
                 self.assertGreater(
-                    path, 0.5 * TRUTH_PATH_M,
+                    path,
+                    0.5 * TRUTH_PATH_M,
                     f"{name} traced only {path:.2f} m of a "
                     f"{TRUTH_PATH_M:.0f} m walk",
                 )
@@ -368,7 +401,8 @@ class TestMethodsActuallyTrack(unittest.TestCase):
             with self.subTest(method=name):
                 reach = np.linalg.norm(pos[:, :2], axis=1).max()
                 self.assertGreater(
-                    reach, 0.5 * truth_reach,
+                    reach,
+                    0.5 * truth_reach,
                     f"{name} never got further than {reach:.2f} m from the "
                     f"origin ({truth_reach:.1f} m expected)",
                 )
@@ -397,9 +431,7 @@ class TestMethodsActuallyTrack(unittest.TestCase):
         rmse = {
             name: float(
                 np.sqrt(
-                    np.mean(
-                        np.sum((pos[:, :2] - self.pos_true[:, :2]) ** 2, axis=1)
-                    )
+                    np.mean(np.sum((pos[:, :2] - self.pos_true[:, :2]) ** 2, axis=1))
                 )
             )
             for name, pos in self.results.items()
@@ -414,9 +446,7 @@ class TestMethodsActuallyTrack(unittest.TestCase):
     def test_plot_comparison_reports_path_and_writes_every_figure(self):
         """The path metric is what makes a frozen method visible in the table."""
         with tempfile.TemporaryDirectory() as tmp:
-            metrics = plot_comparison(
-                self.t, self.pos_true, self.results, Path(tmp)
-            )
+            metrics = plot_comparison(self.t, self.pos_true, self.results, Path(tmp))
             for name in [
                 "comparison_trajectories",
                 "comparison_error_time",

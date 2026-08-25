@@ -27,37 +27,37 @@ import numpy as np
 # ============================================================================
 
 PRESETS = {
-    'baseline': {
-        'description': 'Standard walking with clear stance phases',
-        'step_length': 0.7,
-        'step_duration': 0.6,
-        'stance_duration': 0.2,
-        'accel_noise_std': 0.1,
-        'gyro_noise_std': 0.01,
+    "baseline": {
+        "description": "Standard walking with clear stance phases",
+        "step_length": 0.7,
+        "step_duration": 0.6,
+        "stance_duration": 0.2,
+        "accel_noise_std": 0.1,
+        "gyro_noise_std": 0.01,
     },
-    'fast_walk': {
-        'description': 'Fast walking with shorter stance phases',
-        'step_length': 0.9,
-        'step_duration': 0.5,
-        'stance_duration': 0.15,
-        'accel_noise_std': 0.1,
-        'gyro_noise_std': 0.01,
+    "fast_walk": {
+        "description": "Fast walking with shorter stance phases",
+        "step_length": 0.9,
+        "step_duration": 0.5,
+        "stance_duration": 0.15,
+        "accel_noise_std": 0.1,
+        "gyro_noise_std": 0.01,
     },
-    'slow_walk': {
-        'description': 'Slow walking with longer stance phases',
-        'step_length': 0.5,
-        'step_duration': 0.8,
-        'stance_duration': 0.3,
-        'accel_noise_std': 0.1,
-        'gyro_noise_std': 0.01,
+    "slow_walk": {
+        "description": "Slow walking with longer stance phases",
+        "step_length": 0.5,
+        "step_duration": 0.8,
+        "stance_duration": 0.3,
+        "accel_noise_std": 0.1,
+        "gyro_noise_std": 0.01,
     },
-    'noisy_imu': {
-        'description': 'Degraded IMU to test ZUPT robustness',
-        'step_length': 0.7,
-        'step_duration': 0.6,
-        'stance_duration': 0.2,
-        'accel_noise_std': 0.3,
-        'gyro_noise_std': 0.03,
+    "noisy_imu": {
+        "description": "Degraded IMU to test ZUPT robustness",
+        "step_length": 0.7,
+        "step_duration": 0.6,
+        "stance_duration": 0.2,
+        "accel_noise_std": 0.3,
+        "gyro_noise_std": 0.03,
     },
 }
 
@@ -65,6 +65,7 @@ PRESETS = {
 # ============================================================================
 # TRAJECTORY GENERATION
 # ============================================================================
+
 
 def generate_walking_trajectory(
     num_steps: int = 20,
@@ -74,14 +75,14 @@ def generate_walking_trajectory(
     dt: float = 0.01,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Generate 2D walking trajectory with stance phases.
-    
+
     Args:
         num_steps: Number of steps to take.
         step_length: Distance per step (meters).
         step_duration: Time per step including stance (seconds).
         stance_duration: Time foot is stationary per step (seconds).
         dt: Time step (seconds).
-    
+
     Returns:
         Tuple of (t, p_xy, v_xy, yaw, is_stance):
             t: timestamps (N,)
@@ -89,7 +90,7 @@ def generate_walking_trajectory(
             v_xy: velocities (N, 2) in m/s
             yaw: heading angles (N,) in radians (constant, walking forward)
             is_stance: stance phase indicator (N,) boolean
-    
+
     References:
         Walking gait model for ZUPT demonstration (Ch6, Section 6.3).
     """
@@ -151,6 +152,7 @@ def generate_walking_trajectory(
 # IMU MEASUREMENT GENERATION
 # ============================================================================
 
+
 def generate_imu_measurements(
     t: np.ndarray,
     v_xy: np.ndarray,
@@ -162,7 +164,7 @@ def generate_imu_measurements(
     gyro_bias: float = 0.0,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate synthetic IMU measurements from ground truth.
-    
+
     Args:
         t: timestamps (N,)
         v_xy: velocities (N, 2) in m/s
@@ -172,13 +174,13 @@ def generate_imu_measurements(
         accel_bias_x: X-axis accelerometer bias (m/s²)
         accel_bias_y: Y-axis accelerometer bias (m/s²)
         gyro_bias: Z-axis gyroscope bias (rad/s)
-    
+
     Returns:
         Tuple of (t_imu, accel_xy, gyro_z):
             t_imu: IMU timestamps (N,)
             accel_xy: 2D accelerations (N, 2) in m/s²
             gyro_z: Yaw rate (N,) in rad/s
-    
+
     References:
         IMU error model from Ch6, Eqs. (6.5), (6.9).
     """
@@ -197,10 +199,12 @@ def generate_imu_measurements(
     # noise -- which is how the frame was identified.
     accel_map_true = np.gradient(v_xy, axis=0) / dt[:, None]
     cos_y, sin_y = np.cos(yaw), np.sin(yaw)
-    accel_xy_true = np.column_stack([
-        cos_y * accel_map_true[:, 0] + sin_y * accel_map_true[:, 1],
-        -sin_y * accel_map_true[:, 0] + cos_y * accel_map_true[:, 1],
-    ])
+    accel_xy_true = np.column_stack(
+        [
+            cos_y * accel_map_true[:, 0] + sin_y * accel_map_true[:, 1],
+            -sin_y * accel_map_true[:, 0] + cos_y * accel_map_true[:, 1],
+        ]
+    )
 
     # Compute true yaw rate (derivative of yaw)
     yaw_unwrapped = np.unwrap(yaw)
@@ -208,17 +212,9 @@ def generate_imu_measurements(
 
     # Add noise and bias
     accel_bias = np.array([accel_bias_x, accel_bias_y])
-    accel_xy = (
-        accel_xy_true
-        + accel_bias
-        + np.random.randn(N, 2) * accel_noise_std
-    )
+    accel_xy = accel_xy_true + accel_bias + np.random.randn(N, 2) * accel_noise_std
 
-    gyro_z = (
-        gyro_z_true
-        + gyro_bias
-        + np.random.randn(N) * gyro_noise_std
-    )
+    gyro_z = gyro_z_true + gyro_bias + np.random.randn(N) * gyro_noise_std
 
     return t, accel_xy, gyro_z
 
@@ -226,6 +222,7 @@ def generate_imu_measurements(
 # ============================================================================
 # DATASET GENERATION
 # ============================================================================
+
 
 def generate_ch6_zupt_dataset(
     output_dir: str = "data/sim/ch6_foot_zupt_walk",
@@ -244,7 +241,7 @@ def generate_ch6_zupt_dataset(
     gyro_bias: float = 0.0,
 ) -> None:
     """Generate and save foot-mounted IMU with ZUPT dataset.
-    
+
     Args:
         output_dir: Output directory path.
         seed: Random seed for reproducibility.
@@ -282,7 +279,7 @@ def generate_ch6_zupt_dataset(
         step_length=step_length,
         step_duration=step_duration,
         stance_duration=stance_duration,
-        dt=dt
+        dt=dt,
     )
 
     print(f"   Generated {len(t)} samples")
@@ -300,7 +297,7 @@ def generate_ch6_zupt_dataset(
         p_xy=p_xy,
         v_xy=v_xy,
         yaw=yaw,
-        is_stance=is_stance
+        is_stance=is_stance,
     )
     print("   Saved: truth.npz")
 
@@ -312,20 +309,17 @@ def generate_ch6_zupt_dataset(
     print(f"   Gyro bias: {gyro_bias} rad/s")
 
     t_imu, accel_xy, gyro_z = generate_imu_measurements(
-        t, v_xy, yaw,
+        t,
+        v_xy,
+        yaw,
         accel_noise_std=accel_noise_std,
         gyro_noise_std=gyro_noise_std,
         accel_bias_x=accel_bias_x,
         accel_bias_y=accel_bias_y,
-        gyro_bias=gyro_bias
+        gyro_bias=gyro_bias,
     )
 
-    np.savez(
-        output_path / "imu.npz",
-        t=t_imu,
-        accel_xy=accel_xy,
-        gyro_z=gyro_z
-    )
+    np.savez(output_path / "imu.npz", t=t_imu, accel_xy=accel_xy, gyro_z=gyro_z)
     print(f"   Generated {len(t_imu)} IMU samples")
     print("   Saved: imu.npz")
 
@@ -339,7 +333,7 @@ def generate_ch6_zupt_dataset(
             "seed": seed,
             "duration_sec": float(duration),
             "num_samples": int(len(t)),
-            "total_distance_m": float(total_distance)
+            "total_distance_m": float(total_distance),
         },
         "trajectory": {
             "type": "walking_linear",
@@ -348,7 +342,7 @@ def generate_ch6_zupt_dataset(
             "step_duration_sec": step_duration,
             "stance_duration_sec": stance_duration,
             "swing_duration_sec": float(swing_duration),
-            "stance_ratio": float(stance_ratio)
+            "stance_ratio": float(stance_ratio),
         },
         "imu": {
             "rate_hz": 1 / dt,
@@ -356,17 +350,17 @@ def generate_ch6_zupt_dataset(
             "accel_noise_std_m_s2": accel_noise_std,
             "gyro_noise_std_rad_s": gyro_noise_std,
             "accel_bias_m_s2": [accel_bias_x, accel_bias_y],
-            "gyro_bias_rad_s": gyro_bias
+            "gyro_bias_rad_s": gyro_bias,
         },
         "zupt": {
             "stance_threshold_description": "Use is_stance from truth.npz for ideal ZUPT",
-            "detection_note": "In practice, detect stance from IMU statistics"
+            "detection_note": "In practice, detect stance from IMU statistics",
         },
         "coordinate_frame": {
             "description": "ENU (East-North-Up)",
             "origin": "Starting position at (0, 0)",
-            "units": "meters"
-        }
+            "units": "meters",
+        },
     }
 
     with open(output_path / "config.json", "w") as f:
@@ -396,6 +390,7 @@ def generate_ch6_zupt_dataset(
 # COMMAND-LINE INTERFACE
 # ============================================================================
 
+
 def main():
     """Main entry point with CLI argument parsing."""
     parser = argparse.ArgumentParser(
@@ -418,98 +413,99 @@ Examples:
   # Test ZUPT with noisy IMU
   python %(prog)s --preset noisy_imu --output data/sim/ch6_zupt_noisy
 
-Available presets: """ + ", ".join(PRESETS.keys())
+Available presets: """
+        + ", ".join(PRESETS.keys()),
     )
 
     # Preset configuration
     parser.add_argument(
-        '--preset',
+        "--preset",
         type=str,
         choices=PRESETS.keys(),
-        help='Use preset configuration (overrides individual parameters)'
+        help="Use preset configuration (overrides individual parameters)",
     )
 
     # Output
     parser.add_argument(
-        '--output',
+        "--output",
         type=str,
-        default='data/sim/ch6_foot_zupt_walk',
-        help='Output directory (default: data/sim/ch6_foot_zupt_walk)'
+        default="data/sim/ch6_foot_zupt_walk",
+        help="Output directory (default: data/sim/ch6_foot_zupt_walk)",
     )
 
     parser.add_argument(
-        '--seed',
+        "--seed",
         type=int,
         default=42,
-        help='Random seed for reproducibility (default: 42)'
+        help="Random seed for reproducibility (default: 42)",
     )
 
     # Trajectory parameters
-    traj_group = parser.add_argument_group('Trajectory Parameters')
+    traj_group = parser.add_argument_group("Trajectory Parameters")
     traj_group.add_argument(
-        '--num-steps',
+        "--num-steps",
         type=int,
         default=20,
-        help='Number of steps to take (default: 20)'
+        help="Number of steps to take (default: 20)",
     )
     traj_group.add_argument(
-        '--step-length',
+        "--step-length",
         type=float,
         default=0.7,
-        help='Distance per step in meters (default: 0.7)'
+        help="Distance per step in meters (default: 0.7)",
     )
     traj_group.add_argument(
-        '--step-duration',
+        "--step-duration",
         type=float,
         default=0.6,
-        help='Time per step in seconds (default: 0.6)'
+        help="Time per step in seconds (default: 0.6)",
     )
     traj_group.add_argument(
-        '--stance-duration',
+        "--stance-duration",
         type=float,
         default=0.2,
-        help='Time foot is stationary per step in seconds (default: 0.2)'
+        help="Time foot is stationary per step in seconds (default: 0.2)",
     )
     traj_group.add_argument(
-        '--dt',
+        "--dt",
         type=float,
         default=0.01,
-        help='Time step in seconds (default: 0.01, i.e., 100 Hz)'
+        help="Time step in seconds (default: 0.01, i.e., 100 Hz)",
     )
 
     # IMU parameters
-    imu_group = parser.add_argument_group('IMU Parameters')
+    imu_group = parser.add_argument_group("IMU Parameters")
     imu_group.add_argument(
-        '--accel-noise',
+        "--accel-noise",
         type=float,
         default=0.1,
-        dest='accel_noise_std',
-        help='Accelerometer noise std in m/s² (default: 0.1)'
+        dest="accel_noise_std",
+        help="Accelerometer noise std in m/s² (default: 0.1)",
     )
     imu_group.add_argument(
-        '--gyro-noise',
+        "--gyro-noise",
         type=float,
         default=0.01,
-        dest='gyro_noise_std',
-        help='Gyroscope noise std in rad/s (default: 0.01)'
+        dest="gyro_noise_std",
+        help="Gyroscope noise std in rad/s (default: 0.01)",
     )
     imu_group.add_argument(
-        '--accel-bias-x',
+        "--accel-bias-x",
         type=float,
         default=0.0,
-        help='Accelerometer X-axis bias in m/s² (default: 0.0)'
+        help="Accelerometer X-axis bias in m/s² (default: 0.0)",
     )
     imu_group.add_argument(
-        '--accel-bias-y',
+        "--accel-bias-y",
         type=float,
         default=0.0,
-        help='Accelerometer Y-axis bias in m/s² (default: 0.0)'
+        help="Accelerometer Y-axis bias in m/s² (default: 0.0)",
     )
     imu_group.add_argument(
-        '--gyro-bias',
+        "--gyro-bias",
         type=float,
         default=0.0,
-        help='Gyroscope Z-axis bias in rad/s (default: 0.0)'
+        help="Gyroscope Z-axis bias in rad/s (default: 0.0)",
     )
 
     # Parse arguments
@@ -523,9 +519,9 @@ Available presets: """ + ", ".join(PRESETS.keys())
 
         # Override parameters with preset values
         for key, value in preset_config.items():
-            if key != 'description':
+            if key != "description":
                 # Handle both underscore and hyphen versions
-                key_underscore = key.replace('-', '_')
+                key_underscore = key.replace("-", "_")
                 if hasattr(args, key_underscore):
                     setattr(args, key_underscore, value)
 
@@ -556,11 +552,9 @@ Available presets: """ + ", ".join(PRESETS.keys())
         gyro_noise_std=args.gyro_noise_std,
         accel_bias_x=args.accel_bias_x,
         accel_bias_y=args.accel_bias_y,
-        gyro_bias=args.gyro_bias
+        gyro_bias=args.gyro_bias,
     )
 
 
 if __name__ == "__main__":
     main()
-
-

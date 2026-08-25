@@ -111,8 +111,9 @@ def create_range_model(anchors: np.ndarray):
     return h, jacobian
 
 
-def compute_ranges(position: np.ndarray, anchors: np.ndarray,
-                   noise_std: float = 0.0) -> np.ndarray:
+def compute_ranges(
+    position: np.ndarray, anchors: np.ndarray, noise_std: float = 0.0
+) -> np.ndarray:
     """Compute ranges from position to anchors with optional noise.
 
     Args:
@@ -207,13 +208,17 @@ def example_2_weighted_ls():
 
     # Generate measurements with different noise levels
     np.random.seed(42)
-    y = np.array([
-        compute_ranges(true_position, anchors[i:i + 1], noise_std=measurement_stds[i])[0]
-        for i in range(len(anchors))
-    ])
+    y = np.array(
+        [
+            compute_ranges(
+                true_position, anchors[i : i + 1], noise_std=measurement_stds[i]
+            )[0]
+            for i in range(len(anchors))
+        ]
+    )
 
     # Weight matrix: W = diag(1/sigma^2) (book Section 3.1.1)
-    W = np.diag(1.0 / measurement_stds ** 2)
+    W = np.diag(1.0 / measurement_stds**2)
 
     # Linearization
     x0 = np.array([5.0, 5.0])
@@ -250,8 +255,10 @@ def example_2_weighted_ls():
     # weight on anchor 0 than on any other. When anchor 0 draws an unlucky
     # error, WLS follows it. Weighting buys accuracy on average by trusting
     # the good sensor, and pays for it by depending on that sensor.
-    print(f"\nThis draw: WLS is {((error_ls - error_wls) / error_ls * 100):.1f}% "
-          f"better than LS")
+    print(
+        f"\nThis draw: WLS is {((error_ls - error_wls) / error_ls * 100):.1f}% "
+        f"better than LS"
+    )
     print("  Over 5000 draws: ~14% better in RMS, ~9% in the per-draw median,")
     print("  and worse than plain LS on ~28% of them. A single draw cannot tell")
     print("  you which of those you are looking at.")
@@ -340,14 +347,18 @@ def example_4_levenberg_marquardt():
     print("\n--- Gauss-Newton from poor guess ---")
     result_gn = gauss_newton(h, jacobian, y, x0_poor, max_iter=50)
     error_gn = np.linalg.norm(result_gn.x - true_position)
-    print(f"Result: {result_gn.x}, error: {error_gn:.4f} m, "
-          f"iters: {result_gn.iterations}, converged: {result_gn.converged}")
+    print(
+        f"Result: {result_gn.x}, error: {error_gn:.4f} m, "
+        f"iters: {result_gn.iterations}, converged: {result_gn.converged}"
+    )
 
     print("\n--- Levenberg-Marquardt from poor guess ---")
     result_lm = levenberg_marquardt(h, jacobian, y, x0_poor, max_iter=50, mu0=1e-3)
     error_lm = np.linalg.norm(result_lm.x - true_position)
-    print(f"Result: {result_lm.x}, error: {error_lm:.4f} m, "
-          f"iters: {result_lm.iterations}, converged: {result_lm.converged}")
+    print(
+        f"Result: {result_lm.x}, error: {error_lm:.4f} m, "
+        f"iters: {result_lm.iterations}, converged: {result_lm.converged}"
+    )
 
     if error_lm < error_gn:
         print("\n[OK] LM converged better than GN from poor initial guess")
@@ -377,10 +388,18 @@ def example_5_robust_ls():
     print("=" * 70)
 
     # Use more anchors for robust estimation (need redundancy!)
-    anchors = np.array([
-        [0.0, 0.0], [10.0, 0.0], [0.0, 10.0], [10.0, 10.0],  # Corners
-        [5.0, 0.0], [5.0, 10.0], [0.0, 5.0], [10.0, 5.0]     # Midpoints
-    ])
+    anchors = np.array(
+        [
+            [0.0, 0.0],
+            [10.0, 0.0],
+            [0.0, 10.0],
+            [10.0, 10.0],  # Corners
+            [5.0, 0.0],
+            [5.0, 10.0],
+            [0.0, 5.0],
+            [10.0, 5.0],  # Midpoints
+        ]
+    )
     true_position = np.array([3.0, 4.0])
     h, jacobian = create_range_model(anchors)
 
@@ -413,7 +432,10 @@ def example_5_robust_ls():
     results = {}
     for label, method in table_3_1_methods.items():
         result = robust_gauss_newton(
-            h, jacobian, y, x0,
+            h,
+            jacobian,
+            y,
+            x0,
             loss=method,
             loss_param=1.5,
             max_iter=30,
@@ -434,7 +456,9 @@ def example_5_robust_ls():
 
     for label, res in results.items():
         pos_str = f"[{res['position'][0]:.3f}, {res['position'][1]:.3f}]"
-        print(f"{label:<20} {pos_str:<25} {res['error']:<10.4f} {res['outlier_weight']:<10.4f}")
+        print(
+            f"{label:<20} {pos_str:<25} {res['error']:<10.4f} {res['outlier_weight']:<10.4f}"
+        )
 
     print("\nKey insight from Table 3.1:")
     print("  - L2 is corrupted by the outlier (no downweighting)")
@@ -456,10 +480,18 @@ def visualize_results():
     h_4, jac_4 = create_range_model(anchors_4)
 
     # 8 anchors for robust example
-    anchors_8 = np.array([
-        [0.0, 0.0], [10.0, 0.0], [0.0, 10.0], [10.0, 10.0],
-        [5.0, 0.0], [5.0, 10.0], [0.0, 5.0], [10.0, 5.0]
-    ])
+    anchors_8 = np.array(
+        [
+            [0.0, 0.0],
+            [10.0, 0.0],
+            [0.0, 10.0],
+            [10.0, 10.0],
+            [5.0, 0.0],
+            [5.0, 10.0],
+            [0.0, 5.0],
+            [10.0, 5.0],
+        ]
+    )
     h_8, jac_8 = create_range_model(anchors_8)
 
     np.random.seed(42)
@@ -500,33 +532,74 @@ def visualize_results():
     ax = axes[0]
 
     # Anchors
-    ax.scatter(anchors_4[:, 0], anchors_4[:, 1], s=200, c="blue", marker="^",
-               label="Anchors", zorder=5)
+    ax.scatter(
+        anchors_4[:, 0],
+        anchors_4[:, 1],
+        s=200,
+        c="blue",
+        marker="^",
+        label="Anchors",
+        zorder=5,
+    )
 
     # True position
-    ax.scatter(true_position[0], true_position[1], s=250, c="green", marker="*",
-               label="True Position", zorder=5)
+    ax.scatter(
+        true_position[0],
+        true_position[1],
+        s=250,
+        c="green",
+        marker="*",
+        label="True Position",
+        zorder=5,
+    )
 
     # Estimates
-    ax.scatter(x0[0], x0[1], s=150, c="gray", marker="x", label="Initial Guess", zorder=4)
-    ax.scatter(pos_linear[0], pos_linear[1], s=150, c="orange", marker="o",
-               label="Linear LS (Eq. 3.2)", zorder=4)
-    ax.scatter(pos_gn[0], pos_gn[1], s=150, c="red", marker="s",
-               label="Gauss-Newton (Eq. 3.52)", zorder=4)
-    ax.scatter(pos_lm[0], pos_lm[1], s=150, c="purple", marker="D",
-               label="LM (Eq. 3.53)", zorder=4)
+    ax.scatter(
+        x0[0], x0[1], s=150, c="gray", marker="x", label="Initial Guess", zorder=4
+    )
+    ax.scatter(
+        pos_linear[0],
+        pos_linear[1],
+        s=150,
+        c="orange",
+        marker="o",
+        label="Linear LS (Eq. 3.2)",
+        zorder=4,
+    )
+    ax.scatter(
+        pos_gn[0],
+        pos_gn[1],
+        s=150,
+        c="red",
+        marker="s",
+        label="Gauss-Newton (Eq. 3.52)",
+        zorder=4,
+    )
+    ax.scatter(
+        pos_lm[0],
+        pos_lm[1],
+        s=150,
+        c="purple",
+        marker="D",
+        label="LM (Eq. 3.53)",
+        zorder=4,
+    )
 
     # Range circles
     for i, anchor in enumerate(anchors_4):
-        circle = plt.Circle(anchor, y_clean[i], fill=False,
-                            edgecolor="blue", alpha=0.3, linestyle="--")
+        circle = plt.Circle(
+            anchor, y_clean[i], fill=False, edgecolor="blue", alpha=0.3, linestyle="--"
+        )
         ax.add_patch(circle)
 
     ax.set_xlabel("X (m)", fontsize=12)
     ax.set_ylabel("Y (m)", fontsize=12)
-    ax.set_title("On clean data all three solvers agree to centimetres\n"
-                 "(inset: a 20 cm window on the same estimates)",
-                 fontsize=12, fontweight="bold")
+    ax.set_title(
+        "On clean data all three solvers agree to centimetres\n"
+        "(inset: a 20 cm window on the same estimates)",
+        fontsize=12,
+        fontweight="bold",
+    )
     ax.legend(fontsize=9, loc="upper right")
     ax.grid(True, alpha=0.3)
     ax.set_aspect("equal")
@@ -540,15 +613,23 @@ def visualize_results():
     # overview, and put the part worth seeing beside it.
     spread = 0.1
     axins = ax.inset_axes([0.03, 0.03, 0.36, 0.36])
-    axins.scatter(true_position[0], true_position[1], s=250, c="green",
-                  marker="*", zorder=5)
-    axins.scatter(pos_linear[0], pos_linear[1], s=150, c="orange", marker="o",
-                  zorder=4)
+    axins.scatter(
+        true_position[0], true_position[1], s=250, c="green", marker="*", zorder=5
+    )
+    axins.scatter(pos_linear[0], pos_linear[1], s=150, c="orange", marker="o", zorder=4)
     # Gauss-Newton and LM converge to the same point here, so LM is drawn as a
     # larger hollow marker around it: two rings mean they agree exactly.
     axins.scatter(pos_gn[0], pos_gn[1], s=110, c="red", marker="s", zorder=4)
-    axins.scatter(pos_lm[0], pos_lm[1], s=320, facecolors="none",
-                  edgecolors="purple", marker="D", linewidths=2, zorder=4)
+    axins.scatter(
+        pos_lm[0],
+        pos_lm[1],
+        s=320,
+        facecolors="none",
+        edgecolors="purple",
+        marker="D",
+        linewidths=2,
+        zorder=4,
+    )
     axins.set_xlim(true_position[0] - spread, true_position[0] + spread)
     axins.set_ylim(true_position[1] - spread, true_position[1] + spread)
     axins.set_xticks([])
@@ -560,26 +641,76 @@ def visualize_results():
     ax = axes[1]
 
     # Anchors
-    ax.scatter(anchors_8[:, 0], anchors_8[:, 1], s=200, c="blue", marker="^",
-               label="Anchors (8)", zorder=5)
+    ax.scatter(
+        anchors_8[:, 0],
+        anchors_8[:, 1],
+        s=200,
+        c="blue",
+        marker="^",
+        label="Anchors (8)",
+        zorder=5,
+    )
 
     # Mark outlier anchor
-    ax.scatter(anchors_8[2, 0], anchors_8[2, 1], s=350, facecolors="none",
-               edgecolors="red", linewidth=3, zorder=4, label="Outlier Anchor")
+    ax.scatter(
+        anchors_8[2, 0],
+        anchors_8[2, 1],
+        s=350,
+        facecolors="none",
+        edgecolors="red",
+        linewidth=3,
+        zorder=4,
+        label="Outlier Anchor",
+    )
 
     # True position
-    ax.scatter(true_position[0], true_position[1], s=250, c="green", marker="*",
-               label="True Position", zorder=5)
+    ax.scatter(
+        true_position[0],
+        true_position[1],
+        s=250,
+        c="green",
+        marker="*",
+        label="True Position",
+        zorder=5,
+    )
 
     # Table 3.1 estimator results
-    ax.scatter(pos_l2[0], pos_l2[1], s=150, c="orange", marker="o",
-               label="L2 (Table 3.1) - corrupted", zorder=4)
-    ax.scatter(pos_cauchy[0], pos_cauchy[1], s=150, c="cyan", marker="s",
-               label="Cauchy (Table 3.1)", zorder=4)
-    ax.scatter(pos_huber[0], pos_huber[1], s=150, c="magenta", marker="^",
-               label="Huber (Table 3.1)", zorder=4)
-    ax.scatter(pos_gm[0], pos_gm[1], s=150, c="purple", marker="D",
-               label="G-M (Table 3.1)", zorder=4)
+    ax.scatter(
+        pos_l2[0],
+        pos_l2[1],
+        s=150,
+        c="orange",
+        marker="o",
+        label="L2 (Table 3.1) - corrupted",
+        zorder=4,
+    )
+    ax.scatter(
+        pos_cauchy[0],
+        pos_cauchy[1],
+        s=150,
+        c="cyan",
+        marker="s",
+        label="Cauchy (Table 3.1)",
+        zorder=4,
+    )
+    ax.scatter(
+        pos_huber[0],
+        pos_huber[1],
+        s=150,
+        c="magenta",
+        marker="^",
+        label="Huber (Table 3.1)",
+        zorder=4,
+    )
+    ax.scatter(
+        pos_gm[0],
+        pos_gm[1],
+        s=150,
+        c="purple",
+        marker="D",
+        label="G-M (Table 3.1)",
+        zorder=4,
+    )
 
     # Range circles (show first 4 anchors only to reduce clutter)
     for i in range(4):
@@ -587,15 +718,25 @@ def visualize_results():
         color = "red" if i == 2 else "blue"
         alpha = 0.6 if i == 2 else 0.2
         lw = 2.5 if i == 2 else 1
-        circle = plt.Circle(anchor, y_outlier[i], fill=False,
-                            edgecolor=color, alpha=alpha, linestyle="--", linewidth=lw)
+        circle = plt.Circle(
+            anchor,
+            y_outlier[i],
+            fill=False,
+            edgecolor=color,
+            alpha=alpha,
+            linestyle="--",
+            linewidth=lw,
+        )
         ax.add_patch(circle)
 
     ax.set_xlabel("X (m)", fontsize=12)
     ax.set_ylabel("Y (m)", fontsize=12)
-    ax.set_title("One corrupted anchor drags plain least squares off the truth\n"
-                 "while every robust loss in Table 3.1 ignores it",
-                 fontsize=12, fontweight="bold")
+    ax.set_title(
+        "One corrupted anchor drags plain least squares off the truth\n"
+        "while every robust loss in Table 3.1 ignores it",
+        fontsize=12,
+        fontweight="bold",
+    )
     ax.legend(fontsize=9, loc="upper right")
     ax.grid(True, alpha=0.3)
     ax.set_aspect("equal")
@@ -605,8 +746,9 @@ def visualize_results():
     plt.tight_layout()
 
     # Save to figs directory (svg + pdf + png via the shared layer)
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "ch3_least_squares_examples")
+    paths = save_figure(
+        fig, Path(__file__).parent / "figs", "ch3_least_squares_examples"
+    )
     print(f"\nPlot saved as: {paths[0]}")
     show_figures_if_requested()
 

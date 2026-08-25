@@ -86,8 +86,8 @@ def generate_building_walk(
 
     # Constants
     MAG_NORTH = 20.0  # microTesla (horizontal component)
-    MAG_DOWN = 40.0   # microTesla (vertical component)
-    P0 = 101325.0     # Sea level pressure (Pa)
+    MAG_DOWN = 40.0  # microTesla (vertical component)
+    P0 = 101325.0  # Sea level pressure (Pa)
     GRAVITY = 9.81
 
     # Initialize arrays
@@ -225,11 +225,13 @@ def generate_building_walk(
         # made mag_heading return exactly minus the true heading, for a 65.7 deg
         # mean error that config.json then recorded as if it were a property of
         # the sensor.
-        mag_level = np.array([
-            MAG_NORTH * np.cos(yaw),
-            MAG_NORTH * np.sin(yaw),
-            -MAG_DOWN,
-        ])
+        mag_level = np.array(
+            [
+                MAG_NORTH * np.cos(yaw),
+                MAG_NORTH * np.sin(yaw),
+                -MAG_DOWN,
+            ]
+        )
 
         # Tilt the level-frame field into the body frame. This is the forward
         # rotation that mag_tilt_compensate (Eq. 6.52) inverts, so the reading
@@ -247,7 +249,7 @@ def generate_building_walk(
         # Barometric pressure (decreases with altitude)
         # International barometric formula (Eq. 6.54)
         T0 = 288.15  # K (15°C at sea level)
-        L = 0.0065   # K/m (temperature lapse rate)
+        L = 0.0065  # K/m (temperature lapse rate)
         M = 0.0289644  # kg/mol (molar mass of air)
         R = 8.31447  # J/(mol·K) (gas constant)
         g = GRAVITY
@@ -585,7 +587,9 @@ def generate_dataset(
     altitude_smooth = np.zeros_like(altitude_est)
     altitude_smooth[0] = altitude_est[0]
     for k in range(1, len(altitude_est)):
-        altitude_smooth[k] = smooth_measurement_simple(altitude_smooth[k - 1], altitude_est[k], alpha=0.1)
+        altitude_smooth[k] = smooth_measurement_simple(
+            altitude_smooth[k - 1], altitude_est[k], alpha=0.1
+        )
 
     # Compute altitude error
     altitude_true = pos_true[:, 2]
@@ -598,7 +602,10 @@ def generate_dataset(
     current_floor = 0
     for k in range(1, len(t)):
         delta_floor = detect_floor_change(
-            altitude_smooth[k - 1], altitude_smooth[k], floor_height=floor_height, threshold=1.5
+            altitude_smooth[k - 1],
+            altitude_smooth[k],
+            floor_height=floor_height,
+            threshold=1.5,
         )
         current_floor += delta_floor
         floor_detected[k] = max(0, min(2, current_floor))
@@ -628,7 +635,9 @@ def generate_dataset(
             "magnetometer": {
                 "noise_std_uT": mag_noise,
                 "disturbances_enabled": mag_disturbance,
-                "num_disturbance_events": len(disturbance_locations) if disturbance_locations else 0,
+                "num_disturbance_events": (
+                    len(disturbance_locations) if disturbance_locations else 0
+                ),
             },
             "barometer": {
                 "noise_std_Pa": pressure_noise,
@@ -725,10 +734,16 @@ Book Reference: Chapter 6, Section 6.4 (Environmental Sensors)
     # Trajectory parameters
     traj_group = parser.add_argument_group("Trajectory Parameters")
     traj_group.add_argument(
-        "--duration", type=float, default=180.0, help="Total duration in seconds (default: 180.0)"
+        "--duration",
+        type=float,
+        default=180.0,
+        help="Total duration in seconds (default: 180.0)",
     )
     traj_group.add_argument(
-        "--floor-height", type=float, default=3.5, help="Height of each floor in meters (default: 3.5)"
+        "--floor-height",
+        type=float,
+        default=3.5,
+        help="Height of each floor in meters (default: 3.5)",
     )
     traj_group.add_argument(
         "--dt", type=float, default=0.1, help="Time step in seconds (default: 0.1)"
@@ -737,20 +752,33 @@ Book Reference: Chapter 6, Section 6.4 (Environmental Sensors)
     # Sensor noise parameters
     noise_group = parser.add_argument_group("Sensor Noise Parameters")
     noise_group.add_argument(
-        "--mag-noise", type=float, default=2.0, help="Magnetometer noise in microTesla (default: 2.0)"
+        "--mag-noise",
+        type=float,
+        default=2.0,
+        help="Magnetometer noise in microTesla (default: 2.0)",
     )
     noise_group.add_argument(
-        "--add-disturbances", action="store_true", help="Add indoor magnetic disturbances"
+        "--add-disturbances",
+        action="store_true",
+        help="Add indoor magnetic disturbances",
     )
     noise_group.add_argument(
-        "--pressure-noise", type=float, default=10.0, help="Pressure noise in Pa (default: 10.0)"
+        "--pressure-noise",
+        type=float,
+        default=10.0,
+        help="Pressure noise in Pa (default: 10.0)",
     )
     noise_group.add_argument(
-        "--weather-drift", type=float, default=50.0, help="Weather pressure drift in Pa (default: 50.0)"
+        "--weather-drift",
+        type=float,
+        default=50.0,
+        help="Weather pressure drift in Pa (default: 50.0)",
     )
 
     # Other
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed (default: 42)"
+    )
 
     args = parser.parse_args()
 
@@ -771,4 +799,3 @@ Book Reference: Chapter 6, Section 6.4 (Environmental Sensors)
 
 if __name__ == "__main__":
     main()
-

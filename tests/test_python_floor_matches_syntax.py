@@ -45,9 +45,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent
 
 #: Names whose subscription is PEP 585, new in 3.9.
-PEP585_NAMES = frozenset(
-    {"list", "dict", "tuple", "set", "frozenset", "type"}
-)
+PEP585_NAMES = frozenset({"list", "dict", "tuple", "set", "frozenset", "type"})
 
 #: Directories that are not this package's source.
 EXEMPT_DIRS = (".git", ".claude", ".dev", "node_modules", "build", "dist")

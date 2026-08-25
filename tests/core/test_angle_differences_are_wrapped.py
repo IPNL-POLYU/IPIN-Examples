@@ -81,11 +81,11 @@ class TestWrapHelpersAgree(unittest.TestCase):
         for name, fn in DIFF_HELPERS.items():
             for a_deg, b_deg, want_deg in self.CASES:
                 with self.subTest(helper=name, a=a_deg, b=b_deg):
-                    got = np.rad2deg(
-                        fn(np.deg2rad(a_deg), np.deg2rad(b_deg))
-                    )
+                    got = np.rad2deg(fn(np.deg2rad(a_deg), np.deg2rad(b_deg)))
                     self.assertAlmostEqual(
-                        float(got), want_deg, places=9,
+                        float(got),
+                        want_deg,
+                        places=9,
                         msg=f"{name}({a_deg}, {b_deg}) = {got}, want {want_deg}",
                     )
 
@@ -99,9 +99,11 @@ class TestWrapHelpersAgree(unittest.TestCase):
             d = np.deg2rad(a_deg) - np.deg2rad(b_deg)
             with self.subTest(a=a_deg, b=b_deg):
                 self.assertAlmostEqual(
-                    float(np.rad2deg(wrap_angle(d))), want_deg, places=9)
+                    float(np.rad2deg(wrap_angle(d))), want_deg, places=9
+                )
                 self.assertAlmostEqual(
-                    float(np.rad2deg(wrap_heading(d))), want_deg, places=9)
+                    float(np.rad2deg(wrap_heading(d))), want_deg, places=9
+                )
 
     def test_the_helpers_vectorise(self) -> None:
         """Several call sites pass whole arrays; none may silently degrade.
@@ -131,7 +133,8 @@ class TestWrapHelpersAgree(unittest.TestCase):
         self.assertAlmostEqual(float(np.rad2deg(raw)), 358.0, places=6)
         self.assertAlmostEqual(
             float(np.rad2deg(angle_diff(np.deg2rad(179.0), np.deg2rad(-179.0)))),
-            -2.0, places=9,
+            -2.0,
+            places=9,
         )
 
         # The ch6 form: min(|d|, 2pi - |d|), negative once |d| exceeds 2pi.
@@ -139,7 +142,8 @@ class TestWrapHelpersAgree(unittest.TestCase):
         naive = min(d, 2 * np.pi - d)
         self.assertLess(naive, 0.0, "the ch6 form no longer misbehaves at 725 deg")
         self.assertAlmostEqual(
-            float(np.rad2deg(abs(wrap_angle(np.deg2rad(725.0))))), 5.0, places=9)
+            float(np.rad2deg(abs(wrap_angle(np.deg2rad(725.0))))), 5.0, places=9
+        )
 
 
 if __name__ == "__main__":

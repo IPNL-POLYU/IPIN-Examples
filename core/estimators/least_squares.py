@@ -57,7 +57,9 @@ def linear_least_squares(
     """
     # Validate inputs
     if A.ndim != 2 or b.ndim != 1:
-        raise ValueError(f"A must be 2D and b must be 1D. Got A: {A.shape}, b: {b.shape}")
+        raise ValueError(
+            f"A must be 2D and b must be 1D. Got A: {A.shape}, b: {b.shape}"
+        )
 
     m, n = A.shape
     if m < n:
@@ -70,7 +72,8 @@ def linear_least_squares(
     rank = np.linalg.matrix_rank(A)
     if rank < n:
         raise ValueError(
-            f"A is rank deficient: rank={rank} < n={n}. " f"System has no unique solution."
+            f"A is rank deficient: rank={rank} < n={n}. "
+            f"System has no unique solution."
         )
 
     # Compute normal equations: A'A x = A'b
@@ -162,9 +165,7 @@ def weighted_least_squares(
 
     m, n = A.shape
     if len(b) != m:
-        raise ValueError(
-            f"Dimension mismatch: A has {m} rows, b has {len(b)} elements"
-        )
+        raise ValueError(f"Dimension mismatch: A has {m} rows, b has {len(b)} elements")
 
     # Process W_or_sigma into full weight matrix W
     W_or_sigma = np.asarray(W_or_sigma)
@@ -180,7 +181,7 @@ def weighted_least_squares(
             # Convert σᵢ to wᵢ = 1/σᵢ²
             if np.any(W_or_sigma <= 0):
                 raise ValueError("Sigma values must be positive")
-            weights = 1.0 / (W_or_sigma ** 2)
+            weights = 1.0 / (W_or_sigma**2)
         else:
             weights = W_or_sigma
             if np.any(weights < 0):
@@ -206,9 +207,7 @@ def weighted_least_squares(
         if np.any(eigenvalues < -1e-10):  # Allow small numerical errors
             raise ValueError("Weight matrix W must be positive semi-definite")
     else:
-        raise ValueError(
-            f"W_or_sigma must be 1D or 2D array, got {W_or_sigma.ndim}D"
-        )
+        raise ValueError(f"W_or_sigma must be 1D or 2D array, got {W_or_sigma.ndim}D")
 
     # Compute weighted normal equations: A'WA x = A'Wb
     ATWA = A.T @ W @ A
@@ -428,7 +427,9 @@ def robust_least_squares(
     """
     # Validate inputs
     if A.ndim != 2 or b.ndim != 1:
-        raise ValueError(f"A must be 2D and b must be 1D. Got A: {A.shape}, b: {b.shape}")
+        raise ValueError(
+            f"A must be 2D and b must be 1D. Got A: {A.shape}, b: {b.shape}"
+        )
 
     m, n = A.shape
     if len(b) != m:
@@ -524,18 +525,18 @@ def _compute_robust_weights(
     elif method == "cauchy":
         # Cauchy loss: ρ(r) = ½ ln(1 + r²)
         # Weight: w = 1 / (1 + r²)
-        weights = 1.0 / (1.0 + u ** 2)
+        weights = 1.0 / (1.0 + u**2)
 
     elif method == "gm":
         # Geman-McClure (G-M) loss: ρ(r) = ½ r² / (1 + r²)
         # Weight: w = 1 / (1 + r²)²
-        weights = 1.0 / (1.0 + u ** 2) ** 2
+        weights = 1.0 / (1.0 + u**2) ** 2
 
     elif method == "tukey":
         # Tukey biweight (*Extra, not in book Table 3.1*)
         # ρ(r) = { (c²/6)[1-(1-(r/c)²)³] if |r|≤c; c²/6 otherwise }
         # Weight: w = { (1-(r/c)²)² if |r|≤c; 0 otherwise }
-        weights = np.where(abs_u <= 1.0, (1.0 - u ** 2) ** 2, 0.0)
+        weights = np.where(abs_u <= 1.0, (1.0 - u**2) ** 2, 0.0)
         # Add small epsilon to avoid singular weight matrix
         weights = np.maximum(weights, 1e-10)
 

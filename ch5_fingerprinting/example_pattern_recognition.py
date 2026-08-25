@@ -37,13 +37,13 @@ from core.fingerprinting import (
 def split_train_test(db, test_ratio=0.3, floor_id=None, seed=42):
     """
     Split database into train and test sets.
-    
+
     Args:
         db: FingerprintDatabase.
         test_ratio: Fraction of data for testing.
         floor_id: Floor to use (None = all floors).
         seed: Random seed.
-    
+
     Returns:
         Tuple of (train_db, test_db).
     """
@@ -84,12 +84,12 @@ def split_train_test(db, test_ratio=0.3, floor_id=None, seed=42):
 def evaluate_model(model, test_db, floor_id=None):
     """
     Evaluate trained model on test set.
-    
+
     Args:
         model: Trained LinearRegressionLocalizer.
         test_db: Test FingerprintDatabase.
         floor_id: Floor to evaluate on.
-    
+
     Returns:
         Dictionary with errors and metrics.
     """
@@ -133,9 +133,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     ).parse_args()
 
-    print("="*70)
+    print("=" * 70)
     print("Chapter 5: Pattern Recognition (Linear Regression)")
-    print("="*70)
+    print("=" * 70)
 
     # Load database
     print("\n1. Loading fingerprint database...")
@@ -148,8 +148,10 @@ def main():
     floor_id = 0
     train_db, test_db = split_train_test(db, test_ratio=0.3, floor_id=floor_id)
 
-    print(f"   Floor {floor_id} - Train: {train_db.n_reference_points} RPs, "
-          f"Test: {test_db.n_reference_points} RPs")
+    print(
+        f"   Floor {floor_id} - Train: {train_db.n_reference_points} RPs, "
+        f"Test: {test_db.n_reference_points} RPs"
+    )
 
     # Train models with different regularization
     print("\n3. Training Linear Regression models...")
@@ -187,23 +189,29 @@ def main():
         model = models[reg_val]
         test_result = evaluate_model(model, test_db, floor_id=floor_id)
         test_results[reg_val] = test_result
-        print(f"\n   lambda={reg_val}: Test RMSE={test_result['rmse']:.2f}m, "
-              f"R^2={test_result['r2']:.3f}, "
-              f"Time={test_result['time_per_query_ms']:.3f}ms")
+        print(
+            f"\n   lambda={reg_val}: Test RMSE={test_result['rmse']:.2f}m, "
+            f"R^2={test_result['r2']:.3f}, "
+            f"Time={test_result['time_per_query_ms']:.3f}ms"
+        )
 
     # Print summary
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("RESULTS SUMMARY")
-    print("="*70)
-    print(f"{'lambda':<10} {'Train RMSE':<15} {'Test RMSE':<15} "
-          f"{'Test R^2':<12} {'Time (ms)':<12}")
-    print("-"*70)
+    print("=" * 70)
+    print(
+        f"{'lambda':<10} {'Train RMSE':<15} {'Test RMSE':<15} "
+        f"{'Test R^2':<12} {'Time (ms)':<12}"
+    )
+    print("-" * 70)
 
     for reg_val in reg_values:
         tr = train_results[reg_val]
         te = test_results[reg_val]
-        print(f"{reg_val:<10.1f} {tr['rmse']:<15.2f} {te['rmse']:<15.2f} "
-              f"{te['r2']:<12.3f} {te['time_per_query_ms']:<12.3f}")
+        print(
+            f"{reg_val:<10.1f} {tr['rmse']:<15.2f} {te['rmse']:<15.2f} "
+            f"{te['r2']:<12.3f} {te['time_per_query_ms']:<12.3f}"
+        )
 
     # Visualizations
     print("\n5. Generating visualizations...")
@@ -213,13 +221,13 @@ def main():
     # Plot 1: Weight matrix visualization
     ax1 = plt.subplot(2, 4, 1)
     model = models[1.0]  # Use λ=1.0 model
-    im = ax1.imshow(model.weights, cmap='RdBu_r', aspect='auto')
-    ax1.set_xlabel('AP Index')
-    ax1.set_ylabel('Coordinate (x, y)')
-    ax1.set_title('Learned Weight Matrix W')
+    im = ax1.imshow(model.weights, cmap="RdBu_r", aspect="auto")
+    ax1.set_xlabel("AP Index")
+    ax1.set_ylabel("Coordinate (x, y)")
+    ax1.set_title("Learned Weight Matrix W")
     ax1.set_yticks([0, 1])
-    ax1.set_yticklabels(['x', 'y'])
-    plt.colorbar(im, ax=ax1, label='Weight')
+    ax1.set_yticklabels(["x", "y"])
+    plt.colorbar(im, ax=ax1, label="Weight")
 
     # Plot 2: Prediction vs Ground Truth
     ax2 = plt.subplot(2, 4, 2)
@@ -228,35 +236,36 @@ def main():
     test_locs = test_db.locations[mask]
     pred_locs = model.predict_batch(test_features)
 
-    ax2.scatter(test_locs[:, 0], pred_locs[:, 0], alpha=0.5, s=30, label='x')
-    ax2.scatter(test_locs[:, 1], pred_locs[:, 1], alpha=0.5, s=30, label='y')
+    ax2.scatter(test_locs[:, 0], pred_locs[:, 0], alpha=0.5, s=30, label="x")
+    ax2.scatter(test_locs[:, 1], pred_locs[:, 1], alpha=0.5, s=30, label="y")
     lim_min = min(test_locs.min(), pred_locs.min())
     lim_max = max(test_locs.max(), pred_locs.max())
-    ax2.plot([lim_min, lim_max], [lim_min, lim_max], 'k--', alpha=0.5)
-    ax2.set_xlabel('True (m)')
-    ax2.set_ylabel('Predicted (m)')
-    ax2.set_title('Prediction vs Ground Truth')
+    ax2.plot([lim_min, lim_max], [lim_min, lim_max], "k--", alpha=0.5)
+    ax2.set_xlabel("True (m)")
+    ax2.set_ylabel("Predicted (m)")
+    ax2.set_title("Prediction vs Ground Truth")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
-    ax2.axis('equal')
+    ax2.axis("equal")
 
     # Plot 3: Spatial error distribution
     ax3 = plt.subplot(2, 4, 3)
     errors_2d = np.linalg.norm(pred_locs - test_locs, axis=1)
-    scatter = ax3.scatter(test_locs[:, 0], test_locs[:, 1],
-                         c=errors_2d, s=100, cmap='YlOrRd', alpha=0.8)
-    ax3.set_xlabel('X (m)')
-    ax3.set_ylabel('Y (m)')
-    ax3.set_title('Spatial Error Distribution')
-    plt.colorbar(scatter, ax=ax3, label='Error (m)')
+    scatter = ax3.scatter(
+        test_locs[:, 0], test_locs[:, 1], c=errors_2d, s=100, cmap="YlOrRd", alpha=0.8
+    )
+    ax3.set_xlabel("X (m)")
+    ax3.set_ylabel("Y (m)")
+    ax3.set_title("Spatial Error Distribution")
+    plt.colorbar(scatter, ax=ax3, label="Error (m)")
     ax3.grid(True, alpha=0.3)
-    ax3.axis('equal')
+    ax3.axis("equal")
 
     # Plot 4: Error CDF for different λ
     ax4 = plt.subplot(2, 4, 4)
     plot_error_cdf(
-        {f'λ={reg_val}': test_results[reg_val]['errors'] for reg_val in reg_values},
-        title='Error CDF for Different λ',
+        {f"λ={reg_val}": test_results[reg_val]["errors"] for reg_val in reg_values},
+        title="Error CDF for Different λ",
         ax=ax4,
         title_fontweight="normal",
     )
@@ -264,67 +273,69 @@ def main():
 
     # Plot 5: Train vs Test RMSE
     ax5 = plt.subplot(2, 4, 5)
-    train_rmse = [train_results[r]['rmse'] for r in reg_values]
-    test_rmse = [test_results[r]['rmse'] for r in reg_values]
+    train_rmse = [train_results[r]["rmse"] for r in reg_values]
+    test_rmse = [test_results[r]["rmse"] for r in reg_values]
     x = np.arange(len(reg_values))
     width = 0.35
-    ax5.bar(x - width/2, train_rmse, width, label='Train', alpha=0.8)
-    ax5.bar(x + width/2, test_rmse, width, label='Test', alpha=0.8)
-    ax5.set_xlabel('Regularization λ')
-    ax5.set_ylabel('RMSE (m)')
-    ax5.set_title('Train vs Test RMSE')
+    ax5.bar(x - width / 2, train_rmse, width, label="Train", alpha=0.8)
+    ax5.bar(x + width / 2, test_rmse, width, label="Test", alpha=0.8)
+    ax5.set_xlabel("Regularization λ")
+    ax5.set_ylabel("RMSE (m)")
+    ax5.set_title("Train vs Test RMSE")
     ax5.set_xticks(x)
-    ax5.set_xticklabels([f'{r}' for r in reg_values])
+    ax5.set_xticklabels([f"{r}" for r in reg_values])
     ax5.legend()
-    ax5.grid(True, alpha=0.3, axis='y')
+    ax5.grid(True, alpha=0.3, axis="y")
 
     # Plot 6: R² vs λ
     ax6 = plt.subplot(2, 4, 6)
-    test_r2 = [test_results[r]['r2'] for r in reg_values]
-    ax6.plot(reg_values, test_r2, 'o-', linewidth=2, markersize=8)
-    ax6.set_xlabel('Regularization λ')
-    ax6.set_ylabel('R² Score')
-    ax6.set_title('Test R² vs Regularization')
-    ax6.set_xscale('log')
+    test_r2 = [test_results[r]["r2"] for r in reg_values]
+    ax6.plot(reg_values, test_r2, "o-", linewidth=2, markersize=8)
+    ax6.set_xlabel("Regularization λ")
+    ax6.set_ylabel("R² Score")
+    ax6.set_title("Test R² vs Regularization")
+    ax6.set_xscale("log")
     ax6.grid(True, alpha=0.3)
-    ax6.axhline(y=1.0, color='k', linestyle='--', alpha=0.3, label='Perfect')
-    ax6.axhline(y=0.0, color='k', linestyle='--', alpha=0.3)
+    ax6.axhline(y=1.0, color="k", linestyle="--", alpha=0.3, label="Perfect")
+    ax6.axhline(y=0.0, color="k", linestyle="--", alpha=0.3)
     ax6.legend()
 
     # Plot 7: Overfitting analysis
     ax7 = plt.subplot(2, 4, 7)
-    train_rmse = np.array([train_results[r]['rmse'] for r in reg_values])
-    test_rmse = np.array([test_results[r]['rmse'] for r in reg_values])
+    train_rmse = np.array([train_results[r]["rmse"] for r in reg_values])
+    test_rmse = np.array([test_results[r]["rmse"] for r in reg_values])
     overfit_gap = test_rmse - train_rmse
-    ax7.plot(reg_values, overfit_gap, 'o-', linewidth=2, markersize=8, color='red')
-    ax7.set_xlabel('Regularization λ')
-    ax7.set_ylabel('Overfitting Gap (m)')
-    ax7.set_title('Test RMSE - Train RMSE')
-    ax7.set_xscale('log')
+    ax7.plot(reg_values, overfit_gap, "o-", linewidth=2, markersize=8, color="red")
+    ax7.set_xlabel("Regularization λ")
+    ax7.set_ylabel("Overfitting Gap (m)")
+    ax7.set_title("Test RMSE - Train RMSE")
+    ax7.set_xscale("log")
     ax7.grid(True, alpha=0.3)
-    ax7.axhline(y=0, color='k', linestyle='--', alpha=0.5)
+    ax7.axhline(y=0, color="k", linestyle="--", alpha=0.5)
 
     # Plot 8: Box plot of errors
     ax8 = plt.subplot(2, 4, 8)
-    error_data = [test_results[r]['errors'] for r in reg_values]
-    bp = ax8.boxplot(error_data, tick_labels=[f'λ={r}' for r in reg_values],
-                    patch_artist=True)
-    for patch in bp['boxes']:
-        patch.set_facecolor('lightgreen')
-    ax8.set_ylabel('Positioning Error (m)')
-    ax8.set_title('Error Distribution by λ')
-    ax8.grid(True, alpha=0.3, axis='y')
+    error_data = [test_results[r]["errors"] for r in reg_values]
+    bp = ax8.boxplot(
+        error_data, tick_labels=[f"λ={r}" for r in reg_values], patch_artist=True
+    )
+    for patch in bp["boxes"]:
+        patch.set_facecolor("lightgreen")
+    ax8.set_ylabel("Positioning Error (m)")
+    ax8.set_title("Error Distribution by λ")
+    ax8.grid(True, alpha=0.3, axis="y")
 
     plt.tight_layout()
 
     # Save (svg + pdf + png via the shared layer)
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "pattern_recognition_positioning")
+    paths = save_figure(
+        fig, Path(__file__).parent / "figs", "pattern_recognition_positioning"
+    )
     print(f"   Saved: {paths[0]}")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Example complete!")
-    print("="*70)
+    print("=" * 70)
     print("\nKey Findings:")
     print("  - Linear regression learns direct RSS->location mapping")
     print("  - Very fast prediction (single matrix multiplication)")
@@ -342,4 +353,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
