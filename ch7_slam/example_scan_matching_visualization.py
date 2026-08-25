@@ -60,8 +60,8 @@ Plus one animation, behind ``--animate`` because it is slower to render:
    older slam_pipeline_square.gif is 3.9 MB by comparison.
 
 Run:
-    python -m ch7_slam.example_scan_matching_visualization --no-show
-    python -m ch7_slam.example_scan_matching_visualization --no-show --animate
+    python -m ch7_slam.example_scan_matching_visualization
+    python -m ch7_slam.example_scan_matching_visualization --animate
 
 Author: Li-Ta Hsu
 References: Chapter 7, Sections 7.3.1-7.3.2, Eqs. (7.10)-(7.16)
@@ -567,9 +567,6 @@ def main() -> None:
         description="Chapter 7 scan matching visualizations"
     )
     parser.add_argument(
-        "--no-show", action="store_true", help="Save figures without displaying"
-    )
-    parser.add_argument(
         "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
     )
     parser.add_argument(
@@ -607,10 +604,7 @@ def main() -> None:
     print()
     print(f"Figures written to {resolve_figs_dir(args.out_dir)}")
 
-    if not args.no_show:
-        show_figures_if_requested()
-    else:
-        plt.close("all")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":

@@ -49,7 +49,6 @@ class TestAttitudeVisualizationExample(unittest.TestCase):
                 sys.executable,
                 "-m",
                 "ch2_coords.example_attitude_visualization",
-                "--no-show",
             ],
             cwd=WORKSPACE_ROOT,
             capture_output=True,

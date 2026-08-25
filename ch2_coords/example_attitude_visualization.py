@@ -24,8 +24,7 @@ figures:
                                  useful scale with a unit triad.
 
 Run:
-    python ch2_coords/example_attitude_visualization.py
-    python ch2_coords/example_attitude_visualization.py --no-show
+    python -m ch2_coords.example_attitude_visualization
 
 Author: Li-Ta Hsu
 References: Chapter 2, Sections 2.1 (frames) and 2.2 (attitude),
@@ -326,9 +325,6 @@ def main() -> None:
         description="Chapter 2 attitude and frame visualizations"
     )
     parser.add_argument(
-        "--no-show", action="store_true", help="Save figures without displaying"
-    )
-    parser.add_argument(
         "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
     )
     args = parser.parse_args()
@@ -354,10 +350,7 @@ def main() -> None:
     print()
     print(f"Figures written to {resolve_figs_dir(args.out_dir)}")
 
-    if not args.no_show:
-        show_figures_if_requested()
-    else:
-        plt.close("all")
+    show_figures_if_requested()
 
 
 if __name__ == "__main__":
