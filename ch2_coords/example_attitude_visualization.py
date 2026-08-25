@@ -86,9 +86,21 @@ def _style_3d(ax, elev: float = VIEW_ELEV, azim: float = VIEW_AZIM) -> None:
     """
     set_axes_equal_3d(ax)
     ax.view_init(elev=elev, azim=azim)
-    ax.set_xticklabels([])
-    ax.set_yticklabels([])
-    ax.set_zticklabels([])
+
+    # The subject of every panel here is a unit triad a few centimetres across
+    # on the page, and matplotlib's default 3-D axes surround it with three
+    # filled grey panes and a full grid, which between them take most of the
+    # area and none of the attention. There are no numbers on these axes to
+    # read off -- the panels say "this arrow moved, that one did not" -- so the
+    # scaffolding is turned down until the triad is what you see.
+    for pane_axis in (ax.xaxis, ax.yaxis, ax.zaxis):
+        pane_axis.pane.fill = False
+        pane_axis.pane.set_edgecolor("0.85")
+        pane_axis.line.set_color("0.75")
+    ax.grid(True, alpha=0.15)
+    ax.set_xticks([])
+    ax.set_yticks([])
+    ax.set_zticks([])
 
 
 def _draw_reference(ax, axis_names=("X", "Y", "Z")) -> None:
