@@ -589,6 +589,7 @@ def check_fgo_simple_ls():
 
     # Add measurement factors
     for z in measurements:
+
         def residual_func(x_vars, z=z):
             return np.array([x_vars[0][0] - z])
 
@@ -715,9 +716,7 @@ def check_fgo_levenberg_marquardt():
 
     # Optimize with LM
     optimized_vars, error_history = graph.optimize(
-        method="levenberg_marquardt",
-        max_iterations=50,
-        initial_mu=1e-2
+        method="levenberg_marquardt", max_iterations=50, initial_mu=1e-2
     )
 
     estimated_pos = optimized_vars[0]
@@ -733,8 +732,11 @@ def check_fgo_levenberg_marquardt():
 
     # Check monotonic decrease (allowing for rejected steps)
     # Count how many times error increased
-    increases = sum(1 for i in range(1, len(error_history))
-                    if error_history[i] > error_history[i-1] + 1e-10)
+    increases = sum(
+        1
+        for i in range(1, len(error_history))
+        if error_history[i] > error_history[i - 1] + 1e-10
+    )
     print(f"  Error increases (should be 0 or small): {increases}")
 
     # LM should converge
@@ -794,8 +796,9 @@ def check_fgo_line_search():
 
     # Check error decreases monotonically (line search guarantees this)
     for i in range(1, len(error_history)):
-        assert error_history[i] <= error_history[i-1] + 1e-10, \
-            f"Line search should guarantee decrease: {error_history[i]} > {error_history[i-1]}"
+        assert (
+            error_history[i] <= error_history[i - 1] + 1e-10
+        ), f"Line search should guarantee decrease: {error_history[i]} > {error_history[i-1]}"
 
     assert position_error < 1e-5, f"Position error {position_error} too large"
     print("  [PASS] Test passed")
@@ -870,9 +873,7 @@ def check_lm_monotonic_decrease():
 
     # Optimize with LM
     optimized_vars, error_history = graph.optimize(
-        method="levenberg_marquardt",
-        max_iterations=30,
-        initial_mu=1e-2
+        method="levenberg_marquardt", max_iterations=30, initial_mu=1e-2
     )
 
     estimated_pos = optimized_vars[0]
@@ -885,8 +886,9 @@ def check_lm_monotonic_decrease():
     print(f"  Final error: {error_history[-1]:.6e}")
 
     # LM should NOT diverge
-    assert error_history[-1] <= error_history[0] * 1.1, \
-        "LM should not diverge significantly"
+    assert (
+        error_history[-1] <= error_history[0] * 1.1
+    ), "LM should not diverge significantly"
 
     # Should converge reasonably
     assert position_error < 0.5, f"Position error {position_error} too large"
@@ -980,13 +982,16 @@ def check_gd_with_line_search():
 
     # Check error decreases monotonically with line search
     for i in range(1, len(error_history_ls)):
-        assert error_history_ls[i] <= error_history_ls[i-1] + 1e-10, \
-            f"Line search should guarantee decrease: {error_history_ls[i]} > {error_history_ls[i-1]}"
+        assert (
+            error_history_ls[i] <= error_history_ls[i - 1] + 1e-10
+        ), f"Line search should guarantee decrease: {error_history_ls[i]} > {error_history_ls[i-1]}"
 
     print("  [PASS] Line search guarantees monotonic decrease")
 
     # Line search should generally do better or equal to fixed step
-    print(f"  Line search improvement: {error_history_fixed[-1] / max(error_history_ls[-1], 1e-15):.1f}x")
+    print(
+        f"  Line search improvement: {error_history_fixed[-1] / max(error_history_ls[-1], 1e-15):.1f}x"
+    )
 
     print("  [PASS] Test passed")
 
@@ -1013,6 +1018,3 @@ if __name__ == "__main__":
     print("=" * 70)
     print("ALL CHECKS PASSED")
     print("=" * 70)
-
-
-

@@ -130,9 +130,7 @@ class TestPlotFrame3D:
         origin = np.array([1.0, -2.0, 0.5])
         plot_frame_3d(ax3d, np.eye(3), origin=origin, scale=2.0)
 
-        np.testing.assert_allclose(
-            _drawn_axes(ax3d), 2.0 * np.eye(3), atol=1e-12
-        )
+        np.testing.assert_allclose(_drawn_axes(ax3d), 2.0 * np.eye(3), atol=1e-12)
         for line in ax3d.lines:
             xs, ys, zs = line.get_data_3d()
             np.testing.assert_allclose([xs[0], ys[0], zs[0]], origin, atol=1e-12)
@@ -219,9 +217,9 @@ class TestSaveFigure:
             plt.close(fig)
 
         for lhs, rhs in zip(first, second):
-            assert lhs.read_bytes() == rhs.read_bytes(), (
-                f"{lhs.suffix} output is not reproducible"
-            )
+            assert (
+                lhs.read_bytes() == rhs.read_bytes()
+            ), f"{lhs.suffix} output is not reproducible"
 
 
 class TestPlotTrajectory2D:
@@ -237,9 +235,7 @@ class TestPlotTrajectory2D:
         truth = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]])
         est = {"method": truth + 0.1}
 
-        fig = plot_trajectory_2d(
-            truth, est, axis_labels=("East [m]", "North [m]")
-        )
+        fig = plot_trajectory_2d(truth, est, axis_labels=("East [m]", "North [m]"))
         try:
             axes = fig.axes[0]
             assert axes.get_xlabel() == "East [m]"
@@ -333,9 +329,7 @@ class TestPlotTrajectory2D:
 
         try:
             with pytest.raises(ValueError, match="zoom_to_truth"):
-                plot_trajectory_2d(
-                    truth, {"m": truth}, ax=host_ax, zoom_to_truth=True
-                )
+                plot_trajectory_2d(truth, {"m": truth}, ax=host_ax, zoom_to_truth=True)
         finally:
             plt.close(host)
 
@@ -494,9 +488,7 @@ class TestNear1DTrajectories:
         """The zoom path's existing behaviour is untouched."""
         truth = np.array([[0.0, 0.0], [10.0, 0.0], [10.0, 5.0]])
 
-        fig = plot_trajectory_2d(
-            truth, {"drift": truth * 50.0}, zoom_to_truth=True
-        )
+        fig = plot_trajectory_2d(truth, {"drift": truth * 50.0}, zoom_to_truth=True)
         try:
             assert fig.axes[0].get_aspect() == 1.0
             assert fig.axes[1].get_aspect() == 1.0
@@ -517,7 +509,9 @@ class TestPlotErrorMagnitudeTime:
         """(N, 2) vectors are normed; (N,) magnitudes are taken as given."""
         vector = np.array([[3.0, 4.0], [6.0, 8.0]])
 
-        fig = plot_error_magnitude_time({"vec": vector, "scalar": np.array([5.0, 10.0])})
+        fig = plot_error_magnitude_time(
+            {"vec": vector, "scalar": np.array([5.0, 10.0])}
+        )
         try:
             lines = fig.axes[0].lines
             assert len(lines) == 2
@@ -624,6 +618,7 @@ class TestCompositePanelSupport:
                 assert ax.title.get_fontweight() == "bold"
             finally:
                 plt.close(fig)
+
 
 class TestFigureOutputRedirect:
     """Test the IPIN_FIGS_DIR escape hatch that keeps pytest out of the repo.

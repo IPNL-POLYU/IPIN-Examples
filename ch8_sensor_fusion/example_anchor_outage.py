@@ -132,8 +132,9 @@ def _position_error(result, truth):
     return t, np.hypot(p[:, 0] - east, p[:, 1] - north)
 
 
-def run_outage_scenario(data_dir=DEFAULT_DATA, window=OUTAGE_WINDOW,
-                        keep=ANCHORS_KEPT, verbose=True):
+def run_outage_scenario(
+    data_dir=DEFAULT_DATA, window=OUTAGE_WINDOW, keep=ANCHORS_KEPT, verbose=True
+):
     """Run LC and TC over a dataset with a constructed anchor outage.
 
     Args:
@@ -207,27 +208,45 @@ def animate_anchor_outage(scenario, n_frames: int = 40):
             ax.clear()
 
         in_outage = window[0] <= now <= window[1]
-        n_visible = int(
-            visibility[max(np.searchsorted(t_uwb, now) - 1, 0)]
-        )
+        n_visible = int(visibility[max(np.searchsorted(t_uwb, now) - 1, 0)])
 
         # --- trajectory, with anchors switching off during the outage
         k_truth = np.searchsorted(t_truth, now) + 1
         k_lc = np.searchsorted(t_lc, now) + 1
         k_tc = np.searchsorted(t_tc, now) + 1
-        axes[0].plot(p_truth[:k_truth, 0], p_truth[:k_truth, 1],
-                     color=COLOR_TRUTH, linewidth=2.0, label="ground truth")
-        axes[0].plot(p_lc[:k_lc, 0], p_lc[:k_lc, 1], color=COLOR_LC,
-                     linewidth=1.5, label="loosely coupled")
-        axes[0].plot(p_tc[:k_tc, 0], p_tc[:k_tc, 1], color=COLOR_TC,
-                     linewidth=1.5, label="tightly coupled")
+        axes[0].plot(
+            p_truth[:k_truth, 0],
+            p_truth[:k_truth, 1],
+            color=COLOR_TRUTH,
+            linewidth=2.0,
+            label="ground truth",
+        )
+        axes[0].plot(
+            p_lc[:k_lc, 0],
+            p_lc[:k_lc, 1],
+            color=COLOR_LC,
+            linewidth=1.5,
+            label="loosely coupled",
+        )
+        axes[0].plot(
+            p_tc[:k_tc, 0],
+            p_tc[:k_tc, 1],
+            color=COLOR_TC,
+            linewidth=1.5,
+            label="tightly coupled",
+        )
 
         for index, anchor in enumerate(anchors):
             visible = (not in_outage) or index < ANCHORS_KEPT
             axes[0].scatter(
-                anchor[0], anchor[1], s=140, marker="^",
+                anchor[0],
+                anchor[1],
+                s=140,
+                marker="^",
                 c="red" if visible else "none",
-                edgecolors="darkred", linewidths=2, zorder=5,
+                edgecolors="darkred",
+                linewidths=2,
+                zorder=5,
             )
         axes[0].set_aspect("equal")
         axes[0].grid(alpha=0.25)
@@ -242,10 +261,12 @@ def animate_anchor_outage(scenario, n_frames: int = 40):
 
         # --- anchor visibility over time
         shown = t_uwb <= now
-        axes[1].step(t_uwb[shown], visibility[shown], where="post",
-                     color="0.25", linewidth=1.6)
-        axes[1].axhline(3, color="red", linestyle="--", linewidth=1.4,
-                        label="LC needs 3 for a fix")
+        axes[1].step(
+            t_uwb[shown], visibility[shown], where="post", color="0.25", linewidth=1.6
+        )
+        axes[1].axhline(
+            3, color="red", linestyle="--", linewidth=1.4, label="LC needs 3 for a fix"
+        )
         axes[1].axvspan(window[0], min(now, window[1]), color="0.85", zorder=0)
         axes[1].set_xlim(t_truth[0], t_end)
         axes[1].set_ylim(0, len(anchors) + 0.5)
@@ -256,10 +277,20 @@ def animate_anchor_outage(scenario, n_frames: int = 40):
         axes[1].set_title("anchor visibility", fontsize=10)
 
         # --- error, the payoff
-        axes[2].plot(t_lc[:k_lc], error_lc[:k_lc], color=COLOR_LC,
-                     linewidth=1.6, label="loosely coupled")
-        axes[2].plot(t_tc[:k_tc], error_tc[:k_tc], color=COLOR_TC,
-                     linewidth=1.6, label="tightly coupled")
+        axes[2].plot(
+            t_lc[:k_lc],
+            error_lc[:k_lc],
+            color=COLOR_LC,
+            linewidth=1.6,
+            label="loosely coupled",
+        )
+        axes[2].plot(
+            t_tc[:k_tc],
+            error_tc[:k_tc],
+            color=COLOR_TC,
+            linewidth=1.6,
+            label="tightly coupled",
+        )
         axes[2].axvspan(window[0], min(now, window[1]), color="0.85", zorder=0)
         axes[2].set_xlim(t_truth[0], t_end)
         axes[2].set_ylim(0, max_error)
@@ -274,8 +305,11 @@ def animate_anchor_outage(scenario, n_frames: int = 40):
             fontsize=10,
         )
 
-        state = (f"OUTAGE: {n_visible} anchors -- LC cannot solve a fix at all"
-                 if in_outage else "anchors nominal")
+        state = (
+            f"OUTAGE: {n_visible} anchors -- LC cannot solve a fix at all"
+            if in_outage
+            else "anchors nominal"
+        )
         fig.suptitle(
             f"Loose vs tight coupling under anchor outage   -   {state}",
             fontsize=11,
@@ -291,10 +325,16 @@ def plot_outage_summary(scenario) -> plt.Figure:
     window = scenario["window"]
     fig, axes = plt.subplots(2, 1, figsize=(10, 6.5), sharex=True)
 
-    axes[0].step(scenario["t_uwb"], scenario["visibility"], where="post",
-                 color="0.25", linewidth=1.6)
-    axes[0].axhline(3, color="red", linestyle="--", linewidth=1.4,
-                    label="LC needs 3 for a fix")
+    axes[0].step(
+        scenario["t_uwb"],
+        scenario["visibility"],
+        where="post",
+        color="0.25",
+        linewidth=1.6,
+    )
+    axes[0].axhline(
+        3, color="red", linestyle="--", linewidth=1.4, label="LC needs 3 for a fix"
+    )
     axes[0].axvspan(*window, color="0.85", zorder=0)
     axes[0].set_ylabel("anchors visible")
     axes[0].legend(fontsize=9, loc="lower left")
@@ -311,12 +351,20 @@ def plot_outage_summary(scenario) -> plt.Figure:
     # spike. The error is positive and spans two decades, which is what a log
     # axis is for.
     floor = 1e-3  # a log axis cannot show an exact zero
-    axes[1].semilogy(scenario["t_lc"],
-                     np.maximum(scenario["error_lc"], floor),
-                     color=COLOR_LC, linewidth=1.6, label="loosely coupled")
-    axes[1].semilogy(scenario["t_tc"],
-                     np.maximum(scenario["error_tc"], floor),
-                     color=COLOR_TC, linewidth=1.6, label="tightly coupled")
+    axes[1].semilogy(
+        scenario["t_lc"],
+        np.maximum(scenario["error_lc"], floor),
+        color=COLOR_LC,
+        linewidth=1.6,
+        label="loosely coupled",
+    )
+    axes[1].semilogy(
+        scenario["t_tc"],
+        np.maximum(scenario["error_tc"], floor),
+        color=COLOR_TC,
+        linewidth=1.6,
+        label="tightly coupled",
+    )
     axes[1].axvspan(*window, color="0.85", zorder=0)
     axes[1].set_xlabel("time [s]")
     axes[1].set_ylabel("horizontal position error [m], log")
@@ -339,21 +387,29 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Anchor outage: loose vs tight coupling (Chapter 8)"
     )
-    parser.add_argument("--data", default=DEFAULT_DATA,
-                        help="Fusion dataset directory")
-    parser.add_argument("--out-dir", default=str(FIGS_DIR),
-                        help="Output directory for figures")
-    parser.add_argument("--animate", action="store_true", default=False,
-                        help="Also render the outage animation GIF (slower)")
+    parser.add_argument("--data", default=DEFAULT_DATA, help="Fusion dataset directory")
+    parser.add_argument(
+        "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
+    )
+    parser.add_argument(
+        "--animate",
+        action="store_true",
+        default=False,
+        help="Also render the outage animation GIF (slower)",
+    )
     args = parser.parse_args()
 
     print("=" * 70)
     print("Chapter 8: Anchor Outage -- Loose vs Tight Coupling")
     print("=" * 70)
-    print(f"Constructed outage: at most {ANCHORS_KEPT} of 4 anchors between "
-          f"t = {OUTAGE_WINDOW[0]:.0f} s and {OUTAGE_WINDOW[1]:.0f} s")
-    print("(the shipped dataset's own dropouts are single isolated epochs "
-          "and do not stress the difference)\n")
+    print(
+        f"Constructed outage: at most {ANCHORS_KEPT} of 4 anchors between "
+        f"t = {OUTAGE_WINDOW[0]:.0f} s and {OUTAGE_WINDOW[1]:.0f} s"
+    )
+    print(
+        "(the shipped dataset's own dropouts are single isolated epochs "
+        "and do not stress the difference)\n"
+    )
 
     scenario = run_outage_scenario(args.data, verbose=False)
 
@@ -366,11 +422,15 @@ def main() -> None:
     rmse_lc = np.sqrt(np.mean(scenario["error_lc"] ** 2))
     rmse_tc = np.sqrt(np.mean(scenario["error_tc"] ** 2))
 
-    print(f"  LC position fixes that failed outright: "
-          f"{scenario['lc']['n_uwb_failed']}")
+    print(
+        f"  LC position fixes that failed outright: "
+        f"{scenario['lc']['n_uwb_failed']}"
+    )
     print(f"  RMSE over the run:      LC {rmse_lc:.3f} m   TC {rmse_tc:.3f} m")
-    print(f"  Peak error in outage:   LC {peak_lc:.2f} m   TC {peak_tc:.2f} m "
-          f"({peak_lc / peak_tc:.0f}x)")
+    print(
+        f"  Peak error in outage:   LC {peak_lc:.2f} m   TC {peak_tc:.2f} m "
+        f"({peak_lc / peak_tc:.0f}x)"
+    )
 
     # The other half of the story, and it is a geometry problem rather than a
     # bad measurement. The surviving anchors are collinear with the leg being
@@ -380,30 +440,42 @@ def main() -> None:
         est = np.asarray(scenario["tc"]["x_est"])[worst, :2]
         truth = scenario["dataset"]["truth"]
         t_worst = scenario["t_tc"][worst]
-        truth_xy = np.array([
-            np.interp(t_worst, truth["t"], truth["p_xy"][:, 0]),
-            np.interp(t_worst, truth["t"], truth["p_xy"][:, 1]),
-        ])
-        print(f"  TC's peak is a mirror-branch flip at t="
-              f"{scenario['t_tc'][worst]:.1f} s: estimate "
-              f"({est[0]:.1f}, {est[1]:.1f}) against truth "
-              f"({truth_xy[0]:.1f}, {truth_xy[1]:.1f}),")
-        print("    reflected across the y = 0 baseline joining the two "
-              "surviving anchors. It lasts under a second, and it is what "
-              "puts TC's")
-        print("    whole-run RMSE above LC's at this window. Other outage "
-              "windows do not trigger it -- see the module docstring.")
+        truth_xy = np.array(
+            [
+                np.interp(t_worst, truth["t"], truth["p_xy"][:, 0]),
+                np.interp(t_worst, truth["t"], truth["p_xy"][:, 1]),
+            ]
+        )
+        print(
+            f"  TC's peak is a mirror-branch flip at t="
+            f"{scenario['t_tc'][worst]:.1f} s: estimate "
+            f"({est[0]:.1f}, {est[1]:.1f}) against truth "
+            f"({truth_xy[0]:.1f}, {truth_xy[1]:.1f}),"
+        )
+        print(
+            "    reflected across the y = 0 baseline joining the two "
+            "surviving anchors. It lasts under a second, and it is what "
+            "puts TC's"
+        )
+        print(
+            "    whole-run RMSE above LC's at this window. Other outage "
+            "windows do not trigger it -- see the module docstring."
+        )
     print()
 
-    paths = save_figure(plot_outage_summary(scenario), args.out_dir,
-                        "ch8_anchor_outage")
-    print(f"  saved ch8_anchor_outage: "
-          f"{', '.join(p.suffix.lstrip('.') for p in paths)}")
+    paths = save_figure(
+        plot_outage_summary(scenario), args.out_dir, "ch8_anchor_outage"
+    )
+    print(
+        f"  saved ch8_anchor_outage: "
+        f"{', '.join(p.suffix.lstrip('.') for p in paths)}"
+    )
 
     if args.animate:
         fig, update, n_frames = animate_anchor_outage(scenario)
-        path = save_animation(fig, update, n_frames, args.out_dir,
-                              "ch8_anchor_outage", fps=5)
+        path = save_animation(
+            fig, update, n_frames, args.out_dir, "ch8_anchor_outage", fps=5
+        )
         plt.close(fig)
         size_mb = path.stat().st_size / (1024 * 1024)
         print(f"  saved {path.name}: {n_frames} frames, {size_mb:.2f} MB")

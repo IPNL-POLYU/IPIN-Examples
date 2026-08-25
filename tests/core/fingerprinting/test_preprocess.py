@@ -23,11 +23,13 @@ class TestAverageScans:
 
     def test_average_scans_mean_perfect(self):
         """Test mean averaging with identical scans."""
-        scans = np.array([
-            [-50, -60, -70],
-            [-50, -60, -70],
-            [-50, -60, -70],
-        ])
+        scans = np.array(
+            [
+                [-50, -60, -70],
+                [-50, -60, -70],
+                [-50, -60, -70],
+            ]
+        )
 
         avg = average_scans(scans, method="mean")
 
@@ -47,7 +49,9 @@ class TestAverageScans:
         # Averaged should be closer to true values on average
         # Check that average error is smaller than median single-scan error
         avg_error = np.linalg.norm(avg - true_values)
-        scan_errors = [np.linalg.norm(scans[i] - true_values) for i in range(len(scans))]
+        scan_errors = [
+            np.linalg.norm(scans[i] - true_values) for i in range(len(scans))
+        ]
         median_scan_error = np.median(scan_errors)
 
         # Average should be better than median single scan
@@ -55,13 +59,15 @@ class TestAverageScans:
 
     def test_average_scans_median_robust_to_outliers(self):
         """Test median averaging is robust to outliers."""
-        scans = np.array([
-            [-50, -60, -70],
-            [-51, -59, -71],
-            [-49, -61, -69],
-            [-20, -65, -72],  # Outlier in AP1
-            [-52, -58, -68],
-        ])
+        scans = np.array(
+            [
+                [-50, -60, -70],
+                [-51, -59, -71],
+                [-49, -61, -69],
+                [-20, -65, -72],  # Outlier in AP1
+                [-52, -58, -68],
+            ]
+        )
 
         avg_mean = average_scans(scans, method="mean")
         avg_median = average_scans(scans, method="median")
@@ -72,13 +78,15 @@ class TestAverageScans:
 
     def test_average_scans_trimmed_mean(self):
         """Test trimmed mean averaging."""
-        scans = np.array([
-            [-50, -60, -70],
-            [-51, -59, -71],
-            [-49, -61, -69],
-            [-20, -65, -72],  # Outlier
-            [-52, -58, -68],
-        ])
+        scans = np.array(
+            [
+                [-50, -60, -70],
+                [-51, -59, -71],
+                [-49, -61, -69],
+                [-20, -65, -72],  # Outlier
+                [-52, -58, -68],
+            ]
+        )
 
         avg = average_scans(scans, method="trimmed_mean", trim_percent=0.2)
 
@@ -88,12 +96,14 @@ class TestAverageScans:
 
     def test_average_scans_with_nan(self):
         """Test averaging with missing values (NaN)."""
-        scans = np.array([
-            [-50, np.nan, -70],
-            [-52, -58, -72],
-            [-48, -62, np.nan],
-            [-51, -60, -69],
-        ])
+        scans = np.array(
+            [
+                [-50, np.nan, -70],
+                [-52, -58, -72],
+                [-48, -62, np.nan],
+                [-51, -60, -69],
+            ]
+        )
 
         avg = average_scans(scans, method="mean")
 
@@ -106,11 +116,13 @@ class TestAverageScans:
 
     def test_average_scans_all_nan_feature(self):
         """Test averaging when all scans for a feature are NaN."""
-        scans = np.array([
-            [-50, np.nan, -70],
-            [-52, np.nan, -72],
-            [-48, np.nan, -68],
-        ])
+        scans = np.array(
+            [
+                [-50, np.nan, -70],
+                [-52, np.nan, -72],
+                [-48, np.nan, -68],
+            ]
+        )
 
         avg = average_scans(scans, method="mean")
 
@@ -261,11 +273,13 @@ class TestPreprocessQuery:
 
     def test_preprocess_multiple_scans_no_norm(self):
         """Test preprocessing with multiple scans, no normalization."""
-        scans = np.array([
-            [-50, -60, -70],
-            [-52, -58, -72],
-            [-48, -62, -68],
-        ])
+        scans = np.array(
+            [
+                [-50, -60, -70],
+                [-52, -58, -72],
+                [-48, -62, -68],
+            ]
+        )
 
         z_prep, info = preprocess_query(scans, normalization_method="none")
 
@@ -287,16 +301,16 @@ class TestPreprocessQuery:
         were the only things separating them. Any assertion on the output
         would have passed whether or not the averaging step ran at all.
         """
-        scans = np.array([
-            [-50, -60, -70],
-            [-52, -55, -80],
-            [-45, -70, -60],
-        ])
+        scans = np.array(
+            [
+                [-50, -60, -70],
+                [-52, -55, -80],
+                [-45, -70, -60],
+            ]
+        )
 
         z_prep, info = preprocess_query(
-            scans,
-            averaging_method="mean",
-            normalization_method="zscore"
+            scans, averaging_method="mean", normalization_method="zscore"
         )
 
         # Z-score should have mean ~0, std ~1
@@ -313,18 +327,15 @@ class TestPreprocessQuery:
         # instead of the average gives a different answer for this data.
         for scan in scans:
             single = (scan - np.mean(scan)) / np.std(scan, ddof=1)
-            assert not np.allclose(z_prep, single), (
-                "test data cannot distinguish averaging from not averaging"
-            )
+            assert not np.allclose(
+                z_prep, single
+            ), "test data cannot distinguish averaging from not averaging"
 
     def test_preprocess_single_scan_with_norm(self):
         """Test preprocessing with single scan (just normalization)."""
         single_scan = np.array([-50, -60, -70, -80])
 
-        z_prep, info = preprocess_query(
-            single_scan,
-            normalization_method="zscore"
-        )
+        z_prep, info = preprocess_query(single_scan, normalization_method="zscore")
 
         assert info["averaging"]["n_scans"] == 1
         assert info["averaging"]["method"] == "single_scan"
@@ -332,10 +343,12 @@ class TestPreprocessQuery:
 
     def test_preprocess_with_reference_stats(self):
         """Test preprocessing with reference normalization statistics."""
-        scans = np.array([
-            [-55, -65, -75],
-            [-56, -64, -74],
-        ])
+        scans = np.array(
+            [
+                [-55, -65, -75],
+                [-56, -64, -74],
+            ]
+        )
 
         # Use pre-computed normalization params (per-feature)
         ref_mean = np.array([-60.0, -70.0, -80.0])
@@ -346,7 +359,7 @@ class TestPreprocessQuery:
             averaging_method="mean",
             normalization_method="zscore",
             ref_mean=ref_mean,
-            ref_std=ref_std
+            ref_std=ref_std,
         )
 
         # Check that reference stats were used (should be arrays)
@@ -355,19 +368,21 @@ class TestPreprocessQuery:
 
     def test_preprocess_trimmed_mean_averaging(self):
         """Test preprocessing with trimmed mean averaging."""
-        scans = np.array([
-            [-50, -60, -70],
-            [-51, -59, -71],
-            [-20, -65, -72],  # Outlier
-            [-49, -61, -69],
-            [-52, -58, -68],
-        ])
+        scans = np.array(
+            [
+                [-50, -60, -70],
+                [-51, -59, -71],
+                [-20, -65, -72],  # Outlier
+                [-49, -61, -69],
+                [-52, -58, -68],
+            ]
+        )
 
         z_prep, info = preprocess_query(
             scans,
             averaging_method="trimmed_mean",
             trim_percent=0.2,
-            normalization_method="none"
+            normalization_method="none",
         )
 
         assert info["averaging"]["method"] == "trimmed_mean"
@@ -379,13 +394,15 @@ class TestComputeNormalizationParams:
     def test_compute_zscore_params(self):
         """Test computing z-score parameters from fingerprints."""
         # Simulate database features (M=5 RPs, N=3 APs)
-        fingerprints = np.array([
-            [-50, -60, -70],
-            [-55, -65, -75],
-            [-45, -55, -65],
-            [-60, -70, -80],
-            [-50, -60, -70],
-        ])
+        fingerprints = np.array(
+            [
+                [-50, -60, -70],
+                [-55, -65, -75],
+                [-45, -55, -65],
+                [-60, -70, -80],
+                [-50, -60, -70],
+            ]
+        )
 
         params = compute_normalization_params(fingerprints, method="zscore")
 
@@ -403,12 +420,14 @@ class TestComputeNormalizationParams:
 
     def test_compute_minmax_params(self):
         """Test computing minmax parameters from fingerprints."""
-        fingerprints = np.array([
-            [-50, -60, -70],
-            [-55, -65, -75],
-            [-45, -55, -65],
-            [-60, -70, -80],
-        ])
+        fingerprints = np.array(
+            [
+                [-50, -60, -70],
+                [-55, -65, -75],
+                [-45, -55, -65],
+                [-60, -70, -80],
+            ]
+        )
 
         params = compute_normalization_params(fingerprints, method="minmax")
 
@@ -422,12 +441,14 @@ class TestComputeNormalizationParams:
 
     def test_compute_params_with_nan(self):
         """Test computing parameters with missing values (NaN)."""
-        fingerprints = np.array([
-            [-50, np.nan, -70],
-            [-55, -65, -75],
-            [-45, -55, np.nan],
-            [-60, -70, -80],
-        ])
+        fingerprints = np.array(
+            [
+                [-50, np.nan, -70],
+                [-55, -65, -75],
+                [-45, -55, np.nan],
+                [-60, -70, -80],
+            ]
+        )
 
         params = compute_normalization_params(fingerprints, method="zscore")
 
@@ -440,11 +461,13 @@ class TestComputeNormalizationParams:
 
     def test_compute_params_constant_feature(self):
         """Test computing parameters when feature is constant (zero variance)."""
-        fingerprints = np.array([
-            [-50, -60, -70],
-            [-55, -60, -75],
-            [-45, -60, -65],
-        ])
+        fingerprints = np.array(
+            [
+                [-50, -60, -70],
+                [-55, -60, -75],
+                [-45, -60, -65],
+            ]
+        )
 
         params = compute_normalization_params(fingerprints, method="zscore")
 
@@ -476,12 +499,14 @@ class TestIntegration:
         scans = true_fingerprint + noise
 
         # Step 2: Compute normalization params from database
-        db_features = np.array([
-            [-50.0, -60.0, -70.0, -80.0],
-            [-55.0, -65.0, -75.0, -85.0],
-            [-45.0, -55.0, -65.0, -75.0],
-            [-60.0, -70.0, -80.0, -90.0],
-        ])
+        db_features = np.array(
+            [
+                [-50.0, -60.0, -70.0, -80.0],
+                [-55.0, -65.0, -75.0, -85.0],
+                [-45.0, -55.0, -65.0, -75.0],
+                [-60.0, -70.0, -80.0, -90.0],
+            ]
+        )
         norm_params = compute_normalization_params(db_features, method="zscore")
 
         # Step 3: Preprocess query (note: ref_mean and ref_std are arrays, not scalars)
@@ -493,7 +518,7 @@ class TestIntegration:
             z_avg,
             method="zscore",
             ref_mean=norm_params["mean"][0],  # Use first AP's mean as reference
-            ref_std=norm_params["std"][0]     # Use first AP's std as reference
+            ref_std=norm_params["std"][0],  # Use first AP's std as reference
         )
 
         # Verify pipeline executed
@@ -542,4 +567,3 @@ class TestIntegration:
 
         # Normalized error should be smaller
         assert error_norm < error_raw
-

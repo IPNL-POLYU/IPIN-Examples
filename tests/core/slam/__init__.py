@@ -5,5 +5,3 @@ Tests for SLAM geometry, SE(2) operations, and related algorithms.
 Author: Li-Ta Hsu
 Date: 2024
 """
-
-

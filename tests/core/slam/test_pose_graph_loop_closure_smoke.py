@@ -73,14 +73,17 @@ class TestPoseGraphSLAMPipeline:
             visible_pts = []
             for lm in landmarks:
                 # Transform landmark to sensor frame
-                lm_sensor = se2_apply(np.array([-pose[0], -pose[1], -pose[2]]),
-                                     lm.reshape(1, -1))[0]
+                lm_sensor = se2_apply(
+                    np.array([-pose[0], -pose[1], -pose[2]]), lm.reshape(1, -1)
+                )[0]
                 dist = np.linalg.norm(lm_sensor)
                 if dist < sensor_range:
                     visible_pts.append(lm_sensor)
 
             if len(visible_pts) > 5:
-                scan = np.array(visible_pts) + np.random.normal(0, 0.02, (len(visible_pts), 2))
+                scan = np.array(visible_pts) + np.random.normal(
+                    0, 0.02, (len(visible_pts), 2)
+                )
                 scans.append(scan)
             else:
                 # Fallback: generate some points if nothing visible
@@ -95,11 +98,13 @@ class TestPoseGraphSLAMPipeline:
             rel_pose_true = se2_relative(true_poses[i], true_poses[i + 1])
 
             # Add odometry noise (drift accumulates)
-            noise = np.array([
-                np.random.normal(0, 0.1),   # x noise
-                np.random.normal(0, 0.1),   # y noise
-                np.random.normal(0, 0.02),  # yaw noise
-            ])
+            noise = np.array(
+                [
+                    np.random.normal(0, 0.1),  # x noise
+                    np.random.normal(0, 0.1),  # y noise
+                    np.random.normal(0, 0.02),  # yaw noise
+                ]
+            )
             rel_pose_noisy = rel_pose_true + noise
 
             # Accumulate odometry
@@ -143,7 +148,8 @@ class TestPoseGraphSLAMPipeline:
                     initial_guess = se2_relative(odometry_poses[i], odometry_poses[j])
 
                     rel_pose, iters, residual, converged = icp_point_to_point(
-                        scans[i], scans[j],
+                        scans[i],
+                        scans[j],
                         initial_pose=initial_guess,
                         max_iterations=50,
                         tolerance=1e-5,
@@ -184,7 +190,9 @@ class TestPoseGraphSLAMPipeline:
 
         # 6. Assertions (smoke test thresholds - lenient for synthetic data)
         # Note: Loop closures may not always be detected depending on noise and distance
-        assert final_error <= initial_error * 1.1, "Optimization should not significantly increase error"
+        assert (
+            final_error <= initial_error * 1.1
+        ), "Optimization should not significantly increase error"
 
         # If loop closures were found, SLAM should improve
         if len(loop_closures) > 0:
@@ -195,7 +203,9 @@ class TestPoseGraphSLAMPipeline:
         else:
             print("  No loop closures - SLAM may not improve much")
             # Without loop closures, just check it doesn't break
-            assert slam_rmse < 1.0, f"SLAM RMSE {slam_rmse:.3f}m unexpectedly high even without loop closures"
+            assert (
+                slam_rmse < 1.0
+            ), f"SLAM RMSE {slam_rmse:.3f}m unexpectedly high even without loop closures"
 
     def test_slam_without_loop_closure_still_works(self, square_trajectory_data):
         """Test pose graph optimization without loop closures (odometry-only)."""
@@ -219,15 +229,18 @@ class TestPoseGraphSLAMPipeline:
         # RMSE should be similar to odometry (no loop closure correction)
         odom_errors = compute_position_errors(true_poses[:, :2], odometry_poses[:, :2])
         odom_rmse = compute_rmse(odom_errors)
-        no_lc_errors = compute_position_errors(true_poses[:, :2], optimized_poses[:, :2])
+        no_lc_errors = compute_position_errors(
+            true_poses[:, :2], optimized_poses[:, :2]
+        )
         no_lc_rmse = compute_rmse(no_lc_errors)
 
         print(f"\n[NO LOOP CLOSURE] Odometry RMSE: {odom_rmse:.4f} m")
         print(f"[NO LOOP CLOSURE] Smoothed RMSE: {no_lc_rmse:.4f} m")
 
         # Should not improve much without loop closure
-        assert np.abs(no_lc_rmse - odom_rmse) < 0.2, \
-            "Without loop closure, RMSE should stay similar to odometry"
+        assert (
+            np.abs(no_lc_rmse - odom_rmse) < 0.2
+        ), "Without loop closure, RMSE should stay similar to odometry"
 
     def test_loop_closure_impact_quantified(self, square_trajectory_data):
         """Quantify the specific impact of loop closures on accuracy."""
@@ -244,7 +257,10 @@ class TestPoseGraphSLAMPipeline:
                 if np.linalg.norm(odometry_poses[i, :2] - odometry_poses[j, :2]) < 3.0:
                     initial_guess = se2_relative(odometry_poses[i], odometry_poses[j])
                     rel_pose, _, residual, converged = icp_point_to_point(
-                        scans[i], scans[j], initial_pose=initial_guess, max_iterations=50
+                        scans[i],
+                        scans[j],
+                        initial_pose=initial_guess,
+                        max_iterations=50,
                     )
                     if converged and residual < 2.0:
                         loop_closures.append((i, j, rel_pose))
@@ -259,7 +275,9 @@ class TestPoseGraphSLAMPipeline:
             loop_closures=None,
             prior_pose=true_poses[0],
         )
-        optimized_no_lc, _ = graph_no_lc.optimize(method="gauss_newton", max_iterations=30)
+        optimized_no_lc, _ = graph_no_lc.optimize(
+            method="gauss_newton", max_iterations=30
+        )
         poses_no_lc = np.array([optimized_no_lc[i] for i in range(len(true_poses))])
         errors_no_lc = compute_position_errors(true_poses[:, :2], poses_no_lc[:, :2])
         rmse_no_lc = compute_rmse(errors_no_lc)
@@ -271,9 +289,13 @@ class TestPoseGraphSLAMPipeline:
             loop_closures=loop_closures,
             prior_pose=true_poses[0],
         )
-        optimized_with_lc, _ = graph_with_lc.optimize(method="gauss_newton", max_iterations=30)
+        optimized_with_lc, _ = graph_with_lc.optimize(
+            method="gauss_newton", max_iterations=30
+        )
         poses_with_lc = np.array([optimized_with_lc[i] for i in range(len(true_poses))])
-        errors_with_lc = compute_position_errors(true_poses[:, :2], poses_with_lc[:, :2])
+        errors_with_lc = compute_position_errors(
+            true_poses[:, :2], poses_with_lc[:, :2]
+        )
         rmse_with_lc = compute_rmse(errors_with_lc)
 
         print("\n[COMPARISON]")
@@ -284,8 +306,9 @@ class TestPoseGraphSLAMPipeline:
         # Loop closures should provide measurable improvement
         assert rmse_with_lc < rmse_no_lc, "Loop closures should improve accuracy"
         improvement = (rmse_no_lc - rmse_with_lc) / rmse_no_lc
-        assert improvement > 0.1, \
-            f"Loop closure improvement {improvement*100:.1f}% below 10% threshold"
+        assert (
+            improvement > 0.1
+        ), f"Loop closure improvement {improvement*100:.1f}% below 10% threshold"
 
 
 class TestPoseGraphRegressionThresholds:
@@ -296,12 +319,14 @@ class TestPoseGraphRegressionThresholds:
         np.random.seed(9999)
 
         # Simplified square trajectory (4 poses, one per corner)
-        true_poses = np.array([
-            [0, 0, 0],
-            [5, 0, np.pi / 2],
-            [5, 5, np.pi],
-            [0, 5, -np.pi / 2],
-        ])
+        true_poses = np.array(
+            [
+                [0, 0, 0],
+                [5, 0, np.pi / 2],
+                [5, 5, np.pi],
+                [0, 5, -np.pi / 2],
+            ]
+        )
 
         # Noisy odometry
         odometry_poses = true_poses + np.random.normal(0, 0.2, true_poses.shape)
@@ -313,12 +338,15 @@ class TestPoseGraphRegressionThresholds:
         for pose in true_poses:
             visible = []
             for lm in landmarks:
-                lm_sensor = se2_apply(np.array([-pose[0], -pose[1], -pose[2]]),
-                                     lm.reshape(1, -1))[0]
+                lm_sensor = se2_apply(
+                    np.array([-pose[0], -pose[1], -pose[2]]), lm.reshape(1, -1)
+                )[0]
                 if np.linalg.norm(lm_sensor) < 6.0:
                     visible.append(lm_sensor)
             if len(visible) > 0:
-                scans.append(np.array(visible) + np.random.normal(0, 0.01, (len(visible), 2)))
+                scans.append(
+                    np.array(visible) + np.random.normal(0, 0.01, (len(visible), 2))
+                )
             else:
                 # Fallback: add some dummy points if nothing visible
                 scans.append(np.random.rand(10, 2) * 3 - 1.5)
@@ -331,7 +359,8 @@ class TestPoseGraphRegressionThresholds:
 
         # Detect loop closure (0 <-> 3, closing the square)
         rel_pose, _, residual, converged = icp_point_to_point(
-            scans[0], scans[3],
+            scans[0],
+            scans[3],
             initial_pose=se2_relative(odometry_poses[0], odometry_poses[3]),
             max_iterations=50,
         )
@@ -353,10 +382,10 @@ class TestPoseGraphRegressionThresholds:
         slam_rmse = compute_rmse(slam_errors)
 
         # Regression threshold: SLAM should achieve <20cm RMSE
-        assert slam_rmse < 0.20, \
-            f"SLAM RMSE {slam_rmse:.4f}m exceeds 20cm regression threshold"
+        assert (
+            slam_rmse < 0.20
+        ), f"SLAM RMSE {slam_rmse:.4f}m exceeds 20cm regression threshold"
 
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v", "-s"])
-

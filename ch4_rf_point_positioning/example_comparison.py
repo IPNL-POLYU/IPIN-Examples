@@ -59,28 +59,28 @@ from core.utils import resolve_data_path
 
 def load_rf_dataset(data_dir: str) -> Dict:
     """Load RF positioning dataset.
-    
+
     Args:
         data_dir: Path to dataset directory (e.g., 'data/sim/ch4_rf_2d_square')
-    
+
     Returns:
         Dictionary with beacons, positions, measurements, and config
     """
     path = Path(data_dir)
 
     data = {
-        'beacons': np.loadtxt(path / 'beacons.txt'),
-        'positions': np.loadtxt(path / 'ground_truth_positions.txt'),
-        'toa_ranges': np.loadtxt(path / 'toa_ranges.txt'),
-        'tdoa_diffs': np.loadtxt(path / 'tdoa_diffs.txt'),
-        'aoa_angles': np.loadtxt(path / 'aoa_angles.txt'),
-        'gdop_toa': np.loadtxt(path / 'gdop_toa.txt'),
-        'gdop_tdoa': np.loadtxt(path / 'gdop_tdoa.txt'),
-        'gdop_aoa': np.loadtxt(path / 'gdop_aoa.txt'),
+        "beacons": np.loadtxt(path / "beacons.txt"),
+        "positions": np.loadtxt(path / "ground_truth_positions.txt"),
+        "toa_ranges": np.loadtxt(path / "toa_ranges.txt"),
+        "tdoa_diffs": np.loadtxt(path / "tdoa_diffs.txt"),
+        "aoa_angles": np.loadtxt(path / "aoa_angles.txt"),
+        "gdop_toa": np.loadtxt(path / "gdop_toa.txt"),
+        "gdop_tdoa": np.loadtxt(path / "gdop_tdoa.txt"),
+        "gdop_aoa": np.loadtxt(path / "gdop_aoa.txt"),
     }
 
-    with open(path / 'config.json') as f:
-        data['config'] = json.load(f)
+    with open(path / "config.json") as f:
+        data["config"] = json.load(f)
 
     return data
 
@@ -106,14 +106,14 @@ def solve_every_method(data: dict, verbose: bool = True) -> dict[str, SolveOutco
     measurements were reported at 0.095 m there and 0.088 m here, and this
     docstring existed to explain the gap away.
     """
-    beacons = data['beacons']
-    truth = data['positions']
+    beacons = data["beacons"]
+    truth = data["positions"]
     guess = np.mean(beacons, axis=0)
 
     solvers = {
-        'TOA': (TOAPositioner(beacons, method="iterative_ls"), data['toa_ranges']),
-        'TDOA': (TDOAPositioner(beacons, reference_idx=0), data['tdoa_diffs']),
-        'AOA': (AOAPositioner(beacons), data['aoa_angles']),
+        "TOA": (TOAPositioner(beacons, method="iterative_ls"), data["toa_ranges"]),
+        "TDOA": (TDOAPositioner(beacons, reference_idx=0), data["tdoa_diffs"]),
+        "AOA": (AOAPositioner(beacons), data["aoa_angles"]),
     }
 
     outcomes = {}
@@ -122,14 +122,18 @@ def solve_every_method(data: dict, verbose: bool = True) -> dict[str, SolveOutco
         if verbose:
             print(f"\n--- Running {method} Positioning ---")
         outcomes[method] = solve_batch(
-            solver, measurements, guess, truth,
+            solver,
+            measurements,
+            guess,
+            truth,
             progress=partial(tqdm, desc=method, disable=not verbose),
         )
     return outcomes
 
 
-def print_method_table(outcomes: dict[str, SolveOutcome],
-                       gdop: dict[str, np.ndarray]) -> None:
+def print_method_table(
+    outcomes: dict[str, SolveOutcome], gdop: dict[str, np.ndarray]
+) -> None:
     """One row per method, always -- failures included, nothing omitted."""
     print(
         f"A fix has failed if it raised, reported converged=False, never left "
@@ -170,40 +174,44 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> dict:
         print("=" * 70)
 
     data = load_rf_dataset(data_dir)
-    config = data['config']
-    beacons = data['beacons']
-    positions = data['positions']
+    config = data["config"]
+    beacons = data["beacons"]
+    positions = data["positions"]
 
     if verbose:
         print("\nDataset Info:")
         print(f"  Geometry: {config.get('geometry', {}).get('type', 'unknown')}")
         print(f"  Beacons: {len(beacons)}")
         print(f"  Test points: {len(positions)}")
-        print(f"  TOA noise: "
-              f"{config.get('measurements', {}).get('toa_noise_std_m', 'N/A')} m")
-        print(f"  AOA noise: "
-              f"{config.get('measurements', {}).get('aoa_noise_std_deg', 'N/A')} deg")
+        print(
+            f"  TOA noise: "
+            f"{config.get('measurements', {}).get('toa_noise_std_m', 'N/A')} m"
+        )
+        print(
+            f"  AOA noise: "
+            f"{config.get('measurements', {}).get('aoa_noise_std_deg', 'N/A')} deg"
+        )
 
     outcomes = solve_every_method(data, verbose=verbose)
 
     results = {
-        'outcomes': outcomes,
-        'gdop': {
-            'TOA': data['gdop_toa'],
-            'TDOA': data['gdop_tdoa'],
-            'AOA': data['gdop_aoa'],
+        "outcomes": outcomes,
+        "gdop": {
+            "TOA": data["gdop_toa"],
+            "TDOA": data["gdop_tdoa"],
+            "AOA": data["gdop_aoa"],
         },
-        'n_points': len(positions),
-        'beacons': beacons,
-        'positions': positions,
-        'config': config,
+        "n_points": len(positions),
+        "beacons": beacons,
+        "positions": positions,
+        "config": config,
     }
 
     if verbose:
         print("\n" + "=" * 70)
         print("Results Summary")
         print("=" * 70)
-        print_method_table(outcomes, results['gdop'])
+        print_method_table(outcomes, results["gdop"])
 
     return results
 
@@ -212,9 +220,9 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> dict:
 #: figure's x-axis, so they name the layout rather than grade it: "Linear
 #: (poor)" prejudges a geometry that is the best of the three for AOA.
 GEOMETRIES = (
-    ('ch4_rf_2d_square', 'Square (4 corners)'),
-    ('ch4_rf_2d_optimal', 'Optimal (circular)'),
-    ('ch4_rf_2d_linear', 'Collinear (4 in a row)'),
+    ("ch4_rf_2d_square", "Square (4 corners)"),
+    ("ch4_rf_2d_optimal", "Optimal (circular)"),
+    ("ch4_rf_2d_linear", "Collinear (4 in a row)"),
 )
 
 
@@ -254,7 +262,7 @@ def compare_geometries(verbose: bool = True) -> dict:
         all_results[geometry_label] = results
 
         if verbose:
-            print_method_table(results['outcomes'], results['gdop'])
+            print_method_table(results["outcomes"], results["gdop"])
 
     if verbose and all_results:
         print_geometry_insight(all_results)
@@ -274,7 +282,7 @@ def print_geometry_insight(all_results: dict) -> None:
     for label, results in all_results.items():
         row = f"{label:<{width}}"
         for method in METHODS:
-            out = results['outcomes'][method]
+            out = results["outcomes"][method]
             cell = f"{out.median_m:.3f} [{out.n_failed}]"
             row += f"{cell:>18}"
         print(row)
@@ -322,7 +330,10 @@ def generate_scenario(seed=42):
 
 
 def toa_positioning_test(
-    anchors, true_positions, noise_std=0.0, clock_bias_m=0.0,
+    anchors,
+    true_positions,
+    noise_std=0.0,
+    clock_bias_m=0.0,
 ):
     """Test TOA positioning (inline mode).
 
@@ -494,7 +505,8 @@ def rss_positioning_test(
         for anchor in anchors:
             # Use simulate_rss_measurement for full fading model (Eq. 4.12)
             rss_meas, info = simulate_rss_measurement(
-                anchor, true_pos,
+                anchor,
+                true_pos,
                 p_ref_dbm=p_ref_dbm,
                 path_loss_exp=path_loss_exp,
                 sigma_long_db=sigma_long_db,
@@ -541,10 +553,10 @@ def run_inline_comparison():
     print("  Area: 10m x 10m")
 
     # ---- Independent noise schedules per method ----
-    toa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]       # metres
-    tdoa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]       # metres
-    aoa_noise_levels_deg = [0.0, 1.0, 3.0, 5.0, 10.0]    # degrees
-    rss_noise_levels = [0.0, 2.0, 4.0, 6.0, 8.0]         # dB
+    toa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]  # metres
+    tdoa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]  # metres
+    aoa_noise_levels_deg = [0.0, 1.0, 3.0, 5.0, 10.0]  # degrees
+    rss_noise_levels = [0.0, 2.0, 4.0, 6.0, 8.0]  # dB
 
     # Shared clock bias (metres) added to TOA; cancels in TDOA diffs.
     clock_bias_m = 1.5
@@ -582,7 +594,9 @@ def run_inline_comparison():
 
         results["TOA"].append(
             toa_positioning_test(
-                anchors, true_positions, toa_noise,
+                anchors,
+                true_positions,
+                toa_noise,
                 clock_bias_m=clock_bias_m,
             )
         )
@@ -594,13 +608,12 @@ def run_inline_comparison():
         )
         # Same measurements, same seed offset, weighting switched off.
         results["AOA_unw"].append(
-            aoa_positioning_test(
-                anchors, true_positions, aoa_noise_rad, weighted=False
-            )
+            aoa_positioning_test(anchors, true_positions, aoa_noise_rad, weighted=False)
         )
         results["RSS"].append(
             rss_positioning_test(
-                anchors, true_positions,
+                anchors,
+                true_positions,
                 sigma_long_db=rss_fading_db,
                 sigma_short_linear=sigma_short_linear,
                 n_samples_avg=n_samples_avg,
@@ -615,8 +628,10 @@ def run_inline_comparison():
     print("Results Summary (median error in metres)")
     print("=" * 70)
     print(f"  Clock bias: {clock_bias_m} m (TOA only; cancels in TDOA)")
-    print(f"  RSS config: Rayleigh short-term (sigma={sigma_short_linear}), "
-          f"{n_samples_avg} samples averaged")
+    print(
+        f"  RSS config: Rayleigh short-term (sigma={sigma_short_linear}), "
+        f"{n_samples_avg} samples averaged"
+    )
     print(
         f"  AOA anchor {DEGRADED_ANCHOR} is {DEGRADED_ANCHOR_SCALE:.0f}x noisier "
         f"than the others; 'AOA unw' solves the same bearings unweighted"
@@ -635,6 +650,7 @@ def run_inline_comparison():
     # of one method against a handful of its own divergences. See the note
     # printed under the table.
     for i in range(n_levels):
+
         def _median(arr):
             return np.median(arr) if len(arr) > 0 else np.nan
 
@@ -691,56 +707,83 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle("RF Positioning: Dataset Analysis", fontsize=16, fontweight="bold")
 
-    beacons = results['beacons']
-    positions = results['positions']
+    beacons = results["beacons"]
+    positions = results["positions"]
 
     # 1. Beacon geometry and test points
     ax1 = axes[0, 0]
-    ax1.scatter(beacons[:, 0], beacons[:, 1], s=200, c='red', marker='^',
-                label='Beacons', zorder=10, edgecolors='black', linewidths=2)
-    ax1.scatter(positions[:, 0], positions[:, 1], s=20, c='blue', alpha=0.5, label='Test Points')
+    ax1.scatter(
+        beacons[:, 0],
+        beacons[:, 1],
+        s=200,
+        c="red",
+        marker="^",
+        label="Beacons",
+        zorder=10,
+        edgecolors="black",
+        linewidths=2,
+    )
+    ax1.scatter(
+        positions[:, 0], positions[:, 1], s=20, c="blue", alpha=0.5, label="Test Points"
+    )
     for i, b in enumerate(beacons):
-        ax1.annotate(f'B{i}', (b[0], b[1]), xytext=(5, 5), textcoords='offset points', fontsize=10)
-    ax1.set_xlabel('X (m)')
-    ax1.set_ylabel('Y (m)')
-    ax1.set_title('Beacon Geometry & Test Points')
+        ax1.annotate(
+            f"B{i}",
+            (b[0], b[1]),
+            xytext=(5, 5),
+            textcoords="offset points",
+            fontsize=10,
+        )
+    ax1.set_xlabel("X (m)")
+    ax1.set_ylabel("Y (m)")
+    ax1.set_title("Beacon Geometry & Test Points")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
-    ax1.axis('equal')
+    ax1.axis("equal")
 
     # 2. Error CDF over the fixes that solved, labelled with the ones that
     #    did not. A CDF drawn over the successes alone reads as the method's
     #    accuracy; the label is what stops it reading that way.
     ax2 = axes[0, 1]
-    colors = {'TOA': 'blue', 'TDOA': 'red', 'AOA': 'green'}
+    colors = {"TOA": "blue", "TDOA": "red", "AOA": "green"}
     for method, color in colors.items():
-        out = results['outcomes'][method]
+        out = results["outcomes"][method]
         errors = out.errors[out.solved]
         if len(errors) > 0:
             sorted_errors = np.sort(errors)
             cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-            ax2.plot(sorted_errors, cdf, color=color, linewidth=2,
-                     label=f'{method} ({out.n - out.n_failed}/{out.n} solved)')
+            ax2.plot(
+                sorted_errors,
+                cdf,
+                color=color,
+                linewidth=2,
+                label=f"{method} ({out.n - out.n_failed}/{out.n} solved)",
+            )
         else:
-            ax2.plot([], [], color=color, linewidth=2,
-                     label=f'{method} (0/{out.n} solved)')
-    ax2.set_xlabel('Position Error (m)')
-    ax2.set_ylabel('CDF')
-    ax2.set_title('Error CDF over solved fixes')
+            ax2.plot(
+                [], [], color=color, linewidth=2, label=f"{method} (0/{out.n} solved)"
+            )
+    ax2.set_xlabel("Position Error (m)")
+    ax2.set_ylabel("CDF")
+    ax2.set_title("Error CDF over solved fixes")
     ax2.legend()
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim(left=0)
 
     # 3. GDOP distribution
     ax3 = axes[1, 0]
-    gdop_data = [results['gdop']['TOA'], results['gdop']['TDOA'], results['gdop']['AOA']]
-    bp = ax3.boxplot(gdop_data, tick_labels=['TOA', 'TDOA', 'AOA'], patch_artist=True)
-    for patch, color in zip(bp['boxes'], ['blue', 'red', 'green']):
+    gdop_data = [
+        results["gdop"]["TOA"],
+        results["gdop"]["TDOA"],
+        results["gdop"]["AOA"],
+    ]
+    bp = ax3.boxplot(gdop_data, tick_labels=["TOA", "TDOA", "AOA"], patch_artist=True)
+    for patch, color in zip(bp["boxes"], ["blue", "red", "green"]):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
-    ax3.set_ylabel('GDOP')
-    ax3.set_title('Geometric Dilution of Precision')
-    ax3.grid(True, alpha=0.3, axis='y')
+    ax3.set_ylabel("GDOP")
+    ax3.set_title("Geometric Dilution of Precision")
+    ax3.grid(True, alpha=0.3, axis="y")
 
     # 4. Error vs GDOP scatter.
     #    Both sides are indexed by the same mask, so point i's error is paired
@@ -749,14 +792,20 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     #    silently shifted the pairing whenever anything failed.
     ax4 = axes[1, 1]
     for method, color in colors.items():
-        out = results['outcomes'][method]
-        gdop = results['gdop'][method]
+        out = results["outcomes"][method]
+        gdop = results["gdop"][method]
         if out.solved.any():
-            ax4.scatter(gdop[out.solved], out.errors[out.solved],
-                        alpha=0.5, label=method, color=color, s=20)
-    ax4.set_xlabel('GDOP')
-    ax4.set_ylabel('Position Error (m)')
-    ax4.set_title('Error vs GDOP (lower GDOP = better geometry)')
+            ax4.scatter(
+                gdop[out.solved],
+                out.errors[out.solved],
+                alpha=0.5,
+                label=method,
+                color=color,
+                s=20,
+            )
+    ax4.set_xlabel("GDOP")
+    ax4.set_ylabel("Position Error (m)")
+    ax4.set_title("Error vs GDOP (lower GDOP = better geometry)")
     ax4.legend()
     ax4.grid(True, alpha=0.3)
 
@@ -786,31 +835,40 @@ def plot_geometry_comparison(all_results: dict):
     and still not work -- which is exactly what the RMSE was hiding.
     """
     fig, (ax_err, ax_fail) = plt.subplots(1, 2, figsize=(13, 5.5))
-    fig.suptitle("Beacon geometry is method-specific", fontsize=15,
-                 fontweight="bold")
+    fig.suptitle("Beacon geometry is method-specific", fontsize=15, fontweight="bold")
 
     labels = list(all_results)
     x = np.arange(len(labels))
     width = 0.26
-    colors = {'TOA': 'tab:blue', 'TDOA': 'tab:red', 'AOA': 'tab:green'}
+    colors = {"TOA": "tab:blue", "TDOA": "tab:red", "AOA": "tab:green"}
 
     for i, method in enumerate(METHODS):
-        medians = [all_results[g]['outcomes'][method].median_m for g in labels]
+        medians = [all_results[g]["outcomes"][method].median_m for g in labels]
         failures = [
-            100.0 * all_results[g]['outcomes'][method].n_failed
-            / all_results[g]['outcomes'][method].n
+            100.0
+            * all_results[g]["outcomes"][method].n_failed
+            / all_results[g]["outcomes"][method].n
             for g in labels
         ]
         offset = x + (i - 1) * width
 
-        bars = ax_err.bar(offset, medians, width, label=method,
-                          color=colors[method], edgecolor="white", linewidth=0.8)
+        bars = ax_err.bar(
+            offset,
+            medians,
+            width,
+            label=method,
+            color=colors[method],
+            edgecolor="white",
+            linewidth=0.8,
+        )
         for rect, median, failed in zip(bars, medians, failures, strict=True):
             ax_err.annotate(
                 f"{median:.2f}",
                 (rect.get_x() + rect.get_width() / 2, median),
-                textcoords="offset points", xytext=(0, 3),
-                ha="center", fontsize=8,
+                textcoords="offset points",
+                xytext=(0, 3),
+                ha="center",
+                fontsize=8,
             )
             # Hatch the bars whose median is mostly failures, so a tall bar and
             # a broken method are distinguishable at a glance.
@@ -818,8 +876,15 @@ def plot_geometry_comparison(all_results: dict):
                 rect.set_hatch("///")
                 rect.set_edgecolor("black")
 
-        ax_fail.bar(offset, failures, width, label=method, color=colors[method],
-                    edgecolor="white", linewidth=0.8)
+        ax_fail.bar(
+            offset,
+            failures,
+            width,
+            label=method,
+            color=colors[method],
+            edgecolor="white",
+            linewidth=0.8,
+        )
 
     ax_err.set_yscale("log")
     ax_err.set_ylabel("Median position error (m), log scale")
@@ -829,12 +894,10 @@ def plot_geometry_comparison(all_results: dict):
     # Headroom for the legend, on a log axis, so it cannot sit over a bar. The
     # first draft put it at the default "best" location, which matplotlib chose
     # to be on top of the collinear group.
-    top = max(
-        all_results[g]['outcomes'][m].median_m for g in labels for m in METHODS
-    )
+    top = max(all_results[g]["outcomes"][m].median_m for g in labels for m in METHODS)
     ax_err.set_ylim(top=top * 12)
     ax_err.legend(title="Method", loc="upper center", ncols=3, fontsize=9)
-    ax_err.grid(True, alpha=0.3, axis='y', which='both')
+    ax_err.grid(True, alpha=0.3, axis="y", which="both")
     ax_err.set_axisbelow(True)
 
     ax_fail.set_ylabel("Fixes that failed (%)")
@@ -843,16 +906,19 @@ def plot_geometry_comparison(all_results: dict):
     ax_fail.set_xticklabels(labels, fontsize=9)
     ax_fail.set_ylim(0, 122)
     ax_fail.legend(title="Method", loc="upper center", ncols=3, fontsize=9)
-    ax_fail.grid(True, alpha=0.3, axis='y')
+    ax_fail.grid(True, alpha=0.3, axis="y")
     ax_fail.set_axisbelow(True)
 
     fig.text(
-        0.5, 0.055,
+        0.5,
+        0.055,
         "Hatched bars are medians made mostly of failed fixes: on the collinear "
         "array the beacon centroid lies on the line of symmetry,\nso TOA and "
         "TDOA never leave it, and their 6.77 m is the distance from the seed to "
         "the truth. AOA is the best of the three there.",
-        ha="center", fontsize=8.5, style="italic",
+        ha="center",
+        fontsize=8.5,
+        style="italic",
     )
     fig.tight_layout(rect=(0, 0.085, 1, 1))
     return fig
@@ -869,8 +935,12 @@ def plot_inline_comparison(noise_levels, results):
     # 1. RMSE vs Noise
     ax1 = axes[0, 0]
     for method, color in zip(methods, colors):
-        rmse_values = [np.sqrt(np.mean(e**2)) if len(e) > 0 else np.nan for e in results[method]]
-        ax1.plot(noise_levels, rmse_values, "o-", label=method, color=color, linewidth=2)
+        rmse_values = [
+            np.sqrt(np.mean(e**2)) if len(e) > 0 else np.nan for e in results[method]
+        ]
+        ax1.plot(
+            noise_levels, rmse_values, "o-", label=method, color=color, linewidth=2
+        )
     ax1.set_xlabel("Measurement Noise (m)")
     ax1.set_ylabel("RMSE (m)")
     ax1.set_title("RMSE vs Measurement Noise")
@@ -898,7 +968,7 @@ def plot_inline_comparison(noise_levels, results):
     data = [results[m][noise_idx] for m in methods if len(results[m][noise_idx]) > 0]
     labels = [m for m in methods if len(results[m][noise_idx]) > 0]
     bp = ax3.boxplot(data, tick_labels=labels, patch_artist=True, showfliers=False)
-    for patch, color in zip(bp["boxes"], colors[:len(data)]):
+    for patch, color in zip(bp["boxes"], colors[: len(data)]):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
     ax3.set_ylabel("Position Error (m)")
@@ -918,8 +988,15 @@ def plot_inline_comparison(noise_levels, results):
     dashes = ["-", "--", "-.", ":"]
     for method, color, dash in zip(methods, colors, dashes):
         rates = [len(e) / total_points * 100 for e in results[method]]
-        ax4.plot(noise_levels, rates, dash, marker="o", label=method,
-                 color=color, linewidth=2)
+        ax4.plot(
+            noise_levels,
+            rates,
+            dash,
+            marker="o",
+            label=method,
+            color=color,
+            linewidth=2,
+        )
     ax4.set_xlabel("Measurement Noise (m)")
     ax4.set_ylabel("Success Rate (%)")
     ax4.set_title("Convergence Success Rate")
@@ -949,19 +1026,24 @@ Examples:
 
   # Compare NLOS vs baseline
   python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_nlos
-        """
+        """,
     )
     parser.add_argument(
-        "--data", type=str, default=None,
-        help="Dataset name or path (e.g., 'ch4_rf_2d_square' or full path)"
+        "--data",
+        type=str,
+        default=None,
+        help="Dataset name or path (e.g., 'ch4_rf_2d_square' or full path)",
     )
     parser.add_argument(
-        "--compare-geometry", action="store_true",
-        help="Compare positioning across different beacon geometries"
+        "--compare-geometry",
+        action="store_true",
+        help="Compare positioning across different beacon geometries",
     )
     parser.add_argument(
-        "--output", type=str, default=None,
-        help="Output file for figure (default: ch4_rf_point_positioning/figs/ch4_rf_comparison.png)"
+        "--output",
+        type=str,
+        default=None,
+        help="Output file for figure (default: ch4_rf_point_positioning/figs/ch4_rf_comparison.png)",
     )
 
     args = parser.parse_args()
@@ -975,7 +1057,10 @@ Examples:
         if len(all_results) > 0:
             fig = plot_geometry_comparison(all_results)
 
-            output_file = args.output or "ch4_rf_point_positioning/figs/ch4_geometry_comparison.png"
+            output_file = (
+                args.output
+                or "ch4_rf_point_positioning/figs/ch4_geometry_comparison.png"
+            )
             paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
             print(f"\n[OK] Figure saved: {paths[0]}")
             show_figures_if_requested()
@@ -986,7 +1071,9 @@ Examples:
         if not data_path.exists():
             data_path = resolve_data_path(Path("data/sim") / args.data)
         if not data_path.exists():
-            print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
+            print(
+                f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'"
+            )
             print("\nAvailable datasets:")
             sim_dir = resolve_data_path(Path("data/sim"))
             if sim_dir.exists():
@@ -997,7 +1084,9 @@ Examples:
 
         results = run_with_dataset(str(data_path), verbose=True)
 
-        output_file = args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
+        output_file = (
+            args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
+        )
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
         plot_dataset_results(results, output_file)
         show_figures_if_requested()
@@ -1018,7 +1107,9 @@ Examples:
 
         fig = plot_inline_comparison(noise_levels, results)
 
-        output_file = args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
+        output_file = (
+            args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
+        )
         paths = save_figure(fig, Path(output_file).parent, Path(output_file).stem)
         print(f"[OK] Figure saved: {paths[0]}")
         show_figures_if_requested()

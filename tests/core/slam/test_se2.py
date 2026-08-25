@@ -434,4 +434,3 @@ class TestPose2Dataclass:
         assert "Pose2" in repr_str
         assert "1.2345" in repr_str
         assert "2.3456" in repr_str
-

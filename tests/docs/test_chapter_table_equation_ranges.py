@@ -94,9 +94,10 @@ def test_chapter_equation_span_matches_the_index(chapter):
     (low_ch, low_n), (high_ch, high_n) = _table_rows()[chapter]
     indexed_low, indexed_high = _indexed_spans()[chapter]
 
-    assert (low_ch, high_ch) == (chapter, chapter), (
-        f"Ch{chapter}'s row advertises equations from chapter {low_ch}-{high_ch}."
-    )
+    assert (low_ch, high_ch) == (
+        chapter,
+        chapter,
+    ), f"Ch{chapter}'s row advertises equations from chapter {low_ch}-{high_ch}."
     assert (low_n, high_n) == (indexed_low, indexed_high), (
         f"README says Ch{chapter} covers Eqs. {chapter}.{low_n}-{chapter}.{high_n}, "
         f"but docs/equation_index.yml maps Eqs. {chapter}.{indexed_low}-"

@@ -98,9 +98,7 @@ class TestTrajectoryPanelIsReadable(unittest.TestCase):
             self.panel, self.demo["odom_xy"], self.demo["frontend_xy"]
         )
 
-        self.assertGreater(
-            gap, 100.0, f"odometry and front-end are {gap:.1f} px apart"
-        )
+        self.assertGreater(gap, 100.0, f"odometry and front-end are {gap:.1f} px apart")
 
     def test_the_frontend_track_clears_the_ground_truth(self):
         """The harder half: the *good* estimate has structure worth seeing.

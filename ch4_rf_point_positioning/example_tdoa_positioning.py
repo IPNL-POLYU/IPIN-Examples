@@ -40,6 +40,7 @@ from core.rf import (
 # Seed for the Monte Carlo in Demo 2.
 SEED = 42
 
+
 def demo_tdoa_basic():
     """Demonstrate basic TDOA positioning with iterative LS.
 
@@ -52,9 +53,7 @@ def demo_tdoa_basic():
     print("=" * 70)
 
     # Setup anchors (5 anchors in a larger area)
-    anchors = np.array(
-        [[0, 0], [15, 0], [15, 15], [0, 15], [7.5, 7.5]], dtype=float
-    )
+    anchors = np.array([[0, 0], [15, 0], [15, 15], [0, 15], [7.5, 7.5]], dtype=float)
 
     # True position
     true_position = np.array([5.0, 8.0])
@@ -81,9 +80,7 @@ def demo_tdoa_basic():
     print(f"\nEstimated position: {estimated_position}")
     print(f"Converged: {info['converged']}")
     print(f"Iterations: {info['iterations']}")
-    print(
-        f"Position error: {np.linalg.norm(estimated_position - true_position):.6f} m"
-    )
+    print(f"Position error: {np.linalg.norm(estimated_position - true_position):.6f} m")
 
     return anchors, true_position, tdoa_measurements
 
@@ -95,9 +92,7 @@ def demo_tdoa_with_noise():
     print("=" * 70)
 
     # Setup
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float
-    )
+    anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float)
     true_position = np.array([7.0, 12.0])
 
     # Generate noiseless TDOA
@@ -127,9 +122,7 @@ def demo_tdoa_with_noise():
     for noise_std in noise_levels:
         errors, n_failed = [], 0
         for _ in range(trials if noise_std > 0 else 1):
-            tdoa_noisy = (
-                tdoa_true + rng.standard_normal(len(tdoa_true)) * noise_std
-            )
+            tdoa_noisy = tdoa_true + rng.standard_normal(len(tdoa_true)) * noise_std
             positioner = TDOAPositioner(anchors, reference_idx=0)
             est_pos, info = positioner.solve(
                 tdoa_noisy, initial_guess=np.array([10.0, 10.0])
@@ -162,8 +155,10 @@ def demo_tdoa_with_noise():
     # Print results
     print("\n" + "-" * 70)
     print(f"Median position error over {trials} draws per noise level.")
-    print(f"{'Noise (m)':<13} {'Median err (m)':<16} {'err/noise':<11} "
-          f"{'no-converge':<13} {'>100 m':<8}")
+    print(
+        f"{'Noise (m)':<13} {'Median err (m)':<16} {'err/noise':<11} "
+        f"{'no-converge':<13} {'>100 m':<8}"
+    )
     print("-" * 70)
     for r in results:
         error_str = f"{r['error']:.4f}" if r["error"] != np.inf else "FAILED"
@@ -199,9 +194,7 @@ def demo_correlated_covariance():
     print("=" * 70)
 
     # Setup: 5 anchors with heterogeneous noise levels
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float
-    )
+    anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float)
 
     # True position
     true_position = np.array([7.0, 12.0])
@@ -254,8 +247,10 @@ def demo_correlated_covariance():
 
         # Compute noisy ranges
         noisy_ranges = np.array(
-            [np.linalg.norm(true_position - anchors[i]) + range_noise[i]
-             for i in range(len(anchors))]
+            [
+                np.linalg.norm(true_position - anchors[i]) + range_noise[i]
+                for i in range(len(anchors))
+            ]
         )
 
         # Compute noisy TDOA (range differences relative to reference)
@@ -267,26 +262,24 @@ def demo_correlated_covariance():
         positioner = TDOAPositioner(anchors, reference_idx=0)
         try:
             est_identity, info_id = positioner.solve(
-                tdoa_noisy, initial_guess=np.array([10.0, 10.0]),
+                tdoa_noisy,
+                initial_guess=np.array([10.0, 10.0]),
                 covariance=cov_identity,
             )
             if info_id["converged"]:
-                errors_identity.append(
-                    np.linalg.norm(est_identity - true_position)
-                )
+                errors_identity.append(np.linalg.norm(est_identity - true_position))
         except Exception:
             pass
 
         # Solve with correlated weighting
         try:
             est_correlated, info_corr = positioner.solve(
-                tdoa_noisy, initial_guess=np.array([10.0, 10.0]),
+                tdoa_noisy,
+                initial_guess=np.array([10.0, 10.0]),
                 covariance=cov_correlated,
             )
             if info_corr["converged"]:
-                errors_correlated.append(
-                    np.linalg.norm(est_correlated - true_position)
-                )
+                errors_correlated.append(np.linalg.norm(est_correlated - true_position))
         except Exception:
             pass
 
@@ -337,9 +330,7 @@ def demo_covariance_sensitivity():
     print("=" * 70)
 
     # Setup: 4 anchors
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20]], dtype=float
-    )
+    anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20]], dtype=float)
     true_position = np.array([8.0, 12.0])
 
     print(f"\nTrue position: {true_position}")
@@ -366,14 +357,15 @@ def demo_covariance_sensitivity():
             # Generate noisy ranges
             range_noise = np.random.randn(len(anchors)) * sigmas
             noisy_ranges = np.array(
-                [np.linalg.norm(true_position - anchors[i]) + range_noise[i]
-                 for i in range(len(anchors))]
+                [
+                    np.linalg.norm(true_position - anchors[i]) + range_noise[i]
+                    for i in range(len(anchors))
+                ]
             )
 
             # Compute noisy TDOA
             tdoa_noisy = np.array(
-                [noisy_ranges[i] - noisy_ranges[0]
-                 for i in range(1, len(anchors))]
+                [noisy_ranges[i] - noisy_ranges[0] for i in range(1, len(anchors))]
             )
 
             positioner = TDOAPositioner(anchors, reference_idx=0)
@@ -381,7 +373,8 @@ def demo_covariance_sensitivity():
             # Identity weighting
             try:
                 est_id, info = positioner.solve(
-                    tdoa_noisy, initial_guess=np.array([10.0, 10.0]),
+                    tdoa_noisy,
+                    initial_guess=np.array([10.0, 10.0]),
                     covariance=cov_id,
                 )
                 if info["converged"]:
@@ -392,7 +385,8 @@ def demo_covariance_sensitivity():
             # Correlated weighting
             try:
                 est_corr, info = positioner.solve(
-                    tdoa_noisy, initial_guess=np.array([10.0, 10.0]),
+                    tdoa_noisy,
+                    initial_guess=np.array([10.0, 10.0]),
                     covariance=cov_corr,
                 )
                 if info["converged"]:
@@ -400,21 +394,25 @@ def demo_covariance_sensitivity():
             except Exception:
                 pass
 
-        rmse_id = np.sqrt(np.mean(np.array(errors_id)**2))
-        rmse_corr = np.sqrt(np.mean(np.array(errors_corr)**2))
+        rmse_id = np.sqrt(np.mean(np.array(errors_id) ** 2))
+        rmse_corr = np.sqrt(np.mean(np.array(errors_corr) ** 2))
         improvement = (rmse_id - rmse_corr) / rmse_id * 100 if rmse_id > 0 else 0
 
-        results.append({
-            "ref_sigma": ref_sigma,
-            "rmse_identity": rmse_id,
-            "rmse_correlated": rmse_corr,
-            "improvement": improvement,
-        })
+        results.append(
+            {
+                "ref_sigma": ref_sigma,
+                "rmse_identity": rmse_id,
+                "rmse_correlated": rmse_corr,
+                "improvement": improvement,
+            }
+        )
 
     # Print results
     print("\n" + "-" * 70)
-    print(f"{'Ref sigma (m)':<15} {'RMSE Id (m)':<15} "
-          f"{'RMSE Corr (m)':<15} {'Improvement':<15}")
+    print(
+        f"{'Ref sigma (m)':<15} {'RMSE Id (m)':<15} "
+        f"{'RMSE Corr (m)':<15} {'Improvement':<15}"
+    )
     print("-" * 70)
 
     for r in results:
@@ -470,7 +468,7 @@ def demo_visualize_covariance():
     # Show diagonal derivation
     print("\nDiagonal derivation:")
     for i, anc_idx in enumerate(non_ref):
-        diag_val = sigmas[anc_idx]**2 + sigmas[ref_idx]**2
+        diag_val = sigmas[anc_idx] ** 2 + sigmas[ref_idx] ** 2
         print(
             f"  var(d^{anc_idx},{ref_idx}) = "
             f"{sigmas[anc_idx]:.2f}^2 + {sigmas[ref_idx]:.2f}^2 = {diag_val:.4f}"
@@ -479,24 +477,32 @@ def demo_visualize_covariance():
     # Create figure
     try:
         fig, ax = plt.subplots(figsize=(8, 6))
-        im = ax.imshow(cov, cmap='Blues')
-        ax.set_title('TDOA Covariance Matrix (Eq. 4.42)', fontsize=12)
-        ax.set_xlabel('TDOA measurement index')
-        ax.set_ylabel('TDOA measurement index')
+        im = ax.imshow(cov, cmap="Blues")
+        ax.set_title("TDOA Covariance Matrix (Eq. 4.42)", fontsize=12)
+        ax.set_xlabel("TDOA measurement index")
+        ax.set_ylabel("TDOA measurement index")
 
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax)
-        cbar.set_label('Covariance (m^2)')
+        cbar.set_label("Covariance (m^2)")
 
         # Add annotations
         for i in range(len(cov)):
             for j in range(len(cov)):
-                ax.text(j, i, f'{cov[i, j]:.3f}',
-                        ha='center', va='center', color='black', fontsize=9)
+                ax.text(
+                    j,
+                    i,
+                    f"{cov[i, j]:.3f}",
+                    ha="center",
+                    va="center",
+                    color="black",
+                    fontsize=9,
+                )
 
         plt.tight_layout()
-        paths = save_figure(fig, Path(__file__).parent / "figs",
-                            "tdoa_covariance_matrix")
+        paths = save_figure(
+            fig, Path(__file__).parent / "figs", "tdoa_covariance_matrix"
+        )
         print(f"\nFigure saved to: {paths[0]}")
         plt.close()
     except Exception as e:
@@ -514,14 +520,10 @@ def demo_geometry_effect():
     true_position = np.array([5.0, 5.0])
 
     # Good geometry: anchors surrounding the target
-    good_anchors = np.array(
-        [[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float
-    )
+    good_anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
 
     # Poor geometry: anchors on one side
-    poor_anchors = np.array(
-        [[0, 0], [2, 0], [4, 0], [6, 0]], dtype=float
-    )
+    poor_anchors = np.array([[0, 0], [2, 0], [4, 0], [6, 0]], dtype=float)
 
     noise_std = 0.2  # meters
 
@@ -605,8 +607,7 @@ def demo_fang_toa_solver():
         - the range-weighted iterative solution (requires an initial guess)
     """
     print("\n" + "=" * 70)
-    print("Demo 7: Fang's TOA Closed-Form vs Range-Weighted LS "
-          "(Eqs. 4.43-4.49)")
+    print("Demo 7: Fang's TOA Closed-Form vs Range-Weighted LS " "(Eqs. 4.43-4.49)")
     print("=" * 70)
 
     # Setup: 4 anchors in a square
@@ -628,15 +629,17 @@ def demo_fang_toa_solver():
     fang_error = np.linalg.norm(fang_pos - true_position)
 
     # Range-weighted iterative (W_ii = 1/d_i^2)
-    positioner = TOAPositioner(anchors, method='range_weighted')
+    positioner = TOAPositioner(anchors, method="range_weighted")
     rw_pos, rw_info = positioner.solve(
         ranges_true, initial_guess=np.array([10.0, 10.0])
     )
     rw_error = np.linalg.norm(rw_pos - true_position)
 
     print(f"Fang:  position={fang_pos}, error={fang_error:.6f} m")
-    print(f"RW-LS: position={rw_pos}, error={rw_error:.6f} m, "
-          f"iters={rw_info['iterations']}")
+    print(
+        f"RW-LS: position={rw_pos}, error={rw_error:.6f} m, "
+        f"iters={rw_info['iterations']}"
+    )
 
     # Test with noisy measurements
     print("\n--- Noisy Measurements (Monte Carlo) ---")
@@ -664,28 +667,34 @@ def demo_fang_toa_solver():
                 i_pos, i_info = positioner.solve(
                     ranges_noisy, initial_guess=np.array([10.0, 10.0])
                 )
-                if i_info['converged']:
+                if i_info["converged"]:
                     rw_errors.append(np.linalg.norm(i_pos - true_position))
             except Exception:
                 pass
 
-        fang_rmse = np.sqrt(np.mean(np.array(fang_errors)**2))
-        rw_rmse = np.sqrt(np.mean(np.array(rw_errors)**2))
+        fang_rmse = np.sqrt(np.mean(np.array(fang_errors) ** 2))
+        rw_rmse = np.sqrt(np.mean(np.array(rw_errors) ** 2))
 
-        results.append({
-            'noise': noise_std,
-            'fang_rmse': fang_rmse,
-            'rw_rmse': rw_rmse,
-            'fang_success': len(fang_errors),
-            'rw_success': len(rw_errors),
-        })
+        results.append(
+            {
+                "noise": noise_std,
+                "fang_rmse": fang_rmse,
+                "rw_rmse": rw_rmse,
+                "fang_success": len(fang_errors),
+                "rw_success": len(rw_errors),
+            }
+        )
 
-    print(f"\n{'Noise (m)':<12} {'Fang RMSE':<15} {'RW-LS RMSE':<15} "
-          f"{'Fang Success':<15} {'RW-LS Success':<15}")
+    print(
+        f"\n{'Noise (m)':<12} {'Fang RMSE':<15} {'RW-LS RMSE':<15} "
+        f"{'Fang Success':<15} {'RW-LS Success':<15}"
+    )
     print("-" * 70)
     for r in results:
-        print(f"{r['noise']:<12.2f} {r['fang_rmse']:<15.4f} {r['rw_rmse']:<15.4f} "
-              f"{r['fang_success']:<15} {r['rw_success']:<15}")
+        print(
+            f"{r['noise']:<12.2f} {r['fang_rmse']:<15.4f} {r['rw_rmse']:<15.4f} "
+            f"{r['fang_success']:<15} {r['rw_success']:<15}"
+        )
 
     print("\nKey Insights:")
     print("  - Fang's method is non-iterative (no initial guess required)")
@@ -704,14 +713,11 @@ def demo_chan_tdoa_solver():
         - the iterative TDOA solution: W = I here, W = Sigma^-1 under noise
     """
     print("\n" + "=" * 70)
-    print("Demo 8: Chan's TDOA Closed-Form vs Iterative LS/WLS "
-          "(Eqs. 4.50-4.62)")
+    print("Demo 8: Chan's TDOA Closed-Form vs Iterative LS/WLS " "(Eqs. 4.50-4.62)")
     print("=" * 70)
 
     # Setup: 5 anchors for good geometry
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float
-    )
+    anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float)
     true_position = np.array([8.0, 12.0])
     ref_idx = 0
 
@@ -722,8 +728,9 @@ def demo_chan_tdoa_solver():
     # Compute true ranges and TDOA
     ranges_true = np.linalg.norm(anchors - true_position, axis=1)
     d_ref = ranges_true[ref_idx]
-    tdoa_true = np.array([ranges_true[i] - d_ref
-                          for i in range(len(anchors)) if i != ref_idx])
+    tdoa_true = np.array(
+        [ranges_true[i] - d_ref for i in range(len(anchors)) if i != ref_idx]
+    )
 
     print(f"True reference distance: {d_ref:.4f} m")
     print(f"True TDOA measurements: {tdoa_true}")
@@ -744,8 +751,10 @@ def demo_chan_tdoa_solver():
 
     print(f"Chan:  position={chan_pos}, error={chan_error:.6f} m")
     print(f"       reference distance estimate={chan_info['reference_distance']:.4f} m")
-    print(f"I-LS:  position={ils_pos}, error={ils_error:.6f} m, "
-          f"iters={ils_info['iterations']}")
+    print(
+        f"I-LS:  position={ils_pos}, error={ils_error:.6f} m, "
+        f"iters={ils_info['iterations']}"
+    )
 
     # Test with noisy measurements (correlated noise)
     print("\n--- Noisy Measurements (Monte Carlo with Correlated Noise) ---")
@@ -767,8 +776,13 @@ def demo_chan_tdoa_solver():
             ranges_noisy = ranges_true + np.random.randn(len(anchors)) * noise_std
 
             # Compute noisy TDOA
-            tdoa_noisy = np.array([ranges_noisy[i] - ranges_noisy[ref_idx]
-                                   for i in range(len(anchors)) if i != ref_idx])
+            tdoa_noisy = np.array(
+                [
+                    ranges_noisy[i] - ranges_noisy[ref_idx]
+                    for i in range(len(anchors))
+                    if i != ref_idx
+                ]
+            )
 
             # Chan's method (with WLS using covariance)
             try:
@@ -782,31 +796,42 @@ def demo_chan_tdoa_solver():
             # I-WLS (with covariance)
             try:
                 i_pos, i_info = positioner.solve(
-                    tdoa_noisy, initial_guess=np.array([10.0, 10.0]),
+                    tdoa_noisy,
+                    initial_guess=np.array([10.0, 10.0]),
                     covariance=cov,
                 )
-                if i_info['converged']:
+                if i_info["converged"]:
                     iwls_errors.append(np.linalg.norm(i_pos - true_position))
             except Exception:
                 pass
 
-        chan_rmse = np.sqrt(np.mean(np.array(chan_errors)**2)) if chan_errors else np.inf
-        iwls_rmse = np.sqrt(np.mean(np.array(iwls_errors)**2)) if iwls_errors else np.inf
+        chan_rmse = (
+            np.sqrt(np.mean(np.array(chan_errors) ** 2)) if chan_errors else np.inf
+        )
+        iwls_rmse = (
+            np.sqrt(np.mean(np.array(iwls_errors) ** 2)) if iwls_errors else np.inf
+        )
 
-        results.append({
-            'noise': noise_std,
-            'chan_rmse': chan_rmse,
-            'iwls_rmse': iwls_rmse,
-            'chan_success': len(chan_errors),
-            'iwls_success': len(iwls_errors),
-        })
+        results.append(
+            {
+                "noise": noise_std,
+                "chan_rmse": chan_rmse,
+                "iwls_rmse": iwls_rmse,
+                "chan_success": len(chan_errors),
+                "iwls_success": len(iwls_errors),
+            }
+        )
 
-    print(f"\n{'Noise (m)':<12} {'Chan RMSE':<15} {'I-WLS RMSE':<15} "
-          f"{'Chan Success':<15} {'I-WLS Success':<15}")
+    print(
+        f"\n{'Noise (m)':<12} {'Chan RMSE':<15} {'I-WLS RMSE':<15} "
+        f"{'Chan Success':<15} {'I-WLS Success':<15}"
+    )
     print("-" * 70)
     for r in results:
-        print(f"{r['noise']:<12.2f} {r['chan_rmse']:<15.4f} {r['iwls_rmse']:<15.4f} "
-              f"{r['chan_success']:<15} {r['iwls_success']:<15}")
+        print(
+            f"{r['noise']:<12.2f} {r['chan_rmse']:<15.4f} {r['iwls_rmse']:<15.4f} "
+            f"{r['chan_success']:<15} {r['iwls_success']:<15}"
+        )
 
     print("\nKey Insights:")
     print("  - Chan's method is non-iterative, estimates position + ref distance")
@@ -830,9 +855,7 @@ def demo_closed_form_comparison():
     print("=" * 70)
 
     # Setup
-    anchors = np.array(
-        [[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float
-    )
+    anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float)
     true_position = np.array([7.5, 11.0])
     ref_idx = 0
 
@@ -853,7 +876,7 @@ def demo_closed_form_comparison():
     tdoa_chan_err = []
     tdoa_iwls_err = []
 
-    toa_positioner = TOAPositioner(anchors, method='range_weighted')
+    toa_positioner = TOAPositioner(anchors, method="range_weighted")
     tdoa_positioner = TDOAPositioner(anchors, reference_idx=ref_idx)
     sigmas = np.ones(len(anchors)) * noise_std
     cov = build_tdoa_covariance(sigmas, ref_idx=ref_idx)
@@ -863,8 +886,13 @@ def demo_closed_form_comparison():
     for _ in range(n_trials):
         # Generate noisy ranges
         ranges_noisy = ranges_true + np.random.randn(len(anchors)) * noise_std
-        tdoa_noisy = np.array([ranges_noisy[i] - ranges_noisy[ref_idx]
-                               for i in range(len(anchors)) if i != ref_idx])
+        tdoa_noisy = np.array(
+            [
+                ranges_noisy[i] - ranges_noisy[ref_idx]
+                for i in range(len(anchors))
+                if i != ref_idx
+            ]
+        )
 
         # TOA: Fang
         try:
@@ -878,14 +906,16 @@ def demo_closed_form_comparison():
             pos, info = toa_positioner.solve(
                 ranges_noisy, initial_guess=np.array([10.0, 10.0])
             )
-            if info['converged']:
+            if info["converged"]:
                 toa_rw_err.append(np.linalg.norm(pos - true_position))
         except Exception:
             pass
 
         # TDOA: Chan
         try:
-            pos, _ = tdoa_chan_solver(anchors, tdoa_noisy, ref_idx=ref_idx, covariance=cov)
+            pos, _ = tdoa_chan_solver(
+                anchors, tdoa_noisy, ref_idx=ref_idx, covariance=cov
+            )
             tdoa_chan_err.append(np.linalg.norm(pos - true_position))
         except Exception:
             pass
@@ -895,7 +925,7 @@ def demo_closed_form_comparison():
             pos, info = tdoa_positioner.solve(
                 tdoa_noisy, initial_guess=np.array([10.0, 10.0]), covariance=cov
             )
-            if info['converged']:
+            if info["converged"]:
                 tdoa_iwls_err.append(np.linalg.norm(pos - true_position))
         except Exception:
             pass
@@ -908,20 +938,30 @@ def demo_closed_form_comparison():
         return np.sqrt(np.mean(e**2)), np.mean(e), np.std(e), len(e)
 
     print("\n" + "-" * 80)
-    print(f"{'Method':<25} {'RMSE (m)':<12} {'Mean (m)':<12} {'Std (m)':<12} {'Success':<10}")
+    print(
+        f"{'Method':<25} {'RMSE (m)':<12} {'Mean (m)':<12} {'Std (m)':<12} {'Success':<10}"
+    )
     print("-" * 80)
 
     rmse, mean, std, n = stats(toa_fang_err)
-    print(f"{'TOA Fang (closed-form)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}")
+    print(
+        f"{'TOA Fang (closed-form)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}"
+    )
 
     rmse, mean, std, n = stats(toa_rw_err)
-    print(f"{'TOA RW-LS (iterative)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}")
+    print(
+        f"{'TOA RW-LS (iterative)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}"
+    )
 
     rmse, mean, std, n = stats(tdoa_chan_err)
-    print(f"{'TDOA Chan (closed-form)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}")
+    print(
+        f"{'TDOA Chan (closed-form)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}"
+    )
 
     rmse, mean, std, n = stats(tdoa_iwls_err)
-    print(f"{'TDOA I-WLS (iterative)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}")
+    print(
+        f"{'TDOA I-WLS (iterative)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}"
+    )
 
     print("\nSummary:")
     print("  - Closed-form methods (Fang, Chan) don't need initial guess")
@@ -937,39 +977,42 @@ def demo_closed_form_comparison():
         # TOA comparison
         ax1 = axes[0]
         data = [toa_fang_err, toa_rw_err]
-        tick_labels = ['Fang\n(closed-form)', 'RW-LS\n(iterative)']
+        tick_labels = ["Fang\n(closed-form)", "RW-LS\n(iterative)"]
         bp = ax1.boxplot(data, tick_labels=tick_labels, patch_artist=True)
-        bp['boxes'][0].set_facecolor('lightblue')
-        bp['boxes'][1].set_facecolor('lightgreen')
-        ax1.set_ylabel('Position Error (m)')
-        ax1.set_title('TOA Positioning Comparison')
+        bp["boxes"][0].set_facecolor("lightblue")
+        bp["boxes"][1].set_facecolor("lightgreen")
+        ax1.set_ylabel("Position Error (m)")
+        ax1.set_title("TOA Positioning Comparison")
         ax1.grid(True, alpha=0.3)
 
         # TDOA comparison
         ax2 = axes[1]
         data = [tdoa_chan_err, tdoa_iwls_err]
-        tick_labels = ['Chan\n(closed-form)', 'I-WLS\n(iterative)']
+        tick_labels = ["Chan\n(closed-form)", "I-WLS\n(iterative)"]
         bp = ax2.boxplot(data, tick_labels=tick_labels, patch_artist=True)
-        bp['boxes'][0].set_facecolor('lightyellow')
-        bp['boxes'][1].set_facecolor('lightcoral')
-        ax2.set_ylabel('Position Error (m)')
-        ax2.set_title('TDOA Positioning Comparison')
+        bp["boxes"][0].set_facecolor("lightyellow")
+        bp["boxes"][1].set_facecolor("lightcoral")
+        ax2.set_ylabel("Position Error (m)")
+        ax2.set_title("TDOA Positioning Comparison")
         ax2.grid(True, alpha=0.3)
 
-        plt.suptitle(f'Closed-Form vs Iterative Solvers (noise={noise_std}m)', fontsize=12)
+        plt.suptitle(
+            f"Closed-Form vs Iterative Solvers (noise={noise_std}m)", fontsize=12
+        )
         plt.tight_layout()
-        paths = save_figure(fig, Path(__file__).parent / "figs",
-                            "closed_form_comparison")
+        paths = save_figure(
+            fig, Path(__file__).parent / "figs", "closed_form_comparison"
+        )
         print(f"\nFigure saved: {paths[0]}")
         plt.close()
     except Exception as e:
         print(f"\nCould not save figure: {e}")
 
     return {
-        'toa_fang': toa_fang_err,
-        'toa_rw': toa_rw_err,
-        'tdoa_chan': tdoa_chan_err,
-        'tdoa_iwls': tdoa_iwls_err,
+        "toa_fang": toa_fang_err,
+        "toa_rw": toa_rw_err,
+        "tdoa_chan": tdoa_chan_err,
+        "tdoa_iwls": tdoa_iwls_err,
     }
 
 
@@ -1005,6 +1048,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

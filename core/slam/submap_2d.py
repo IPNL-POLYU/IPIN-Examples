@@ -15,15 +15,15 @@ from .se2 import se2_apply
 
 class Submap2D:
     """Lightweight 2D submap for storing accumulated scan points.
-    
+
     A submap maintains a collection of 2D points in a map frame, built by
     transforming individual scans from their robot frames into the map frame.
     Used in SLAM front-end for scan-to-map alignment.
-    
+
     Attributes:
         points: Accumulated map points in map frame, shape (N, 2).
         n_scans: Number of scans added to this submap.
-    
+
     Example:
         >>> submap = Submap2D()
         >>> pose = np.array([1.0, 2.0, 0.5])  # [x, y, yaw]
@@ -32,7 +32,7 @@ class Submap2D:
         >>> map_points = submap.get_points()
         >>> print(map_points.shape)
         (2, 2)
-    
+
     Notes:
         - Points are stored in map frame (global coordinates)
         - No automatic downsampling unless explicitly requested
@@ -46,14 +46,14 @@ class Submap2D:
 
     def add_scan(self, pose_se2: np.ndarray, scan_xy: np.ndarray) -> None:
         """Add a scan to the submap by transforming it into map frame.
-        
+
         Args:
             pose_se2: Robot pose in map frame [x, y, yaw], shape (3,).
             scan_xy: Scan points in robot local frame, shape (N, 2).
-        
+
         Raises:
             ValueError: If pose_se2 is not shape (3,) or scan_xy is not shape (N, 2).
-        
+
         Example:
             >>> submap = Submap2D()
             >>> pose = np.array([0.0, 0.0, 0.0])
@@ -85,15 +85,15 @@ class Submap2D:
 
     def get_points(self, voxel_size: Optional[float] = None) -> np.ndarray:
         """Get all map points, optionally downsampled.
-        
+
         Args:
             voxel_size: If provided, downsample points using voxel grid filter.
                        Points within the same voxel are replaced by their centroid.
-        
+
         Returns:
             Map points in map frame, shape (M, 2). If voxel_size is provided,
             M <= original point count. If no points exist, returns empty array.
-        
+
         Example:
             >>> submap = Submap2D()
             >>> pose = np.array([0.0, 0.0, 0.0])
@@ -117,11 +117,11 @@ class Submap2D:
 
     def downsample(self, voxel_size: float) -> None:
         """Downsample map points in-place using voxel grid filter.
-        
+
         Args:
             voxel_size: Voxel grid size in meters. Points within the same voxel
                        are replaced by their centroid.
-        
+
         Example:
             >>> submap = Submap2D()
             >>> pose = np.array([0.0, 0.0, 0.0])
@@ -140,7 +140,7 @@ class Submap2D:
 
     def clear(self) -> None:
         """Clear all points and reset scan count.
-        
+
         Example:
             >>> submap = Submap2D()
             >>> pose = np.array([0.0, 0.0, 0.0])
@@ -157,7 +157,7 @@ class Submap2D:
 
     def __len__(self) -> int:
         """Return number of points in the submap.
-        
+
         Returns:
             Number of points currently stored.
         """
@@ -166,14 +166,14 @@ class Submap2D:
     @staticmethod
     def _voxel_downsample(points: np.ndarray, voxel_size: float) -> np.ndarray:
         """Voxel grid downsampling using quantization and centroid computation.
-        
+
         Args:
             points: Input points, shape (N, 2).
             voxel_size: Voxel grid size in meters.
-        
+
         Returns:
             Downsampled points, shape (M, 2) where M <= N.
-        
+
         Notes:
             - Points are quantized to voxel grid coordinates
             - Points in the same voxel are averaged to compute centroid

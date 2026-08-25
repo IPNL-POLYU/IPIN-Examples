@@ -50,10 +50,12 @@ def _accel_in_body_frame(truth):
     dt = np.diff(t, prepend=t[0] - (t[1] - t[0]))
     a_map = np.gradient(vel, axis=0) / dt[:, None]
     cos_y, sin_y = np.cos(yaw), np.sin(yaw)
-    return np.column_stack([
-        cos_y * a_map[:, 0] + sin_y * a_map[:, 1],
-        -sin_y * a_map[:, 0] + cos_y * a_map[:, 1],
-    ])
+    return np.column_stack(
+        [
+            cos_y * a_map[:, 0] + sin_y * a_map[:, 1],
+            -sin_y * a_map[:, 0] + cos_y * a_map[:, 1],
+        ]
+    )
 
 
 class TestImuIsBodyFrame(unittest.TestCase):
@@ -67,12 +69,14 @@ class TestImuIsBodyFrame(unittest.TestCase):
 
             with self.subTest(dataset=name):
                 self.assertLess(
-                    float(residual.std()), 1.5 * sigma,
+                    float(residual.std()),
+                    1.5 * sigma,
                     "accelerometer does not match the body-frame truth",
                 )
                 # A frame error shows up here rather than in the spread.
                 self.assertLess(
-                    float(np.abs(residual.mean(axis=0)).max()), 0.25 * sigma,
+                    float(np.abs(residual.mean(axis=0)).max()),
+                    0.25 * sigma,
                     "residual has a systematic component, which is what a "
                     "wrong frame looks like",
                 )
@@ -95,22 +99,30 @@ class TestImuIsBodyFrame(unittest.TestCase):
             for k in range(1, len(t)):
                 theta += gyro[k - 1] * dt
                 c, s = np.cos(theta), np.sin(theta)
-                a_map = np.array([
-                    c * accel[k - 1, 0] - s * accel[k - 1, 1],
-                    s * accel[k - 1, 0] + c * accel[k - 1, 1],
-                ])
+                a_map = np.array(
+                    [
+                        c * accel[k - 1, 0] - s * accel[k - 1, 1],
+                        s * accel[k - 1, 0] + c * accel[k - 1, 1],
+                    ]
+                )
                 v = v + a_map * dt
                 x = x + v * dt
                 track.append(x.copy())
             track = np.asarray(track)
 
             with self.subTest(dataset=name):
-                true_extent = float(np.linalg.norm(pos - pos.mean(axis=0), axis=1).mean())
-                got_extent = float(np.linalg.norm(track - track.mean(axis=0), axis=1).mean())
+                true_extent = float(
+                    np.linalg.norm(pos - pos.mean(axis=0), axis=1).mean()
+                )
+                got_extent = float(
+                    np.linalg.norm(track - track.mean(axis=0), axis=1).mean()
+                )
                 self.assertAlmostEqual(
-                    got_extent, true_extent, delta=0.25 * true_extent,
+                    got_extent,
+                    true_extent,
+                    delta=0.25 * true_extent,
                     msg=f"{name}: integrated path spans {got_extent:.2f} m about "
-                        f"its centre against {true_extent:.2f} m for the truth",
+                    f"its centre against {true_extent:.2f} m for the truth",
                 )
 
 

@@ -69,9 +69,7 @@ def example_toa_perfect():
 
     # Solve using iterative LS (book default: Eq. 4.20)
     positioner = TOAPositioner(anchors, method="iterative_ls")
-    estimated_pos, info = positioner.solve(
-        ranges, initial_guess=np.array([6.0, 6.0])
-    )
+    estimated_pos, info = positioner.solve(ranges, initial_guess=np.array([6.0, 6.0]))
 
     # Results
     error = np.linalg.norm(estimated_pos - true_pos)
@@ -146,11 +144,15 @@ def example_toa_with_noise():
     print(f"\nOver {trials} noise draws, against Eq. (4.107):")
     print(f"  HDOP for this geometry : {hdop:.3f}")
     print(f"  predicted HDOP x sigma : {predicted:.4f} m")
-    print(f"  measured RMS error     : {measured:.4f} m  "
-          f"({measured / predicted:.2f}x predicted)")
-    print(f"  a single draw lands anywhere in "
-          f"[{np.percentile(errors, 10):.3f}, "
-          f"{np.percentile(errors, 90):.3f}] m (10th-90th percentile)")
+    print(
+        f"  measured RMS error     : {measured:.4f} m  "
+        f"({measured / predicted:.2f}x predicted)"
+    )
+    print(
+        f"  a single draw lands anywhere in "
+        f"[{np.percentile(errors, 10):.3f}, "
+        f"{np.percentile(errors, 90):.3f}] m (10th-90th percentile)"
+    )
 
     return anchors, true_pos, estimated_pos
 
@@ -179,15 +181,19 @@ def example_toa_with_clock_bias():
     true_clock_bias_m = true_clock_bias_s * SPEED_OF_LIGHT  # ~3.0 meters
 
     print(f"\nTrue position: {true_pos}")
-    print(f"True clock bias: {true_clock_bias_s*1e9:.2f} ns = {true_clock_bias_m:.3f} m")
+    print(
+        f"True clock bias: {true_clock_bias_s*1e9:.2f} ns = {true_clock_bias_m:.3f} m"
+    )
     print(f"  (1 ns = {SPEED_OF_LIGHT*1e-9:.3f} m, 1 m = {1e9/SPEED_OF_LIGHT:.3f} ns)")
 
     # Compute ranges WITH clock bias using measurement model
     # toa_range() takes clock_bias_s in SECONDS
-    ranges_biased = np.array([
-        toa_range(anchor, true_pos, clock_bias_s=true_clock_bias_s)
-        for anchor in anchors
-    ])
+    ranges_biased = np.array(
+        [
+            toa_range(anchor, true_pos, clock_bias_s=true_clock_bias_s)
+            for anchor in anchors
+        ]
+    )
 
     # Also compute true geometric ranges (no bias)
     true_ranges = np.array([toa_range(anchor, true_pos) for anchor in anchors])
@@ -199,9 +205,7 @@ def example_toa_with_clock_bias():
     # Solve with clock bias estimation
     # The solver estimates bias in METERS (book convention)
     initial_guess = np.array([6.0, 6.0, 0.0])  # [x, y, bias_m]
-    pos, bias_m, info = toa_solve_with_clock_bias(
-        anchors, ranges_biased, initial_guess
-    )
+    pos, bias_m, info = toa_solve_with_clock_bias(anchors, ranges_biased, initial_guess)
 
     # Convert estimated bias from meters to seconds for interpretation
     bias_s = bias_m / SPEED_OF_LIGHT
@@ -265,10 +269,7 @@ def example_rss_positioning():
     print(f"RSS measurements: {rss_measurements}")
 
     ranges_from_rss = np.array(
-        [
-            rss_to_distance(rss, p_ref_dbm, path_loss_exp)
-            for rss in rss_measurements
-        ]
+        [rss_to_distance(rss, p_ref_dbm, path_loss_exp) for rss in rss_measurements]
     )
     print(f"Estimated ranges: {ranges_from_rss}")
 
@@ -396,7 +397,9 @@ def example_rtt_measurement():
 
     # Without correction: overestimate distance
     range_wrong = rtt_to_range(rtt_with_proc)
-    print(f"\n  Range without correction: {range_wrong:.2f} m (ERROR: +{range_wrong - distance:.2f} m)")
+    print(
+        f"\n  Range without correction: {range_wrong:.2f} m (ERROR: +{range_wrong - distance:.2f} m)"
+    )
 
     # With correction: correct distance
     range_correct = rtt_to_range(rtt_with_proc, processing_time=processing_time)
@@ -427,10 +430,11 @@ def example_rtt_measurement():
 
     # Single measurement
     rtt, info = simulate_rtt_measurement(
-        anchor, agent,
+        anchor,
+        agent,
         processing_time=50e-9,
         processing_time_std=5e-9,  # 5 ns std
-        clock_drift_std=2e-9,      # 2 ns std
+        clock_drift_std=2e-9,  # 2 ns std
     )
 
     print(f"\n  True range: {info['true_range']:.2f} m")
@@ -445,12 +449,13 @@ def example_rtt_measurement():
     errors = []
     for _ in range(100):
         _, info = simulate_rtt_measurement(
-            anchor, agent,
+            anchor,
+            agent,
             processing_time=50e-9,
             processing_time_std=5e-9,
             clock_drift_std=2e-9,
         )
-        errors.append(info['range_estimate'] - 15.0)
+        errors.append(info["range_estimate"] - 15.0)
 
     errors = np.array(errors)
     print(f"    Mean error: {np.mean(errors):.4f} m")
@@ -460,12 +465,15 @@ def example_rtt_measurement():
     print("\n--- RTT-Based Positioning Example ---")
 
     # Multiple anchors
-    anchors = np.array([
-        [0, 0, 0],
-        [20, 0, 0],
-        [20, 20, 0],
-        [0, 20, 0],
-    ], dtype=float)
+    anchors = np.array(
+        [
+            [0, 0, 0],
+            [20, 0, 0],
+            [20, 20, 0],
+            [0, 20, 0],
+        ],
+        dtype=float,
+    )
     true_pos = np.array([8.0, 12.0, 0.0])
 
     print(f"\n  True position: {true_pos[:2]}")
@@ -474,18 +482,21 @@ def example_rtt_measurement():
     ranges_from_rtt = []
     for i, anchor in enumerate(anchors):
         rtt, info = simulate_rtt_measurement(
-            anchor, true_pos,
+            anchor,
+            true_pos,
             processing_time=50e-9,
             processing_time_std=3e-9,
         )
-        ranges_from_rtt.append(info['range_estimate'])
-        print(f"  Anchor {i+1}: RTT={rtt*1e9:.1f}ns -> Range={info['range_estimate']:.3f}m "
-              f"(true: {info['true_range']:.2f}m)")
+        ranges_from_rtt.append(info["range_estimate"])
+        print(
+            f"  Anchor {i+1}: RTT={rtt*1e9:.1f}ns -> Range={info['range_estimate']:.3f}m "
+            f"(true: {info['true_range']:.2f}m)"
+        )
 
     ranges_from_rtt = np.array(ranges_from_rtt)
 
     # Position using TOA solver
-    positioner = TOAPositioner(anchors[:, :2], method='iterative_ls')
+    positioner = TOAPositioner(anchors[:, :2], method="iterative_ls")
     est_pos, info = positioner.solve(
         ranges_from_rtt, initial_guess=np.array([10.0, 10.0])
     )
@@ -512,7 +523,8 @@ def example_wls_vs_ls():
     # Deliberately asymmetric layout: three close anchors on the left,
     # one distant anchor on the right.
     anchors = np.array(
-        [[0, 0], [0, 8], [2, 4], [15, 5]], dtype=float,
+        [[0, 0], [0, 8], [2, 4], [15, 5]],
+        dtype=float,
     )
     true_pos = np.array([6.0, 4.0])
 
@@ -528,19 +540,20 @@ def example_wls_vs_ls():
     errors_wls = []
 
     for _ in range(n_trials):
-        true_ranges = np.array(
-            [toa_range(a, true_pos) for a in anchors]
-        )
+        true_ranges = np.array([toa_range(a, true_pos) for a in anchors])
         noisy_ranges = true_ranges + np.random.randn(len(anchors)) * sigma_per_anchor
 
         init = np.array([5.0, 5.0])
 
         pos_ls, info_ls = TOAPositioner(anchors, method="iterative_ls").solve(
-            noisy_ranges, initial_guess=init,
+            noisy_ranges,
+            initial_guess=init,
         )
-        cov = np.diag(sigma_per_anchor ** 2)
+        cov = np.diag(sigma_per_anchor**2)
         pos_wls, info_wls = TOAPositioner(anchors, method="iterative_wls").solve(
-            noisy_ranges, initial_guess=init, covariance=cov,
+            noisy_ranges,
+            initial_guess=init,
+            covariance=cov,
         )
 
         if info_ls["converged"]:
@@ -551,8 +564,8 @@ def example_wls_vs_ls():
     errors_ls = np.array(errors_ls)
     errors_wls = np.array(errors_wls)
 
-    rmse_ls = np.sqrt(np.mean(errors_ls ** 2))
-    rmse_wls = np.sqrt(np.mean(errors_wls ** 2))
+    rmse_ls = np.sqrt(np.mean(errors_ls**2))
+    rmse_wls = np.sqrt(np.mean(errors_wls**2))
 
     print(f"\nMonte-Carlo results ({n_trials} trials):")
     print(f"  LS  RMSE: {rmse_ls:.3f} m   (converged {len(errors_ls)}/{n_trials})")
@@ -598,8 +611,7 @@ def main():
     print("=" * 70)
 
     fig = plot_toa_positioning(anchors1, true_pos1, est_pos1, info1["history"])
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "toa_positioning_example")
+    paths = save_figure(fig, Path(__file__).parent / "figs", "toa_positioning_example")
     print(f"\nFigure saved: {paths[0]}")
 
     show_figures_if_requested()
@@ -611,6 +623,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-
-

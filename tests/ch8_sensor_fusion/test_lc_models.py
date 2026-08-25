@@ -19,27 +19,18 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
     def setUp(self):
         """Set up test fixtures."""
         # Square anchor layout (20m x 15m)
-        self.anchors = np.array([
-            [0.0, 0.0],
-            [20.0, 0.0],
-            [20.0, 15.0],
-            [0.0, 15.0]
-        ])
+        self.anchors = np.array([[0.0, 0.0], [20.0, 0.0], [20.0, 15.0], [0.0, 15.0]])
 
         # True position at center
         self.true_pos = np.array([10.0, 7.5])
 
         # Compute true ranges
-        self.true_ranges = np.linalg.norm(
-            self.anchors - self.true_pos, axis=1
-        )
+        self.true_ranges = np.linalg.norm(self.anchors - self.true_pos, axis=1)
 
     def test_nominal_case_converges(self):
         """Test that WLS converges on noise-free measurements."""
         pos, cov, converged = solve_uwb_position_wls(
-            ranges=self.true_ranges,
-            anchor_positions=self.anchors,
-            range_noise_std=0.05
+            ranges=self.true_ranges, anchor_positions=self.anchors, range_noise_std=0.05
         )
 
         self.assertIsNotNone(pos)
@@ -61,7 +52,7 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
         pos, cov, converged = solve_uwb_position_wls(
             ranges=noisy_ranges,
             anchor_positions=self.anchors,
-            range_noise_std=noise_std
+            range_noise_std=noise_std,
         )
 
         self.assertIsNotNone(pos)
@@ -79,7 +70,7 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
             ranges=self.true_ranges,
             anchor_positions=self.anchors,
             range_noise_std=0.001,  # Very small noise
-            cov_floor_std=0.2  # Floor at 0.2m std
+            cov_floor_std=0.2,  # Floor at 0.2m std
         )
 
         self.assertIsNotNone(pos)
@@ -100,7 +91,7 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
         pos, cov, converged = solve_uwb_position_wls(
             ranges=self.true_ranges,
             anchor_positions=self.anchors,
-            anchor_noise_std=anchor_stds
+            anchor_noise_std=anchor_stds,
         )
 
         self.assertIsNotNone(pos)
@@ -113,15 +104,13 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
         # Covariance should be larger than uniform-noise case
         # (degraded anchor reduces overall precision)
         pos_uniform, cov_uniform, _ = solve_uwb_position_wls(
-            ranges=self.true_ranges,
-            anchor_positions=self.anchors,
-            range_noise_std=0.05
+            ranges=self.true_ranges, anchor_positions=self.anchors, range_noise_std=0.05
         )
 
         # At least one axis should have larger uncertainty
         self.assertTrue(
             cov[0, 0] > cov_uniform[0, 0] or cov[1, 1] > cov_uniform[1, 1],
-            "Degraded anchor should increase covariance"
+            "Degraded anchor should increase covariance",
         )
 
     def test_dropout_handling(self):
@@ -132,7 +121,7 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
         pos, cov, converged = solve_uwb_position_wls(
             ranges=ranges_with_dropout,
             anchor_positions=self.anchors,
-            range_noise_std=0.05
+            range_noise_std=0.05,
         )
 
         self.assertIsNotNone(pos)
@@ -151,7 +140,7 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
         pos, cov, converged = solve_uwb_position_wls(
             ranges=ranges_insufficient,
             anchor_positions=self.anchors,
-            range_noise_std=0.05
+            range_noise_std=0.05,
         )
 
         self.assertIsNone(pos)
@@ -167,7 +156,7 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
             ranges=bad_ranges,
             anchor_positions=self.anchors,
             range_noise_std=0.05,
-            max_iterations=5
+            max_iterations=5,
         )
 
         # Should either fail or produce position within reasonable bounds
@@ -178,9 +167,9 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
             margin = 50.0
 
             self.assertTrue(
-                np.all(pos >= anchor_min - margin) and
-                np.all(pos <= anchor_max + margin),
-                "Divergent position not rejected"
+                np.all(pos >= anchor_min - margin)
+                and np.all(pos <= anchor_max + margin),
+                "Divergent position not rejected",
             )
 
     def test_covariance_realism(self):
@@ -190,20 +179,21 @@ class TestSolveUWBPositionWLS(unittest.TestCase):
             ranges=self.true_ranges,
             anchor_positions=self.anchors,
             range_noise_std=0.05,
-            cov_floor_std=0.0  # Disable floor for this test
+            cov_floor_std=0.0,  # Disable floor for this test
         )
 
         pos_high, cov_high, _ = solve_uwb_position_wls(
             ranges=self.true_ranges,
             anchor_positions=self.anchors,
             range_noise_std=0.2,
-            cov_floor_std=0.0
+            cov_floor_std=0.0,
         )
 
         # Higher noise should give larger covariance
         self.assertGreater(
-            np.trace(cov_high), np.trace(cov_low),
-            "Covariance should increase with noise"
+            np.trace(cov_high),
+            np.trace(cov_low),
+            "Covariance should increase with noise",
         )
 
         # Test 2: Covariance should scale approximately with σ²
@@ -227,20 +217,13 @@ class TestWLSIntegrationWithGating(unittest.TestCase):
 
     def setUp(self):
         """Set up test fixtures."""
-        self.anchors = np.array([
-            [0.0, 0.0],
-            [20.0, 0.0],
-            [20.0, 15.0],
-            [0.0, 15.0]
-        ])
+        self.anchors = np.array([[0.0, 0.0], [20.0, 0.0], [20.0, 15.0], [0.0, 15.0]])
         self.true_pos = np.array([10.0, 7.5])
-        self.true_ranges = np.linalg.norm(
-            self.anchors - self.true_pos, axis=1
-        )
+        self.true_ranges = np.linalg.norm(self.anchors - self.true_pos, axis=1)
 
     def test_realistic_covariance_for_gating(self):
         """Test that WLS covariance is realistic enough for chi-square gating.
-        
+
         This is a regression test for the issue where overconfident WLS
         covariance caused gating to reject too many valid measurements.
         """
@@ -255,10 +238,7 @@ class TestWLSIntegrationWithGating(unittest.TestCase):
         P_ekf = np.diag([0.5**2, 0.5**2, 0.2**2, 0.2**2, 0.1**2])
 
         # Measurement Jacobian H for position measurement
-        H = np.array([
-            [1.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0, 0.0]
-        ])
+        H = np.array([[1.0, 0.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0, 0.0]])
 
         n_accepted = 0
         n_rejected = 0
@@ -272,7 +252,7 @@ class TestWLSIntegrationWithGating(unittest.TestCase):
                 ranges=noisy_ranges,
                 anchor_positions=self.anchors,
                 range_noise_std=noise_std,
-                cov_floor_std=0.2  # Realistic floor
+                cov_floor_std=0.2,  # Realistic floor
             )
 
             if not converged:
@@ -300,11 +280,11 @@ class TestWLSIntegrationWithGating(unittest.TestCase):
 
         self.assertGreater(n_accepted, 0, "No measurements accepted")
         self.assertLess(
-            rejection_rate, 0.20,
-            f"Rejection rate {rejection_rate:.1%} too high - covariance likely overconfident"
+            rejection_rate,
+            0.20,
+            f"Rejection rate {rejection_rate:.1%} too high - covariance likely overconfident",
         )
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

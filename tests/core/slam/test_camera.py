@@ -137,8 +137,7 @@ class TestProjectPoint:
     def test_with_distortion(self):
         """Test projection with lens distortion."""
         intrinsics = CameraIntrinsics(
-            fx=500, fy=500, cx=320, cy=240,
-            k1=-0.1, k2=0.01, p1=0.001, p2=0.001
+            fx=500, fy=500, cx=320, cy=240, k1=-0.1, k2=0.01, p1=0.001, p2=0.001
         )
 
         point_3d = np.array([1.0, 0.5, 5.0])
@@ -160,11 +159,13 @@ class TestProjectPoint:
         """Test projection of multiple points."""
         intrinsics = CameraIntrinsics(fx=500, fy=500, cx=320, cy=240)
 
-        points_3d = np.array([
-            [0.0, 0.0, 5.0],
-            [1.0, 0.0, 5.0],
-            [0.0, 1.0, 5.0],
-        ])
+        points_3d = np.array(
+            [
+                [0.0, 0.0, 5.0],
+                [1.0, 0.0, 5.0],
+                [0.0, 1.0, 5.0],
+            ]
+        )
         pixels = project_point(intrinsics, points_3d)
 
         assert pixels.shape == (3, 2)
@@ -290,11 +291,13 @@ class TestComputeReprojectionError:
         """Test computing errors for multiple points."""
         intrinsics = CameraIntrinsics(fx=500, fy=500, cx=320, cy=240)
 
-        points_3d = np.array([
-            [0.0, 0.0, 5.0],
-            [1.0, 0.0, 5.0],
-            [0.0, 1.0, 5.0],
-        ])
+        points_3d = np.array(
+            [
+                [0.0, 0.0, 5.0],
+                [1.0, 0.0, 5.0],
+                [0.0, 1.0, 5.0],
+            ]
+        )
 
         # Project all points
         projected = project_point(intrinsics, points_3d)
@@ -329,8 +332,7 @@ class TestCameraIntrinsics:
     def test_create_with_distortion(self):
         """Test creating intrinsics with distortion coefficients."""
         intrinsics = CameraIntrinsics(
-            fx=500, fy=500, cx=320, cy=240,
-            k1=-0.1, k2=0.01, p1=0.001, p2=0.001
+            fx=500, fy=500, cx=320, cy=240, k1=-0.1, k2=0.01, p1=0.001, p2=0.001
         )
 
         assert intrinsics.k1 == -0.1
@@ -353,16 +355,17 @@ class TestIntegration:
     def test_project_unproject_roundtrip(self):
         """Test full roundtrip: 3D point → pixel → 3D point."""
         intrinsics = CameraIntrinsics(
-            fx=500, fy=500, cx=320, cy=240,
-            k1=-0.05, k2=0.005, p1=0.001, p2=0.001
+            fx=500, fy=500, cx=320, cy=240, k1=-0.05, k2=0.005, p1=0.001, p2=0.001
         )
 
         # Original 3D points
-        points_original = np.array([
-            [0.5, 0.3, 5.0],
-            [1.0, -0.5, 4.0],
-            [-0.5, 0.8, 6.0],
-        ])
+        points_original = np.array(
+            [
+                [0.5, 0.3, 5.0],
+                [1.0, -0.5, 4.0],
+                [-0.5, 0.8, 6.0],
+            ]
+        )
 
         # Project to pixels
         pixels = project_point(intrinsics, points_original)
@@ -385,12 +388,14 @@ class TestIntegration:
         observed_pixel = project_point(intrinsics, point_true)
 
         # Test points at different positions
-        test_points = np.array([
-            [1.0, 0.5, 5.0],    # Correct point
-            [1.1, 0.5, 5.0],    # Slightly off in X
-            [1.0, 0.6, 5.0],    # Slightly off in Y
-            [1.0, 0.5, 5.2],    # Slightly off in Z
-        ])
+        test_points = np.array(
+            [
+                [1.0, 0.5, 5.0],  # Correct point
+                [1.1, 0.5, 5.0],  # Slightly off in X
+                [1.0, 0.6, 5.0],  # Slightly off in Y
+                [1.0, 0.5, 5.2],  # Slightly off in Z
+            ]
+        )
 
         errors = []
         for test_point in test_points:
@@ -545,4 +550,3 @@ class TestTriangulatePoint:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

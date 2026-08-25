@@ -23,16 +23,16 @@ def compute_scan_descriptor(
     max_range: float = 10.0,
 ) -> np.ndarray:
     """Compute range histogram descriptor for a 2D LiDAR scan.
-    
+
     This descriptor represents the distribution of ranges in a scan as a
     normalized histogram. It is rotation-invariant and provides a simple
     yet effective signature for place recognition.
-    
+
     Algorithm:
         1. Compute range r = sqrt(x^2 + y^2) for each point
         2. Create histogram of ranges with n_bins over [0, max_range]
         3. Normalize to sum = 1 (probability distribution)
-    
+
     Args:
         scan_xy: Scan points in robot frame, shape (N, 2).
         n_bins: Number of histogram bins. More bins = more discriminative
@@ -40,14 +40,14 @@ def compute_scan_descriptor(
         max_range: Maximum range for histogram (meters). Points beyond
                   this range are placed in the last bin. Should match
                   LiDAR max range.
-    
+
     Returns:
         Descriptor vector of shape (n_bins,), normalized to sum = 1.
         Returns zero vector if scan is empty.
-    
+
     Raises:
         ValueError: If scan_xy has invalid shape or n_bins < 1.
-    
+
     Example:
         >>> scan = np.array([[1.0, 0.0], [2.0, 0.0], [3.0, 0.0]])
         >>> desc = compute_scan_descriptor(scan, n_bins=8, max_range=5.0)
@@ -55,7 +55,7 @@ def compute_scan_descriptor(
         (8,)
         >>> print(np.sum(desc))  # Should be 1.0
         1.0
-    
+
     Notes:
         - Rotation-invariant: descriptor(scan) = descriptor(rotate(scan))
         - Not translation-invariant: assumes scan in robot frame
@@ -104,7 +104,7 @@ def compute_descriptor_similarity(
     method: str = "cosine",
 ) -> float:
     """Compute similarity between two scan descriptors.
-    
+
     Args:
         desc1: First descriptor, shape (n_bins,).
         desc2: Second descriptor, shape (n_bins,).
@@ -112,15 +112,15 @@ def compute_descriptor_similarity(
                - "cosine": Cosine similarity (range: [-1, 1], higher = more similar)
                - "correlation": Pearson correlation (range: [-1, 1])
                - "l2": Negative L2 distance (range: (-inf, 0], higher = more similar)
-    
+
     Returns:
         Similarity score. Higher values indicate more similar descriptors.
         For "cosine" and "correlation": range is [-1, 1], with 1 = identical.
         For "l2": range is (-inf, 0], with 0 = identical.
-    
+
     Raises:
         ValueError: If descriptors have different shapes or invalid method.
-    
+
     Example:
         >>> desc1 = np.array([0.5, 0.3, 0.2])
         >>> desc2 = np.array([0.5, 0.3, 0.2])
@@ -172,15 +172,15 @@ def batch_compute_descriptors(
     max_range: float = 10.0,
 ) -> np.ndarray:
     """Compute descriptors for a batch of scans.
-    
+
     Args:
         scans: List of N scans, each with shape (M_i, 2).
         n_bins: Number of histogram bins.
         max_range: Maximum range for histogram.
-    
+
     Returns:
         Array of descriptors with shape (N, n_bins).
-    
+
     Example:
         >>> scans = [
         ...     np.array([[1.0, 0.0], [2.0, 0.0]]),

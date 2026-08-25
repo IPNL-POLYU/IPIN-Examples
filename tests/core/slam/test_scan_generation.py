@@ -65,7 +65,7 @@ class TestRaySegmentIntersection(unittest.TestCase):
         )
 
         self.assertIsNone(point)
-        self.assertEqual(distance, float('inf'))
+        self.assertEqual(distance, float("inf"))
 
     def test_no_intersection_behind_ray(self):
         """Test segment behind ray origin (no intersection)."""
@@ -79,7 +79,7 @@ class TestRaySegmentIntersection(unittest.TestCase):
         )
 
         self.assertIsNone(point)
-        self.assertEqual(distance, float('inf'))
+        self.assertEqual(distance, float("inf"))
 
     def test_no_intersection_beyond_segment(self):
         """Test ray passing beyond segment endpoints."""
@@ -93,7 +93,7 @@ class TestRaySegmentIntersection(unittest.TestCase):
         )
 
         self.assertIsNone(point)
-        self.assertEqual(distance, float('inf'))
+        self.assertEqual(distance, float("inf"))
 
 
 class TestScanGenerationWithOcclusion(unittest.TestCase):
@@ -163,8 +163,9 @@ class TestScanGenerationWithOcclusion(unittest.TestCase):
             self.assertGreater(min_dist, 2.5, "Distance should be ~3m")
 
             # Verify we DON'T see the far wall through the obstacle
-            self.assertFalse(np.any(distances > 8.0),
-                           "Should not see far wall behind obstacle")
+            self.assertFalse(
+                np.any(distances > 8.0), "Should not see far wall behind obstacle"
+            )
 
     def test_pillar_blocks_multiple_walls(self):
         """Test that a pillar blocks walls behind it in multiple directions."""
@@ -251,8 +252,7 @@ class TestScanGenerationWithOcclusion(unittest.TestCase):
 
         # Set max_range=10 to exclude far wall
         scan = generate_scan_with_occlusion(
-            pose, walls, num_rays=360, max_range=10.0, min_range=0.1,
-            noise_std=0.0
+            pose, walls, num_rays=360, max_range=10.0, min_range=0.1, noise_std=0.0
         )
 
         ranges = np.linalg.norm(scan, axis=1)
@@ -297,5 +297,5 @@ class TestComparisonWithLegacy(unittest.TestCase):
         self.assertGreater(len(scan_with_occlusion), 300)  # Most rays hit
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()

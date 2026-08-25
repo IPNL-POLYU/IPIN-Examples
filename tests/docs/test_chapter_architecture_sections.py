@@ -103,7 +103,9 @@ def test_repo_section_matches_the_code():
     """The top-level README's chapter-to-core map, same contract."""
     text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     blocks = _sections(text, REPO_BEGIN_MARKER, REPO_END_MARKER)
-    assert len(blocks) == 1, f"README.md should carry one generated section, found {len(blocks)}"
+    assert (
+        len(blocks) == 1
+    ), f"README.md should carry one generated section, found {len(blocks)}"
 
     expected = render_repo_section(chapter_dependencies(REPO_ROOT))
     assert REPO_BEGIN_MARKER + blocks[0] + REPO_END_MARKER == expected, (
@@ -112,7 +114,9 @@ def test_repo_section_matches_the_code():
     )
 
 
-@pytest.mark.parametrize("path", _markdown_files(), ids=lambda p: p.parent.name or "root")
+@pytest.mark.parametrize(
+    "path", _markdown_files(), ids=lambda p: p.parent.name or "root"
+)
 def test_mermaid_blocks_declare_a_diagram_type(path):
     """A Mermaid block that opens with a typo renders as an error box, not a diagram."""
     for index, block in enumerate(_mermaid_blocks(path.read_text(encoding="utf-8"))):
@@ -123,7 +127,9 @@ def test_mermaid_blocks_declare_a_diagram_type(path):
         )
 
 
-@pytest.mark.parametrize("path", _markdown_files(), ids=lambda p: p.parent.name or "root")
+@pytest.mark.parametrize(
+    "path", _markdown_files(), ids=lambda p: p.parent.name or "root"
+)
 def test_mermaid_blocks_name_real_paths(path):
     """Every repository path a diagram label names has to exist.
 
@@ -140,9 +146,9 @@ def test_mermaid_blocks_name_real_paths(path):
             target = REPO_ROOT / name.rstrip("/")
             if not target.exists():
                 missing.append(name)
-    assert not missing, (
-        f"{path.relative_to(REPO_ROOT)} draws paths that do not exist: {sorted(set(missing))}"
-    )
+    assert (
+        not missing
+    ), f"{path.relative_to(REPO_ROOT)} draws paths that do not exist: {sorted(set(missing))}"
 
 
 def test_the_deleted_diagram_directory_stays_deleted():

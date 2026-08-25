@@ -213,22 +213,22 @@ runs in CI on every pull request:
 pytest
 ```
 
-### The linters are configured, and the repository does not pass them
+### Where the linters stand
 
-This is worth stating plainly, because the section used to imply otherwise and
-a reader who ran these got thousands of complaints and reasonably concluded
-they had broken something. Measured over `core/`, the chapters, `scripts/`,
-`tools/` and `tests/`:
+Stated plainly, because this section used to imply the repository passed all of
+them and a reader who ran them got thousands of complaints. Measured over
+`core/`, the chapters, `scripts/`, `tools/` and `tests/`:
 
-| Tool | Today |
-|---|---|
-| `ruff check` | **1879 findings.** 907 are whitespace inside docstrings that ruff will not safely fix — there it is string content, not layout. 727 are annotation modernisations (`List[int]` → `list[int]`) that only became available when the floor moved to 3.10. |
-| `black --check` | 237 of 293 files would be reformatted |
-| `mypy` | 404 errors in `core/` alone |
+| Tool | Today | Was |
+|---|---|---|
+| `black --check` | **passes** — 299 files unchanged | 237 of 288 reformatted |
+| `ruff check` | **951 findings.** 727 are annotation modernisations (`List[int]` → `list[int]`) that only became available when the floor moved to 3.10; the ~140 after that are the ones with content, `zip()` without `strict=` first | 5836 |
+| `mypy` | 406 errors in `core/` alone — **the remaining gap** | 404 |
 
 `tests/test_lint_debt_only_shrinks.py` records the ruff count per rule and fails
-if any of them grows, so the number can only go down from here. It is not
-pass/fail on the linters themselves, which would be red on arrival and stay red.
+both when one grows and when a baseline sits above the real count, so the number
+can only go down. It is not pass/fail on the linters themselves; mypy would be
+red on arrival and stay red.
 
 ```bash
 ruff check core ch*_* tests

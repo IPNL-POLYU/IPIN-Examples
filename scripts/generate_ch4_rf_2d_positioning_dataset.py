@@ -115,12 +115,10 @@ def create_beacon_geometry(
     """
     if geometry_type == "square":
         # Beacons at corners (good GDOP in center)
-        beacons = np.array([
-            [0, 0],
-            [area_size, 0],
-            [area_size, area_size],
-            [0, area_size]
-        ], dtype=float)
+        beacons = np.array(
+            [[0, 0], [area_size, 0], [area_size, area_size], [0, area_size]],
+            dtype=float,
+        )
 
     elif geometry_type == "optimal":
         # Beacons optimally placed (tetrahedral-like in 2D)
@@ -131,21 +129,22 @@ def create_beacon_geometry(
 
     elif geometry_type == "linear":
         # Linear array (poor GDOP perpendicular to line)
-        beacons = np.array([
-            [area_size * 0.2, area_size / 2],
-            [area_size * 0.4, area_size / 2],
-            [area_size * 0.6, area_size / 2],
-            [area_size * 0.8, area_size / 2]
-        ], dtype=float)
+        beacons = np.array(
+            [
+                [area_size * 0.2, area_size / 2],
+                [area_size * 0.4, area_size / 2],
+                [area_size * 0.6, area_size / 2],
+                [area_size * 0.8, area_size / 2],
+            ],
+            dtype=float,
+        )
 
     elif geometry_type == "lshape":
         # L-shaped array (poor GDOP in some regions)
-        beacons = np.array([
-            [0, 0],
-            [area_size / 2, 0],
-            [area_size, 0],
-            [0, area_size / 2]
-        ], dtype=float)
+        beacons = np.array(
+            [[0, 0], [area_size / 2, 0], [area_size, 0], [0, area_size / 2]],
+            dtype=float,
+        )
 
     elif geometry_type == "poor":
         # Clustered beacons (very poor GDOP)
@@ -310,8 +309,11 @@ def run_positioning(
     # four ch4 datasets.
     def solve_all(solver, measurements):
         outcome = solve_batch(
-            solver, measurements, initial_guess, true_positions,
-            divergence_m=np.inf,   # the magnitude check is applied downstream
+            solver,
+            measurements,
+            initial_guess,
+            true_positions,
+            divergence_m=np.inf,  # the magnitude check is applied downstream
         )
         return outcome.estimates, outcome.solved
 
@@ -514,8 +516,14 @@ def generate_dataset(
 
     start = time.time()
     toa_ranges, tdoa_diffs, aoa_angles = generate_measurements(
-        beacons, positions, toa_noise, tdoa_noise, aoa_noise_deg,
-        nlos_beacons, nlos_bias, seed
+        beacons,
+        positions,
+        toa_noise,
+        tdoa_noise,
+        aoa_noise_deg,
+        nlos_beacons,
+        nlos_bias,
+        seed,
     )
     elapsed = time.time() - start
     print(f"  Generation time: {elapsed:.3f} s")
@@ -529,9 +537,15 @@ def generate_dataset(
     elapsed = time.time() - start
 
     print(f"  Computation time: {elapsed:.3f} s")
-    print(f"  TOA GDOP: mean={gdop_toa.mean():.2f}, min={gdop_toa.min():.2f}, max={gdop_toa.max():.2f}")
-    print(f"  TDOA GDOP: mean={gdop_tdoa.mean():.2f}, min={gdop_tdoa.min():.2f}, max={gdop_tdoa.max():.2f}")
-    print(f"  AOA GDOP: mean={gdop_aoa.mean():.2f}, min={gdop_aoa.min():.2f}, max={gdop_aoa.max():.2f}")
+    print(
+        f"  TOA GDOP: mean={gdop_toa.mean():.2f}, min={gdop_toa.min():.2f}, max={gdop_toa.max():.2f}"
+    )
+    print(
+        f"  TDOA GDOP: mean={gdop_tdoa.mean():.2f}, min={gdop_tdoa.min():.2f}, max={gdop_tdoa.max():.2f}"
+    )
+    print(
+        f"  AOA GDOP: mean={gdop_aoa.mean():.2f}, min={gdop_aoa.min():.2f}, max={gdop_aoa.max():.2f}"
+    )
 
     # Run positioning
     print("\nStep 5: Running positioning algorithms...")
@@ -713,7 +727,10 @@ Book Reference: Chapter 4, Sections 4.1-4.5
         help="Beacon geometry type (default: square)",
     )
     geom_group.add_argument(
-        "--area-size", type=float, default=20.0, help="Area size in meters (default: 20.0)"
+        "--area-size",
+        type=float,
+        default=20.0,
+        help="Area size in meters (default: 20.0)",
     )
 
     # Trajectory parameters
@@ -726,19 +743,31 @@ Book Reference: Chapter 4, Sections 4.1-4.5
         help="Trajectory type (default: grid)",
     )
     traj_group.add_argument(
-        "--num-points", type=int, default=100, help="Number of evaluation points (default: 100)"
+        "--num-points",
+        type=int,
+        default=100,
+        help="Number of evaluation points (default: 100)",
     )
 
     # Measurement noise parameters
     noise_group = parser.add_argument_group("Measurement Noise Parameters")
     noise_group.add_argument(
-        "--toa-noise", type=float, default=0.1, help="TOA noise std dev in meters (default: 0.1)"
+        "--toa-noise",
+        type=float,
+        default=0.1,
+        help="TOA noise std dev in meters (default: 0.1)",
     )
     noise_group.add_argument(
-        "--tdoa-noise", type=float, default=0.1, help="TDOA noise std dev in meters (default: 0.1)"
+        "--tdoa-noise",
+        type=float,
+        default=0.1,
+        help="TDOA noise std dev in meters (default: 0.1)",
     )
     noise_group.add_argument(
-        "--aoa-noise", type=float, default=2.0, help="AOA noise std dev in degrees (default: 2.0)"
+        "--aoa-noise",
+        type=float,
+        default=2.0,
+        help="AOA noise std dev in degrees (default: 2.0)",
     )
 
     # NLOS parameters
@@ -747,11 +776,16 @@ Book Reference: Chapter 4, Sections 4.1-4.5
         "--add-nlos", action="store_true", help="Add NLOS bias to beacons 1 and 2"
     )
     nlos_group.add_argument(
-        "--nlos-bias", type=float, default=0.5, help="NLOS bias in meters (default: 0.5)"
+        "--nlos-bias",
+        type=float,
+        default=0.5,
+        help="NLOS bias in meters (default: 0.5)",
     )
 
     # Other
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed (default: 42)"
+    )
 
     args = parser.parse_args()
 
@@ -774,4 +808,3 @@ Book Reference: Chapter 4, Sections 4.1-4.5
 
 if __name__ == "__main__":
     main()
-

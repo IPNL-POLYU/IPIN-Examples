@@ -359,9 +359,7 @@ def plot_position_error_time(
 
         ax.set_xlabel("Time (s)", fontsize=11)
         ax.set_ylabel(f"{axis_label} Error (m)", fontsize=11)
-        ax.set_title(
-            f"{axis_label}-axis Error", fontsize=12, fontweight="bold"
-        )
+        ax.set_title(f"{axis_label}-axis Error", fontsize=12, fontweight="bold")
         ax.legend(fontsize=9)
         ax.grid(True, alpha=0.3)
         ax.axhline(y=0, color="k", linestyle="--", linewidth=0.8, alpha=0.5)
@@ -947,8 +945,12 @@ def save_animation(
     path = out_dir / f"{name}.gif"
 
     animation = FuncAnimation(
-        fig, update, frames=n_frames, init_func=init,
-        interval=1000 // max(fps, 1), blit=False,
+        fig,
+        update,
+        frames=n_frames,
+        init_func=init,
+        interval=1000 // max(fps, 1),
+        blit=False,
     )
     animation.save(path, writer=PillowWriter(fps=fps), dpi=dpi)
 
@@ -1012,6 +1014,3 @@ def save_figure(
         plt.rcParams["svg.hashsalt"] = previous_salt
 
     return paths
-
-
-

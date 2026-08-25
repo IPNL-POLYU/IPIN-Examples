@@ -68,6 +68,7 @@ def create_range_bearing_innovation_func(n_landmarks: int):
     Returns:
         innovation_func(z, z_pred) -> innovation vector with wrapped bearings.
     """
+
     def innovation_func(z: np.ndarray, z_pred: np.ndarray) -> np.ndarray:
         innovation = np.zeros_like(z)
         for i in range(n_landmarks):
@@ -88,12 +89,14 @@ def setup_high_nonlinearity_scenario():
     highly nonlinear due to close proximity to landmarks.
     """
     # Landmarks positioned to create high nonlinearity when close
-    landmarks = np.array([
-        [0.0, 0.0],
-        [15.0, 0.0],
-        [15.0, 15.0],
-        [0.0, 15.0],
-    ])
+    landmarks = np.array(
+        [
+            [0.0, 0.0],
+            [15.0, 0.0],
+            [15.0, 15.0],
+            [0.0, 15.0],
+        ]
+    )
 
     # Start position close to a landmark (high nonlinearity)
     true_x0 = np.array([2.0, 2.0, 0.8, 0.6])
@@ -106,21 +109,11 @@ def create_models(landmarks):
 
     # Process model: constant velocity in 2D
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def process_jacobian(x, u, dt):
-        return np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # Measurement model: range and bearing to all landmarks
     def measurement_model(x):
@@ -128,7 +121,7 @@ def create_models(landmarks):
         for lm in landmarks:
             dx = lm[0] - x[0]
             dy = lm[1] - x[1]
-            r = np.sqrt(dx ** 2 + dy ** 2)
+            r = np.sqrt(dx**2 + dy**2)
             theta = np.arctan2(dy, dx)
             measurements.extend([r, theta])
         return np.array(measurements)
@@ -138,8 +131,8 @@ def create_models(landmarks):
         for lm in landmarks:
             dx = lm[0] - x[0]
             dy = lm[1] - x[1]
-            r = np.sqrt(dx ** 2 + dy ** 2)
-            r_sq = max(r ** 2, 1e-12)
+            r = np.sqrt(dx**2 + dy**2)
+            r_sq = max(r**2, 1e-12)
 
             if r < 1e-6:
                 # At landmark - singularity
@@ -168,8 +161,9 @@ def example_iekf_vs_ekf_comparison():
 
     # Setup scenario
     landmarks, true_x0 = setup_high_nonlinearity_scenario()
-    process_model, process_jacobian, measurement_model, measurement_jacobian = \
+    process_model, process_jacobian, measurement_model, measurement_jacobian = (
         create_models(landmarks)
+    )
 
     # Simulation parameters
     dt = 0.5
@@ -186,12 +180,14 @@ def example_iekf_vs_ekf_comparison():
     q = 0.3  # Process noise
 
     def Q_func(dt):
-        return q * np.array([
-            [dt ** 3 / 3, 0, dt ** 2 / 2, 0],
-            [0, dt ** 3 / 3, 0, dt ** 2 / 2],
-            [dt ** 2 / 2, 0, dt, 0],
-            [0, dt ** 2 / 2, 0, dt]
-        ])
+        return q * np.array(
+            [
+                [dt**3 / 3, 0, dt**2 / 2, 0],
+                [0, dt**3 / 3, 0, dt**2 / 2],
+                [dt**2 / 2, 0, dt, 0],
+                [0, dt**2 / 2, 0, dt],
+            ]
+        )
 
     range_std = 0.3
     bearing_std = 0.08  # Higher bearing noise for more challenge
@@ -199,7 +195,7 @@ def example_iekf_vs_ekf_comparison():
     def R_func():
         R_diag = []
         for _ in landmarks:
-            R_diag.extend([range_std ** 2, bearing_std ** 2])
+            R_diag.extend([range_std**2, bearing_std**2])
         return np.diag(R_diag)
 
     print(f"  Range noise: {range_std:.2f} m")
@@ -217,19 +213,29 @@ def example_iekf_vs_ekf_comparison():
 
     # Create both filters
     ekf = ExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0_est.copy(), P0.copy(),
-        innovation_func=innovation_func
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0_est.copy(),
+        P0.copy(),
+        innovation_func=innovation_func,
     )
 
     iekf = IteratedExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0_est.copy(), P0.copy(),
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0_est.copy(),
+        P0.copy(),
         max_iterations=5,
         convergence_tol=1e-6,
-        innovation_func=innovation_func
+        innovation_func=innovation_func,
     )
 
     # Generate true trajectory
@@ -291,16 +297,26 @@ def example_iekf_vs_ekf_comparison():
     print("=" * 50)
     print(f"\n{'Metric':<30} {'EKF':<15} {'IEKF':<15}")
     print("-" * 60)
-    print(f"{'Mean position error (m)':<30} {np.mean(ekf_pos_errors[5:]):<15.4f} "
-          f"{np.mean(iekf_pos_errors[5:]):<15.4f}")
-    print(f"{'RMSE position (m)':<30} {np.sqrt(np.mean(ekf_pos_errors**2)):<15.4f} "
-          f"{np.sqrt(np.mean(iekf_pos_errors**2)):<15.4f}")
-    print(f"{'Max position error (m)':<30} {np.max(ekf_pos_errors):<15.4f} "
-          f"{np.max(iekf_pos_errors):<15.4f}")
-    print(f"{'Final position error (m)':<30} {ekf_pos_errors[-1]:<15.4f} "
-          f"{iekf_pos_errors[-1]:<15.4f}")
-    print(f"{'Mean velocity error (m/s)':<30} {np.mean(ekf_vel_errors[5:]):<15.4f} "
-          f"{np.mean(iekf_vel_errors[5:]):<15.4f}")
+    print(
+        f"{'Mean position error (m)':<30} {np.mean(ekf_pos_errors[5:]):<15.4f} "
+        f"{np.mean(iekf_pos_errors[5:]):<15.4f}"
+    )
+    print(
+        f"{'RMSE position (m)':<30} {np.sqrt(np.mean(ekf_pos_errors**2)):<15.4f} "
+        f"{np.sqrt(np.mean(iekf_pos_errors**2)):<15.4f}"
+    )
+    print(
+        f"{'Max position error (m)':<30} {np.max(ekf_pos_errors):<15.4f} "
+        f"{np.max(iekf_pos_errors):<15.4f}"
+    )
+    print(
+        f"{'Final position error (m)':<30} {ekf_pos_errors[-1]:<15.4f} "
+        f"{iekf_pos_errors[-1]:<15.4f}"
+    )
+    print(
+        f"{'Mean velocity error (m/s)':<30} {np.mean(ekf_vel_errors[5:]):<15.4f} "
+        f"{np.mean(iekf_vel_errors[5:]):<15.4f}"
+    )
 
     # Report the improvement where it exists, and say where it does not.
     #
@@ -340,10 +356,16 @@ def example_iekf_vs_ekf_comparison():
     # useful sense at fixed noise: 5.66 m barely moves, because what matters
     # is whether the linearisation error is large *relative to* the noise
     # floor, and one doubling is not enough to clear 0.30 m / 0.08 rad.
-    early = (np.mean(ekf_pos_errors[1:2]) - np.mean(iekf_pos_errors[1:2])) / \
-            np.mean(ekf_pos_errors[1:2]) * 100
-    steady = (np.mean(ekf_pos_errors[5:]) - np.mean(iekf_pos_errors[5:])) / \
-             np.mean(ekf_pos_errors[5:]) * 100
+    early = (
+        (np.mean(ekf_pos_errors[1:2]) - np.mean(iekf_pos_errors[1:2]))
+        / np.mean(ekf_pos_errors[1:2])
+        * 100
+    )
+    steady = (
+        (np.mean(ekf_pos_errors[5:]) - np.mean(iekf_pos_errors[5:]))
+        / np.mean(ekf_pos_errors[5:])
+        * 100
+    )
     print(f"\nIEKF improvement, first update:  {early:+.1f}%")
     print(f"IEKF improvement, steps 5+:      {steady:+.1f}%")
     print(f"Mean IEKF iterations per update: {np.mean(iekf_iterations):.1f}")
@@ -368,14 +390,16 @@ def example_iekf_vs_ekf_comparison():
     # Visualization
     print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
-    fig.suptitle('IEKF vs EKF: High Nonlinearity Comparison (Section 3.2.3)',
-                 fontsize=14, fontweight='bold')
+    fig.suptitle(
+        "IEKF vs EKF: High Nonlinearity Comparison (Section 3.2.3)",
+        fontsize=14,
+        fontweight="bold",
+    )
 
     # Trajectory comparison (shared primitive; it supplies Start/End markers)
     plot_trajectory_2d(
         true_states[:, :2],
-        {"EKF Estimate": ekf_estimates[:, :2],
-         "IEKF Estimate": iekf_estimates[:, :2]},
+        {"EKF Estimate": ekf_estimates[:, :2], "IEKF Estimate": iekf_estimates[:, :2]},
         anchors_xy=landmarks[:, :2],
         title="2D Trajectory Comparison",
         axis_labels=("X Position [m]", "Y Position [m]"),
@@ -394,17 +418,31 @@ def example_iekf_vs_ekf_comparison():
         ax=ax,
         title_fontweight="normal",
     )
-    ax.axhline(y=np.mean(ekf_pos_errors[5:]), color="b", linestyle="--", alpha=0.5,
-               label=f"EKF mean: {np.mean(ekf_pos_errors[5:]):.2f} m")
-    ax.axhline(y=np.mean(iekf_pos_errors[5:]), color="m", linestyle="--", alpha=0.5,
-               label=f"IEKF mean: {np.mean(iekf_pos_errors[5:]):.2f} m")
+    ax.axhline(
+        y=np.mean(ekf_pos_errors[5:]),
+        color="b",
+        linestyle="--",
+        alpha=0.5,
+        label=f"EKF mean: {np.mean(ekf_pos_errors[5:]):.2f} m",
+    )
+    ax.axhline(
+        y=np.mean(iekf_pos_errors[5:]),
+        color="m",
+        linestyle="--",
+        alpha=0.5,
+        label=f"IEKF mean: {np.mean(iekf_pos_errors[5:]):.2f} m",
+    )
     ax.legend(fontsize=9)
 
     # IEKF iterations
     ax = axes[1, 0]
     ax.bar(time[1:], iekf_iterations, width=dt * 0.8, color="purple", alpha=0.7)
-    ax.axhline(y=np.mean(iekf_iterations), color="r", linestyle="--",
-               label=f"Mean: {np.mean(iekf_iterations):.1f}")
+    ax.axhline(
+        y=np.mean(iekf_iterations),
+        color="r",
+        linestyle="--",
+        label=f"Mean: {np.mean(iekf_iterations):.1f}",
+    )
     ax.set_xlabel("Time [s]", fontsize=12)
     ax.set_ylabel("IEKF Iterations", fontsize=12)
     ax.set_title("IEKF Iterations per Update", fontsize=12)
@@ -414,8 +452,8 @@ def example_iekf_vs_ekf_comparison():
 
     # Cumulative error
     ax = axes[1, 1]
-    ekf_cumulative = np.cumsum(ekf_pos_errors ** 2)
-    iekf_cumulative = np.cumsum(iekf_pos_errors ** 2)
+    ekf_cumulative = np.cumsum(ekf_pos_errors**2)
+    iekf_cumulative = np.cumsum(iekf_pos_errors**2)
     ax.plot(time, ekf_cumulative, "b-", linewidth=2, label="EKF")
     ax.plot(time, iekf_cumulative, "m-", linewidth=2, label="IEKF")
     ax.set_xlabel("Time [s]", fontsize=12)
@@ -427,8 +465,9 @@ def example_iekf_vs_ekf_comparison():
     plt.tight_layout()
 
     # Save figure (svg + pdf + png via the shared layer)
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "ch3_iekf_vs_ekf_comparison")
+    paths = save_figure(
+        fig, Path(__file__).parent / "figs", "ch3_iekf_vs_ekf_comparison"
+    )
     print(f"Plot saved: {paths[0]}")
 
     show_figures_if_requested()
@@ -461,7 +500,7 @@ def example_iekf_convergence_demo():
         for lm in landmarks:
             dx = lm[0] - x[0]
             dy = lm[1] - x[1]
-            r = np.sqrt(dx ** 2 + dy ** 2)
+            r = np.sqrt(dx**2 + dy**2)
             theta = np.arctan2(dy, dx)
             measurements.extend([r, theta])
         return np.array(measurements)
@@ -471,8 +510,8 @@ def example_iekf_convergence_demo():
         for lm in landmarks:
             dx = lm[0] - x[0]
             dy = lm[1] - x[1]
-            r = np.sqrt(dx ** 2 + dy ** 2)
-            r_sq = max(r ** 2, 1e-12)
+            r = np.sqrt(dx**2 + dy**2)
+            r_sq = max(r**2, 1e-12)
             if r < 1e-6:
                 H.extend([[0, 0, 0, 0], [0, 0, 0, 0]])
             else:
@@ -487,7 +526,7 @@ def example_iekf_convergence_demo():
     # Predicted state with error
     x_pred = np.array([4.0, 5.0, 0.0, 0.0])
     P_pred = np.diag([2.0, 2.0, 1.0, 1.0])
-    R = np.diag([0.3 ** 2, 0.05 ** 2, 0.3 ** 2, 0.05 ** 2])
+    R = np.diag([0.3**2, 0.05**2, 0.3**2, 0.05**2])
 
     print(f"\nTrue state:      {true_state[:2]}")
     print(f"Predicted state: {x_pred[:2]}")
@@ -516,8 +555,10 @@ def example_iekf_convergence_demo():
         step_size = np.linalg.norm(x_new - x_iter)
         residual_norm = np.linalg.norm(z_true - measurement_model(x_new))
 
-        print(f"{j:<6} {x_iter[0]:<8.4f} {x_iter[1]:<8.4f} "
-              f"{step_size:<12.6f} {residual_norm:<12.6f}")
+        print(
+            f"{j:<6} {x_iter[0]:<8.4f} {x_iter[1]:<8.4f} "
+            f"{step_size:<12.6f} {residual_norm:<12.6f}"
+        )
 
         if step_size < 1e-6:
             print(f"\nConverged at iteration {j + 1}")
@@ -538,9 +579,10 @@ def main():
         description="Chapter 3: Iterated Extended Kalman Filter Example (Section 3.2.3)"
     )
     parser.add_argument(
-        "--demo", choices=["comparison", "convergence", "both"],
+        "--demo",
+        choices=["comparison", "convergence", "both"],
         default="both",
-        help="Which demo to run"
+        help="Which demo to run",
     )
 
     args = parser.parse_args()
@@ -567,4 +609,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

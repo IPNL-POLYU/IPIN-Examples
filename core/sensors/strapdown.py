@@ -272,16 +272,16 @@ def gravity_vector(
     Computes gravity direction from frame convention and magnitude from either:
         - Eq. (6.8) when latitude provided (latitude-dependent WGS-84 model)
         - Default g parameter when latitude not provided (backward compatible)
-    
+
     NOTATION NOTE:
-        The book writes g^M = [0, 0, g]^T in Eq. (6.7) context, which can be 
+        The book writes g^M = [0, 0, g]^T in Eq. (6.7) context, which can be
         ambiguous. We interpret this as the MAGNITUDE in the z-direction.
-        
+
         Book's convention: g^M = [0, 0, +g] (upward) used with SUBTRACTION
         Code's convention: g_M = [0, 0, -g] (downward) used with ADDITION
-        
+
         These are equivalent: (a_B - g_book) = (f_B + g_code) where g_book = -g_code
-    
+
     PHYSICAL MEANING:
         This function returns the actual gravitational acceleration vector:
         - ENU: [0, 0, -g_mag] m/s² (gravity pulls downward = negative z)
@@ -319,7 +319,7 @@ def gravity_vector(
         >>> frame_enu = FrameConvention.create_enu()
         >>> g_enu = gravity_vector(g=9.81, frame=frame_enu)
         >>> print(g_enu)  # [0, 0, -9.81]
-        >>> 
+        >>>
         >>> # ENU frame, latitude-dependent gravity (book-accurate)
         >>> lat_rad = np.deg2rad(45.0)  # 45° North
         >>> g_enu_lat = gravity_vector(g=9.81, frame=frame_enu, lat_rad=lat_rad)
@@ -353,24 +353,24 @@ def vel_update(
     Velocity update with gravity compensation (Eq. 6.7).
 
     Implements Eq. (6.7) in Chapter 6 using standard specific force convention.
-    
+
     CODE FORMULATION (what this function implements):
         v_k^M = v_{k-1}^M + (C_B^M(q) @ f_b + g_M) * Δt
-    
+
     BOOK'S EQ. (6.7) FORMULATION:
         v_k^M = v_{k-1}^M + (C_B^M(q) @ a_B - g_M_book) * Δt
-    
+
     ALGEBRAIC EQUIVALENCE:
         These are identical! The difference is notation:
         - f_b (code) = a_B (book) = specific force (accelerometer reading)
         - g_M (code) = -g_M_book
-        
+
         For ENU:
           g_M (code) = [0, 0, -9.81]  (physical gravity vector, downward)
           g_M (book) = [0, 0, +9.81]  (magnitude to subtract, upward)
-        
+
         Proof: C @ a_B - [0,0,+g] = C @ a_B + [0,0,-g] = C @ f_b + g_M ✓
-    
+
     PHYSICAL MEANING:
         - Accelerometer measures specific force f_b (reaction force, NOT gravity)
         - For stationary in ENU: f_b = [0, 0, +9.81] (upward reaction from ground)
@@ -611,5 +611,3 @@ def strapdown_update(
     p_next = pos_update(p, v_next, dt)
 
     return q_next, v_next, p_next
-
-

@@ -48,13 +48,13 @@ def zupt_test_statistic(
 ) -> float:
     """
     Compute ZUPT test statistic over a window (Eq. 6.44).
-    
+
     Implements the SHOE-style (Zero-velocity update aided Inertial Navigation)
     windowed test statistic from Equation (6.44):
-    
+
         T_k = (1/N) * Σ_(l∈W_k) [ (1/σ_A) * ||ã_l - g*(ā_k)/||ā_k|| ||
                                   + (1/σ_G) * ||ω̃_l||² ]
-    
+
     where:
         - N: window length (number of samples)
         - W_k: time window of measurements
@@ -64,11 +64,11 @@ def zupt_test_statistic(
         - g: gravity magnitude
         - ã_l: accelerometer measurement at sample l
         - ω̃_l: gyroscope measurement at sample l
-    
+
     The test statistic measures deviation from the expected stationary
     condition (constant gravity, zero angular rate). Lower values indicate
     more likely stationary behavior.
-    
+
     Args:
         accel_window: Accelerometer measurements in window.
                       Shape: (N, 3). Units: m/s².
@@ -85,35 +85,35 @@ def zupt_test_statistic(
         lat_rad: Geodetic latitude in radians (optional).
                  If provided, uses Eq. (6.8) for gravity magnitude.
                  If None, uses g parameter (backward compatible).
-    
+
     Returns:
         Test statistic T_k. Units: dimensionless.
         Lower values indicate more stationary behavior.
         Typical threshold γ: 1e5 to 1e7 (depends on noise parameters).
-    
+
     Notes:
         - Window length N typically 5-20 samples (50-200ms at 100Hz).
         - Longer windows: more robust, but slower response to stance transitions.
         - The term ||ã_l - g*(ā_k)/||ā_k|| || measures deviation from constant gravity.
         - The term ||ω̃_l||² measures rotation (should be near zero when stationary).
         - Noise parameters (σ_A, σ_G) should match IMU specifications.
-    
+
     Example:
         >>> # Window of stationary measurements
         >>> accel = np.array([[0, 0, 9.8], [0.1, 0, 9.9], [-0.1, 0, 9.7]])
         >>> gyro = np.array([[0.01, 0, 0], [0, 0.01, 0], [0, 0, -0.01]])
         >>> T_k = zupt_test_statistic(accel, gyro, sigma_a=0.05, sigma_g=1e-3)
         >>> print(f"Test statistic: {T_k:.2e}")
-        >>> 
+        >>>
         >>> # Check against threshold
         >>> gamma = 1e6
         >>> is_stationary = (T_k < gamma)
         >>> print(f"Stationary: {is_stationary}")
-    
+
     Related Equations:
         - Eq. (6.44): ZUPT test statistic (THIS FUNCTION)
         - Eq. (6.45): ZUPT pseudo-measurement (velocity = 0)
-    
+
     References:
         [19] Foxlin, E. (2005). "Pedestrian tracking with shoe-mounted inertial
              sensors." IEEE Computer Graphics and Applications, 25(6), 38-46.
@@ -124,7 +124,9 @@ def zupt_test_statistic(
             f"got {accel_window.shape[0]} and {gyro_window.shape[0]}"
         )
     if accel_window.shape[1] != 3:
-        raise ValueError(f"accel_window must have shape (N, 3), got {accel_window.shape}")
+        raise ValueError(
+            f"accel_window must have shape (N, 3), got {accel_window.shape}"
+        )
     if gyro_window.shape[1] != 3:
         raise ValueError(f"gyro_window must have shape (N, 3), got {gyro_window.shape}")
     if sigma_a <= 0:
@@ -156,7 +158,7 @@ def zupt_test_statistic(
 
         # Gyroscope term: (1/σ_G) * ||ω̃_l||²
         # Note: Eq. 6.44 has (1/σ_G) * ||ω||², not (1/σ_G²) * ||ω||²
-        gyro_norm_sq = np.sum(gyro_window[i]**2)  # ||ω||²
+        gyro_norm_sq = np.sum(gyro_window[i] ** 2)  # ||ω||²
         gyro_term = gyro_norm_sq / sigma_g
 
         # Sum both terms
@@ -179,15 +181,15 @@ def detect_zupt_windowed(
 ) -> bool:
     """
     Detect zero velocity (ZUPT) using windowed test statistic (Eq. 6.44).
-    
+
     This is the proper SHOE-style ZUPT detector that uses a window of
     measurements to compute a test statistic and compares it to a threshold.
-    
+
     The detector returns True if:
         T_k < γ (test statistic below threshold)
-    
+
     where T_k is computed by zupt_test_statistic().
-    
+
     Args:
         accel_window: Accelerometer measurements in window.
                       Shape: (N, 3). Units: m/s².
@@ -204,50 +206,52 @@ def detect_zupt_windowed(
         lat_rad: Geodetic latitude in radians (optional).
                  If provided, uses Eq. (6.8) for gravity magnitude.
                  If None, uses g parameter (backward compatible).
-    
+
     Returns:
         True if ZUPT detected (stationary), False otherwise.
-    
+
     Notes:
         - This is the recommended ZUPT detector (more robust than instantaneous).
         - Window length: typically 5-20 samples (50-200ms at 100Hz).
         - Tune γ based on IMU noise and application requirements.
         - For foot-mounted INS: γ ≈ 1e6 works well for consumer IMUs.
-    
+
     Example:
         >>> # Collect window of measurements (e.g., last 10 samples)
         >>> accel_window = accel_buffer[-10:]  # Shape: (10, 3)
         >>> gyro_window = gyro_buffer[-10:]    # Shape: (10, 3)
-        >>> 
+        >>>
         >>> # Detect ZUPT using windowed test
         >>> from core.sensors import units, IMUNoiseParams
         >>> params = IMUNoiseParams.consumer_grade()
-        >>> 
+        >>>
         >>> is_stationary = detect_zupt_windowed(
         ...     accel_window, gyro_window,
         ...     sigma_a=params.accel_vrw_mps_sqrt_s * np.sqrt(100),  # Scale for sample rate
         ...     sigma_g=params.gyro_arw_rad_sqrt_s * np.sqrt(100),
         ...     gamma=1e6
         ... )
-        >>> 
+        >>>
         >>> if is_stationary:
         ...     # Apply ZUPT correction
         ...     pass
-    
+
     Related Functions:
         - zupt_test_statistic(): Computes T_k
         - detect_zupt(): Simple instantaneous detector (deprecated)
-    
+
     Related Equations:
         - Eq. (6.44): ZUPT test statistic (THIS FUNCTION)
         - Eq. (6.45): ZUPT pseudo-measurement
         - Eq. (6.8): Gravity magnitude (used when latitude provided)
     """
     # Compute test statistic
-    T_k = zupt_test_statistic(accel_window, gyro_window, sigma_a, sigma_g, g, lat_rad=lat_rad)
+    T_k = zupt_test_statistic(
+        accel_window, gyro_window, sigma_a, sigma_g, g, lat_rad=lat_rad
+    )
 
     # Compare to threshold
-    is_stationary = (T_k < gamma)
+    is_stationary = T_k < gamma
 
     return is_stationary
 
@@ -260,7 +264,7 @@ def detect_zupt(
 ) -> bool:
     """
     Detect zero velocity (stationary) condition for ZUPT (DEPRECATED).
-    
+
     **DEPRECATED**: Use `detect_zupt_windowed()` instead for proper Eq. (6.44)
     implementation with windowed test statistic.
 
@@ -307,7 +311,7 @@ def detect_zupt(
         >>> accel = np.array([0.0, 0.0, -9.81])  # gravity only
         >>> is_stationary = detect_zupt(gyro, accel, delta_omega=0.05, delta_f=0.5)
         >>> print(is_stationary)  # True
-        >>> 
+        >>>
         >>> # Moving sensor
         >>> gyro_moving = np.array([0.5, 0.2, -0.1])  # rotating
         >>> accel_moving = np.array([2.0, 0.5, -9.0])  # accelerating
@@ -375,10 +379,10 @@ class ZuptMeasurementModel:
     Example:
         >>> import numpy as np
         >>> from core.sensors.constraints import ZuptMeasurementModel, detect_zupt
-        >>> 
+        >>>
         >>> # Assume we have an EKF with state [p, v, q, b_g, b_a] (Eq. 6.16)
         >>> zupt_model = ZuptMeasurementModel(sigma_zupt=0.05)
-        >>> 
+        >>>
         >>> # Check if stationary
         >>> if detect_zupt(gyro, accel, delta_omega=0.05, delta_f=0.5):
         >>>     z_zupt = np.zeros(3)  # zero velocity measurement
@@ -772,5 +776,3 @@ class NhcMeasurementModel:
         """
         R = np.diag([self.sigma_lateral**2, self.sigma_vertical**2])
         return R
-
-

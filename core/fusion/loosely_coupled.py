@@ -31,16 +31,16 @@ def run_lc_fusion(
     dataset: Dict,
     use_gating: bool = True,
     gate_confidence: float = 0.95,
-    verbose: bool = True
+    verbose: bool = True,
 ) -> Dict:
     """Run loosely coupled IMU + UWB fusion.
-    
+
     Args:
         dataset: Dataset dictionary from load_fusion_dataset
         use_gating: Whether to apply chi-square gating
         gate_confidence: Gating confidence level (default 0.95 for 95% confidence)
         verbose: Print progress
-    
+
     Returns:
         Results dictionary with:
             - 't': timestamps (N,)
@@ -54,40 +54,41 @@ def run_lc_fusion(
             - 'n_uwb_failed': number of UWB position solves that failed
     """
     if verbose:
-        print("="*70)
+        print("=" * 70)
         print("Loosely Coupled IMU + UWB EKF Fusion")
-        print("="*70)
+        print("=" * 70)
 
     # Extract data
-    truth = dataset['truth']
-    imu = dataset['imu']
-    uwb = dataset['uwb']
-    anchors = dataset['uwb_anchors']
+    truth = dataset["truth"]
+    imu = dataset["imu"]
+    uwb = dataset["uwb"]
+    anchors = dataset["uwb_anchors"]
 
     # Initialize EKF at true starting position
-    x0 = np.array([
-        truth['p_xy'][0, 0],  # px
-        truth['p_xy'][0, 1],  # py
-        truth['v_xy'][0, 0],  # vx
-        truth['v_xy'][0, 1],  # vy
-        truth['yaw'][0]        # yaw
-    ])
+    x0 = np.array(
+        [
+            truth["p_xy"][0, 0],  # px
+            truth["p_xy"][0, 1],  # py
+            truth["v_xy"][0, 0],  # vx
+            truth["v_xy"][0, 1],  # vy
+            truth["yaw"][0],  # yaw
+        ]
+    )
 
     # Increase initial uncertainty to be more conservative (per book guidance on P0)
     # This prevents overconfidence in early stages before sufficient observations
-    P0 = np.diag([1.0, 1.0, 1.0, 1.0, 0.5])**2  # Larger initial uncertainty
+    P0 = np.diag([1.0, 1.0, 1.0, 1.0, 0.5]) ** 2  # Larger initial uncertainty
 
-    ekf = create_lc_fusion_ekf(
-        initial_state=x0,
-        initial_cov=P0
-    )
+    ekf = create_lc_fusion_ekf(initial_state=x0, initial_cov=P0)
 
     if verbose:
         print("\nInitialization:")
         print(f"  State: {x0}")
         print(f"  Gating: {'Enabled' if use_gating else 'Disabled'}")
         if use_gating:
-            print(f"  Confidence: {gate_confidence} ({gate_confidence*100:.0f}% confidence)")
+            print(
+                f"  Confidence: {gate_confidence} ({gate_confidence*100:.0f}% confidence)"
+            )
 
     # Create position measurement model
     h, H_func, R_func = create_lc_position_measurement_model()
@@ -96,24 +97,28 @@ def run_lc_fusion(
     measurements: List[StampedMeasurement] = []
 
     # Add IMU measurements
-    for i in range(len(imu['t'])):
-        measurements.append(StampedMeasurement(
-            t=imu['t'][i],
-            sensor='imu',
-            z=np.hstack([imu['accel_xy'][i], imu['gyro_z'][i]]),  # [ax, ay, gz]
-            R=np.eye(3),  # Not used
-            meta={}
-        ))
+    for i in range(len(imu["t"])):
+        measurements.append(
+            StampedMeasurement(
+                t=imu["t"][i],
+                sensor="imu",
+                z=np.hstack([imu["accel_xy"][i], imu["gyro_z"][i]]),  # [ax, ay, gz]
+                R=np.eye(3),  # Not used
+                meta={},
+            )
+        )
 
     # Add UWB measurements (aggregate by timestamp)
-    for i in range(len(uwb['t'])):
-        measurements.append(StampedMeasurement(
-            t=uwb['t'][i],
-            sensor='uwb',
-            z=uwb['ranges'][i, :],  # All ranges at this timestamp
-            R=np.eye(anchors.shape[0]),  # Not used (WLS computes own cov)
-            meta={'epoch_idx': i}
-        ))
+    for i in range(len(uwb["t"])):
+        measurements.append(
+            StampedMeasurement(
+                t=uwb["t"][i],
+                sensor="uwb",
+                z=uwb["ranges"][i, :],  # All ranges at this timestamp
+                R=np.eye(anchors.shape[0]),  # Not used (WLS computes own cov)
+                meta={"epoch_idx": i},
+            )
+        )
 
     # Sort by timestamp
     measurements.sort(key=lambda m: m.t)
@@ -137,14 +142,14 @@ def run_lc_fusion(
 
     # Run fusion
     history = {
-        't': [],
-        'x_est': [],
-        'P_trace': [],
-        'innovations': [],
-        'nis': [],
-        'gated': [],
-        'uwb_positions': [],  # Store solved UWB positions for analysis
-        'R_scales': [],
+        "t": [],
+        "x_est": [],
+        "P_trace": [],
+        "innovations": [],
+        "nis": [],
+        "gated": [],
+        "uwb_positions": [],  # Store solved UWB positions for analysis
+        "R_scales": [],
     }
 
     n_uwb_accepted = 0
@@ -155,12 +160,12 @@ def run_lc_fusion(
     for idx, meas in enumerate(measurements):
         dt = meas.t - t_prev
 
-        if meas.sensor == 'imu':
+        if meas.sensor == "imu":
             # Propagate with IMU
             u = meas.z  # [ax, ay, gyro_z]
             ekf.predict(u=u, dt=dt)
 
-        elif meas.sensor == 'uwb':
+        elif meas.sensor == "uwb":
             # Solve for UWB position fix
             ranges = meas.z  # All ranges at this epoch
 
@@ -181,7 +186,7 @@ def run_lc_fusion(
                 continue
 
             # Store solved position
-            history['uwb_positions'].append(pos_uwb)
+            history["uwb_positions"].append(pos_uwb)
 
             # Compute innovation (position residual)
             z_pred = h(ekf.state)  # Predicted position [px, py]
@@ -215,7 +220,7 @@ def run_lc_fusion(
                 accept, action = adaptive_mgr.update(nis_value, gate_accept)
 
                 # Handle adaptive actions
-                if action == 'inflate_P':
+                if action == "inflate_P":
                     # Apply covariance inflation to prevent filter starvation
                     ekf.covariance = adaptive_mgr.inflate_covariance(ekf.covariance)
                 # 'scale_R' action is handled automatically via get_R_scale()
@@ -230,27 +235,27 @@ def run_lc_fusion(
                 n_uwb_rejected += 1
 
             # Log
-            history['innovations'].append(np.linalg.norm(y))  # 2D innovation norm
-            history['nis'].append(nis_value)
-            history['gated'].append(accept)
-            history['R_scales'].append(R_scale)
+            history["innovations"].append(np.linalg.norm(y))  # 2D innovation norm
+            history["nis"].append(nis_value)
+            history["gated"].append(accept)
+            history["R_scales"].append(R_scale)
 
         # Record state
-        history['t'].append(meas.t)
-        history['x_est'].append(ekf.state.copy())
-        history['P_trace'].append(np.trace(ekf.covariance))
+        history["t"].append(meas.t)
+        history["x_est"].append(ekf.state.copy())
+        history["P_trace"].append(np.trace(ekf.covariance))
 
         t_prev = meas.t
 
     # Convert to arrays
-    history['t'] = np.array(history['t'])
-    history['x_est'] = np.array(history['x_est'])
-    history['P_trace'] = np.array(history['P_trace'])
-    if history['uwb_positions']:
-        history['uwb_positions'] = np.array(history['uwb_positions'])
-    history['n_uwb_accepted'] = n_uwb_accepted
-    history['n_uwb_rejected'] = n_uwb_rejected
-    history['n_uwb_failed'] = n_uwb_failed
+    history["t"] = np.array(history["t"])
+    history["x_est"] = np.array(history["x_est"])
+    history["P_trace"] = np.array(history["P_trace"])
+    if history["uwb_positions"]:
+        history["uwb_positions"] = np.array(history["uwb_positions"])
+    history["n_uwb_accepted"] = n_uwb_accepted
+    history["n_uwb_rejected"] = n_uwb_rejected
+    history["n_uwb_failed"] = n_uwb_failed
 
     if verbose:
         print("\nFusion complete:")
@@ -259,13 +264,17 @@ def run_lc_fusion(
         print(f"  UWB fixes rejected: {n_uwb_rejected}")
         print(f"  UWB solver failures: {n_uwb_failed}")
         if n_uwb_accepted + n_uwb_rejected > 0:
-            print(f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%")
+            print(
+                f"  Acceptance rate: {100*n_uwb_accepted/(n_uwb_accepted+n_uwb_rejected):.1f}%"
+            )
 
         # Print adaptive gating stats if enabled
         if adaptive_mgr is not None:
             stats = adaptive_mgr.get_stats()
             print("\nAdaptive Gating Stats:")
-            print(f"  Mean NIS: {stats['mean_nis']:.2f} (expected: {stats['expected_nis']:.0f})")
+            print(
+                f"  Mean NIS: {stats['mean_nis']:.2f} (expected: {stats['expected_nis']:.0f})"
+            )
             print(f"  Final R scale: {stats['current_R_scale']:.2f}x")
             print(f"  Covariance inflations: {stats['total_adaptations']}")
 

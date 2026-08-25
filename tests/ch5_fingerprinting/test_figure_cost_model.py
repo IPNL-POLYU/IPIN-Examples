@@ -46,9 +46,7 @@ class TestComparisonCostModel(unittest.TestCase):
 
     def test_repeated_calls_agree(self):
         """The whole point: the number cannot move between runs."""
-        self.assertEqual(
-            per_query_operation_counts(self.db, floor_id=0), self.on_floor
-        )
+        self.assertEqual(per_query_operation_counts(self.db, floor_id=0), self.on_floor)
 
     def test_linear_model_cost_ignores_the_database(self):
         """The learned model is O(N_features), not O(N_RPs).
@@ -76,9 +74,7 @@ class TestComparisonCostModel(unittest.TestCase):
         self.assertLess(
             self.on_floor["NN (Euclidean)"], self.all_floors["NN (Euclidean)"]
         )
-        self.assertLess(
-            self.on_floor["k-NN (k=3)"], self.all_floors["k-NN (k=3)"]
-        )
+        self.assertLess(self.on_floor["k-NN (k=3)"], self.all_floors["k-NN (k=3)"])
 
         self.assertEqual(self.on_floor["MAP"], self.all_floors["MAP"])
         self.assertEqual(
@@ -103,9 +99,7 @@ class TestComparisonCostModel(unittest.TestCase):
         self.assertGreater(top_k, likelihood_terms)
         self.assertLess(top_k, full)
         saving = (full - top_k) / full
-        self.assertLess(
-            saving, 0.25, f"top-k saves {saving:.0%}, more than expected"
-        )
+        self.assertLess(saving, 0.25, f"top-k saves {saving:.0%}, more than expected")
 
 
 class TestDeterministicCostModel(unittest.TestCase):

@@ -28,25 +28,28 @@ from core.fingerprinting import (
 
 def test_topk_none_vs_full():
     """Test that top_k=None reproduces current behavior."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TEST 1: top_k=None reproduces full posterior mean")
-    print("="*70)
+    print("=" * 70)
 
     # Create simple database
     locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-    features = np.array([
-        [-50, -60, -70],
-        [-60, -50, -80],
-        [-70, -80, -50],
-        [-80, -70, -60],
-    ], dtype=float)
+    features = np.array(
+        [
+            [-50, -60, -70],
+            [-60, -50, -80],
+            [-70, -80, -50],
+            [-80, -70, -60],
+        ],
+        dtype=float,
+    )
     floor_ids = np.array([0, 0, 0, 0])
 
     db = FingerprintDatabase(
         locations=locations,
         features=features,
         floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+        meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
     )
 
     model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -66,9 +69,9 @@ def test_topk_none_vs_full():
 
 def test_topk_accuracy():
     """Test that top_k yields nearly identical results."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TEST 2: top_k yields nearly identical results to full")
-    print("="*70)
+    print("=" * 70)
 
     # Create larger database (20 RPs)
     np.random.seed(42)
@@ -81,7 +84,7 @@ def test_topk_accuracy():
         locations=locations,
         features=features,
         floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2", "AP3", "AP4"], "unit": "dBm"}
+        meta={"ap_ids": ["AP1", "AP2", "AP3", "AP4"], "unit": "dBm"},
     )
 
     model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -115,18 +118,22 @@ def test_topk_accuracy():
         error_k10 = np.linalg.norm(pos_full - pos_k10)
 
         if error_k10 <= error_k3:
-            print(f"    [OK] k=10 error ({error_k10:.4f}m) <= k=3 error ({error_k3:.4f}m)")
+            print(
+                f"    [OK] k=10 error ({error_k10:.4f}m) <= k=3 error ({error_k3:.4f}m)"
+            )
         else:
-            print(f"    [WARNING] k=10 error ({error_k10:.4f}m) > k=3 error ({error_k3:.4f}m)")
+            print(
+                f"    [WARNING] k=10 error ({error_k10:.4f}m) > k=3 error ({error_k3:.4f}m)"
+            )
 
     return True
 
 
 def test_topk_speedup():
     """Test that top_k provides speedup for large databases."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TEST 3: top_k provides speedup for large databases")
-    print("="*70)
+    print("=" * 70)
 
     # Create large database (500 RPs)
     np.random.seed(42)
@@ -139,7 +146,7 @@ def test_topk_speedup():
         locations=locations,
         features=features,
         floor_ids=floor_ids,
-        meta={"ap_ids": [f"AP{i+1}" for i in range(8)], "unit": "dBm"}
+        meta={"ap_ids": [f"AP{i+1}" for i in range(8)], "unit": "dBm"},
     )
 
     model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -196,24 +203,27 @@ def test_topk_speedup():
 
 def test_topk_edge_cases():
     """Test edge cases for top_k."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TEST 4: Edge cases (top_k=1, top_k=M)")
-    print("="*70)
+    print("=" * 70)
 
     # Create simple database
     locations = np.array([[0, 0], [10, 0], [10, 10]], dtype=float)
-    features = np.array([
-        [-50, -60],
-        [-60, -50],
-        [-70, -70],
-    ], dtype=float)
+    features = np.array(
+        [
+            [-50, -60],
+            [-60, -50],
+            [-70, -70],
+        ],
+        dtype=float,
+    )
     floor_ids = np.array([0, 0, 0])
 
     db = FingerprintDatabase(
         locations=locations,
         features=features,
         floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"}
+        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
     )
 
     model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -261,9 +271,9 @@ def test_topk_edge_cases():
 
 def main():
     """Run all tests."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TOP-K POSTERIOR MEAN VALIDATION")
-    print("="*70)
+    print("=" * 70)
     print("\nThis script validates the top-k posterior mean implementation:")
     print("  - Book guidance: 'top k candidates typically sufficient'")
     print("  - Provides speedup for large databases")
@@ -275,9 +285,9 @@ def main():
         test_topk_speedup()
         test_topk_edge_cases()
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("ALL TESTS PASSED OK")
-        print("="*70)
+        print("=" * 70)
         print("\nKey Findings:")
         print("  1. top_k=None reproduces current behavior (backward compatible)")
         print("  2. top_k=small yields nearly identical results to full sum")
@@ -290,6 +300,7 @@ def main():
     except Exception as e:
         print(f"\nX TEST FAILED: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -299,5 +310,3 @@ def main():
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
-
-

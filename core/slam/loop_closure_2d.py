@@ -28,13 +28,14 @@ from .se2 import se2_relative
 @dataclass
 class LoopClosureCandidate:
     """Loop closure candidate with similarity score.
-    
+
     Attributes:
         i: Query scan index.
         j: Match scan index (j < i).
         descriptor_similarity: Descriptor similarity score.
         distance: Optional position distance (if poses provided).
     """
+
     i: int
     j: int
     descriptor_similarity: float
@@ -44,7 +45,7 @@ class LoopClosureCandidate:
 @dataclass
 class LoopClosure:
     """Verified loop closure with geometric transformation.
-    
+
     Attributes:
         i: Query scan index.
         j: Match scan index (j < i).
@@ -54,6 +55,7 @@ class LoopClosure:
         icp_residual: ICP alignment residual.
         icp_iterations: Number of ICP iterations.
     """
+
     i: int
     j: int
     rel_pose: np.ndarray
@@ -65,12 +67,12 @@ class LoopClosure:
 
 class LoopClosureDetector2D:
     """Observation-based loop closure detector for 2D LiDAR SLAM.
-    
+
     This detector finds loop closures using scan descriptor similarity as the
     primary criterion, with optional distance-based filtering as a secondary
     check. Geometric verification via ICP ensures only valid loop closures
     are returned.
-    
+
     Attributes:
         n_bins: Number of bins for range histogram descriptor.
         max_range: Maximum range for descriptor (meters).
@@ -81,16 +83,16 @@ class LoopClosureDetector2D:
         max_icp_residual: Maximum ICP residual to accept loop closure.
         icp_max_iterations: Maximum ICP iterations.
         icp_tolerance: ICP convergence tolerance.
-    
+
     Example:
         >>> detector = LoopClosureDetector2D(min_descriptor_similarity=0.7)
-        >>> 
+        >>>
         >>> # Detect loop closures
         >>> loop_closures = detector.detect(
         ...     scans=scans,
         ...     poses=poses,  # Optional, for distance gating
         ... )
-        >>> 
+        >>>
         >>> print(f"Found {len(loop_closures)} loop closures")
     """
 
@@ -107,7 +109,7 @@ class LoopClosureDetector2D:
         icp_tolerance: float = 1e-4,
     ):
         """Initialize loop closure detector.
-        
+
         Args:
             n_bins: Number of histogram bins for descriptor.
             max_range: Maximum range for descriptor histogram.
@@ -142,7 +144,7 @@ class LoopClosureDetector2D:
         poses: Optional[List[np.ndarray]] = None,
     ) -> List[LoopClosure]:
         """Detect loop closures in a sequence of scans.
-        
+
         Pipeline:
             1. Compute descriptors for all scans
             2. For each query scan i:
@@ -150,21 +152,21 @@ class LoopClosureDetector2D:
                 b. Optionally filter by position distance (if poses provided)
                 c. Verify with ICP geometric alignment
                 d. Accept if ICP converges with low residual
-        
+
         Args:
             scans: List of N scans, each with shape (M_i, 2) in robot frame.
             poses: Optional list of N poses [x, y, yaw] for distance gating.
-        
+
         Returns:
             List of verified loop closures, sorted by query index i.
-        
+
         Example:
             >>> scans = [scan0, scan1, ..., scanN]
             >>> poses = [pose0, pose1, ..., poseN]  # Optional
-            >>> 
+            >>>
             >>> detector = LoopClosureDetector2D()
             >>> loop_closures = detector.detect(scans, poses)
-            >>> 
+            >>>
             >>> for lc in loop_closures:
             ...     print(f"Loop: {lc.j} -> {lc.i}, sim={lc.descriptor_similarity:.3f}")
         """
@@ -184,9 +186,7 @@ class LoopClosureDetector2D:
         # 2. For each query scan (starting after min_time_separation)
         for i in range(self.min_time_separation, n_scans):
             # Find candidates using descriptor similarity
-            candidates = self._find_candidates(
-                i, descriptors, poses
-            )
+            candidates = self._find_candidates(i, descriptors, poses)
 
             if len(candidates) == 0:
                 continue
@@ -197,7 +197,10 @@ class LoopClosureDetector2D:
 
                 # Run ICP to verify geometric consistency
                 verified = self._verify_candidate(
-                    scans[i], scans[j], poses[i] if poses else None, poses[j] if poses else None
+                    scans[i],
+                    scans[j],
+                    poses[i] if poses else None,
+                    poses[j] if poses else None,
                 )
 
                 if verified is not None:
@@ -224,15 +227,15 @@ class LoopClosureDetector2D:
         poses: Optional[List[np.ndarray]],
     ) -> List[LoopClosureCandidate]:
         """Find loop closure candidates for a query scan.
-        
+
         Primary filter: Descriptor similarity
         Secondary filter (optional): Position distance
-        
+
         Args:
             query_idx: Query scan index i.
             descriptors: Array of descriptors, shape (N, n_bins).
             poses: Optional list of poses for distance gating.
-        
+
         Returns:
             List of candidates, sorted by descriptor similarity (descending).
         """
@@ -282,13 +285,13 @@ class LoopClosureDetector2D:
         pose_j: Optional[np.ndarray],
     ) -> Optional[Tuple[np.ndarray, np.ndarray, float, int]]:
         """Verify loop closure candidate with ICP.
-        
+
         Args:
             scan_i: Query scan (robot frame).
             scan_j: Match scan (robot frame).
             pose_i: Optional query pose [x, y, yaw] for initial guess.
             pose_j: Optional match pose [x, y, yaw] for initial guess.
-        
+
         Returns:
             Tuple of (rel_pose, covariance, residual, iterations) if verified,
             None if ICP fails or residual too high.

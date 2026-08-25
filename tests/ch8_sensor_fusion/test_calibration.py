@@ -39,14 +39,12 @@ class TestIMUBiasEstimation(unittest.TestCase):
 
         # Should recover exact biases
         np.testing.assert_allclose(
-            calibration['accel_bias'], true_accel_bias, atol=1e-10
+            calibration["accel_bias"], true_accel_bias, atol=1e-10
         )
-        np.testing.assert_allclose(
-            calibration['gyro_bias'], true_gyro_bias, atol=1e-10
-        )
+        np.testing.assert_allclose(calibration["gyro_bias"], true_gyro_bias, atol=1e-10)
 
         # Gravity axis should be Z (index 2)
-        self.assertEqual(calibration['gravity_axis'], 2)
+        self.assertEqual(calibration["gravity_axis"], 2)
 
     def test_noisy_stationary_data(self):
         """Test bias estimation with noisy data."""
@@ -58,12 +56,12 @@ class TestIMUBiasEstimation(unittest.TestCase):
         # Add noise
         gravity = np.array([0, 0, -9.81])
         accel_samples = (
-            np.tile(gravity + true_accel_bias, (n_samples, 1)) +
-            np.random.randn(n_samples, 3) * 0.01
+            np.tile(gravity + true_accel_bias, (n_samples, 1))
+            + np.random.randn(n_samples, 3) * 0.01
         )
         gyro_samples = (
-            np.tile(true_gyro_bias, (n_samples, 1)) +
-            np.random.randn(n_samples, 3) * 0.001
+            np.tile(true_gyro_bias, (n_samples, 1))
+            + np.random.randn(n_samples, 3) * 0.001
         )
 
         calibration = estimate_imu_bias_stationary(accel_samples, gyro_samples)
@@ -71,10 +69,10 @@ class TestIMUBiasEstimation(unittest.TestCase):
         # Should recover biases within noise tolerance
         # With 1000 samples, std_error = 0.01 / sqrt(1000) ≈ 0.0003
         np.testing.assert_allclose(
-            calibration['accel_bias'], true_accel_bias, atol=0.001
+            calibration["accel_bias"], true_accel_bias, atol=0.001
         )
         np.testing.assert_allclose(
-            calibration['gyro_bias'], true_gyro_bias, atol=0.0001
+            calibration["gyro_bias"], true_gyro_bias, atol=0.0001
         )
 
     def test_different_gravity_orientations(self):
@@ -88,14 +86,14 @@ class TestIMUBiasEstimation(unittest.TestCase):
         gyro_samples = np.zeros((n_samples, 3))
 
         calibration = estimate_imu_bias_stationary(accel_samples, gyro_samples)
-        self.assertEqual(calibration['gravity_axis'], 0)  # X-axis
+        self.assertEqual(calibration["gravity_axis"], 0)  # X-axis
 
         # Test Y-axis gravity
         gravity_y = np.array([0, -9.81, 0])
         accel_samples = np.tile(gravity_y + accel_bias, (n_samples, 1))
 
         calibration = estimate_imu_bias_stationary(accel_samples, gyro_samples)
-        self.assertEqual(calibration['gravity_axis'], 1)  # Y-axis
+        self.assertEqual(calibration["gravity_axis"], 1)  # Y-axis
 
     def test_synthetic_data_generation(self):
         """Test synthetic IMU data generation."""
@@ -105,28 +103,28 @@ class TestIMUBiasEstimation(unittest.TestCase):
             duration=5.0,
             rate=100.0,
             accel_bias=np.array([0.1, -0.05, 0.03]),
-            gyro_bias=np.array([0.02, -0.01, 0.015])
+            gyro_bias=np.array([0.02, -0.01, 0.015]),
         )
 
         # Check data structure
-        self.assertIn('t', data)
-        self.assertIn('accel', data)
-        self.assertIn('gyro', data)
-        self.assertIn('true_accel_bias', data)
-        self.assertIn('true_gyro_bias', data)
+        self.assertIn("t", data)
+        self.assertIn("accel", data)
+        self.assertIn("gyro", data)
+        self.assertIn("true_accel_bias", data)
+        self.assertIn("true_gyro_bias", data)
 
         # Check dimensions
         expected_samples = int(5.0 * 100.0)
-        self.assertEqual(len(data['t']), expected_samples)
-        self.assertEqual(data['accel'].shape, (expected_samples, 3))
-        self.assertEqual(data['gyro'].shape, (expected_samples, 3))
+        self.assertEqual(len(data["t"]), expected_samples)
+        self.assertEqual(data["accel"].shape, (expected_samples, 3))
+        self.assertEqual(data["gyro"].shape, (expected_samples, 3))
 
         # Verify biases match
         np.testing.assert_allclose(
-            data['true_accel_bias'], np.array([0.1, -0.05, 0.03])
+            data["true_accel_bias"], np.array([0.1, -0.05, 0.03])
         )
         np.testing.assert_allclose(
-            data['true_gyro_bias'], np.array([0.02, -0.01, 0.015])
+            data["true_gyro_bias"], np.array([0.02, -0.01, 0.015])
         )
 
 
@@ -181,10 +179,9 @@ class TestExtrinsicCalibration(unittest.TestCase):
 
         # Apply rotation only
         angle = np.pi / 4  # 45 degrees
-        R_true = np.array([
-            [np.cos(angle), -np.sin(angle)],
-            [np.sin(angle), np.cos(angle)]
-        ])
+        R_true = np.array(
+            [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+        )
         p_sensor2 = (R_true @ p_sensor1.T).T
 
         R_est, t_est = calibrate_extrinsic_2d_least_squares(p_sensor1, p_sensor2)
@@ -204,10 +201,9 @@ class TestExtrinsicCalibration(unittest.TestCase):
 
         # Apply rotation and translation
         angle = np.pi / 6  # 30 degrees
-        R_true = np.array([
-            [np.cos(angle), -np.sin(angle)],
-            [np.sin(angle), np.cos(angle)]
-        ])
+        R_true = np.array(
+            [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+        )
         t_true = np.array([1.0, 2.0])
         p_sensor2 = (R_true @ p_sensor1.T).T + t_true
 
@@ -228,10 +224,9 @@ class TestExtrinsicCalibration(unittest.TestCase):
 
         # Apply known transformation
         angle = np.pi / 4
-        R_true = np.array([
-            [np.cos(angle), -np.sin(angle)],
-            [np.sin(angle), np.cos(angle)]
-        ])
+        R_true = np.array(
+            [[np.cos(angle), -np.sin(angle)], [np.sin(angle), np.cos(angle)]]
+        )
         t_true = np.array([0.5, -0.3])
         p_sensor2 = (R_true @ p_sensor1.T).T + t_true
 
@@ -269,9 +264,7 @@ class TestExtrinsicCalibration(unittest.TestCase):
         # 3. Preserves norm: ||R @ v|| = ||v||
         v = np.array([1.0, 2.0])
         np.testing.assert_allclose(
-            np.linalg.norm(R_est @ v),
-            np.linalg.norm(v),
-            atol=1e-10
+            np.linalg.norm(R_est @ v), np.linalg.norm(v), atol=1e-10
         )
 
     def test_synthetic_data_generation(self):
@@ -282,25 +275,25 @@ class TestExtrinsicCalibration(unittest.TestCase):
             duration=20.0,
             rate=10.0,
             lever_arm=np.array([1.0, 0.5]),
-            rotation_angle=np.pi / 3  # 60 degrees
+            rotation_angle=np.pi / 3,  # 60 degrees
         )
 
         # Check data structure
-        self.assertIn('t', data)
-        self.assertIn('p_sensor1', data)
-        self.assertIn('p_sensor2', data)
-        self.assertIn('true_R', data)
-        self.assertIn('true_t', data)
-        self.assertIn('true_rotation_angle', data)
+        self.assertIn("t", data)
+        self.assertIn("p_sensor1", data)
+        self.assertIn("p_sensor2", data)
+        self.assertIn("true_R", data)
+        self.assertIn("true_t", data)
+        self.assertIn("true_rotation_angle", data)
 
         # Check dimensions
         expected_samples = int(20.0 * 10.0)
-        self.assertEqual(len(data['t']), expected_samples)
-        self.assertEqual(data['p_sensor1'].shape, (expected_samples, 2))
-        self.assertEqual(data['p_sensor2'].shape, (expected_samples, 2))
+        self.assertEqual(len(data["t"]), expected_samples)
+        self.assertEqual(data["p_sensor1"].shape, (expected_samples, 2))
+        self.assertEqual(data["p_sensor2"].shape, (expected_samples, 2))
 
         # Check rotation matrix properties
-        R = data['true_R']
+        R = data["true_R"]
         np.testing.assert_allclose(R @ R.T, np.eye(2), atol=1e-10)
         self.assertAlmostEqual(np.linalg.det(R), 1.0, places=10)
 
@@ -320,15 +313,13 @@ class TestCalibrationIntegration(unittest.TestCase):
         data = generate_synthetic_imu_stationary(duration=5.0, rate=100.0)
 
         # Estimate biases
-        calibration = estimate_imu_bias_stationary(data['accel'], data['gyro'])
+        calibration = estimate_imu_bias_stationary(data["accel"], data["gyro"])
 
         # Verify estimates are close to truth
         accel_error = np.linalg.norm(
-            calibration['accel_bias'] - data['true_accel_bias']
+            calibration["accel_bias"] - data["true_accel_bias"]
         )
-        gyro_error = np.linalg.norm(
-            calibration['gyro_bias'] - data['true_gyro_bias']
-        )
+        gyro_error = np.linalg.norm(calibration["gyro_bias"] - data["true_gyro_bias"])
 
         # With 500 samples and reasonable noise, errors should be small
         self.assertLess(accel_error, 0.005)  # < 5 mm/s²
@@ -346,28 +337,26 @@ class TestCalibrationIntegration(unittest.TestCase):
             duration=30.0,
             rate=10.0,
             lever_arm=true_lever_arm,
-            rotation_angle=true_angle
+            rotation_angle=true_angle,
         )
 
         # Estimate calibration
         R_est, t_est = calibrate_extrinsic_2d_least_squares(
-            data['p_sensor1'],
-            data['p_sensor2']
+            data["p_sensor1"], data["p_sensor2"]
         )
 
         # Verify estimates
-        np.testing.assert_allclose(R_est, data['true_R'], atol=0.01)
-        np.testing.assert_allclose(t_est, data['true_t'], atol=0.01)
+        np.testing.assert_allclose(R_est, data["true_R"], atol=0.01)
+        np.testing.assert_allclose(t_est, data["true_t"], atol=0.01)
 
         # Verify alignment quality
-        p1_transformed = (R_est @ data['p_sensor1'].T).T + t_est
-        residuals = data['p_sensor2'] - p1_transformed
+        p1_transformed = (R_est @ data["p_sensor1"].T).T + t_est
+        residuals = data["p_sensor2"] - p1_transformed
         rmse = np.sqrt(np.mean(np.sum(residuals**2, axis=1)))
 
         # RMSE should be close to measurement noise (~0.05m)
         self.assertLess(rmse, 0.15)  # Allow some margin
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
-

@@ -96,7 +96,9 @@ def test_documented_python_paths_resolve(document):
 
     assert not missing, (
         f"{_name(document)} cites {len(missing)} path(s) that do not exist:\n  "
-        + "\n  ".join(f"{p}  (line {', '.join(map(str, ls))})" for p, ls in missing.items())
+        + "\n  ".join(
+            f"{p}  (line {', '.join(map(str, ls))})" for p, ls in missing.items()
+        )
         + "\n\nA renamed file is the usual cause -- point the document at the new "
         "name rather than deleting the line. If the document names the file as "
         "future work the reader is expected to write, say so in the prose and "
@@ -145,7 +147,9 @@ def test_documented_bare_filenames_resolve(document):
 
     assert not missing, (
         f"{_name(document)} names {len(missing)} file(s) that do not exist:\n  "
-        + "\n  ".join(f"{n}  (line {', '.join(map(str, ls))})" for n, ls in missing.items())
+        + "\n  ".join(
+            f"{n}  (line {', '.join(map(str, ls))})" for n, ls in missing.items()
+        )
         + "\n\nUsually a rename the document did not follow. Point it at the "
         "current name; if the file is future work, say so and list it in "
         "ASPIRATIONAL."
@@ -182,7 +186,9 @@ def test_documented_modules_resolve(document):
 
     assert not missing, (
         f"{_name(document)} runs {len(missing)} module(s) that do not exist:\n  "
-        + "\n  ".join(f"{m}  (line {', '.join(map(str, ls))})" for m, ls in missing.items())
+        + "\n  ".join(
+            f"{m}  (line {', '.join(map(str, ls))})" for m, ls in missing.items()
+        )
         + "\n\nIf the feature was never built, remove the worked example rather "
         "than leaving a command the reader cannot run."
     )

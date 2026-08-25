@@ -15,28 +15,25 @@ from .motion_models import (
     ConstantVelocity2D,
     ConstantVelocity1D,
     ConstantAcceleration2D,
-    create_process_noise_continuous_white_acceleration
+    create_process_noise_continuous_white_acceleration,
 )
 
 from .measurement_models import (
     RangeMeasurement2D,
     RangeBearingMeasurement2D,
     PositionMeasurement2D,
-    validate_measurement_inputs
+    validate_measurement_inputs,
 )
 
 __all__ = [
     # Motion models
-    'ConstantVelocity2D',
-    'ConstantVelocity1D',
-    'ConstantAcceleration2D',
-    'create_process_noise_continuous_white_acceleration',
-
+    "ConstantVelocity2D",
+    "ConstantVelocity1D",
+    "ConstantAcceleration2D",
+    "create_process_noise_continuous_white_acceleration",
     # Measurement models
-    'RangeMeasurement2D',
-    'RangeBearingMeasurement2D',
-    'PositionMeasurement2D',
-    'validate_measurement_inputs',
+    "RangeMeasurement2D",
+    "RangeBearingMeasurement2D",
+    "PositionMeasurement2D",
+    "validate_measurement_inputs",
 ]
-
-

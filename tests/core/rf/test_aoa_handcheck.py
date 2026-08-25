@@ -52,7 +52,9 @@ def test_azimuth_is_minus_45_degrees():
 def test_elevation_is_the_arcsine_of_one_over_root_three():
     """dU / range = 5 / sqrt(75) = 1/sqrt(3), so theta = 35.2644 degrees."""
     assert aoa_sin_elevation(ANCHOR, AGENT) == pytest.approx(1 / np.sqrt(3))
-    assert np.degrees(aoa_elevation(ANCHOR, AGENT)) == pytest.approx(35.264389, abs=1e-5)
+    assert np.degrees(aoa_elevation(ANCHOR, AGENT)) == pytest.approx(
+        35.264389, abs=1e-5
+    )
 
 
 def test_the_measurement_vector_is_sin_elevation_then_tan_azimuth():

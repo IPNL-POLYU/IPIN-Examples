@@ -318,21 +318,11 @@ def generate_imu_from_trajectory(
     accel_map[0] = accel_map[1] if N > 1 else np.zeros(3)
 
     # Step 2: Compute specific force in body frame
-    accel_body = compute_specific_force_body(accel_map, quat_b_to_m, frame, g, lat_rad=lat_rad)
+    accel_body = compute_specific_force_body(
+        accel_map, quat_b_to_m, frame, g, lat_rad=lat_rad
+    )
 
     # Step 3: Compute gyro rates in body frame
     gyro_body = compute_gyro_body(quat_b_to_m, dt)
 
     return accel_body, gyro_body
-
-
-
-
-
-
-
-
-
-
-
-

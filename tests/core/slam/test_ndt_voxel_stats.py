@@ -27,14 +27,10 @@ class TestNDTVoxelStats:
 
         # Create points clustered in specific voxels
         # Voxel (0, 0): points around [0.2, 0.3]
-        voxel_00_points = np.array([
-            [0.1, 0.2], [0.2, 0.3], [0.3, 0.4], [0.15, 0.25]
-        ])
+        voxel_00_points = np.array([[0.1, 0.2], [0.2, 0.3], [0.3, 0.4], [0.15, 0.25]])
 
         # Voxel (1, 1): points around [1.5, 1.6]
-        voxel_11_points = np.array([
-            [1.4, 1.5], [1.5, 1.6], [1.6, 1.7], [1.5, 1.5]
-        ])
+        voxel_11_points = np.array([[1.4, 1.5], [1.5, 1.6], [1.6, 1.7], [1.5, 1.5]])
 
         points = np.vstack([voxel_00_points, voxel_11_points])
 
@@ -45,15 +41,17 @@ class TestNDTVoxelStats:
         assert (0, 0) in ndt_map, "Voxel (0,0) should exist"
         mean_00 = ndt_map[(0, 0)]["mean"]
         expected_mean_00 = np.mean(voxel_00_points, axis=0)
-        np.testing.assert_allclose(mean_00, expected_mean_00, atol=1e-10,
-                                   err_msg="Voxel (0,0) mean incorrect")
+        np.testing.assert_allclose(
+            mean_00, expected_mean_00, atol=1e-10, err_msg="Voxel (0,0) mean incorrect"
+        )
 
         # Check voxel (1, 1)
         assert (1, 1) in ndt_map, "Voxel (1,1) should exist"
         mean_11 = ndt_map[(1, 1)]["mean"]
         expected_mean_11 = np.mean(voxel_11_points, axis=0)
-        np.testing.assert_allclose(mean_11, expected_mean_11, atol=1e-10,
-                                   err_msg="Voxel (1,1) mean incorrect")
+        np.testing.assert_allclose(
+            mean_11, expected_mean_11, atol=1e-10, err_msg="Voxel (1,1) mean incorrect"
+        )
 
     def test_voxel_covariance_properties(self):
         """Validate that voxel covariances are symmetric and positive definite."""
@@ -70,25 +68,38 @@ class TestNDTVoxelStats:
             cov = voxel_data["cov"]
 
             # Check shape
-            assert cov.shape == (2, 2), f"Covariance shape incorrect for voxel {voxel_key}"
+            assert cov.shape == (
+                2,
+                2,
+            ), f"Covariance shape incorrect for voxel {voxel_key}"
 
             # Check symmetry
-            assert np.allclose(cov, cov.T), f"Covariance not symmetric for voxel {voxel_key}"
+            assert np.allclose(
+                cov, cov.T
+            ), f"Covariance not symmetric for voxel {voxel_key}"
 
             # Check positive definite (eigenvalues > 0)
             eigvals = np.linalg.eigvals(cov)
-            assert np.all(eigvals > 0), f"Covariance not positive definite for voxel {voxel_key}"
+            assert np.all(
+                eigvals > 0
+            ), f"Covariance not positive definite for voxel {voxel_key}"
 
     def test_voxel_filtering_min_points(self):
         """Test that voxels with too few points are filtered out."""
         np.random.seed(456)
 
         # Create sparse points (1-2 points per voxel)
-        points = np.array([
-            [0.1, 0.1],  # Voxel (0, 0) - 1 point
-            [1.5, 1.5], [1.6, 1.6],  # Voxel (1, 1) - 2 points
-            [2.5, 2.5], [2.6, 2.6], [2.7, 2.7], [2.8, 2.8],  # Voxel (2, 2) - 4 points
-        ])
+        points = np.array(
+            [
+                [0.1, 0.1],  # Voxel (0, 0) - 1 point
+                [1.5, 1.5],
+                [1.6, 1.6],  # Voxel (1, 1) - 2 points
+                [2.5, 2.5],
+                [2.6, 2.6],
+                [2.7, 2.7],
+                [2.8, 2.8],  # Voxel (2, 2) - 4 points
+            ]
+        )
 
         ndt_map = build_ndt_map(points, voxel_size=1.0, min_points_per_voxel=3)
 
@@ -109,7 +120,9 @@ class TestNDTBasicFunctionality:
         target = scan.copy()
 
         # Compute score at identity transformation (should be good)
-        score = ndt_score(scan, target, np.array([0, 0, 0]), voxel_size=0.5)  # Smaller voxels
+        score = ndt_score(
+            scan, target, np.array([0, 0, 0]), voxel_size=0.5
+        )  # Smaller voxels
 
         # Basic sanity checks
         assert not np.isnan(score), "NDT score should not be NaN"
@@ -133,8 +146,12 @@ class TestNDTBasicFunctionality:
 
         initial_guess = np.array([0.45, 0.45, 0.04])
         pose, iters, _, converged = ndt_align(
-            scan, target, initial_pose=initial_guess,
-            voxel_size=1.0, max_iterations=50, tolerance=1e-4
+            scan,
+            target,
+            initial_pose=initial_guess,
+            voxel_size=1.0,
+            max_iterations=50,
+            tolerance=1e-4,
         )
 
         assert converged, "NDT should converge from a good initial guess"
@@ -156,8 +173,12 @@ class TestNDTRegressionThresholds:
         initial_guess = np.array([0.45, 0.45, 0.04])
 
         pose, iters, _, converged = ndt_align(
-            scan, target, initial_pose=initial_guess,
-            voxel_size=1.0, max_iterations=50, tolerance=1e-4
+            scan,
+            target,
+            initial_pose=initial_guess,
+            voxel_size=1.0,
+            max_iterations=50,
+            tolerance=1e-4,
         )
 
         # Basic functionality test: should complete without errors
@@ -168,4 +189,3 @@ class TestNDTRegressionThresholds:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

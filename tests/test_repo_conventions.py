@@ -346,7 +346,9 @@ def _bare_default_rng_lines(source: str):
         if not isinstance(node, ast.Call):
             continue
         func = node.func
-        name = func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        name = (
+            func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
+        )
         if name == "default_rng" and not node.args and not node.keywords:
             hits.append(node.lineno)
     return hits
@@ -527,7 +529,7 @@ def test_no_test_functions_outside_the_tests_tree(source):
 
     assert not offenders, (
         f"{relative} defines {len(offenders)} test_-prefixed function(s) that "
-        f"pytest never collects, because testpaths = [\"tests\"]: "
+        f'pytest never collects, because testpaths = ["tests"]: '
         f"{', '.join(sorted(offenders))}. Rename to check_* or demo_* if it is a "
         f"by-hand self-check, or move it under tests/ if it is a real test."
     )
@@ -581,7 +583,7 @@ def test_preset_does_not_overwrite_an_explicit_output(script):
     assert not offenders, (
         f"{relative} assigns output_dir a bare literal ({listed}), which "
         f"discards an explicit --output and rewrites the shipped dataset "
-        f"instead. Use `output_dir = output_dir or \"...\"` so the preset only "
+        f'instead. Use `output_dir = output_dir or "..."` so the preset only '
         f"supplies a default, and make sure --output itself defaults to None."
     )
 
@@ -617,9 +619,9 @@ def test_core_library_takes_its_randomness_from_the_caller(module):
     # themselves and are covered by the uncollected-tests ratchet above.
     demo_lines = set()
     for node in ast.walk(tree):
-        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name.startswith(
-            ("check_", "demo_")
-        ):
+        if isinstance(
+            node, (ast.FunctionDef, ast.AsyncFunctionDef)
+        ) and node.name.startswith(("check_", "demo_")):
             for child in ast.walk(node):
                 if hasattr(child, "lineno"):
                     demo_lines.add(child.lineno)
@@ -723,7 +725,8 @@ def test_chapter_directories_hold_only_examples(chapter):
 
     assert not offenders, (
         f"{chapter.name} holds {len(offenders)} file(s) that are neither "
-        f"example_*.py nor __init__.py:\n  " + "\n  ".join(offenders)
+        f"example_*.py nor __init__.py:\n  "
+        + "\n  ".join(offenders)
         + "\n\nName a runnable demo example_<what it shows>.py so `ls "
         "chX/example_*.py` reports it. Move anything importable into core/."
     )

@@ -80,9 +80,7 @@ class ParticleFilter(StateEstimator):
         self._rng = np.random if rng is None else rng
 
         # Initialize particles from initial distribution
-        self.particles = self._rng.multivariate_normal(
-            x0, P0, size=n_particles
-        )
+        self.particles = self._rng.multivariate_normal(x0, P0, size=n_particles)
 
         # Initialize weights uniformly
         self.weights = np.ones(n_particles) / n_particles
@@ -227,7 +225,7 @@ def check_particle_filter_1d():
     def process_model(x, u, dt):
         F = np.array([[1.0, dt], [0.0, 1.0]])
         process_noise = np.random.multivariate_normal(
-            [0, 0], 0.1 * np.array([[dt**3/3, dt**2/2], [dt**2/2, dt]])
+            [0, 0], 0.1 * np.array([[dt**3 / 3, dt**2 / 2], [dt**2 / 2, dt]])
         )
         return F @ x + process_noise
 
@@ -256,7 +254,9 @@ def check_particle_filter_1d():
 
     for _ in range(n_steps):
         true_state = np.array([[1.0, dt], [0.0, 1.0]]) @ true_state
-        true_state += np.random.multivariate_normal([0, 0], 0.1 * np.array([[dt**3/3, dt**2/2], [dt**2/2, dt]]))
+        true_state += np.random.multivariate_normal(
+            [0, 0], 0.1 * np.array([[dt**3 / 3, dt**2 / 2], [dt**2 / 2, dt]])
+        )
 
         # Generate measurement
         z = true_state[0] + np.random.normal(0, 0.5)
@@ -296,10 +296,7 @@ def check_particle_filter_nonlinear():
     # Nonlinear process model
     def process_model(x, u, dt):
         # Simple nonlinear dynamics with bimodal noise
-        x_new = np.array([
-            x[0] + x[1] * dt + 0.1 * np.sin(x[0]),
-            x[1] * 0.95
-        ])
+        x_new = np.array([x[0] + x[1] * dt + 0.1 * np.sin(x[0]), x[1] * 0.95])
         # Add bimodal noise
         if np.random.random() > 0.5:
             x_new += np.random.normal(0, 0.1, size=2)
@@ -310,7 +307,7 @@ def check_particle_filter_nonlinear():
     # Nonlinear measurement model
     def likelihood_func(z, x):
         # Range measurement from origin
-        z_pred = np.sqrt(x[0]**2 + x[1]**2)
+        z_pred = np.sqrt(x[0] ** 2 + x[1] ** 2)
         measurement_std = 0.5
         return float(
             np.exp(-0.5 * np.sum(((z - z_pred) / measurement_std) ** 2))
@@ -328,14 +325,16 @@ def check_particle_filter_nonlinear():
 
     for _ in range(n_steps):
         # Simple dynamics for true state
-        true_state = np.array([
-            true_state[0] + true_state[1] * dt + 0.1 * np.sin(true_state[0]),
-            true_state[1] * 0.95
-        ])
+        true_state = np.array(
+            [
+                true_state[0] + true_state[1] * dt + 0.1 * np.sin(true_state[0]),
+                true_state[1] * 0.95,
+            ]
+        )
         true_state += np.random.normal(0, 0.1, size=2)
 
         # Generate range measurement
-        z = np.sqrt(true_state[0]**2 + true_state[1]**2) + np.random.normal(0, 0.5)
+        z = np.sqrt(true_state[0] ** 2 + true_state[1] ** 2) + np.random.normal(0, 0.5)
 
         pf.predict(dt=dt)
         pf.update(np.array([z]))
@@ -368,6 +367,3 @@ if __name__ == "__main__":
     print("=" * 70)
     print("ALL CHECKS PASSED")
     print("=" * 70)
-
-
-

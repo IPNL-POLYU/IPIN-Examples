@@ -49,7 +49,9 @@ def generate_corridor_walk(
     leg_length: float = 30.0,
     step_freq: float = 2.0,
     dt: float = 0.01,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> Tuple[
+    np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray
+]:
     """
     Generate corridor walk trajectory with turns.
 
@@ -232,7 +234,7 @@ def generate_corridor_walk(
     for idx, yaw_at_step, forward, vertical in step_samples:
         lo, hi = idx - pulse_half, idx + pulse_half + 1
         window = slice(max(lo, 0), min(hi, N))
-        clipped = shape[max(0, -lo):len(shape) - max(0, hi - N)]
+        clipped = shape[max(0, -lo) : len(shape) - max(0, hi - N)]
         accel[window, 0] += forward * np.cos(yaw_at_step) * clipped
         accel[window, 1] += forward * np.sin(yaw_at_step) * clipped
         accel[window, 2] += vertical * clipped
@@ -243,10 +245,15 @@ def generate_corridor_walk(
     # changes -- smaller than the teleport this replaced, but the same defect.
     window = max(int(round(0.5 / dt)), 1)
     speed_smooth = np.convolve(speed_profile, np.ones(window) / window, mode="same")
-    step_xy = np.column_stack([
-        speed_smooth * np.cos(heading),
-        speed_smooth * np.sin(heading),
-    ]) * dt
+    step_xy = (
+        np.column_stack(
+            [
+                speed_smooth * np.cos(heading),
+                speed_smooth * np.sin(heading),
+            ]
+        )
+        * dt
+    )
     pos = np.cumsum(step_xy, axis=0) - step_xy[0]
 
     return t, pos, accel, gyro, mag, heading, step_times
@@ -322,7 +329,7 @@ def run_pdr_gyro(
     for k in range(1, N):
         # Step detection: simple peak crossing at 11 m/s^2
         a_mag = total_accel_magnitude(accel_meas[k])
-        is_step = (last_a_mag < 11.0 and a_mag >= 11.0)
+        is_step = last_a_mag < 11.0 and a_mag >= 11.0
         last_a_mag = a_mag
 
         if is_step and (t[k] - last_step_time) > 0.3:  # Min 0.3s between steps
@@ -378,7 +385,7 @@ def run_pdr_mag(
     for k in range(1, N):
         # Step detection
         a_mag = total_accel_magnitude(accel_meas[k])
-        is_step = (last_a_mag < 11.0 and a_mag >= 11.0)
+        is_step = last_a_mag < 11.0 and a_mag >= 11.0
         last_a_mag = a_mag
 
         if is_step and (t[k] - last_step_time) > 0.3:
@@ -567,11 +574,13 @@ def generate_dataset(
 
     # Generate trajectory
     print("\nStep 1: Generating corridor walk...")
-    t, pos_true, accel_true, gyro_true, mag_true, heading_true, step_times = generate_corridor_walk(
-        num_legs=num_legs,
-        leg_length=leg_length,
-        step_freq=step_freq,
-        dt=dt,
+    t, pos_true, accel_true, gyro_true, mag_true, heading_true, step_times = (
+        generate_corridor_walk(
+            num_legs=num_legs,
+            leg_length=leg_length,
+            step_freq=step_freq,
+            dt=dt,
+        )
     )
 
     total_distance = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
@@ -633,7 +642,9 @@ def generate_dataset(
     print("\nHeading Source Comparison:")
     print(f"  Gyro: {final_error_gyro:.2f}m error (drifts over time)")
     print(f"  Magnetometer: {final_error_mag:.2f}m error (absolute but noisy)")
-    print(f"  Improvement: {final_error_gyro / final_error_mag:.1f}x better with magnetometer")
+    print(
+        f"  Improvement: {final_error_gyro / final_error_mag:.1f}x better with magnetometer"
+    )
 
     # Save dataset
     config = {
@@ -757,13 +768,22 @@ Book Reference: Chapter 6, Section 6.3 (Pedestrian Dead Reckoning)
         "--num-legs", type=int, default=4, help="Number of corridor legs (default: 4)"
     )
     traj_group.add_argument(
-        "--leg-length", type=float, default=30.0, help="Length of each leg in meters (default: 30.0)"
+        "--leg-length",
+        type=float,
+        default=30.0,
+        help="Length of each leg in meters (default: 30.0)",
     )
     traj_group.add_argument(
-        "--step-freq", type=float, default=2.0, help="Step frequency in Hz (default: 2.0)"
+        "--step-freq",
+        type=float,
+        default=2.0,
+        help="Step frequency in Hz (default: 2.0)",
     )
     traj_group.add_argument(
-        "--height", type=float, default=1.75, help="Pedestrian height in meters (default: 1.75)"
+        "--height",
+        type=float,
+        default=1.75,
+        help="Pedestrian height in meters (default: 1.75)",
     )
     traj_group.add_argument(
         "--dt", type=float, default=0.01, help="Time step in seconds (default: 0.01)"
@@ -772,20 +792,34 @@ Book Reference: Chapter 6, Section 6.3 (Pedestrian Dead Reckoning)
     # Sensor noise parameters
     noise_group = parser.add_argument_group("Sensor Noise Parameters")
     noise_group.add_argument(
-        "--accel-noise", type=float, default=0.2, help="Accel noise std dev in m/s^2 (default: 0.2)"
+        "--accel-noise",
+        type=float,
+        default=0.2,
+        help="Accel noise std dev in m/s^2 (default: 0.2)",
     )
     noise_group.add_argument(
-        "--gyro-noise", type=float, default=0.01, help="Gyro noise std dev in rad/s (default: 0.01)"
+        "--gyro-noise",
+        type=float,
+        default=0.01,
+        help="Gyro noise std dev in rad/s (default: 0.01)",
     )
     noise_group.add_argument(
-        "--gyro-bias", type=float, default=0.005, help="Gyro bias in rad/s (default: 0.005)"
+        "--gyro-bias",
+        type=float,
+        default=0.005,
+        help="Gyro bias in rad/s (default: 0.005)",
     )
     noise_group.add_argument(
-        "--mag-noise", type=float, default=0.1, help="Mag noise std dev normalized (default: 0.1)"
+        "--mag-noise",
+        type=float,
+        default=0.1,
+        help="Mag noise std dev normalized (default: 0.1)",
     )
 
     # Other
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed (default: 42)"
+    )
 
     args = parser.parse_args()
 
@@ -808,4 +842,3 @@ Book Reference: Chapter 6, Section 6.3 (Pedestrian Dead Reckoning)
 
 if __name__ == "__main__":
     main()
-

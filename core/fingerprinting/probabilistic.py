@@ -148,7 +148,7 @@ def fit_gaussian_naive_bayes(
         >>> model = fit_gaussian_naive_bayes(db, min_std=2.0)
         >>> print(f"Trained model with {model.n_reference_points} RPs")
         >>> # All stds will be 2.0 dBm
-        
+
         >>> # Multi-sample database (actual variance estimation)
         >>> db_multi = load_fingerprint_database('data/sim/ch5_wifi_fp_multisamples')
         >>> model = fit_gaussian_naive_bayes(db_multi, min_std=1.0)
@@ -196,7 +196,7 @@ def log_likelihood(
                        = Σ_j [-0.5 log(2π σ_ij²) - 0.5 (z_j - μ_ij)² / σ_ij²]
 
     where the sum is over all features j = 1, ..., N.
-    
+
     **Missing AP Handling:**
     If z contains NaN values (representing missing AP readings), the sum
     includes only terms for observed (non-NaN) features. If no observed
@@ -220,7 +220,7 @@ def log_likelihood(
         >>> z_query = np.array([-51, -61, -71])
         >>> log_probs = log_likelihood(z_query, model, floor_id=0)
         >>> print(f"Log-likelihoods: {log_probs}")
-        
+
         >>> # With missing values (NaN)
         >>> z_missing = np.array([-51, np.nan, -71])  # AP2 missing
         >>> log_probs_missing = log_likelihood(z_missing, model, floor_id=0)
@@ -470,10 +470,10 @@ def posterior_mean_localize(
         >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> model = fit_gaussian_naive_bayes(db, min_std=2.0)
         >>> z_query = np.array([-51, -61, -71])
-        
+
         >>> # Full posterior mean (all RPs)
         >>> x_hat_full = posterior_mean_localize(z_query, model, floor_id=0)
-        
+
         >>> # Top-k posterior mean (faster, typically sufficient)
         >>> x_hat_topk = posterior_mean_localize(z_query, model, floor_id=0, top_k=10)
         >>> # Results are nearly identical but top-k is faster
@@ -531,4 +531,3 @@ def posterior_mean_localize(
         x_hat = np.sum(posteriors[:, np.newaxis] * model.locations, axis=0)
 
     return x_hat
-

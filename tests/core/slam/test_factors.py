@@ -274,7 +274,9 @@ class TestPriorFactor:
 
         # Strong odometry factor connecting poses (expects 1m forward)
         strong_odom_info = np.diag([1e4, 1e4, 1e4])  # Very strong
-        odom = create_odometry_factor(0, 1, np.array([1.0, 0.0, 0.0]), information=strong_odom_info)
+        odom = create_odometry_factor(
+            0, 1, np.array([1.0, 0.0, 0.0]), information=strong_odom_info
+        )
         graph.add_factor(odom)
 
         # Optimize
@@ -480,7 +482,9 @@ class TestIntegration:
         # Odometry measurement (noisy)
         odom_rel = np.array([0.9, 0.05, 0.02])
         odom_cov = np.diag([0.1, 0.1, 0.01])  # Moderate uncertainty
-        odom = create_odometry_factor(0, 1, odom_rel, information=np.linalg.inv(odom_cov))
+        odom = create_odometry_factor(
+            0, 1, odom_rel, information=np.linalg.inv(odom_cov)
+        )
         graph.add_factor(odom)
 
         # Simulated ICP measurement (more accurate)
@@ -498,4 +502,3 @@ class TestIntegration:
         # Should be closer to [1.0, 0.0, 0.0] than to odometry
         dist_to_icp = np.linalg.norm(optimized[1] - np.array([1.0, 0.0, 0.0]))
         assert dist_to_icp < 0.05  # Very close to ICP measurement
-

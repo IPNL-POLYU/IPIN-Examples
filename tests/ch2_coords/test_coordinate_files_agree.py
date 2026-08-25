@@ -34,7 +34,9 @@ import numpy as np
 
 from core.coords import ecef_to_enu, llh_to_ecef
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "sim" / "ch2_coords_san_francisco"
+DATA_DIR = (
+    Path(__file__).resolve().parents[2] / "data" / "sim" / "ch2_coords_san_francisco"
+)
 
 #: Coordinates are stored at 3 decimals, so 1 mm is the quantisation floor.
 STORAGE_TOL_M = 2e-3
@@ -80,7 +82,8 @@ class TestCh2CoordinateFilesAgree(unittest.TestCase):
 
         offset = float(np.mean(up_predicted - enu[:, 2]))
         self.assertLess(
-            abs(offset), STORAGE_TOL_M,
+            abs(offset),
+            STORAGE_TOL_M,
             f"Up is offset by {offset:.3f} m, so reference_llh.txt's height "
             f"({ref[2]:.3f} m) is not the origin the ENU was built about",
         )

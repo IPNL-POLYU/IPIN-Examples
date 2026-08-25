@@ -60,15 +60,15 @@ def pink_noise_1f_fft(
     Example:
         >>> import numpy as np
         >>> from core.sim.noise_pink import pink_noise_1f_fft
-        >>> 
+        >>>
         >>> # Generate 1 hour of pink noise at 100 Hz
         >>> fs = 100.0  # Hz
         >>> duration = 3600.0  # seconds
         >>> N = int(fs * duration)
-        >>> 
+        >>>
         >>> rng = np.random.default_rng(42)
         >>> pink = pink_noise_1f_fft(N, fs, rng=rng)
-        >>> 
+        >>>
         >>> # Verify properties
         >>> assert np.abs(np.mean(pink)) < 0.01  # zero-mean
         >>> assert np.abs(np.std(pink) - 1.0) < 0.01  # unit-std
@@ -186,24 +186,24 @@ def scale_to_bias_instability(
         >>> import numpy as np
         >>> from core.sim.noise_pink import pink_noise_1f_fft, scale_to_bias_instability
         >>> from core.sensors import allan_variance
-        >>> 
+        >>>
         >>> # Generate unit pink noise
         >>> fs = 100.0  # Hz
         >>> N = 360000  # 1 hour at 100 Hz
         >>> pink_unit = pink_noise_1f_fft(N, fs)
-        >>> 
+        >>>
         >>> # Target BI: 10 deg/hr
         >>> bi_deg_hr = 10.0
         >>> target_bi_rad_s = np.deg2rad(bi_deg_hr) / 3600.0
-        >>> 
+        >>>
         >>> # Create tau grid for Allan deviation
         >>> tau_grid = np.logspace(0, 3, 50)  # 1s to 1000s
-        >>> 
+        >>>
         >>> # Scale pink noise to match target BI
         >>> pink_scaled = scale_to_bias_instability(
         ...     pink_unit, target_bi_rad_s, allan_variance, tau_grid, fs
         ... )
-        >>> 
+        >>>
         >>> # Verify: compute Allan deviation and check minimum
         >>> taus, sigma = allan_variance(pink_scaled, fs, tau_grid)
         >>> sigma_min = np.min(sigma)
@@ -222,13 +222,10 @@ def scale_to_bias_instability(
     sigma_min = np.min(sigma)
 
     if sigma_min <= 0:
-        raise ValueError(
-            "Allan sigma_min <= 0; check allan_sigma_func implementation."
-        )
+        raise ValueError("Allan sigma_min <= 0; check allan_sigma_func implementation.")
 
     # Scale so that: target_bi_rad_s ≈ sigma_min_scaled / bi_factor
     # => sigma_min_scaled ≈ target_bi_rad_s * bi_factor
     scale = (target_bi_rad_s * bi_factor) / sigma_min
 
     return pink_unit * scale
-

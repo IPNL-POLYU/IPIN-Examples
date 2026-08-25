@@ -76,33 +76,32 @@ def setup_scenario(seed=42):
     n_steps = 30
 
     # Landmark/anchor positions
-    anchors = np.array([
-        [0.0, 0.0],
-        [20.0, 0.0],
-        [20.0, 20.0],
-        [0.0, 20.0],
-    ])
+    anchors = np.array(
+        [
+            [0.0, 0.0],
+            [20.0, 0.0],
+            [20.0, 20.0],
+            [0.0, 20.0],
+        ]
+    )
 
     # Generate true trajectory (constant velocity with process noise)
     print("\n--- Setting up scenario ---")
     true_x0 = np.array([10.0, 10.0, 1.0, 0.5])  # [x, y, vx, vy]
 
     def process_model_true(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     q = 0.5
-    Q = q * np.array([
-        [dt**3/3, 0, dt**2/2, 0],
-        [0, dt**3/3, 0, dt**2/2],
-        [dt**2/2, 0, dt, 0],
-        [0, dt**2/2, 0, dt]
-    ])
+    Q = q * np.array(
+        [
+            [dt**3 / 3, 0, dt**2 / 2, 0],
+            [0, dt**3 / 3, 0, dt**2 / 2],
+            [dt**2 / 2, 0, dt, 0],
+            [0, dt**2 / 2, 0, dt],
+        ]
+    )
 
     true_states = [true_x0.copy()]
     true_state = true_x0.copy()
@@ -133,21 +132,11 @@ def run_ekf(dt, n_steps, anchors, measurements, Q, range_std):
     print("\nRunning EKF...")
 
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def process_jacobian(x, u, dt):
-        return np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     def measurement_model(x):
         ranges = []
@@ -165,7 +154,7 @@ def run_ekf(dt, n_steps, anchors, measurements, Q, range_std):
             if r < 1e-6:
                 H.append([0, 0, 0, 0])
             else:
-                H.append([dx/r, dy/r, 0, 0])
+                H.append([dx / r, dy / r, 0, 0])
         return np.array(H)
 
     def Q_func(dt):
@@ -178,9 +167,14 @@ def run_ekf(dt, n_steps, anchors, measurements, Q, range_std):
     P0 = np.diag([4.0, 4.0, 2.0, 2.0])
 
     ekf = ExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0, P0
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0,
+        P0,
     )
 
     estimates = [x0.copy()]
@@ -203,12 +197,7 @@ def run_ukf(dt, n_steps, anchors, measurements, Q, range_std):
     print("Running UKF...")
 
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def measurement_model(x):
@@ -228,8 +217,7 @@ def run_ukf(dt, n_steps, anchors, measurements, Q, range_std):
     P0 = np.diag([4.0, 4.0, 2.0, 2.0])
 
     ukf = UnscentedKalmanFilter(
-        process_model, measurement_model,
-        Q_func, R_func, x0, P0
+        process_model, measurement_model, Q_func, R_func, x0, P0
     )
 
     estimates = [x0.copy()]
@@ -283,12 +271,7 @@ def run_pf(dt, n_steps, anchors, measurements, Q, range_std):
 
         Implements Eq. (3.33): Sample from transition prior.
         """
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         process_noise = np.random.multivariate_normal(np.zeros(4), Q)
         return F @ x + process_noise
 
@@ -302,16 +285,16 @@ def run_pf(dt, n_steps, anchors, measurements, Q, range_std):
         Uses Gaussian likelihood for range measurements.
         """
         # Predicted ranges from particle state
-        predicted_ranges = np.array([
-            np.linalg.norm(x[:2] - anchor) for anchor in anchors
-        ])
+        predicted_ranges = np.array(
+            [np.linalg.norm(x[:2] - anchor) for anchor in anchors]
+        )
 
         # Gaussian likelihood: p(z | x) = N(z; h(x), R)
         residual = z - predicted_ranges
-        mahalanobis_sq = np.sum((residual / range_std)**2)
+        mahalanobis_sq = np.sum((residual / range_std) ** 2)
         likelihood = np.exp(-0.5 * mahalanobis_sq)
         # Normalize by Gaussian constant (optional for relative weights)
-        likelihood /= (range_std * np.sqrt(2 * np.pi))**len(anchors)
+        likelihood /= (range_std * np.sqrt(2 * np.pi)) ** len(anchors)
         return likelihood
 
     x0 = np.array([10.0, 10.0, 0.0, 0.0])
@@ -320,15 +303,20 @@ def run_pf(dt, n_steps, anchors, measurements, Q, range_std):
     # Initialize Particle Filter with N particles
     # Particles are drawn from N(x0, P0)
     pf = ParticleFilter(
-        process_model_with_noise, likelihood_func,
-        n_particles, x0, P0,
-        resample_threshold=0.5  # Resample when N_eff < 0.5 * N
+        process_model_with_noise,
+        likelihood_func,
+        n_particles,
+        x0,
+        P0,
+        resample_threshold=0.5,  # Resample when N_eff < 0.5 * N
     )
 
     estimates = [x0.copy()]
     start_time = time.time()
 
-    for z in tqdm(measurements, desc=f"PF filtering ({n_particles} particles)", unit="step"):
+    for z in tqdm(
+        measurements, desc=f"PF filtering ({n_particles} particles)", unit="step"
+    ):
         # SIR Algorithm per time step:
         # Step 1: PROPAGATE - pf.predict() propagates all particles through
         #         process model with noise [Eq. 3.33]
@@ -376,22 +364,13 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
     Q_inv = np.linalg.inv(Q)
 
     for i in tqdm(range(n_steps), desc="Adding process factors", unit="factor"):
+
         def process_residual(x_vars, i=i, dt=dt):
-            F = np.array([
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ])
+            F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
             return x_vars[1] - F @ x_vars[0]
 
         def process_jacobian(x_vars, dt=dt):
-            F = np.array([
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ])
+            F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
             return [-F, np.eye(4)]
 
         process_factor = Factor([i, i + 1], process_residual, process_jacobian, Q_inv)
@@ -400,7 +379,13 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
     # Add measurement factors
     R_inv = np.linalg.inv(np.diag([range_std**2] * len(anchors)))
 
-    for i, z in tqdm(enumerate(measurements), desc="Adding measurement factors", unit="factor", total=len(measurements)):
+    for i, z in tqdm(
+        enumerate(measurements),
+        desc="Adding measurement factors",
+        unit="factor",
+        total=len(measurements),
+    ):
+
         def meas_residual(x_vars, z=z):
             x = x_vars[0]
             predicted_ranges = []
@@ -419,7 +404,7 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
                 if r < 1e-6:
                     H.append([0, 0, 0, 0])
                 else:
-                    H.append([dx/r, dy/r, 0, 0])
+                    H.append([dx / r, dy / r, 0, 0])
             return [np.array(H)]
 
         meas_factor = Factor([i + 1], meas_residual, meas_jacobian, R_inv)
@@ -428,15 +413,14 @@ def run_fgo(dt, n_steps, anchors, measurements, Q, range_std):
     # Optimize
     print("  Optimizing factor graph (up to 10 Gauss-Newton iterations)...")
     start_time = time.time()
-    optimized_vars, costs = graph.optimize(
-        method="gauss_newton", max_iterations=10
-    )
+    optimized_vars, costs = graph.optimize(method="gauss_newton", max_iterations=10)
     elapsed_time = time.time() - start_time
     # optimize() returns the cost at each iteration, so this is the number of
     # iterations actually taken rather than the 10 it was allowed.
     n_iterations = len(costs)
-    print(f"  [OK] FGO completed in {elapsed_time:.4f}s "
-          f"({n_iterations} iterations)")
+    print(
+        f"  [OK] FGO completed in {elapsed_time:.4f}s " f"({n_iterations} iterations)"
+    )
 
     # Extract estimates
     estimates = []
@@ -481,10 +465,10 @@ def model_evaluation_counts(n_steps, n_states, n_particles, fgo_iterations):
     n_sigma = 2 * n_states + 1
 
     return {
-        'EKF': n_steps * 2,
-        'UKF': n_steps * 2 * n_sigma,
-        'PF': n_steps * 2 * n_particles,
-        'FGO': fgo_iterations * 2 * n_steps,
+        "EKF": n_steps * 2,
+        "UKF": n_steps * 2 * n_sigma,
+        "PF": n_steps * 2 * n_particles,
+        "FGO": fgo_iterations * 2 * n_steps,
     }
 
 
@@ -521,22 +505,26 @@ def main():
     results = {}
 
     print("\n[1/4] Extended Kalman Filter (EKF)")
-    results['EKF'], results['EKF_time'] = run_ekf(dt, n_steps, anchors, measurements, Q, range_std)
+    results["EKF"], results["EKF_time"] = run_ekf(
+        dt, n_steps, anchors, measurements, Q, range_std
+    )
 
     print("\n[2/4] Unscented Kalman Filter (UKF)")
-    results['UKF'], results['UKF_time'] = run_ukf(dt, n_steps, anchors, measurements, Q, range_std)
+    results["UKF"], results["UKF_time"] = run_ukf(
+        dt, n_steps, anchors, measurements, Q, range_std
+    )
 
     print("\n[3/4] Particle Filter (PF)")
-    results['PF'], results['PF_time'], n_particles = run_pf(
+    results["PF"], results["PF_time"], n_particles = run_pf(
         dt, n_steps, anchors, measurements, Q, range_std
     )
 
     print("\n[4/4] Factor Graph Optimization (FGO)")
-    results['FGO'], results['FGO_time'], fgo_iterations = run_fgo(
+    results["FGO"], results["FGO_time"], fgo_iterations = run_fgo(
         dt, n_steps, anchors, measurements, Q, range_std
     )
 
-    results['model_evaluations'] = model_evaluation_counts(
+    results["model_evaluations"] = model_evaluation_counts(
         n_steps=n_steps,
         n_states=true_states.shape[1],
         n_particles=n_particles,
@@ -548,13 +536,13 @@ def main():
     print("RESULTS")
     print("=" * 70)
 
-    for method in ['EKF', 'UKF', 'PF', 'FGO']:
+    for method in ["EKF", "UKF", "PF", "FGO"]:
         estimates = results[method]
         position_errors = np.linalg.norm(estimates[:, :2] - true_states[:, :2], axis=1)
         rmse = np.sqrt(np.mean(position_errors**2))
         mean_error = np.mean(position_errors)
         max_error = np.max(position_errors)
-        comp_time = results[f'{method}_time']
+        comp_time = results[f"{method}_time"]
 
         print(f"\n{method}:")
         print(f"  RMSE: {rmse:.4f} m")
@@ -585,7 +573,10 @@ def main():
             scenario = setup_scenario(seed=seed)
             dt_r, n_r, anchors_r, truth_r, meas_r, Q_r, rstd_r = scenario
             for name, runner in (
-                ("EKF", run_ekf), ("UKF", run_ukf), ("PF", run_pf), ("FGO", run_fgo)
+                ("EKF", run_ekf),
+                ("UKF", run_ukf),
+                ("PF", run_pf),
+                ("FGO", run_fgo),
             ):
                 # Index rather than unpack: run_pf returns a third value
                 # (n_particles) that the others do not, and only the estimates
@@ -602,8 +593,10 @@ def main():
     print(f"{'Method':<8} {'mean RMSE':<12} {'min':<9} {'max':<9} {'best of 4':<10}")
     for name, values in repeated.items():
         values = np.asarray(values)
-        print(f"{name:<8} {values.mean():<12.3f} {values.min():<9.3f} "
-              f"{values.max():<9.3f} {best_counts[name]}/{n_seeds}")
+        print(
+            f"{name:<8} {values.mean():<12.3f} {values.min():<9.3f} "
+            f"{values.max():<9.3f} {best_counts[name]}/{n_seeds}"
+        )
 
     print()
     print("  FGO wins every seed, which is what batch smoothing should do: it")
@@ -622,7 +615,7 @@ def main():
 
     # Panels 1-3 are the shared primitives drawn into this grid; only panel 4
     # (timing bars) is specific to this comparison.
-    methods = ['EKF', 'UKF', 'PF', 'FGO']
+    methods = ["EKF", "UKF", "PF", "FGO"]
     trajectories = {m: results[m][:, :2] for m in methods}
     errors = {m: results[m][:, :2] - true_states[:, :2] for m in methods}
     time_steps = np.arange(n_steps + 1) * dt
@@ -643,9 +636,7 @@ def main():
     )
 
     # Plot 3: CDF of Errors
-    plot_error_cdf(
-        errors, title="Cumulative Distribution of Errors", ax=axes[1, 0]
-    )
+    plot_error_cdf(errors, title="Cumulative Distribution of Errors", ax=axes[1, 0])
 
     # Plot 4: Computational cost, counted rather than timed
     #
@@ -654,26 +645,30 @@ def main():
     # machine. Counting model evaluations is exact and reproducible, and it is
     # the quantity that actually separates these estimators.
     ax = axes[1, 1]
-    methods = ['EKF', 'UKF', 'PF', 'FGO']
-    evaluations = [results['model_evaluations'][m] for m in methods]
-    colors = ['b', 'g', 'm', 'r']
-    bars = ax.bar(methods, evaluations, color=colors, alpha=0.7,
-                  edgecolor='black')
+    methods = ["EKF", "UKF", "PF", "FGO"]
+    evaluations = [results["model_evaluations"][m] for m in methods]
+    colors = ["b", "g", "m", "r"]
+    bars = ax.bar(methods, evaluations, color=colors, alpha=0.7, edgecolor="black")
 
-    ax.set_yscale('log')
+    ax.set_yscale("log")
     ax.set_ylabel("Model evaluations", fontsize=12)
     ax.set_title("Computational Cost", fontsize=14, fontweight="bold")
-    ax.grid(True, alpha=0.3, axis='y')
+    ax.grid(True, alpha=0.3, axis="y")
 
     # Add value labels on bars
     for bar, n_evals in zip(bars, evaluations):
         height = bar.get_height()
-        ax.text(bar.get_x() + bar.get_width() / 2., height,
-                f'{n_evals:,}', ha='center', va='bottom', fontsize=10)
+        ax.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            height,
+            f"{n_evals:,}",
+            ha="center",
+            va="bottom",
+            fontsize=10,
+        )
 
     plt.tight_layout()
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "ch3_estimator_comparison")
+    paths = save_figure(fig, Path(__file__).parent / "figs", "ch3_estimator_comparison")
     print(f"[OK] Plot saved as: {paths[0]}")
     show_figures_if_requested()
 
@@ -681,12 +676,11 @@ def main():
     print("\n" + "=" * 70)
     print("COMPARISON COMPLETED")
     print("=" * 70)
-    print(f"Total execution time: {overall_time:.2f} seconds ({overall_time/60:.1f} minutes)")
+    print(
+        f"Total execution time: {overall_time:.2f} seconds ({overall_time/60:.1f} minutes)"
+    )
     print("=" * 70)
 
 
 if __name__ == "__main__":
     main()
-
-
-

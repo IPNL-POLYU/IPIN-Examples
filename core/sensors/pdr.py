@@ -73,7 +73,7 @@ def total_accel_magnitude(accel_b: np.ndarray) -> float:
         >>> accel = np.array([0.0, 0.0, -9.81])
         >>> mag = total_accel_magnitude(accel)
         >>> print(f"{mag:.2f}")  # 9.81
-        >>> 
+        >>>
         >>> # Walking: includes motion + gravity
         >>> accel = np.array([1.5, 0.5, -10.2])
         >>> mag = total_accel_magnitude(accel)
@@ -137,7 +137,7 @@ def remove_gravity_from_magnitude(
         >>> a_mag_stationary = 9.81
         >>> a_dyn = remove_gravity_from_magnitude(a_mag_stationary)
         >>> print(f"{a_dyn:.2f}")  # 0.00
-        >>> 
+        >>>
         >>> # Walking (peak acceleration)
         >>> a_mag_walking = 12.0
         >>> a_dyn = remove_gravity_from_magnitude(a_mag_walking)
@@ -168,15 +168,15 @@ def detect_steps_peak_detector(
 ) -> Tuple[np.ndarray, np.ndarray]:
     """
     Detect steps using peak detection on gravity-removed acceleration magnitude.
-    
+
     Implements the book's approach (Eqs. 6.46-6.47):
     1. Compute total acceleration magnitude (Eq. 6.46)
     2. Remove gravity (Eq. 6.47)
     3. Optionally apply low-pass filter
     4. Find peaks with minimum height and distance constraints
-    
+
     This is the proper peak detection method described in Chapter 6, Section 6.3.2.
-    
+
     Args:
         accel_series: Accelerometer time series in body frame.
                       Shape: (N, 3). Units: m/s².
@@ -196,7 +196,7 @@ def detect_steps_peak_detector(
         lat_rad: Geodetic latitude in radians (optional).
                  If provided, uses Eq. (6.8) for gravity magnitude.
                  If None, uses g parameter (backward compatible).
-    
+
     Returns:
         Tuple of (step_indices, accel_mag_filtered):
             step_indices: Indices of detected steps in accel_series.
@@ -204,7 +204,7 @@ def detect_steps_peak_detector(
             accel_mag_filtered: Processed acceleration magnitude time series.
                                 Shape: (N,). Units: m/s².
                                 After gravity removal and optional filtering.
-    
+
     Notes:
         - Follows Eq. (6.46): Compute ||a|| = sqrt(ax² + ay² + az²)
         - Follows Eq. (6.47): Remove gravity: a_dynamic = ||a|| - g
@@ -212,7 +212,7 @@ def detect_steps_peak_detector(
         - min_peak_distance prevents detecting same step multiple times
         - Low-pass filter reduces high-frequency noise from sensors
         - Peaks correspond to foot strikes or hand swings (device-dependent)
-    
+
     Example:
         >>> import numpy as np
         >>> # Synthetic walking: 60s at 2 Hz step frequency
@@ -220,18 +220,18 @@ def detect_steps_peak_detector(
         >>> # Simulate vertical acceleration with steps
         >>> accel_z = -9.81 + 2.0 * np.sin(2 * np.pi * 2.0 * t)  # 2 Hz steps
         >>> accel = np.column_stack([np.zeros_like(t), np.zeros_like(t), accel_z])
-        >>> 
+        >>>
         >>> step_indices, accel_processed = detect_steps_peak_detector(
         ...     accel, dt=0.01, min_peak_height=0.5, min_peak_distance=0.4
         ... )
         >>> print(f"Detected {len(step_indices)} steps in 60s")
         >>> print(f"Expected ~120 steps (2 steps/s * 60s)")
-    
+
     Related Equations:
         - Eq. (6.46): Total acceleration magnitude
         - Eq. (6.47): Gravity removal
         - Eq. (6.48): Step frequency (computed from detected peaks)
-    
+
     References:
         Chapter 6, Section 6.3.2: Pedestrian Dead Reckoning
         Figure 6.12: Total accelerations during walking (shows peak pattern)
@@ -244,7 +244,6 @@ def detect_steps_peak_detector(
         raise ValueError(f"dt must be positive, got {dt}")
     if min_peak_distance <= 0:
         raise ValueError(f"min_peak_distance must be positive, got {min_peak_distance}")
-
 
     # Step 1: Compute total acceleration magnitude (Eq. 6.46)
     # a_mag[k] = ||a_k|| = sqrt(ax² + ay² + az²)
@@ -269,7 +268,7 @@ def detect_steps_peak_detector(
             accel_filtered = accel_dynamic
         else:
             # Apply 4th order Butterworth filter
-            b, a = signal.butter(4, normalized_cutoff, btype='low')
+            b, a = signal.butter(4, normalized_cutoff, btype="low")
             accel_filtered = signal.filtfilt(b, a, accel_dynamic)
     else:
         accel_filtered = accel_dynamic
@@ -323,7 +322,7 @@ def step_frequency(delta_t: float) -> float:
         >>> dt = 0.5
         >>> freq = step_frequency(dt)
         >>> print(f"{freq:.2f} Hz")  # 2.00 Hz (120 steps/min)
-        >>> 
+        >>>
         >>> # Slow walking: 0.7 s between steps
         >>> dt = 0.7
         >>> freq = step_frequency(dt)
@@ -480,7 +479,7 @@ def step_length_book_eq6_49(
         - Eq. (6.48): Step frequency (SF)
         - Eq. (6.49): Step length (THIS FUNCTION)
         - Eq. (6.50): Position update (uses L)
-    
+
     Author: Li-Ta Hsu
     Date: December 2025
     """
@@ -551,14 +550,14 @@ def step_length_weinberg(
     Example:
         >>> # Get step segments from detector
         >>> step_indices, accel_filtered = detect_steps_peak_detector(accel, dt=0.01)
-        >>> 
+        >>>
         >>> # Calibrate gain (assuming known distance)
         >>> ptp_per_step = []
         >>> for i in range(len(step_indices)-1):
         >>>     seg = accel_filtered[step_indices[i]:step_indices[i+1]]
         >>>     ptp_per_step.append(np.ptp(seg))
         >>> G_w = calibrate_weinberg_gain(np.array(ptp_per_step), distance_m=50.0)
-        >>> 
+        >>>
         >>> # Compute step length per step
         >>> for i in range(len(step_indices)-1):
         >>>     seg = accel_filtered[step_indices[i]:step_indices[i+1]]
@@ -568,11 +567,11 @@ def step_length_weinberg(
     Related Functions:
         - `calibrate_weinberg_gain()`: Calibrate G_w from known distance
         - `detect_steps_peak_detector()`: Provides step windows and accel_filtered
-    
+
     References:
         Weinberg, H. (2002). "Using the ADXL202 in Pedometer and Personal Navigation
         Applications." Analog Devices AN-602 Application Note.
-    
+
     Author: Li-Ta Hsu
     Date: December 2025
     """
@@ -586,7 +585,7 @@ def step_length_weinberg(
     ptp = max(ptp, eps)  # Apply floor for numerical stability
 
     # Weinberg formula: SL = G_w * ptp^(1/4)
-    SL = G_w * (ptp ** power)
+    SL = G_w * (ptp**power)
 
     return SL
 
@@ -639,7 +638,7 @@ def calibrate_weinberg_gain(
     Related Functions:
         - `step_length_weinberg()`: Uses calibrated G_w
         - `detect_steps_peak_detector()`: Provides accel_filtered for ptp computation
-    
+
     Author: Li-Ta Hsu
     Date: December 2025
     """
@@ -650,7 +649,7 @@ def calibrate_weinberg_gain(
     ptp = np.maximum(ptp_per_step.astype(float), eps)
 
     # Compute denominator: sum of ptp^power
-    denom = float(np.sum(ptp ** power))
+    denom = float(np.sum(ptp**power))
 
     if denom <= 0:
         raise ValueError(
@@ -713,13 +712,13 @@ def pdr_step_update(
         >>> import numpy as np
         >>> # Start at origin
         >>> p0 = np.array([0.0, 0.0])
-        >>> 
+        >>>
         >>> # Take a step north (heading = π/2 = 90°)
         >>> L = 0.7  # m
         >>> heading = np.pi / 2  # north
         >>> p1 = pdr_step_update(p0, L, heading)
         >>> print(p1)  # [0.0, 0.7] (moved 0.7m north)
-        >>> 
+        >>>
         >>> # Take another step northeast (heading = π/4 = 45°)
         >>> heading_ne = np.pi / 4
         >>> p2 = pdr_step_update(p1, L, heading_ne)
@@ -784,7 +783,7 @@ def detect_step_simple(
         >>> mag_stationary = np.ones(20) * 9.81
         >>> step = detect_step_simple(mag_stationary, threshold=11.0)
         >>> print(step)  # False
-        >>> 
+        >>>
         >>> # Motion with step (peak at 12 m/s²)
         >>> mag_with_step = np.concatenate([
         >>>     np.ones(10) * 9.8,
@@ -884,5 +883,3 @@ def wrap_heading(heading_rad: float) -> float:
     # Wrap to [-π, π]
     wrapped = np.arctan2(np.sin(heading_rad), np.cos(heading_rad))
     return wrapped
-
-

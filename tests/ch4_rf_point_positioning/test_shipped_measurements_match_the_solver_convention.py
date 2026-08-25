@@ -129,8 +129,10 @@ def _predicted_tdoa(beacons, positions):
     """
     return np.array(
         [
-            [tdoa_range_difference(beacons[j], beacons[0], p)
-             for j in range(1, len(beacons))]
+            [
+                tdoa_range_difference(beacons[j], beacons[0], p)
+                for j in range(1, len(beacons))
+            ]
             for p in positions
         ]
     )
@@ -191,9 +193,9 @@ def test_aoa_angles_are_measured_from_the_agent_toward_the_anchor(dataset):
     """Wrapped, because a raw bearing difference straddles the branch cut."""
     data = _load(dataset)
     sigma_deg = data["config"]["measurements"]["aoa_noise_std_deg"]
-    residual = angle_diff(data["aoa"], _predicted_aoa(
-        data["beacons"], data["positions"]
-    ))
+    residual = angle_diff(
+        data["aoa"], _predicted_aoa(data["beacons"], data["positions"])
+    )
     worst = _worst_column(residual)
     assert worst < TOLERANCE_SIGMA * np.deg2rad(sigma_deg), (
         f"{dataset}/aoa_angles.txt disagrees with `aoa_azimuth` by "
@@ -224,27 +226,33 @@ def test_the_bound_is_justified_against_both_the_noise_and_the_defect():
     corruptions = {
         # (arm, what a defect of that kind looks like in the stored file)
         "TOA: +1.1 m undeclared on one beacon": (
-            "toa", "toa_noise_std_m",
+            "toa",
+            "toa_noise_std_m",
             lambda a: _bump_column(a, 0, 1.1),
         ),
         "TDOA: sign convention reversed": (
-            "tdoa", "tdoa_noise_std_m",
+            "tdoa",
+            "tdoa_noise_std_m",
             lambda a: -a,
         ),
         "TDOA: +0.6 m on one column": (
-            "tdoa", "tdoa_noise_std_m",
+            "tdoa",
+            "tdoa_noise_std_m",
             lambda a: _bump_column(a, 0, 0.6),
         ),
         "AOA: azimuth sign flipped": (
-            "aoa", "aoa_noise_std_deg",
+            "aoa",
+            "aoa_noise_std_deg",
             lambda a: -a,
         ),
         "AOA: reverse bearing (anchor to agent)": (
-            "aoa", "aoa_noise_std_deg",
+            "aoa",
+            "aoa_noise_std_deg",
             lambda a: np.arctan2(-np.sin(a), -np.cos(a)),
         ),
         "AOA: atan2 arguments swapped": (
-            "aoa", "aoa_noise_std_deg",
+            "aoa",
+            "aoa_noise_std_deg",
             lambda a: np.pi / 2 - a,
         ),
     }
@@ -257,9 +265,7 @@ def test_the_bound_is_justified_against_both_the_noise_and_the_defect():
         data = _load(dataset)
         for arm in ("toa", "tdoa", "aoa"):
             sigma = _sigma_for(data["config"], arm)
-            worst_honest = max(
-                worst_honest, _residual(data, arm, data[arm]) / sigma
-            )
+            worst_honest = max(worst_honest, _residual(data, arm, data[arm]) / sigma)
 
         for name, (arm, _key, corrupt) in corruptions.items():
             sigma = _sigma_for(data["config"], arm)
@@ -298,9 +304,7 @@ def _sigma_for(config, arm):
 def _residual(data, arm, observed):
     """Worst-column mean |residual| of `observed` against the forward model."""
     if arm == "toa":
-        predicted = _predicted_toa(
-            data["beacons"], data["positions"], data["config"]
-        )
+        predicted = _predicted_toa(data["beacons"], data["positions"], data["config"])
         return _worst_column(observed - predicted)
     if arm == "tdoa":
         predicted = _predicted_tdoa(data["beacons"], data["positions"])

@@ -254,9 +254,16 @@ def robust_gauss_newton(
 
     # L2 is just standard Gauss-Newton
     if loss == "l2":
-        result = gauss_newton(h, jacobian, y, x0, weights=None,
-                              max_iter=max_iter, tol=tol,
-                              return_covariance=return_covariance)
+        result = gauss_newton(
+            h,
+            jacobian,
+            y,
+            x0,
+            weights=None,
+            max_iter=max_iter,
+            tol=tol,
+            return_covariance=return_covariance,
+        )
         result.weights = np.ones(m)
         return result
 
@@ -265,7 +272,10 @@ def robust_gauss_newton(
     for irls_iter in range(max_irls_iter):
         # Run weighted Gauss-Newton with current weights
         result = gauss_newton(
-            h, jacobian, y, x,
+            h,
+            jacobian,
+            y,
+            x,
             weights=weights,
             max_iter=max_iter,
             tol=tol,
@@ -298,7 +308,10 @@ def robust_gauss_newton(
 
     # Final solve with converged weights
     result = gauss_newton(
-        h, jacobian, y, x,
+        h,
+        jacobian,
+        y,
+        x,
         weights=weights,
         max_iter=max_iter,
         tol=tol,
@@ -483,15 +496,15 @@ def _compute_robust_weights(u: np.ndarray, loss: str) -> np.ndarray:
 
     elif loss == "cauchy":
         # Cauchy: w = 1 / (1 + u²)
-        weights = 1.0 / (1.0 + u ** 2)
+        weights = 1.0 / (1.0 + u**2)
 
     elif loss == "gm" or loss == "geman_mcclure":
         # Geman-McClure: w = 1 / (1 + u²)²
-        weights = 1.0 / (1.0 + u ** 2) ** 2
+        weights = 1.0 / (1.0 + u**2) ** 2
 
     elif loss == "tukey":
         # Tukey biweight: w = (1-u²)² if |u| ≤ 1, else 0
-        weights = np.where(abs_u <= 1.0, (1.0 - u ** 2) ** 2, 0.0)
+        weights = np.where(abs_u <= 1.0, (1.0 - u**2) ** 2, 0.0)
         weights = np.maximum(weights, 1e-10)  # Avoid singularity
 
     else:
@@ -608,4 +621,3 @@ def solve_nonlinear_ls(
         )
     else:
         raise ValueError(f"Unknown method: {method}. Use 'gn' or 'lm'.")
-

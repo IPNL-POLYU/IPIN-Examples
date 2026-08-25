@@ -93,9 +93,7 @@ class TestAoaInitialisationBasin(unittest.TestCase):
         If this ever stops failing, the tan form has been repaired too and the
         `residual` switch has lost its reason to exist.
         """
-        errors, converged = _solve_from(
-            lambda p: ANCHORS.mean(axis=0), residual="tan"
-        )
+        errors, converged = _solve_from(lambda p: ANCHORS.mean(axis=0), residual="tan")
         gross = errors[converged] > 1.0
 
         self.assertGreater(int(np.sum(gross)), 0)

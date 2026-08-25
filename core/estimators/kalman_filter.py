@@ -81,7 +81,9 @@ class KalmanFilter(StateEstimator):
         elif x0 is not None:
             state_dim = len(x0)
         else:
-            raise ValueError("Must provide either F as ndarray or x0 to determine state_dim")
+            raise ValueError(
+                "Must provide either F as ndarray or x0 to determine state_dim"
+            )
 
         super().__init__(state_dim)
 
@@ -100,9 +102,7 @@ class KalmanFilter(StateEstimator):
                     f"P0 shape {self.covariance.shape} inconsistent with state_dim {state_dim}"
                 )
 
-    def _get_matrix(
-        self, mat: Union[np.ndarray, Callable], *args
-    ) -> np.ndarray:
+    def _get_matrix(self, mat: Union[np.ndarray, Callable], *args) -> np.ndarray:
         """
         Helper to get matrix value (handles both constant and callable).
 
@@ -394,4 +394,3 @@ if __name__ == "__main__":
     print("=" * 70)
     print("ALL CHECKS PASSED")
     print("=" * 70)
-

@@ -28,25 +28,28 @@ from core.fingerprinting import (
 
 def test_single_sample_db():
     """Test backward compatibility with single-sample DB."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TEST 1: Single-Sample Database (Backward Compatibility)")
-    print("="*70)
+    print("=" * 70)
 
     # Create simple single-sample DB
     locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-    features = np.array([
-        [-50, -60, -70],
-        [-60, -50, -80],
-        [-70, -80, -50],
-        [-80, -70, -60],
-    ], dtype=float)
+    features = np.array(
+        [
+            [-50, -60, -70],
+            [-60, -50, -80],
+            [-70, -80, -50],
+            [-80, -70, -60],
+        ],
+        dtype=float,
+    )
     floor_ids = np.array([0, 0, 0, 0])
 
     db = FingerprintDatabase(
         locations=locations,
         features=features,
         floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+        meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
     )
 
     print(f"[OK] Created single-sample DB: {db}")
@@ -77,9 +80,9 @@ def test_single_sample_db():
 
 def test_multi_sample_db():
     """Test multi-sample DB with proper mu and sigma estimation."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TEST 2: Multi-Sample Database (mu and sigma Estimation)")
-    print("="*70)
+    print("=" * 70)
 
     # Create multi-sample DB
     # 3 RPs, 5 samples each, 2 APs
@@ -107,7 +110,7 @@ def test_multi_sample_db():
         locations=locations,
         features=features,
         floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm", "n_samples_per_rp": 5}
+        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm", "n_samples_per_rp": 5},
     )
 
     print(f"[OK] Created multi-sample DB: {db}")
@@ -158,9 +161,9 @@ def test_multi_sample_db():
 
 def test_behavior_with_varying_sigma():
     """Demonstrate that localization behavior changes with varying sigma."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("TEST 3: Localization Behavior with Varying sigma")
-    print("="*70)
+    print("=" * 70)
 
     # Create two identical DBs but with different variances
     locations = np.array([[0, 0], [10, 0]], dtype=float)
@@ -183,14 +186,14 @@ def test_behavior_with_varying_sigma():
         locations=locations,
         features=features1,
         floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"}
+        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
     )
 
     db2 = FingerprintDatabase(
         locations=locations,
         features=features2,
         floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"}
+        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
     )
 
     model1 = fit_gaussian_naive_bayes(db1, min_std=0.5)
@@ -240,9 +243,9 @@ def test_behavior_with_varying_sigma():
 
 def main():
     """Run all tests."""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("MULTI-SAMPLE FINGERPRINTING VALIDATION")
-    print("="*70)
+    print("=" * 70)
     print("\nThis script validates the implementation of Option A:")
     print("  - Extended database format to support multiple samples per RP")
     print("  - Proper mu and sigma estimation from survey samples (Eq. 5.6)")
@@ -253,9 +256,9 @@ def main():
         test_multi_sample_db()
         test_behavior_with_varying_sigma()
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("ALL TESTS PASSED OK")
-        print("="*70)
+        print("=" * 70)
         print("\nKey Findings:")
         print("  1. Single-sample DBs work as before (backward compatible)")
         print("  2. Multi-sample DBs compute actual mu and sigma from samples")
@@ -269,6 +272,7 @@ def main():
     except Exception as e:
         print(f"\nX TEST FAILED: {e}")
         import traceback
+
         traceback.print_exc()
         return False
 
@@ -278,5 +282,3 @@ def main():
 if __name__ == "__main__":
     success = main()
     sys.exit(0 if success else 1)
-
-

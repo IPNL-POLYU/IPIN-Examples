@@ -53,33 +53,33 @@ from core.utils import angle_diff, resolve_data_path
 
 def load_dataset(data_dir: str) -> dict:
     """Load coordinate transforms dataset.
-    
+
     Args:
         data_dir: Path to dataset directory (e.g., 'data/sim/ch2_coords_san_francisco')
-    
+
     Returns:
         Dictionary with loaded data arrays and config
     """
     path = Path(data_dir)
 
     data = {
-        'llh': np.loadtxt(path / 'llh_coordinates.txt'),
-        'ecef': np.loadtxt(path / 'ecef_coordinates.txt'),
-        'enu': np.loadtxt(path / 'enu_coordinates.txt'),
-        'reference_llh': np.loadtxt(path / 'reference_llh.txt'),
-        'euler_angles': np.loadtxt(path / 'euler_angles.txt'),
-        'quaternions': np.loadtxt(path / 'quaternions.txt'),
+        "llh": np.loadtxt(path / "llh_coordinates.txt"),
+        "ecef": np.loadtxt(path / "ecef_coordinates.txt"),
+        "enu": np.loadtxt(path / "enu_coordinates.txt"),
+        "reference_llh": np.loadtxt(path / "reference_llh.txt"),
+        "euler_angles": np.loadtxt(path / "euler_angles.txt"),
+        "quaternions": np.loadtxt(path / "quaternions.txt"),
     }
 
-    with open(path / 'config.json') as f:
-        data['config'] = json.load(f)
+    with open(path / "config.json") as f:
+        data["config"] = json.load(f)
 
     return data
 
 
 def run_with_dataset(data_dir: str) -> None:
     """Run coordinate transform examples using pre-generated dataset.
-    
+
     Args:
         data_dir: Path to dataset directory
     """
@@ -90,7 +90,7 @@ def run_with_dataset(data_dir: str) -> None:
 
     # Load dataset
     data = load_dataset(data_dir)
-    config = data['config']
+    config = data["config"]
 
     print("\nDataset Info:")
     print(f"  Location: {config.get('location', 'Unknown')}")
@@ -100,17 +100,23 @@ def run_with_dataset(data_dir: str) -> None:
     print("\n1. LLH to ECEF Transformation (Dataset Verification)")
     print("-" * 70)
 
-    llh_sample = data['llh'][0]
-    ecef_dataset = data['ecef'][0]
+    llh_sample = data["llh"][0]
+    ecef_dataset = data["ecef"][0]
 
-    print(f"Dataset LLH: lat={np.rad2deg(llh_sample[0]):.6f}°, "
-          f"lon={np.rad2deg(llh_sample[1]):.6f}°, h={llh_sample[2]:.2f}m")
-    print(f"Dataset ECEF: [{ecef_dataset[0]:,.2f}, {ecef_dataset[1]:,.2f}, {ecef_dataset[2]:,.2f}] m")
+    print(
+        f"Dataset LLH: lat={np.rad2deg(llh_sample[0]):.6f}°, "
+        f"lon={np.rad2deg(llh_sample[1]):.6f}°, h={llh_sample[2]:.2f}m"
+    )
+    print(
+        f"Dataset ECEF: [{ecef_dataset[0]:,.2f}, {ecef_dataset[1]:,.2f}, {ecef_dataset[2]:,.2f}] m"
+    )
 
     # Verify our transform matches
     ecef_computed = llh_to_ecef(llh_sample[0], llh_sample[1], llh_sample[2])
     diff = np.linalg.norm(ecef_computed - ecef_dataset)
-    print(f"Computed ECEF: [{ecef_computed[0]:,.2f}, {ecef_computed[1]:,.2f}, {ecef_computed[2]:,.2f}] m")
+    print(
+        f"Computed ECEF: [{ecef_computed[0]:,.2f}, {ecef_computed[1]:,.2f}, {ecef_computed[2]:,.2f}] m"
+    )
     print(f"Difference: {diff:.6e} m (should be ~0)")
 
     # Example 2: Round-trip LLH -> ECEF -> LLH
@@ -121,8 +127,8 @@ def run_with_dataset(data_dir: str) -> None:
     errors_lon = []
     errors_h = []
 
-    for i in range(min(10, len(data['llh']))):
-        llh_orig = data['llh'][i]
+    for i in range(min(10, len(data["llh"]))):
+        llh_orig = data["llh"][i]
         ecef = llh_to_ecef(llh_orig[0], llh_orig[1], llh_orig[2])
         llh_recovered = ecef_to_llh(ecef[0], ecef[1], ecef[2])
 
@@ -131,49 +137,65 @@ def run_with_dataset(data_dir: str) -> None:
         errors_h.append(np.abs(llh_recovered[2] - llh_orig[2]))
 
     print("Round-trip errors (10 samples):")
-    print(f"  Latitude:  {np.max(errors_lat):.2e} rad = {np.rad2deg(np.max(errors_lat)) * 3600:.2e} arcsec")
-    print(f"  Longitude: {np.max(errors_lon):.2e} rad = {np.rad2deg(np.max(errors_lon)) * 3600:.2e} arcsec")
+    print(
+        f"  Latitude:  {np.max(errors_lat):.2e} rad = {np.rad2deg(np.max(errors_lat)) * 3600:.2e} arcsec"
+    )
+    print(
+        f"  Longitude: {np.max(errors_lon):.2e} rad = {np.rad2deg(np.max(errors_lon)) * 3600:.2e} arcsec"
+    )
     print(f"  Height:    {np.max(errors_h):.2e} m")
 
     # Example 3: ENU Frame
     print("\n3. Local ENU Frame")
     print("-" * 70)
 
-    ref_llh = data['reference_llh']
+    ref_llh = data["reference_llh"]
     if ref_llh.ndim == 1:
         lat_ref, lon_ref, _ = ref_llh[0], ref_llh[1], ref_llh[2]
     else:
         lat_ref, lon_ref, _ = ref_llh[0, 0], ref_llh[0, 1], ref_llh[0, 2]
 
-    print(f"Reference point: lat={np.rad2deg(lat_ref):.6f}°, lon={np.rad2deg(lon_ref):.6f}°")
+    print(
+        f"Reference point: lat={np.rad2deg(lat_ref):.6f}°, lon={np.rad2deg(lon_ref):.6f}°"
+    )
 
     # Show first few ENU coordinates
     print("\nSample ENU coordinates (from dataset):")
-    for i in range(min(5, len(data['enu']))):
-        enu = data['enu'][i]
+    for i in range(min(5, len(data["enu"]))):
+        enu = data["enu"][i]
         print(f"  Point {i}: E={enu[0]:.2f}m, N={enu[1]:.2f}m, U={enu[2]:.2f}m")
 
     # Example 4: Rotation Representations
     print("\n4. Rotation Representations")
     print("-" * 70)
 
-    euler_sample = data['euler_angles'][0]
-    quat_sample = data['quaternions'][0]
+    euler_sample = data["euler_angles"][0]
+    quat_sample = data["quaternions"][0]
 
-    print(f"Dataset Euler: roll={np.rad2deg(euler_sample[0]):.2f}°, "
-          f"pitch={np.rad2deg(euler_sample[1]):.2f}°, yaw={np.rad2deg(euler_sample[2]):.2f}°")
-    print(f"Dataset Quaternion: [{quat_sample[0]:.4f}, {quat_sample[1]:.4f}, "
-          f"{quat_sample[2]:.4f}, {quat_sample[3]:.4f}]")
+    print(
+        f"Dataset Euler: roll={np.rad2deg(euler_sample[0]):.2f}°, "
+        f"pitch={np.rad2deg(euler_sample[1]):.2f}°, yaw={np.rad2deg(euler_sample[2]):.2f}°"
+    )
+    print(
+        f"Dataset Quaternion: [{quat_sample[0]:.4f}, {quat_sample[1]:.4f}, "
+        f"{quat_sample[2]:.4f}, {quat_sample[3]:.4f}]"
+    )
 
     # Convert and verify
     quat_computed = euler_to_quat(euler_sample[0], euler_sample[1], euler_sample[2])
-    R_from_euler = euler_to_rotation_matrix(euler_sample[0], euler_sample[1], euler_sample[2])
+    R_from_euler = euler_to_rotation_matrix(
+        euler_sample[0], euler_sample[1], euler_sample[2]
+    )
     R_from_quat = quat_to_rotation_matrix(quat_sample)
 
-    print(f"\nComputed Quaternion: [{quat_computed[0]:.4f}, {quat_computed[1]:.4f}, "
-          f"{quat_computed[2]:.4f}, {quat_computed[3]:.4f}]")
+    print(
+        f"\nComputed Quaternion: [{quat_computed[0]:.4f}, {quat_computed[1]:.4f}, "
+        f"{quat_computed[2]:.4f}, {quat_computed[3]:.4f}]"
+    )
     print(f"Quaternion norm: {np.linalg.norm(quat_computed):.6f} (should be 1.0)")
-    print(f"Rotation matrix determinant: {np.linalg.det(R_from_euler):.6f} (should be 1.0)")
+    print(
+        f"Rotation matrix determinant: {np.linalg.det(R_from_euler):.6f} (should be 1.0)"
+    )
 
     # Example 5: Apply the coordinate transform (passive: x_new = C @ x_old)
     print("\n5. Applying the Coordinate Transform (x_new = C @ x_old)")
@@ -258,12 +280,21 @@ def run_with_inline_data() -> None:
     # Define target points relative to reference, each with the ENU it is named
     # for. Printing the two together is what makes the section check itself.
     targets = [
-        ("100m East", lat_ref, lon_ref + dlon_100_east, 0.0,
-         np.array([100.0, 0.0, 0.0])),
-        ("100m North", lat_ref + dlat_100_north, lon_ref, 0.0,
-         np.array([0.0, 100.0, 0.0])),
-        ("50m Up", lat_ref, lon_ref, 50.0,
-         np.array([0.0, 0.0, 50.0])),
+        (
+            "100m East",
+            lat_ref,
+            lon_ref + dlon_100_east,
+            0.0,
+            np.array([100.0, 0.0, 0.0]),
+        ),
+        (
+            "100m North",
+            lat_ref + dlat_100_north,
+            lon_ref,
+            0.0,
+            np.array([0.0, 100.0, 0.0]),
+        ),
+        ("50m Up", lat_ref, lon_ref, 50.0, np.array([0.0, 0.0, 50.0])),
     ]
 
     for name, lat_tgt, lon_tgt, height_tgt, enu_named in targets:
@@ -275,8 +306,10 @@ def run_with_inline_data() -> None:
 
         print(f"\nTarget: {name}")
         print(f"  ENU: [{enu[0]:.2f}, {enu[1]:.2f}, {enu[2]:.2f}] m")
-        print(f"  Error vs. the named offset: "
-              f"{np.linalg.norm(enu - enu_named) * 1e3:.2f} mm")
+        print(
+            f"  Error vs. the named offset: "
+            f"{np.linalg.norm(enu - enu_named) * 1e3:.2f} mm"
+        )
 
     # Example 4: Rotation representations
     print("\n4. Rotation Representations")
@@ -323,14 +356,18 @@ def run_with_inline_data() -> None:
 
     euler_from_quat = quat_to_euler(q)
     print(f"Quaternion: {q}")
-    print(f"Euler from quat_to_euler: "
-          f"[{np.rad2deg(euler_from_quat[0]):.1f}°, "
-          f"{np.rad2deg(euler_from_quat[1]):.1f}°, "
-          f"{np.rad2deg(euler_from_quat[2]):.1f}°]")
-    print(f"Original Euler:           "
-          f"[{np.rad2deg(roll):.1f}°, "
-          f"{np.rad2deg(pitch):.1f}°, "
-          f"{np.rad2deg(yaw):.1f}°]")
+    print(
+        f"Euler from quat_to_euler: "
+        f"[{np.rad2deg(euler_from_quat[0]):.1f}°, "
+        f"{np.rad2deg(euler_from_quat[1]):.1f}°, "
+        f"{np.rad2deg(euler_from_quat[2]):.1f}°]"
+    )
+    print(
+        f"Original Euler:           "
+        f"[{np.rad2deg(roll):.1f}°, "
+        f"{np.rad2deg(pitch):.1f}°, "
+        f"{np.rad2deg(yaw):.1f}°]"
+    )
 
     # Round-trip check: Euler -> Quat -> Euler
     q_rt = euler_to_quat(roll, pitch, yaw)
@@ -340,11 +377,11 @@ def run_with_inline_data() -> None:
     # a yaw of 200 deg gets it back as -160 and a raw subtraction would call
     # that 2pi of error and print FAIL for a perfect round-trip. The Ch2
     # dataset generator had exactly this and reported 360 deg as its accuracy.
-    rt_error = np.max(np.abs(
-        angle_diff(np.array([roll, pitch, yaw]), euler_rt)
-    ))
-    print(f"\nRound-trip Euler->Quat->Euler error: {rt_error:.2e} rad "
-          f"({'PASS' if rt_error < 1e-9 else 'FAIL'})")
+    rt_error = np.max(np.abs(angle_diff(np.array([roll, pitch, yaw]), euler_rt)))
+    print(
+        f"\nRound-trip Euler->Quat->Euler error: {rt_error:.2e} rad "
+        f"({'PASS' if rt_error < 1e-9 else 'FAIL'})"
+    )
 
     # Example 7: Round-trip rotation conversions (matrix path)
     print("\n7. Round-trip Rotation Conversions (Matrix Path)")
@@ -353,11 +390,15 @@ def run_with_inline_data() -> None:
     R_from_euler = euler_to_rotation_matrix(roll, pitch, yaw)
     euler_recovered = rotation_matrix_to_euler(R_from_euler)
 
-    print(f"Original Euler: [{np.rad2deg(roll):.1f}°, "
-          f"{np.rad2deg(pitch):.1f}°, {np.rad2deg(yaw):.1f}°]")
-    print(f"Recovered Euler: [{np.rad2deg(euler_recovered[0]):.1f}°, "
-          f"{np.rad2deg(euler_recovered[1]):.1f}°, "
-          f"{np.rad2deg(euler_recovered[2]):.1f}°]")
+    print(
+        f"Original Euler: [{np.rad2deg(roll):.1f}°, "
+        f"{np.rad2deg(pitch):.1f}°, {np.rad2deg(yaw):.1f}°]"
+    )
+    print(
+        f"Recovered Euler: [{np.rad2deg(euler_recovered[0]):.1f}°, "
+        f"{np.rad2deg(euler_recovered[1]):.1f}°, "
+        f"{np.rad2deg(euler_recovered[2]):.1f}°]"
+    )
 
     # Example 8: Coordinate frame conversions
     print("\n8. Practical Indoor Positioning Scenario")
@@ -383,13 +424,17 @@ def run_with_inline_data() -> None:
 
         print(f"\n{name}:")
         print(f"  ENU:  [{enu_pos[0]:.1f}, {enu_pos[1]:.1f}, {enu_pos[2]:.1f}] m")
-        print(f"  LLH:  [{np.rad2deg(llh[0]):.6f}°, "
-              f"{np.rad2deg(llh[1]):.6f}°, {llh[2]:.2f} m]")
+        print(
+            f"  LLH:  [{np.rad2deg(llh[0]):.6f}°, "
+            f"{np.rad2deg(llh[1]):.6f}°, {llh[2]:.2f} m]"
+        )
 
     print("\n" + "=" * 70)
     print("Examples completed successfully!")
     print("=" * 70)
-    print("\nTip: Run with --data ch2_coords_san_francisco to use pre-generated dataset")
+    print(
+        "\nTip: Run with --data ch2_coords_san_francisco to use pre-generated dataset"
+    )
 
 
 def main() -> None:
@@ -407,13 +452,13 @@ Examples:
   
   # Specify full path to dataset
   python example_coordinate_transforms.py --data data/sim/ch2_coords_san_francisco
-        """
+        """,
     )
     parser.add_argument(
         "--data",
         type=str,
         default=None,
-        help="Dataset name or path (e.g., 'ch2_coords_san_francisco' or full path)"
+        help="Dataset name or path (e.g., 'ch2_coords_san_francisco' or full path)",
     )
 
     args = parser.parse_args()
@@ -425,7 +470,9 @@ Examples:
             # Try prepending data/sim/
             data_path = resolve_data_path(Path("data/sim") / args.data)
         if not data_path.exists():
-            print(f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'")
+            print(
+                f"Error: Dataset not found at '{args.data}' or 'data/sim/{args.data}'"
+            )
             print("Available datasets:")
             sim_dir = resolve_data_path(Path("data/sim"))
             if sim_dir.exists():

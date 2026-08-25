@@ -112,11 +112,13 @@ class TestPairwiseDistancesWithMissingAPs:
     def test_pairwise_no_missing(self):
         """Test normal pairwise distances without missing values."""
         z = np.array([-50.0, -60.0, -70.0])
-        F = np.array([
-            [-52.0, -58.0, -72.0],
-            [-48.0, -62.0, -68.0],
-            [-55.0, -55.0, -75.0],
-        ])
+        F = np.array(
+            [
+                [-52.0, -58.0, -72.0],
+                [-48.0, -62.0, -68.0],
+                [-55.0, -55.0, -75.0],
+            ]
+        )
 
         distances = pairwise_distances(z, F, metric="euclidean")
 
@@ -131,11 +133,13 @@ class TestPairwiseDistancesWithMissingAPs:
     def test_pairwise_query_missing(self):
         """Test pairwise distances with missing values in query."""
         z = np.array([-50.0, np.nan, -70.0])
-        F = np.array([
-            [-52.0, -58.0, -72.0],  # AP1, AP3 valid
-            [-48.0, -62.0, -68.0],  # AP1, AP3 valid
-            [-55.0, -55.0, np.nan],  # Only AP1 valid
-        ])
+        F = np.array(
+            [
+                [-52.0, -58.0, -72.0],  # AP1, AP3 valid
+                [-48.0, -62.0, -68.0],  # AP1, AP3 valid
+                [-55.0, -55.0, np.nan],  # Only AP1 valid
+            ]
+        )
 
         distances = pairwise_distances(z, F, metric="euclidean")
 
@@ -150,11 +154,13 @@ class TestPairwiseDistancesWithMissingAPs:
     def test_pairwise_reference_missing(self):
         """Test pairwise distances with missing values in references."""
         z = np.array([-50.0, -60.0, -70.0])
-        F = np.array([
-            [-52.0, np.nan, -72.0],  # AP2 missing
-            [np.nan, -62.0, -68.0],  # AP1 missing
-            [np.nan, np.nan, np.nan],  # All missing -> inf
-        ])
+        F = np.array(
+            [
+                [-52.0, np.nan, -72.0],  # AP2 missing
+                [np.nan, -62.0, -68.0],  # AP1 missing
+                [np.nan, np.nan, np.nan],  # All missing -> inf
+            ]
+        )
 
         distances = pairwise_distances(z, F, metric="euclidean")
 
@@ -169,10 +175,12 @@ class TestPairwiseDistancesWithMissingAPs:
     def test_pairwise_manhattan_with_missing(self):
         """Test pairwise Manhattan distance with missing values."""
         z = np.array([-50.0, np.nan, -70.0])
-        F = np.array([
-            [-52.0, -58.0, -72.0],
-            [-48.0, -62.0, -68.0],
-        ])
+        F = np.array(
+            [
+                [-52.0, -58.0, -72.0],
+                [-48.0, -62.0, -68.0],
+            ]
+        )
 
         distances = pairwise_distances(z, F, metric="manhattan")
 
@@ -189,19 +197,22 @@ class TestNNLocalizationWithMissingAPs:
         """Test NN localization when query has missing APs."""
         # Create database with 4 RPs
         locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         # Query with missing AP2
@@ -217,18 +228,21 @@ class TestNNLocalizationWithMissingAPs:
     def test_nn_with_missing_database(self):
         """Test NN when some RPs have missing APs."""
         locations = np.array([[0, 0], [10, 0], [10, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, np.nan, -80],  # RP1 missing AP2
-            [np.nan, -80, -50],  # RP2 missing AP1
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, np.nan, -80],  # RP1 missing AP2
+                [np.nan, -80, -50],  # RP2 missing AP1
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         query = np.array([-55.0, -65.0, -75.0])
@@ -244,19 +258,22 @@ class TestKNNLocalizationWithMissingAPs:
     def test_knn_with_missing_query(self):
         """Test k-NN localization when query has missing APs."""
         locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         # Query with missing AP2
@@ -284,7 +301,7 @@ class TestKNNLocalizationWithMissingAPs:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"}
+            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"},
         )
 
         # Generate query with 20% dropout
@@ -314,7 +331,7 @@ class TestLogLikelihoodWithMissingAPs:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
         )
 
         model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -335,7 +352,7 @@ class TestLogLikelihoodWithMissingAPs:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -358,7 +375,7 @@ class TestLogLikelihoodWithMissingAPs:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
         )
 
         model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -387,7 +404,7 @@ class TestLogLikelihoodWithMissingAPs:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"}
+            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"},
         )
 
         model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -411,19 +428,22 @@ class TestMAPLocalizationWithMissingAPs:
     def test_map_with_missing_query(self):
         """Test MAP localization when query has missing APs."""
         locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -444,19 +464,22 @@ class TestPosteriorMeanLocalizationWithMissingAPs:
     def test_posterior_mean_with_missing_query(self):
         """Test posterior mean when query has missing APs."""
         locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -485,7 +508,7 @@ class TestPosteriorMeanLocalizationWithMissingAPs:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"}
+            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"},
         )
 
         model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -509,10 +532,20 @@ class TestDatabaseWithMissingAPsInSamples:
     def test_database_creation_with_nan(self):
         """Test that database allows NaN in features."""
         locations = np.array([[0, 0], [10, 0]], dtype=float)
-        features = np.array([
-            [[-50, -60], [-51, np.nan], [-49, -61]],  # RP0: 3 samples, sample 2 missing AP2
-            [[-60, -50], [np.nan, -49], [-59, -51]],  # RP1: 3 samples, sample 2 missing AP1
-        ])  # Shape: (2, 3, 2)
+        features = np.array(
+            [
+                [
+                    [-50, -60],
+                    [-51, np.nan],
+                    [-49, -61],
+                ],  # RP0: 3 samples, sample 2 missing AP2
+                [
+                    [-60, -50],
+                    [np.nan, -49],
+                    [-59, -51],
+                ],  # RP1: 3 samples, sample 2 missing AP1
+            ]
+        )  # Shape: (2, 3, 2)
         floor_ids = np.array([0, 0])
 
         # Should not raise error
@@ -520,7 +553,7 @@ class TestDatabaseWithMissingAPsInSamples:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
         )
 
         assert db.n_reference_points == 2
@@ -530,16 +563,18 @@ class TestDatabaseWithMissingAPsInSamples:
     def test_mean_std_computation_with_nan(self):
         """Test that mean/std computation handles NaN properly."""
         locations = np.array([[0, 0]], dtype=float)
-        features = np.array([
-            [[-50, -60], [-52, np.nan], [-48, -62], [np.nan, -58], [-51, -59]],
-        ])  # Shape: (1, 5, 2)
+        features = np.array(
+            [
+                [[-50, -60], [-52, np.nan], [-48, -62], [np.nan, -58], [-51, -59]],
+            ]
+        )  # Shape: (1, 5, 2)
         floor_ids = np.array([0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
         )
 
         # Compute mean (should use nanmean)
@@ -560,17 +595,19 @@ class TestDatabaseWithMissingAPsInSamples:
     def test_fit_model_with_nan_samples(self):
         """Test fitting Gaussian Naive Bayes with NaN in samples."""
         locations = np.array([[0, 0], [10, 0]], dtype=float)
-        features = np.array([
-            [[-50, -60], [-51, np.nan], [-49, -61]],
-            [[-60, -50], [np.nan, -49], [-59, -51]],
-        ])
+        features = np.array(
+            [
+                [[-50, -60], [-51, np.nan], [-49, -61]],
+                [[-60, -50], [np.nan, -49], [-59, -51]],
+            ]
+        )
         floor_ids = np.array([0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
         )
 
         # Should fit successfully
@@ -602,7 +639,7 @@ class TestAcceptanceCriteria:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"}
+            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"},
         )
 
         # Fit probabilistic model
@@ -615,7 +652,9 @@ class TestAcceptanceCriteria:
             query = -50 - np.random.rand(n_aps) * 40
 
             # Apply 20% dropout
-            dropout_indices = np.random.choice(n_aps, size=int(0.2 * n_aps), replace=False)
+            dropout_indices = np.random.choice(
+                n_aps, size=int(0.2 * n_aps), replace=False
+            )
             query[dropout_indices] = np.nan
 
             # Test deterministic methods
@@ -649,7 +688,7 @@ class TestAcceptanceCriteria:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"}
+            meta={"ap_ids": [f"AP{i}" for i in range(n_aps)], "unit": "dBm"},
         )
 
         model = fit_gaussian_naive_bayes(db, min_std=2.0)
@@ -674,4 +713,3 @@ class TestAcceptanceCriteria:
             for pos in [pos_nn, pos_knn, pos_map, pos_mean]:
                 assert not np.any(np.isnan(pos))
                 assert not np.any(np.isinf(pos))
-

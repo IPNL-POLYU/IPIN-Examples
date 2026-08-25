@@ -71,7 +71,7 @@ class TestMahalanobisDistanceSquared(unittest.TestCase):
         # S^{-1} = (1/3) * [[2, -1], [-1, 2]]
         # d^2 = [1, 1] @ (1/3) * [[2, -1], [-1, 2]] @ [1, 1]
         #     = (1/3) * [1, 1] @ [1, 1] = (1/3) * 2 = 2/3
-        self.assertAlmostEqual(d_sq, 2.0/3.0, places=10)
+        self.assertAlmostEqual(d_sq, 2.0 / 3.0, places=10)
 
     def test_dimension_mismatch_raises(self) -> None:
         """Test that dimension mismatch raises ValueError."""
@@ -120,7 +120,7 @@ class TestChiSquareGate(unittest.TestCase):
 
     def test_acceptance_criterion_95_confidence(self) -> None:
         """Test acceptance criterion with 95% confidence (book semantics).
-        
+
         Verifies that the gate threshold correctly implements Eq. 8.9:
         Accept if d_k^2 < χ²(m, α), where α=0.95 means 95% confidence.
         """
@@ -268,7 +268,7 @@ class TestChiSquareThreshold(unittest.TestCase):
 
     def test_known_values_confidence(self) -> None:
         """Test against known chi-square critical values using confidence parameter.
-        
+
         These are the canonical values from Chapter 8, Eq. 8.9, where
         α represents the confidence level (e.g., 0.95 for 95% confidence).
         """
@@ -294,7 +294,7 @@ class TestChiSquareThreshold(unittest.TestCase):
 
     def test_deprecated_alpha_parameter(self) -> None:
         """Test backward compatibility with deprecated alpha parameter.
-        
+
         alpha was interpreted as significance level (1 - confidence).
         The function should issue a deprecation warning.
         """
@@ -472,4 +472,3 @@ class TestChiSquareBounds(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

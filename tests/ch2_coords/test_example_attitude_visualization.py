@@ -82,9 +82,7 @@ class TestAttitudeVisualizationExample(unittest.TestCase):
                 path = self.figs_dir / f"{name}.{suffix}"
                 with self.subTest(figure=path.name):
                     self.assertTrue(path.exists(), f"missing {path}")
-                    self.assertGreater(
-                        path.stat().st_size, 0, f"empty {path}"
-                    )
+                    self.assertGreater(path.stat().st_size, 0, f"empty {path}")
 
 
 if __name__ == "__main__":

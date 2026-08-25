@@ -31,9 +31,7 @@ class TestGeometryMatrix:
 
         # Unit vectors should point from position to anchors
         # Check one manually
-        expected_dir = -(anchors[0] - position) / np.linalg.norm(
-            anchors[0] - position
-        )
+        expected_dir = -(anchors[0] - position) / np.linalg.norm(anchors[0] - position)
         assert np.allclose(H[0], expected_dir)
 
     def test_geometry_matrix_toa_3d(self):
@@ -120,9 +118,7 @@ class TestDOP:
     def test_dop_3d(self):
         """Test DOP computation in 3D."""
         # Cube corners
-        anchors = np.array(
-            [[0, 0, 0], [10, 0, 0], [0, 10, 0], [0, 0, 10]], dtype=float
-        )
+        anchors = np.array([[0, 0, 0], [10, 0, 0], [0, 10, 0], [0, 0, 10]], dtype=float)
         position = np.array([5.0, 5.0, 5.0])
 
         H = compute_geometry_matrix(anchors, position, "toa")
@@ -262,15 +258,11 @@ class TestDOPComparisons:
         anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
 
         # Center position
-        H_center = compute_geometry_matrix(
-            anchors, np.array([5.0, 5.0]), "toa"
-        )
+        H_center = compute_geometry_matrix(anchors, np.array([5.0, 5.0]), "toa")
         dop_center = compute_dop(H_center)
 
         # Edge position
-        H_edge = compute_geometry_matrix(
-            anchors, np.array([1.0, 1.0]), "toa"
-        )
+        H_edge = compute_geometry_matrix(anchors, np.array([1.0, 1.0]), "toa")
         dop_edge = compute_dop(H_edge)
 
         # Center should have better DOP
@@ -389,4 +381,3 @@ class TestBookDOPFormulas:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-

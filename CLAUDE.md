@@ -1475,7 +1475,7 @@ lines). Two traps found doing it:
   single constant, so one file compiled differently while printing exactly the
   same thing. Compare output, not code objects.
 
-### The other four linters are configured and the repo does not pass them
+### The other four linters: black passes now, mypy is the gap
 
 pyflakes is the exception, not the rule. The README used to tell readers to run
 `black .`, `ruff check .`, `mypy .` and `pylint`, as though the repository
@@ -1491,17 +1491,23 @@ was checked to differ only by trailing whitespace before the change was
 believed — 3961 removed lines against 3961 added, zero differing by anything
 else. That took the count to 1879 at no semantic risk.
 
-**Ruff refused the other 907, and was right to.** They sit inside docstrings,
-where whitespace is string content rather than layout — and here that content is
-*printed*, since every example now passes `description=__doc__` to argparse. A
-tool declining an unsafe fix is not an obstacle to route around with
-`--unsafe-fixes`.
+**Ruff refused the other 907 and was right to** — they sit inside string
+literals, where whitespace is content rather than layout. Reaching for
+`--unsafe-fixes` there would have been wrong.
 
-What remains is mostly not lint: 727 are `List[int]`-for-`list[int]` style
-modernisations that only became legal when the floor moved to 3.10. The ~200
-after that are the ones with content, and **B905 is the group to read first** —
-41 `zip()` calls with no `strict=`, which truncate to the shorter argument
-without saying so.
+**Black cleared 889 of those 907, and that is the interesting part.** Black
+knows which triple-quoted strings are *docstrings* and normalises those, where
+ruff could only see a string and had to stop. So the answer to a tool declining
+an unsafe fix was a tool that could tell the difference, not overriding the
+first one. The twelve that survive both are in argparse `epilog=` strings, which
+are not docstrings and whose blank lines get printed.
+
+Running black took ruff from 1879 to **951** and made `black --check` pass on
+all 299 files. What remains is mostly not lint: 727 are
+`List[int]`-for-`list[int]` modernisations that only became legal when the floor
+moved to 3.10. The ~140 after that are the ones with content, and **B905 is the
+group to read first** — 41 `zip()` calls with no `strict=`, which truncate to
+the shorter argument without saying so.
 
 `tests/test_lint_debt_only_shrinks.py` records the count **per rule**, not as a
 total: a total lets ten fixed W293 pay for ten new B905, which is the opposite
@@ -1509,9 +1515,16 @@ of what a ratchet is for. It fails in both directions — a rule that grows, and
 baseline left above the real count, because a stale number hides the debt it
 exists to expose.
 
-Black is untouched deliberately. It would reformat 237 files, which is a diff
-nobody can review and a `git blame` nobody can read, for no defect fixed. Worth
-doing when no other session is mid-flight, in its own commit, and not before.
+**mypy is now the honest remaining gap**, at 406 errors in `core/` alone, and
+it is the one of the four that would be red on arrival and stay red. Nothing
+about the black run touched it; formatting does not change types.
+
+The black run itself was 241 files, and it changed `.py` only — no figure or
+data byte moved. **The full suite reads 3404 passed / 21 skipped on both sides
+of it**, measured on trees verified identical beforehand. What made that safe to
+*believe* was not the argument that black is a formatter and therefore harmless;
+it was that the README transcripts and the figure gate would have said
+otherwise if it were not.
 
 ## Parallel sessions
 

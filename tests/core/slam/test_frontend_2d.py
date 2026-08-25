@@ -38,12 +38,12 @@ class TestSlamFrontend2DInitialization(unittest.TestCase):
         result = frontend.step(0, odom_delta, scan)
 
         # Should initialize at origin
-        np.testing.assert_allclose(result['pose_pred'], [0.0, 0.0, 0.0])
-        np.testing.assert_allclose(result['pose_est'], [0.0, 0.0, 0.0])
+        np.testing.assert_allclose(result["pose_pred"], [0.0, 0.0, 0.0])
+        np.testing.assert_allclose(result["pose_est"], [0.0, 0.0, 0.0])
 
         # Should mark as converged (initialization)
-        self.assertTrue(result['match_quality'].converged)
-        self.assertEqual(result['correction_magnitude'], 0.0)
+        self.assertTrue(result["match_quality"].converged)
+        self.assertEqual(result["correction_magnitude"], 0.0)
 
         # Submap should contain scan points
         self.assertEqual(len(frontend.submap), 2)
@@ -78,7 +78,7 @@ class TestSlamFrontend2DPrediction(unittest.TestCase):
         result = frontend.step(1, odom_delta, scan)
 
         # Predicted pose should be (1, 0, 0)
-        np.testing.assert_allclose(result['pose_pred'], [1.0, 0.0, 0.0])
+        np.testing.assert_allclose(result["pose_pred"], [1.0, 0.0, 0.0])
 
     def test_prediction_with_rotation(self):
         """Test prediction with rotation."""
@@ -93,7 +93,9 @@ class TestSlamFrontend2DPrediction(unittest.TestCase):
         result = frontend.step(1, odom_delta, scan)
 
         # Predicted pose should be (0, 0, π/2)
-        np.testing.assert_allclose(result['pose_pred'], [0.0, 0.0, np.pi / 2], atol=1e-6)
+        np.testing.assert_allclose(
+            result["pose_pred"], [0.0, 0.0, np.pi / 2], atol=1e-6
+        )
 
     def test_prediction_accumulates_over_steps(self):
         """Test that prediction accumulates correctly over multiple steps."""
@@ -111,7 +113,7 @@ class TestSlamFrontend2DPrediction(unittest.TestCase):
 
         # Should be at (1.5, 0, 0) after 3 steps
         expected_pose = np.array([1.5, 0.0, 0.0])
-        np.testing.assert_allclose(result['pose_est'][:2], expected_pose[:2], atol=0.1)
+        np.testing.assert_allclose(result["pose_est"][:2], expected_pose[:2], atol=0.1)
 
 
 class TestSlamFrontend2DScanToMapAlignment(unittest.TestCase):
@@ -131,13 +133,11 @@ class TestSlamFrontend2DScanToMapAlignment(unittest.TestCase):
 
         # Should have low residual (ICP may or may not converge with identical scans)
         # What matters is that residual is low
-        self.assertLess(result['match_quality'].residual, 0.5)
+        self.assertLess(result["match_quality"].residual, 0.5)
 
         # Estimated pose should be close to predicted pose
         np.testing.assert_allclose(
-            result['pose_est'][:2],
-            result['pose_pred'][:2],
-            atol=0.2
+            result["pose_est"][:2], result["pose_pred"][:2], atol=0.2
         )
 
     def test_scan_to_map_with_small_drift(self):
@@ -154,7 +154,9 @@ class TestSlamFrontend2DScanToMapAlignment(unittest.TestCase):
         result = frontend.step(1, odom_delta, scan)
 
         # Should converge
-        self.assertTrue(result['match_quality'].converged or result['match_quality'].residual < 0.5)
+        self.assertTrue(
+            result["match_quality"].converged or result["match_quality"].residual < 0.5
+        )
 
     def test_fallback_to_prediction_when_submap_too_small(self):
         """Test fallback to prediction when submap has too few points."""
@@ -169,10 +171,10 @@ class TestSlamFrontend2DScanToMapAlignment(unittest.TestCase):
         result = frontend.step(1, odom_delta, scan)
 
         # Should NOT converge (fallback to prediction)
-        self.assertFalse(result['match_quality'].converged)
+        self.assertFalse(result["match_quality"].converged)
 
         # Pose estimate should equal prediction (no correction)
-        np.testing.assert_allclose(result['pose_est'], result['pose_pred'])
+        np.testing.assert_allclose(result["pose_est"], result["pose_pred"])
 
     def test_fallback_to_prediction_on_empty_scan(self):
         """Test fallback when scan is empty or too small."""
@@ -188,7 +190,7 @@ class TestSlamFrontend2DScanToMapAlignment(unittest.TestCase):
         result = frontend.step(1, odom_delta, small_scan)
 
         # Should fallback to prediction
-        self.assertFalse(result['match_quality'].converged)
+        self.assertFalse(result["match_quality"].converged)
 
 
 class TestSlamFrontend2DMapUpdate(unittest.TestCase):
@@ -230,7 +232,9 @@ class TestSlamFrontend2DMapUpdate(unittest.TestCase):
         self.assertEqual(len(frontend.submap), 2)
 
         # First point should still be at origin
-        np.testing.assert_allclose(frontend.submap.points[0], initial_map_point, atol=1e-6)
+        np.testing.assert_allclose(
+            frontend.submap.points[0], initial_map_point, atol=1e-6
+        )
 
 
 class TestSlamFrontend2DInputValidation(unittest.TestCase):
@@ -322,7 +326,7 @@ class TestSlamFrontend2DIntegration(unittest.TestCase):
 
             # Should converge on most steps (though later steps might not due to accumulated map)
             # Just check no crashes
-            self.assertIsNotNone(result['pose_est'])
+            self.assertIsNotNone(result["pose_est"])
 
         # Final pose should be approximately (5.0, 0, 0)
         final_pose = frontend.get_current_pose()
@@ -360,7 +364,7 @@ class TestSlamFrontend2DIntegration(unittest.TestCase):
             result = frontend.step(i, odom_delta, curr_scan)
 
             # Just verify no crashes and results are reasonable
-            self.assertIsNotNone(result['pose_est'])
+            self.assertIsNotNone(result["pose_est"])
 
 
 if __name__ == "__main__":

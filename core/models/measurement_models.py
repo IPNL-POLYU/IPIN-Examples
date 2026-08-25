@@ -19,16 +19,16 @@ from core.utils import normalize_jacobian_singularities, angle_diff
 class RangeMeasurement2D:
     """
     Range-only measurement model for 2D positioning.
-    
+
     Measurement: z = ||p - anchor|| + noise
     where p = [px, py] is position from state x
-    
+
     Used in:
     - TOA/TDOA positioning
     - UWB ranging
     - ch3_estimators examples
     - ch8_sensor_fusion (tightly coupled)
-    
+
     Example:
         >>> anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
         >>> model = RangeMeasurement2D(anchors)
@@ -38,17 +38,21 @@ class RangeMeasurement2D:
         (4,)  # One range per anchor
     """
 
-    def __init__(self, anchors: np.ndarray, state_position_indices: Tuple[int, int] = (0, 1)):
+    def __init__(
+        self, anchors: np.ndarray, state_position_indices: Tuple[int, int] = (0, 1)
+    ):
         """
         Initialize range measurement model.
-        
+
         Args:
             anchors: Anchor positions, shape (N, 2)
             state_position_indices: Indices of [px, py] in state vector (default: (0, 1))
         """
         self.anchors = np.asarray(anchors)
         if self.anchors.ndim != 2 or self.anchors.shape[1] != 2:
-            raise ValueError(f"Anchors must be (N, 2) array, got shape {self.anchors.shape}")
+            raise ValueError(
+                f"Anchors must be (N, 2) array, got shape {self.anchors.shape}"
+            )
 
         self.n_anchors = len(self.anchors)
         self.pos_idx = state_position_indices
@@ -56,10 +60,10 @@ class RangeMeasurement2D:
     def h(self, x: np.ndarray) -> np.ndarray:
         """
         Measurement function: predicted ranges.
-        
+
         Args:
             x: State vector (must contain position at self.pos_idx)
-        
+
         Returns:
             Predicted ranges to all anchors, shape (N,)
         """
@@ -70,10 +74,10 @@ class RangeMeasurement2D:
     def H(self, x: np.ndarray) -> np.ndarray:
         """
         Measurement Jacobian with singularity handling.
-        
+
         Args:
             x: State vector
-        
+
         Returns:
             Jacobian matrix, shape (N, len(x))
         """
@@ -98,16 +102,16 @@ class RangeMeasurement2D:
 class RangeBearingMeasurement2D:
     """
     Range and bearing measurement model for 2D positioning.
-    
+
     Measurements:
     - Range: z_r = ||p - landmark||
     - Bearing: z_θ = atan2(ly - py, lx - px)
-    
+
     Used in:
     - Robot localization
     - Landmark-based navigation
     - ch3_estimators/example_ekf_range_bearing.py
-    
+
     Example:
         >>> landmarks = np.array([[0, 0], [10, 0], [10, 10]])
         >>> model = RangeBearingMeasurement2D(landmarks)
@@ -117,17 +121,21 @@ class RangeBearingMeasurement2D:
         (6,)  # [r0, θ0, r1, θ1, r2, θ2]
     """
 
-    def __init__(self, landmarks: np.ndarray, state_position_indices: Tuple[int, int] = (0, 1)):
+    def __init__(
+        self, landmarks: np.ndarray, state_position_indices: Tuple[int, int] = (0, 1)
+    ):
         """
         Initialize range-bearing measurement model.
-        
+
         Args:
             landmarks: Landmark positions, shape (N, 2)
             state_position_indices: Indices of [px, py] in state (default: (0, 1))
         """
         self.landmarks = np.asarray(landmarks)
         if self.landmarks.ndim != 2 or self.landmarks.shape[1] != 2:
-            raise ValueError(f"Landmarks must be (N, 2) array, got shape {self.landmarks.shape}")
+            raise ValueError(
+                f"Landmarks must be (N, 2) array, got shape {self.landmarks.shape}"
+            )
 
         self.n_landmarks = len(self.landmarks)
         self.pos_idx = state_position_indices
@@ -135,10 +143,10 @@ class RangeBearingMeasurement2D:
     def h(self, x: np.ndarray) -> np.ndarray:
         """
         Measurement function: [range_0, bearing_0, range_1, bearing_1, ...].
-        
+
         Args:
             x: State vector
-        
+
         Returns:
             Measurements [r0, θ0, r1, θ1, ...], shape (2*N,)
         """
@@ -157,10 +165,10 @@ class RangeBearingMeasurement2D:
     def H(self, x: np.ndarray) -> np.ndarray:
         """
         Measurement Jacobian with singularity handling.
-        
+
         Args:
             x: State vector
-        
+
         Returns:
             Jacobian matrix, shape (2*N, len(x))
         """
@@ -199,13 +207,13 @@ class RangeBearingMeasurement2D:
     def innovation(self, z_measured: np.ndarray, z_predicted: np.ndarray) -> np.ndarray:
         """
         Compute innovation with proper angle wrapping for bearings.
-        
+
         CRITICAL: Bearing innovations must be wrapped to [-π, π].
-        
+
         Args:
             z_measured: Measured [r0, θ0, r1, θ1, ...]
             z_predicted: Predicted [r0, θ0, r1, θ1, ...]
-        
+
         Returns:
             Innovation vector with wrapped bearing differences
         """
@@ -221,15 +229,15 @@ class RangeBearingMeasurement2D:
 class PositionMeasurement2D:
     """
     Direct position measurement model (e.g., GPS, UWB position fix).
-    
+
     Measurement: z = [px, py] + noise
-    
+
     Used in:
     - GPS updates
     - UWB position fixes (loosely coupled)
     - Absolute position corrections
     - ch8_sensor_fusion (loosely coupled)
-    
+
     Example:
         >>> model = PositionMeasurement2D()
         >>> x = np.array([5, 7, 1, 0.5])  # [px, py, vx, vy]
@@ -241,7 +249,7 @@ class PositionMeasurement2D:
     def __init__(self, state_position_indices: Tuple[int, int] = (0, 1)):
         """
         Initialize position measurement model.
-        
+
         Args:
             state_position_indices: Indices of [px, py] in state (default: (0, 1))
         """
@@ -250,10 +258,10 @@ class PositionMeasurement2D:
     def h(self, x: np.ndarray) -> np.ndarray:
         """
         Measurement function: extract position from state.
-        
+
         Args:
             x: State vector
-        
+
         Returns:
             Position [px, py]
         """
@@ -262,10 +270,10 @@ class PositionMeasurement2D:
     def H(self, x: np.ndarray) -> np.ndarray:
         """
         Measurement Jacobian (trivial for linear measurement).
-        
+
         Args:
             x: State vector
-        
+
         Returns:
             Jacobian matrix, shape (2, len(x))
         """
@@ -281,18 +289,18 @@ def validate_measurement_inputs(
     z: Optional[np.ndarray] = None,
     expected_x_dim: Optional[int] = None,
     expected_z_dim: Optional[int] = None,
-    model_name: str = "measurement model"
+    model_name: str = "measurement model",
 ) -> None:
     """
     Validate inputs to measurement models.
-    
+
     Args:
         x: State vector
         z: Measurement vector (optional)
         expected_x_dim: Expected state dimension (if known)
         expected_z_dim: Expected measurement dimension (if known)
         model_name: Name of model for error messages
-    
+
     Raises:
         ValueError: If validation fails
         TypeError: If wrong types provided
@@ -310,10 +318,14 @@ def validate_measurement_inputs(
 
     if z is not None:
         if not isinstance(z, np.ndarray):
-            raise TypeError(f"{model_name}: measurement must be numpy array, got {type(z)}")
+            raise TypeError(
+                f"{model_name}: measurement must be numpy array, got {type(z)}"
+            )
 
         if z.ndim != 1:
-            raise ValueError(f"{model_name}: measurement must be 1D, got shape {z.shape}")
+            raise ValueError(
+                f"{model_name}: measurement must be 1D, got shape {z.shape}"
+            )
 
         if expected_z_dim is not None and z.shape[0] != expected_z_dim:
             raise ValueError(
@@ -322,26 +334,25 @@ def validate_measurement_inputs(
 
 
 def create_measurement_noise_covariance(
-    noise_std: np.ndarray,
-    correlation: Optional[np.ndarray] = None
+    noise_std: np.ndarray, correlation: Optional[np.ndarray] = None
 ) -> np.ndarray:
     """
     Create measurement noise covariance matrix.
-    
+
     Args:
         noise_std: Standard deviations for each measurement, shape (m,)
         correlation: Optional correlation matrix, shape (m, m)
                     If None, assumes uncorrelated measurements
-    
+
     Returns:
         Measurement noise covariance R, shape (m, m)
-    
+
     Example:
         >>> # Independent measurements
         >>> R = create_measurement_noise_covariance(np.array([0.5, 0.5, 0.05, 0.05]))
         >>> np.diag(R)
         array([0.25, 0.25, 0.0025, 0.0025])
-        
+
         >>> # Correlated measurements
         >>> corr = np.array([[1, 0.5], [0.5, 1]])
         >>> R = create_measurement_noise_covariance(np.array([1.0, 1.0]), corr)
@@ -372,15 +383,10 @@ def create_measurement_noise_covariance(
             raise ValueError("Correlation matrix must be symmetric")
 
         if not np.allclose(np.diag(correlation), 1.0):
-            warnings.warn(
-                "Correlation matrix diagonal should be 1.0",
-                RuntimeWarning
-            )
+            warnings.warn("Correlation matrix diagonal should be 1.0", RuntimeWarning)
 
         # Construct covariance
         Sigma = np.diag(noise_std)
         R = Sigma @ correlation @ Sigma
 
         return R
-
-

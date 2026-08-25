@@ -135,9 +135,7 @@ class TestWheelSpeedSeries(unittest.TestCase):
     def test_wheel_speed_series_immutability(self) -> None:
         """Test that WheelSpeedSeries is frozen."""
         n = 10
-        wheel = WheelSpeedSeries(
-            t=np.linspace(0, 1, n), v_s=np.zeros((n, 3)), meta={}
-        )
+        wheel = WheelSpeedSeries(t=np.linspace(0, 1, n), v_s=np.zeros((n, 3)), meta={})
 
         with pytest.raises(Exception):
             wheel.v_s = np.ones((n, 3))
@@ -265,16 +263,12 @@ class TestNavStateQPVP(unittest.TestCase):
     def test_nav_state_qpvp_invalid_v_shape(self) -> None:
         """Test NavStateQPVP rejects wrong velocity shape."""
         with pytest.raises(ValueError, match="v must have shape"):
-            NavStateQPVP(
-                q=np.array([1.0, 0.0, 0.0, 0.0]), v=np.zeros(2), p=np.zeros(3)
-            )
+            NavStateQPVP(q=np.array([1.0, 0.0, 0.0, 0.0]), v=np.zeros(2), p=np.zeros(3))
 
     def test_nav_state_qpvp_invalid_p_shape(self) -> None:
         """Test NavStateQPVP rejects wrong position shape."""
         with pytest.raises(ValueError, match="p must have shape"):
-            NavStateQPVP(
-                q=np.array([1.0, 0.0, 0.0, 0.0]), v=np.zeros(3), p=np.zeros(4)
-            )
+            NavStateQPVP(q=np.array([1.0, 0.0, 0.0, 0.0]), v=np.zeros(3), p=np.zeros(4))
 
 
 class TestNavStateQPVPBias(unittest.TestCase):
@@ -399,4 +393,3 @@ class TestEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

@@ -75,8 +75,12 @@ class TestNaiveBayesFingerprintModel:
         N = 3
 
         model = NaiveBayesFingerprintModel(
-            means=np.array([[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]),
-            stds=np.array([[2.0, 2.0, 2.0], [2.0, 2.0, 2.0], [2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]),
+            means=np.array(
+                [[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]
+            ),
+            stds=np.array(
+                [[2.0, 2.0, 2.0], [2.0, 2.0, 2.0], [2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]
+            ),
             locations=simple_database.locations,
             floor_ids=simple_database.floor_ids,
             prior_probs=np.ones(M) / M,
@@ -93,7 +97,9 @@ class TestNaiveBayesFingerprintModel:
 
         with pytest.raises(ValueError, match="stds shape .* must match means shape"):
             NaiveBayesFingerprintModel(
-                means=np.array([[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]),
+                means=np.array(
+                    [[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]
+                ),
                 stds=np.array([[2.0, 2.0]]),  # Wrong shape
                 locations=simple_database.locations,
                 floor_ids=simple_database.floor_ids,
@@ -107,7 +113,9 @@ class TestNaiveBayesFingerprintModel:
 
         with pytest.raises(ValueError, match="locations has .* RPs, but means has"):
             NaiveBayesFingerprintModel(
-                means=np.array([[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]),
+                means=np.array(
+                    [[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]
+                ),
                 stds=np.full((4, 3), 2.0),
                 locations=np.array([[0.0, 0.0], [10.0, 0.0]]),  # Only 2 RPs
                 floor_ids=simple_database.floor_ids,
@@ -119,10 +127,16 @@ class TestNaiveBayesFingerprintModel:
         """Test that non-positive stds raise ValueError."""
         M = 4
 
-        with pytest.raises(ValueError, match="All standard deviations must be positive"):
+        with pytest.raises(
+            ValueError, match="All standard deviations must be positive"
+        ):
             NaiveBayesFingerprintModel(
-                means=np.array([[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]),
-                stds=np.array([[2.0, 0.0, 2.0], [2.0, 2.0, 2.0], [2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]),  # Zero std
+                means=np.array(
+                    [[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]
+                ),
+                stds=np.array(
+                    [[2.0, 0.0, 2.0], [2.0, 2.0, 2.0], [2.0, 2.0, 2.0], [2.0, 2.0, 2.0]]
+                ),  # Zero std
                 locations=simple_database.locations,
                 floor_ids=simple_database.floor_ids,
                 prior_probs=np.ones(M) / M,
@@ -134,7 +148,9 @@ class TestNaiveBayesFingerprintModel:
 
         with pytest.raises(ValueError, match="Prior probabilities must sum to 1"):
             NaiveBayesFingerprintModel(
-                means=np.array([[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]),
+                means=np.array(
+                    [[-50, -60, -70], [-60, -50, -80], [-70, -80, -50], [-55, -55, -55]]
+                ),
                 stds=np.full((4, 3), 2.0),
                 locations=simple_database.locations,
                 floor_ids=simple_database.floor_ids,
@@ -476,5 +492,3 @@ class TestIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-

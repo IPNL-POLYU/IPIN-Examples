@@ -29,25 +29,25 @@ def interpolate_imu_measurements(
     gyro_z: np.ndarray,
 ) -> Tuple[np.ndarray, float]:
     """Interpolate IMU measurements at a query time (Section 8.5.2 - Direct Interpolation).
-    
+
     Implements direct linear interpolation method from Chapter 8, Section 8.5.2
     for handling asynchronous measurement timestamps. When a measurement arrives
     at time t that doesn't align with IMU samples, we interpolate IMU inputs.
-    
+
     Args:
         t_query: Query time for interpolation (seconds).
         t_imu: IMU timestamps array (N,) - must be sorted.
         accel_xy: Accelerometer measurements (N, 2) in m/s².
         gyro_z: Gyroscope measurements (N,) in rad/s.
-    
+
     Returns:
         Tuple of (u_interp, dt):
             u_interp: Interpolated control input [ax, ay, gyro_z] (3,)
             dt: Time since last IMU sample (for propagation)
-    
+
     Raises:
         ValueError: If t_query is outside the range of t_imu.
-    
+
     Example:
         >>> t_imu = np.array([0.0, 0.01, 0.02])
         >>> accel = np.array([[1.0, 0.5], [1.1, 0.6], [1.2, 0.7]])
@@ -55,16 +55,16 @@ def interpolate_imu_measurements(
         >>> u, dt = interpolate_imu_measurements(0.015, t_imu, accel, gyro)
         >>> # At t=0.015 (halfway between 0.01 and 0.02):
         >>> # u ≈ [1.15, 0.65, 0.175]
-    
+
     Notes:
         This implements the simplest interpolation method (linear).
         More sophisticated methods from Section 8.5.2:
         - Continuous-time propagation (integrate between samples)
         - Physics-based interpolation (use motion model)
-        
+
         Linear interpolation is sufficient for high-rate IMU (≥100 Hz) when
         measurements arrive within ±10ms of IMU samples.
-    
+
     References:
         Chapter 8, Section 8.5.2 (Measurement Timing and Interpolation)
     """
@@ -75,7 +75,7 @@ def interpolate_imu_measurements(
         )
 
     # Find the interval [t_imu[idx], t_imu[idx+1]] containing t_query
-    idx = np.searchsorted(t_imu, t_query, side='right') - 1
+    idx = np.searchsorted(t_imu, t_query, side="right") - 1
 
     # Handle edge case: t_query exactly equals last IMU timestamp
     if idx >= len(t_imu) - 1:
@@ -106,19 +106,20 @@ def interpolate_imu_measurements(
 @dataclass(frozen=True)
 class StateIndex:
     """State vector indices for TC fusion.
-    
+
     Enforces single convention: x = [px, py, vx, vy, yaw]
-    
+
     Usage:
         x = np.array([1.0, 2.0, 0.5, 0.3, 0.1])
         position = x[StateIndex.PX:StateIndex.PY+1]  # [1.0, 2.0]
         velocity = x[StateIndex.VX:StateIndex.VY+1]  # [0.5, 0.3]
         yaw = x[StateIndex.YAW]                      # 0.1
     """
-    PX: int = 0   # Position X
-    PY: int = 1   # Position Y
-    VX: int = 2   # Velocity X
-    VY: int = 3   # Velocity Y
+
+    PX: int = 0  # Position X
+    PY: int = 1  # Position Y
+    VX: int = 2  # Velocity X
+    VY: int = 3  # Velocity Y
     YAW: int = 4  # Yaw angle
 
     @staticmethod
@@ -128,16 +129,16 @@ class StateIndex:
 
 
 def create_process_model(
-    process_noise_std: np.ndarray = None
+    process_noise_std: np.ndarray = None,
 ) -> Tuple[Callable, Callable, Callable]:
     """Create process model functions for 2D IMU-based dead reckoning.
-    
+
     State: x = [px, py, vx, vy, yaw]  (5D)
     Control: u = [ax, ay, gyro_z]  (3D)
-    
+
     Args:
         process_noise_std: [σ_p, σ_v, σ_yaw] (default: [0.01, 0.05, 0.01])
-    
+
     Returns:
         Tuple of (process_model, process_jacobian, process_noise_cov)
     """
@@ -182,13 +183,15 @@ def create_process_model(
         dax_map_dyaw = -ax * sin_yaw - ay * cos_yaw
         day_map_dyaw = ax * cos_yaw - ay * sin_yaw
 
-        F = np.array([
-            [1, 0, dt, 0,  0],
-            [0, 1, 0,  dt, 0],
-            [0, 0, 1,  0,  dax_map_dyaw * dt],
-            [0, 0, 0,  1,  day_map_dyaw * dt],
-            [0, 0, 0,  0,  1]
-        ])
+        F = np.array(
+            [
+                [1, 0, dt, 0, 0],
+                [0, 1, 0, dt, 0],
+                [0, 0, 1, 0, dax_map_dyaw * dt],
+                [0, 0, 0, 1, day_map_dyaw * dt],
+                [0, 0, 0, 0, 1],
+            ]
+        )
 
         return F
 
@@ -196,13 +199,15 @@ def create_process_model(
         """Compute process noise covariance Q(dt)."""
         σ_p, σ_v, σ_yaw = process_noise_std
 
-        Q = np.diag([
-            (σ_p * dt)**2,
-            (σ_p * dt)**2,
-            (σ_v * dt)**2,
-            (σ_v * dt)**2,
-            (σ_yaw * dt)**2
-        ])
+        Q = np.diag(
+            [
+                (σ_p * dt) ** 2,
+                (σ_p * dt) ** 2,
+                (σ_v * dt) ** 2,
+                (σ_v * dt) ** 2,
+                (σ_yaw * dt) ** 2,
+            ]
+        )
 
         return Q
 
@@ -210,18 +215,17 @@ def create_process_model(
 
 
 def create_uwb_range_measurement_model(
-    anchor_position: np.ndarray,
-    range_noise_std: float = 0.05
+    anchor_position: np.ndarray, range_noise_std: float = 0.05
 ) -> Tuple[Callable, Callable, Callable]:
     """Create UWB range measurement model for a single anchor.
-    
+
     Measurement: z = range to anchor
     Model: h(x) = ||p - anchor||
-    
+
     Args:
         anchor_position: Anchor position [x, y] (2,)
         range_noise_std: Range noise std (meters)
-    
+
     Returns:
         Tuple of (measurement_model, measurement_jacobian, measurement_noise_cov)
     """
@@ -249,13 +253,17 @@ def create_uwb_range_measurement_model(
         if range_pred < 1e-6:
             range_pred = 1e-6
 
-        H = np.array([[
-            dx / range_pred,  # ∂h/∂px
-            dy / range_pred,  # ∂h/∂py
-            0.0,              # ∂h/∂vx
-            0.0,              # ∂h/∂vy
-            0.0               # ∂h/∂yaw
-        ]])
+        H = np.array(
+            [
+                [
+                    dx / range_pred,  # ∂h/∂px
+                    dy / range_pred,  # ∂h/∂py
+                    0.0,  # ∂h/∂vx
+                    0.0,  # ∂h/∂vy
+                    0.0,  # ∂h/∂yaw
+                ]
+            ]
+        )
 
         return H
 
@@ -272,12 +280,12 @@ def create_tc_fusion_ekf(
     process_noise_std: np.ndarray = None,
 ) -> any:
     """Create and initialize tightly coupled fusion EKF.
-    
+
     Args:
         initial_state: Initial state [px, py, vx, vy, yaw] (5,)
         initial_cov: Initial covariance (5, 5)
         process_noise_std: Process noise std [σ_p, σ_v, σ_yaw]
-    
+
     Returns:
         Initialized ExtendedKalmanFilter instance
     """
@@ -305,7 +313,7 @@ def create_tc_fusion_ekf(
         Q=process_Q,
         R=dummy_R,
         x0=initial_state.copy(),
-        P0=initial_cov.copy()
+        P0=initial_cov.copy(),
     )
 
     return ekf
@@ -320,7 +328,7 @@ def create_tc_fusion_ekf(
 
 def tc_process_model(x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     """Legacy wrapper: Process model for demos.
-    
+
     State: x = [px, py, vx, vy, yaw]
     Control: u = [ax, ay, gyro_z]
     """
@@ -330,7 +338,7 @@ def tc_process_model(x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
 
 def tc_process_jacobian(x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     """Legacy wrapper: Process Jacobian for demos.
-    
+
     State: x = [px, py, vx, vy, yaw]
     Control: u = [ax, ay, gyro_z]
     """
@@ -339,27 +347,23 @@ def tc_process_jacobian(x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
 
 
 def tc_process_noise_covariance(
-    dt: float,
-    accel_noise_std: float = 0.1,
-    gyro_noise_std: float = 0.01
+    dt: float, accel_noise_std: float = 0.1, gyro_noise_std: float = 0.01
 ) -> np.ndarray:
     """Legacy wrapper: Process noise covariance for demos.
-    
+
     Args:
         dt: Time step
         accel_noise_std: Acceleration noise std (m/s²)
         gyro_noise_std: Gyro noise std (rad/s)
-    
+
     Returns:
         Q: Process noise covariance (5, 5)
     """
     # Map accel/gyro noise to state noise
     # For simplicity: σ_p ~ σ_accel * dt², σ_v ~ σ_accel * dt, σ_yaw ~ σ_gyro * dt
-    process_noise_std = np.array([
-        accel_noise_std,  # σ_p
-        accel_noise_std,  # σ_v
-        gyro_noise_std    # σ_yaw
-    ])
+    process_noise_std = np.array(
+        [accel_noise_std, accel_noise_std, gyro_noise_std]  # σ_p  # σ_v  # σ_yaw
+    )
 
     _, _, Q = create_process_model(process_noise_std)
     return Q(dt)
@@ -367,11 +371,11 @@ def tc_process_noise_covariance(
 
 def tc_uwb_measurement_model(x: np.ndarray, anchors: np.ndarray) -> np.ndarray:
     """Legacy wrapper: Predict ranges to all anchors.
-    
+
     Args:
         x: State [px, py, vx, vy, yaw]
         anchors: Anchor positions (n_anchors, 2)
-    
+
     Returns:
         Predicted ranges (n_anchors,)
     """
@@ -384,11 +388,11 @@ def tc_uwb_measurement_model(x: np.ndarray, anchors: np.ndarray) -> np.ndarray:
 
 def tc_uwb_measurement_jacobian(x: np.ndarray, anchors: np.ndarray) -> np.ndarray:
     """Legacy wrapper: Measurement Jacobian for all anchors.
-    
+
     Args:
         x: State [px, py, vx, vy, yaw]
         anchors: Anchor positions (n_anchors, 2)
-    
+
     Returns:
         H: Measurement Jacobian (n_anchors, 5)
     """

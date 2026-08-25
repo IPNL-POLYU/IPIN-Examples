@@ -138,9 +138,7 @@ class TestRotationMatrixToEuler(unittest.TestCase):
         self.assertAlmostEqual(euler[2], 0.0, places=9)
 
         # Recovered angles must still reconstruct the same matrix
-        np.testing.assert_allclose(
-            euler_to_rotation_matrix(*euler), R, atol=1e-9
-        )
+        np.testing.assert_allclose(euler_to_rotation_matrix(*euler), R, atol=1e-9)
 
     def test_gimbal_lock_negative(self) -> None:
         """Test gimbal lock at roll = -90° (about Y in the book convention)."""
@@ -154,9 +152,7 @@ class TestRotationMatrixToEuler(unittest.TestCase):
         self.assertAlmostEqual(euler[2], 0.0, places=9)
 
         # Recovered angles must still reconstruct the same matrix
-        np.testing.assert_allclose(
-            euler_to_rotation_matrix(*euler), R, atol=1e-9
-        )
+        np.testing.assert_allclose(euler_to_rotation_matrix(*euler), R, atol=1e-9)
 
     def test_invalid_matrix_shape(self) -> None:
         """Test that invalid matrix shape raises ValueError."""
@@ -362,9 +358,7 @@ class TestRotationMatrixToQuaternion(unittest.TestCase):
         q = rotation_matrix_to_quat(R)
 
         # Expected: [cos(45°), 0, 0, sin(45°)] or negative (quaternion double cover)
-        expected_magnitude = np.array(
-            [np.cos(np.pi / 4), 0.0, 0.0, np.sin(np.pi / 4)]
-        )
+        expected_magnitude = np.array([np.cos(np.pi / 4), 0.0, 0.0, np.sin(np.pi / 4)])
 
         # Check that q is either +expected or -expected
         is_positive = np.allclose(q, expected_magnitude, atol=1e-9)

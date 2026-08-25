@@ -159,11 +159,13 @@ class TestWheelSpeedToAttitudeVelocity(unittest.TestCase):
 
         # Rotation matrix: 90° about z (S-frame rotated 90° relative to A-frame)
         angle = np.pi / 2
-        C_S_A = np.array([
-            [np.cos(angle), -np.sin(angle), 0],
-            [np.sin(angle), np.cos(angle), 0],
-            [0, 0, 1]
-        ])
+        C_S_A = np.array(
+            [
+                [np.cos(angle), -np.sin(angle), 0],
+                [np.sin(angle), np.cos(angle), 0],
+                [0, 0, 1],
+            ]
+        )
 
         v_a = wheel_speed_to_attitude_velocity(v_s, omega, lever_arm, C_S_A)
 
@@ -185,7 +187,9 @@ class TestWheelSpeedToAttitudeVelocity(unittest.TestCase):
 
         # Explicit identity
         C_S_A_identity = np.eye(3)
-        v_a_explicit = wheel_speed_to_attitude_velocity(v_s, omega, lever_arm, C_S_A_identity)
+        v_a_explicit = wheel_speed_to_attitude_velocity(
+            v_s, omega, lever_arm, C_S_A_identity
+        )
 
         np.testing.assert_array_almost_equal(v_a_default, v_a_explicit)
 
@@ -196,11 +200,7 @@ class TestWheelSpeedToAttitudeVelocity(unittest.TestCase):
         lever_arm = np.zeros(3)
 
         # 180° rotation about z-axis
-        C_S_A = np.array([
-            [-1, 0, 0],
-            [0, -1, 0],
-            [0, 0, 1]
-        ])
+        C_S_A = np.array([[-1, 0, 0], [0, -1, 0], [0, 0, 1]])
 
         v_a = wheel_speed_to_attitude_velocity(v_s, omega, lever_arm, C_S_A)
 
@@ -432,4 +432,3 @@ class TestEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

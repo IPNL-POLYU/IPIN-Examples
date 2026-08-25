@@ -8,7 +8,7 @@ Implements:
     - NN positioning (Eq. 5.1): i* = argmin_i D(z, f_i)
     - k-NN positioning (Eq. 5.2): x̂ = Σ w_i x_i / Σ w_i
 
-Author: Li-Ta Hsu  
+Author: Li-Ta Hsu
 Date: December 2024
 """
 
@@ -38,14 +38,14 @@ from core.fingerprinting import (
 def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=42):
     """
     Generate test query fingerprints.
-    
+
     Args:
         db: FingerprintDatabase.
         n_queries: Number of test queries.
         floor_id: Floor to generate queries on (None = random floors).
         noise_std: RSS measurement noise std (dBm).
         seed: Random seed.
-    
+
     Returns:
         Tuple of (query_fingerprints, true_locations, floor_ids).
     """
@@ -67,10 +67,12 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
     min_x, max_x = rp_locs[:, 0].min(), rp_locs[:, 0].max()
     min_y, max_y = rp_locs[:, 1].min(), rp_locs[:, 1].max()
 
-    true_locs = np.column_stack([
-        np.random.uniform(min_x, max_x, n_queries),
-        np.random.uniform(min_y, max_y, n_queries),
-    ])
+    true_locs = np.column_stack(
+        [
+            np.random.uniform(min_x, max_x, n_queries),
+            np.random.uniform(min_y, max_y, n_queries),
+        ]
+    )
 
     # Generate fingerprints by interpolating from nearby RPs
     query_fingerprints = []
@@ -153,14 +155,14 @@ def per_query_operations(db, floor_id=None, k=None, **_unused):
 def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kwargs):
     """
     Evaluate a positioning method.
-    
+
     Args:
         method_name: Name of method.
         method_fn: Positioning function.
         queries: Query fingerprints, shape (N, n_features).
         true_locs: True locations, shape (N, 2).
         **kwargs: Additional arguments for method_fn.
-    
+
     Returns:
         Dictionary with errors, computation time, etc.
     """
@@ -212,9 +214,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     ).parse_args()
 
-    print("="*70)
+    print("=" * 70)
     print("Chapter 5: Deterministic Fingerprinting (NN and k-NN)")
-    print("="*70)
+    print("=" * 70)
 
     # Load database
     print("\n1. Loading fingerprint database...")
@@ -222,8 +224,10 @@ def main():
     db = load_fingerprint_database(db_path)
 
     print(f"   Database: {db}")
-    print(f"   Location range: x=[{db.locations[:, 0].min():.1f}, {db.locations[:, 0].max():.1f}]m, "
-          f"y=[{db.locations[:, 1].min():.1f}, {db.locations[:, 1].max():.1f}]m")
+    print(
+        f"   Location range: x=[{db.locations[:, 0].min():.1f}, {db.locations[:, 0].max():.1f}]m, "
+        f"y=[{db.locations[:, 1].min():.1f}, {db.locations[:, 1].max():.1f}]m"
+    )
 
     # Generate test queries
     print("\n2. Generating test queries...")
@@ -245,48 +249,76 @@ def main():
     results = []
 
     # NN - Euclidean
-    results.append(evaluate_positioning_method(
-        "NN (Euclidean)",
-        nn_localize,
-        queries, true_locs,
-        db=db, metric="euclidean", floor_id=floor_id
-    ))
+    results.append(
+        evaluate_positioning_method(
+            "NN (Euclidean)",
+            nn_localize,
+            queries,
+            true_locs,
+            db=db,
+            metric="euclidean",
+            floor_id=floor_id,
+        )
+    )
 
     # NN - Manhattan
-    results.append(evaluate_positioning_method(
-        "NN (Manhattan)",
-        nn_localize,
-        queries, true_locs,
-        db=db, metric="manhattan", floor_id=floor_id
-    ))
+    results.append(
+        evaluate_positioning_method(
+            "NN (Manhattan)",
+            nn_localize,
+            queries,
+            true_locs,
+            db=db,
+            metric="manhattan",
+            floor_id=floor_id,
+        )
+    )
 
     # k-NN with varying k
     for k in [3, 5, 7]:
-        results.append(evaluate_positioning_method(
-            f"k-NN (k={k}, inv-dist)",
-            knn_localize,
-            queries, true_locs,
-            db=db, k=k, metric="euclidean", weighting="inverse_distance", floor_id=floor_id
-        ))
+        results.append(
+            evaluate_positioning_method(
+                f"k-NN (k={k}, inv-dist)",
+                knn_localize,
+                queries,
+                true_locs,
+                db=db,
+                k=k,
+                metric="euclidean",
+                weighting="inverse_distance",
+                floor_id=floor_id,
+            )
+        )
 
     # k-NN uniform weights
-    results.append(evaluate_positioning_method(
-        "k-NN (k=5, uniform)",
-        knn_localize,
-        queries, true_locs,
-        db=db, k=5, metric="euclidean", weighting="uniform", floor_id=floor_id
-    ))
+    results.append(
+        evaluate_positioning_method(
+            "k-NN (k=5, uniform)",
+            knn_localize,
+            queries,
+            true_locs,
+            db=db,
+            k=5,
+            metric="euclidean",
+            weighting="uniform",
+            floor_id=floor_id,
+        )
+    )
 
     # Print summary table
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("RESULTS SUMMARY")
-    print("="*70)
-    print(f"{'Method':<25} {'RMSE (m)':<12} {'Median (m)':<12} {'90th % (m)':<12} {'Time (ms)':<12}")
-    print("-"*70)
+    print("=" * 70)
+    print(
+        f"{'Method':<25} {'RMSE (m)':<12} {'Median (m)':<12} {'90th % (m)':<12} {'Time (ms)':<12}"
+    )
+    print("-" * 70)
 
     for r in results:
-        print(f"{r['method']:<25} {r['rmse']:<12.2f} {r['median_error']:<12.2f} "
-              f"{r['p90']:<12.2f} {r['mean_time_ms']:<12.3f}")
+        print(
+            f"{r['method']:<25} {r['rmse']:<12.2f} {r['median_error']:<12.2f} "
+            f"{r['p90']:<12.2f} {r['mean_time_ms']:<12.3f}"
+        )
 
     # Visualize results
     print("\n4. Generating visualizations...")
@@ -296,61 +328,77 @@ def main():
     # Plot 1: Reference points and test queries
     ax1 = plt.subplot(2, 3, 1)
     floor_mask = db.get_floor_mask(floor_id)
-    ax1.scatter(db.locations[floor_mask, 0], db.locations[floor_mask, 1],
-                c='blue', marker='s', s=50, alpha=0.6, label='Reference Points')
-    ax1.scatter(true_locs[:50, 0], true_locs[:50, 1],
-                c='red', marker='x', s=30, alpha=0.8, label='Test Queries (sample)')
-    ax1.set_xlabel('X (m)')
-    ax1.set_ylabel('Y (m)')
-    ax1.set_title('Reference Points & Test Queries')
+    ax1.scatter(
+        db.locations[floor_mask, 0],
+        db.locations[floor_mask, 1],
+        c="blue",
+        marker="s",
+        s=50,
+        alpha=0.6,
+        label="Reference Points",
+    )
+    ax1.scatter(
+        true_locs[:50, 0],
+        true_locs[:50, 1],
+        c="red",
+        marker="x",
+        s=30,
+        alpha=0.8,
+        label="Test Queries (sample)",
+    )
+    ax1.set_xlabel("X (m)")
+    ax1.set_ylabel("Y (m)")
+    ax1.set_title("Reference Points & Test Queries")
     ax1.legend()
     ax1.grid(True, alpha=0.3)
-    ax1.axis('equal')
+    ax1.axis("equal")
 
     # Plot 2: Error CDF
     ax2 = plt.subplot(2, 3, 2)
     plot_error_cdf(
-        {r['method']: r['errors'] for r in results},
-        title='Cumulative Distribution of Errors',
+        {r["method"]: r["errors"] for r in results},
+        title="Cumulative Distribution of Errors",
         ax=ax2,
         title_fontweight="normal",
     )
     ax2.legend(fontsize=8)
-    worst = max(np.max(r['errors']) for r in results)
+    worst = max(np.max(r["errors"]) for r in results)
     ax2.set_xlim(0, min(20, worst))
 
     # Plot 3: Error histogram
     ax3 = plt.subplot(2, 3, 3)
     for i, r in enumerate(results[:3]):  # Show first 3 methods
-        ax3.hist(r['errors'], bins=30, alpha=0.5, label=r['method'])
-    ax3.set_xlabel('Positioning Error (m)')
-    ax3.set_ylabel('Count')
-    ax3.set_title('Error Distribution (First 3 Methods)')
+        ax3.hist(r["errors"], bins=30, alpha=0.5, label=r["method"])
+    ax3.set_xlabel("Positioning Error (m)")
+    ax3.set_ylabel("Count")
+    ax3.set_title("Error Distribution (First 3 Methods)")
     ax3.legend(fontsize=8)
-    ax3.grid(True, alpha=0.3, axis='y')
+    ax3.grid(True, alpha=0.3, axis="y")
 
     # Plot 4: Box plot comparison
     ax4 = plt.subplot(2, 3, 4)
-    error_data = [r['errors'] for r in results]
-    method_names = [r['method'] for r in results]
+    error_data = [r["errors"] for r in results]
+    method_names = [r["method"] for r in results]
     bp = ax4.boxplot(error_data, tick_labels=method_names, patch_artist=True)
-    for patch in bp['boxes']:
-        patch.set_facecolor('lightblue')
-    ax4.set_ylabel('Positioning Error (m)')
-    ax4.set_title('Error Distribution by Method')
-    ax4.tick_params(axis='x', rotation=45)
-    ax4.grid(True, alpha=0.3, axis='y')
-    plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=8)
+    for patch in bp["boxes"]:
+        patch.set_facecolor("lightblue")
+    ax4.set_ylabel("Positioning Error (m)")
+    ax4.set_title("Error Distribution by Method")
+    ax4.tick_params(axis="x", rotation=45)
+    ax4.grid(True, alpha=0.3, axis="y")
+    plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45, ha="right", fontsize=8)
 
     # Plot 5: RMSE vs k for k-NN
     ax5 = plt.subplot(2, 3, 5)
-    knn_results = [r for r in results if 'k-NN' in r['method'] and 'inv-dist' in r['method']]
-    k_values = [int(r['method'].split('k=')[1].split(',')[0]) for r in knn_results]
-    rmse_values = [r['rmse'] for r in knn_results]
-    ax5.plot(k_values, rmse_values, 'o-', linewidth=2, markersize=8)
-    ax5.set_xlabel('k (Number of Neighbors)')
-    ax5.set_ylabel('RMSE (m)')
-    ax5.set_title('Effect of k on k-NN Performance')
+    knn_results = [
+        r for r in results if "k-NN" in r["method"] and "inv-dist" in r["method"]
+    ]
+    k_values = [int(r["method"].split("k=")[1].split(",")[0]) for r in knn_results]
+    rmse_values = [r["rmse"] for r in knn_results]
+    ax5.plot(k_values, rmse_values, "o-", linewidth=2, markersize=8)
+    ax5.set_xlabel("k (Number of Neighbors)")
+    ax5.set_ylabel("RMSE (m)")
+    ax5.set_title("Effect of k on k-NN Performance")
     ax5.grid(True, alpha=0.3)
     ax5.set_xticks(k_values)
 
@@ -364,26 +412,32 @@ def main():
     # anything. Only a bigger database moves the cost.
     ax6 = plt.subplot(2, 3, 6)
     for r in results:
-        ax6.scatter(r['ops_per_query'], r['rmse'], s=100, alpha=0.7)
-        ax6.annotate(r['method'], (r['ops_per_query'], r['rmse']),
-                    xytext=(5, 5), textcoords='offset points', fontsize=7)
-    ax6.set_xlabel('Operations per query')
-    ax6.set_ylabel('RMSE (m)')
-    ax6.set_title('Accuracy is Free: Cost is the Database Scan')
+        ax6.scatter(r["ops_per_query"], r["rmse"], s=100, alpha=0.7)
+        ax6.annotate(
+            r["method"],
+            (r["ops_per_query"], r["rmse"]),
+            xytext=(5, 5),
+            textcoords="offset points",
+            fontsize=7,
+        )
+    ax6.set_xlabel("Operations per query")
+    ax6.set_ylabel("RMSE (m)")
+    ax6.set_title("Accuracy is Free: Cost is the Database Scan")
     ax6.grid(True, alpha=0.3)
 
     plt.tight_layout()
 
     # Save figure (svg + pdf + png via the shared layer)
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "deterministic_positioning")
+    paths = save_figure(
+        fig, Path(__file__).parent / "figs", "deterministic_positioning"
+    )
     print(f"   Saved: {paths[0]}")
 
     show_figures_if_requested()
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Example complete!")
-    print("="*70)
+    print("=" * 70)
     # Findings computed from the run above, so they cannot disagree with the
     # table the reader just saw. The line that used to sit at the bottom of
     # this list -- "Manhattan distance can be faster than Euclidean in some
@@ -400,15 +454,21 @@ def main():
     uni = by_name.get("k-NN (k=5, uniform)")
     if idw and uni:
         better = "better" if idw["rmse"] < uni["rmse"] else "worse"
-        print(f"  - At k=5, inverse-distance weighting is {better} than uniform: "
-              f"{idw['rmse']:.2f} m vs {uni['rmse']:.2f} m RMSE")
+        print(
+            f"  - At k=5, inverse-distance weighting is {better} than uniform: "
+            f"{idw['rmse']:.2f} m vs {uni['rmse']:.2f} m RMSE"
+        )
 
     ks = {r["method"]: r for r in results if "inv-dist" in r["method"]}
     if ks:
         best = min(ks.values(), key=lambda r: r["rmse"])
-        spread = max(r["rmse"] for r in ks.values()) - min(r["rmse"] for r in ks.values())
-        print(f"  - Best k here is {best['method'].split('k=')[1][0]} at "
-              f"{best['rmse']:.2f} m, but only {spread:.2f} m separates k=3/5/7;")
+        spread = max(r["rmse"] for r in ks.values()) - min(
+            r["rmse"] for r in ks.values()
+        )
+        print(
+            f"  - Best k here is {best['method'].split('k=')[1][0]} at "
+            f"{best['rmse']:.2f} m, but only {spread:.2f} m separates k=3/5/7;"
+        )
         print("    the optimal k depends on RP density and noise level")
 
     euclid, manhattan = by_name.get("NN (Euclidean)"), by_name.get("NN (Manhattan)")
@@ -419,8 +479,10 @@ def main():
             print(f"  - Both NN metrics cost the same {e_ops:,} operations per query")
         else:
             print(f"  - NN costs {e_ops:,} operations Euclidean, {m_ops:,} Manhattan")
-        print(f"    and across every variant the count spans {max(ops) - min(ops)} "
-              f"operations ({100 * (max(ops) - min(ops)) / min(ops):.1f}%), all of")
+        print(
+            f"    and across every variant the count spans {max(ops) - min(ops)} "
+            f"operations ({100 * (max(ops) - min(ops)) / min(ops):.1f}%), all of"
+        )
         print("    it the k multiply-adds in the weighted average. The database")
         print("    scan is the cost: metric and weighting are free, k nearly so.")
         print("  - Do not read an ordering into the Time column. Timing this")
@@ -436,4 +498,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

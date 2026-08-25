@@ -59,8 +59,7 @@ SUPERSEDED = {
     # --- core/estimators: the solvers are functions, not step helpers -------
     "gauss_newton_solve": "core.estimators.nonlinear_least_squares.gauss_newton",
     "gauss_newton_step": "core.estimators.nonlinear_least_squares.gauss_newton",
-    "levenberg_marquardt_step":
-        "core.estimators.nonlinear_least_squares.levenberg_marquardt",
+    "levenberg_marquardt_step": "core.estimators.nonlinear_least_squares.levenberg_marquardt",
     "solve_fgo": "core.estimators.factor_graph.FactorGraph.optimize",
     "gradient_descent_step": None,
     # Factor's interface was named differently in the end.
@@ -72,8 +71,7 @@ SUPERSEDED = {
     "aoa_bearing": "core.rf.measurement_models.aoa_azimuth",
     "simulate_rf_measurements": None,
     # --- core/sensors -------------------------------------------------------
-    "ZaruMeasurementModel":
-        "core.sensors.constraints.ZaruMeasurementModelPlaceholder",
+    "ZaruMeasurementModel": "core.sensors.constraints.ZaruMeasurementModelPlaceholder",
     "InsWheelProcessModel": None,
     "WheelSpeedMeasurementModel": None,
     # --- core/sim: the trajectory generators live in scripts/ instead -------
@@ -93,8 +91,7 @@ SUPERSEDED = {
     "raytrace_likelihood": None,
     # --- outside core/ ------------------------------------------------------
     "run_multisensor_ekf": None,
-    "generate_fusion_2d_imu_uwb_dataset":
-        "scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py",
+    "generate_fusion_2d_imu_uwb_dataset": "scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py",
 }
 
 #: Names the extraction picks up that are not API claims.
@@ -125,9 +122,7 @@ def _core_names():
     for path in sorted(REPO_ROOT.glob("core/**/*.py")):
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
-            if isinstance(
-                node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)
-            ):
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
                 names.add(node.name)
     return names
 
@@ -148,9 +143,7 @@ def _doc_api_names(text):
     """
     found = set(re.findall(r"^\s*def\s+(\w+)\s*\(", text, re.M))
     found |= set(re.findall(r"^\s*class\s+(\w+)", text, re.M))
-    found |= set(
-        re.findall(r"^\s*(\w+)\([^)]*\)\s*(?:->|[-–—]|$)", text, re.M)
-    )
+    found |= set(re.findall(r"^\s*(\w+)\([^)]*\)\s*(?:->|[-–—]|$)", text, re.M))
     return {n for n in found if not n.startswith("_")} - NOT_API_CLAIMS
 
 
@@ -221,9 +214,9 @@ def test_superseded_module_register_is_exact():
 
     for old, new in SUPERSEDED_MODULES.items():
         if new is not None:
-            assert (REPO_ROOT / new).exists(), (
-                f"SUPERSEDED_MODULES maps {old} -> {new}, which does not exist."
-            )
+            assert (
+                REPO_ROOT / new
+            ).exists(), f"SUPERSEDED_MODULES maps {old} -> {new}, which does not exist."
 
 
 def test_nothing_cites_a_design_doc_section_that_does_not_exist():

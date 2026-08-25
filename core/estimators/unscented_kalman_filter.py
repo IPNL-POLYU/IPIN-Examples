@@ -60,7 +60,9 @@ class UnscentedKalmanFilter(StateEstimator):
         alpha: float = 1e-3,
         beta: float = 2.0,
         kappa: Optional[float] = None,
-        innovation_func: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None,
+        innovation_func: Optional[
+            Callable[[np.ndarray, np.ndarray], np.ndarray]
+        ] = None,
     ):
         """
         Initialize Unscented Kalman Filter.
@@ -131,9 +133,7 @@ class UnscentedKalmanFilter(StateEstimator):
 
         self.lambda_ = lambda_
 
-    def _generate_sigma_points(
-        self, x: np.ndarray, P: np.ndarray
-    ) -> np.ndarray:
+    def _generate_sigma_points(self, x: np.ndarray, P: np.ndarray) -> np.ndarray:
         """
         Generate sigma points using the Unscented Transform.
 
@@ -162,7 +162,11 @@ class UnscentedKalmanFilter(StateEstimator):
         except np.linalg.LinAlgError:
             # If Cholesky fails, use eigendecomposition
             eigenvalues, eigenvectors = np.linalg.eig(P)
-            L = eigenvectors @ np.diag(np.sqrt(np.maximum(eigenvalues, 0))) * np.sqrt(n + self.lambda_)
+            L = (
+                eigenvectors
+                @ np.diag(np.sqrt(np.maximum(eigenvalues, 0)))
+                * np.sqrt(n + self.lambda_)
+            )
 
         # Eq. (3.24): χᵢ = x̂ + δᵢ and χ_{i+n} = x̂ - δᵢ
         for i in range(n):
@@ -190,7 +194,11 @@ class UnscentedKalmanFilter(StateEstimator):
 
         # Weighted covariance
         diff = sigma_points - mean
-        covariance = (weights_c[:, np.newaxis, np.newaxis] * diff[:, :, np.newaxis] * diff[:, np.newaxis, :]).sum(axis=0)
+        covariance = (
+            weights_c[:, np.newaxis, np.newaxis]
+            * diff[:, :, np.newaxis]
+            * diff[:, np.newaxis, :]
+        ).sum(axis=0)
 
         return mean, covariance
 
@@ -217,9 +225,9 @@ class UnscentedKalmanFilter(StateEstimator):
         sigma_points = self._generate_sigma_points(self.state, self.covariance)
 
         # Eq. (3.25): Propagate sigma points through process model
-        sigma_points_pred = np.array([
-            self.process_model(sp, u, dt) for sp in sigma_points
-        ])
+        sigma_points_pred = np.array(
+            [self.process_model(sp, u, dt) for sp in sigma_points]
+        )
 
         # Compute predicted state and covariance using Unscented Transform
         self.state, P_pred = self._unscented_transform(
@@ -258,14 +266,12 @@ class UnscentedKalmanFilter(StateEstimator):
         sigma_points = self._generate_sigma_points(self.state, self.covariance)
 
         # Propagate sigma points through measurement model
-        sigma_points_meas = np.array([
-            self.measurement_model(sp) for sp in sigma_points
-        ])
+        sigma_points_meas = np.array(
+            [self.measurement_model(sp) for sp in sigma_points]
+        )
 
         # Predicted measurement mean and covariance
-        z_pred, Pzz = self._unscented_transform(
-            sigma_points_meas, self.Wm, self.Wc
-        )
+        z_pred, Pzz = self._unscented_transform(sigma_points_meas, self.Wm, self.Wc)
 
         # Add measurement noise
         R = self.R()
@@ -274,7 +280,11 @@ class UnscentedKalmanFilter(StateEstimator):
         # Cross-covariance between state and measurement
         diff_x = sigma_points - self.state
         diff_z = sigma_points_meas - z_pred
-        Pxz = (self.Wc[:, np.newaxis, np.newaxis] * diff_x[:, :, np.newaxis] * diff_z[:, np.newaxis, :]).sum(axis=0)
+        Pxz = (
+            self.Wc[:, np.newaxis, np.newaxis]
+            * diff_x[:, :, np.newaxis]
+            * diff_z[:, np.newaxis, :]
+        ).sum(axis=0)
 
         # Eq. (3.30): Kalman gain K_k
         K = Pxz @ np.linalg.inv(Pzz)
@@ -304,26 +314,24 @@ def check_ukf_range_only_tracking():
 
     # Process model: constant velocity in 2D
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     # Measurement model: range from origin
     def measurement_model(x):
-        return np.array([np.sqrt(x[0]**2 + x[1]**2)])
+        return np.array([np.sqrt(x[0] ** 2 + x[1] ** 2)])
 
     q = 0.1
+
     def Q_func(dt):
-        return q * np.array([
-            [dt**3/3, 0, dt**2/2, 0],
-            [0, dt**3/3, 0, dt**2/2],
-            [dt**2/2, 0, dt, 0],
-            [0, dt**2/2, 0, dt]
-        ])
+        return q * np.array(
+            [
+                [dt**3 / 3, 0, dt**2 / 2, 0],
+                [0, dt**3 / 3, 0, dt**2 / 2],
+                [dt**2 / 2, 0, dt, 0],
+                [0, dt**2 / 2, 0, dt],
+            ]
+        )
 
     def R_func():
         return np.array([[0.5]])
@@ -333,8 +341,7 @@ def check_ukf_range_only_tracking():
 
     # Create UKF
     ukf = UnscentedKalmanFilter(
-        process_model, measurement_model,
-        Q_func, R_func, x0, P0
+        process_model, measurement_model, Q_func, R_func, x0, P0
     )
 
     # Generate true trajectory
@@ -372,25 +379,23 @@ def check_ukf_bearing_only_tracking():
     n_steps = 50
 
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def measurement_model(x):
         return np.array([np.arctan2(x[1], x[0])])
 
     q = 0.1
+
     def Q_func(dt):
-        return q * np.array([
-            [dt**3/3, 0, dt**2/2, 0],
-            [0, dt**3/3, 0, dt**2/2],
-            [dt**2/2, 0, dt, 0],
-            [0, dt**2/2, 0, dt]
-        ])
+        return q * np.array(
+            [
+                [dt**3 / 3, 0, dt**2 / 2, 0],
+                [0, dt**3 / 3, 0, dt**2 / 2],
+                [dt**2 / 2, 0, dt, 0],
+                [0, dt**2 / 2, 0, dt],
+            ]
+        )
 
     def R_func():
         return np.array([[0.05]])
@@ -401,8 +406,12 @@ def check_ukf_bearing_only_tracking():
     # Bearing-only: wrap the innovation, or the branch cut reports 358 deg
     # of error where the truth is 2. Same gap as the EKF demo next door.
     ukf = UnscentedKalmanFilter(
-        process_model, measurement_model,
-        Q_func, R_func, x0, P0,
+        process_model,
+        measurement_model,
+        Q_func,
+        R_func,
+        x0,
+        P0,
         innovation_func=lambda z, z_pred: angle_diff(z, z_pred),
     )
 
@@ -443,6 +452,3 @@ if __name__ == "__main__":
     print("=" * 70)
     print("ALL CHECKS PASSED")
     print("=" * 70)
-
-
-

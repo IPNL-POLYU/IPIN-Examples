@@ -44,7 +44,7 @@ class TestGyroUnitConversions(unittest.TestCase):
 
         # Also check that it's approximately 0.0028 deg/s
         result_deg_s = np.rad2deg(result)
-        self.assertAlmostEqual(result_deg_s, 10.0/3600.0, places=6)
+        self.assertAlmostEqual(result_deg_s, 10.0 / 3600.0, places=6)
 
     def test_deg_per_hour_to_rad_per_sec_acceptance_criterion(self):
         """Test acceptance criterion: 10 deg/hr = 0.0028 deg/s."""
@@ -248,15 +248,3 @@ class TestPhysicalConsistency(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
-
-
-
-
-
-
-
-
-

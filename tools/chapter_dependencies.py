@@ -117,7 +117,9 @@ END_MARKER = "<!-- END GENERATED: architecture -->"
 
 def _packages(per_example: dict[str, dict]) -> list[str]:
     """Distinct `core.<package>` names the chapter depends on."""
-    return sorted({".".join(m.split(".")[:2]) for v in per_example.values() for m in v["core"]})
+    return sorted(
+        {".".join(m.split(".")[:2]) for v in per_example.values() for m in v["core"]}
+    )
 
 
 def render_section(chapter: str, per_example: dict[str, dict]) -> str:
@@ -170,7 +172,9 @@ def render_section(chapter: str, per_example: dict[str, dict]) -> str:
     return "\n".join(lines)
 
 
-REPO_BEGIN_MARKER = "<!-- BEGIN GENERATED: repo-architecture (tools/chapter_dependencies.py) -->"
+REPO_BEGIN_MARKER = (
+    "<!-- BEGIN GENERATED: repo-architecture (tools/chapter_dependencies.py) -->"
+)
 REPO_END_MARKER = "<!-- END GENERATED: repo-architecture -->"
 
 # A package this many chapters or more import is shown as prose, not as edges.
@@ -214,7 +218,9 @@ def render_repo_section(deps: dict[str, dict[str, dict]]) -> str:
         distinctive = [p for p in _packages(per) if p not in cross_cutting]
         topic = CHAPTER_TOPICS.get(chapter, chapter)
         target = "<br/>".join(p.replace("core.", "core/") + "/" for p in distinctive)
-        lines.append(f'    A{index}["<b>{chapter}/</b><br/>{topic}"] --> B{index}["{target}"]')
+        lines.append(
+            f'    A{index}["<b>{chapter}/</b><br/>{topic}"] --> B{index}["{target}"]'
+        )
     lines += [
         '    S["<b>imported by nearly every chapter</b><br/>'
         + " · ".join(p.replace("core.", "core/") + "/" for p in sorted(cross_cutting))
@@ -253,14 +259,18 @@ def rewrite_readmes(root: Path | None = None) -> list[str]:
         text = readme.read_text(encoding="utf-8")
         if BEGIN_MARKER not in text:
             continue
-        new = _replace_between(text, BEGIN_MARKER, END_MARKER, render_section(chapter, per_example))
+        new = _replace_between(
+            text, BEGIN_MARKER, END_MARKER, render_section(chapter, per_example)
+        )
         if new != text:
             readme.write_text(new, encoding="utf-8")
             touched.append(str(readme.relative_to(root)))
     top = root / "README.md"
     text = top.read_text(encoding="utf-8")
     if REPO_BEGIN_MARKER in text:
-        new = _replace_between(text, REPO_BEGIN_MARKER, REPO_END_MARKER, render_repo_section(deps))
+        new = _replace_between(
+            text, REPO_BEGIN_MARKER, REPO_END_MARKER, render_repo_section(deps)
+        )
         if new != text:
             top.write_text(new, encoding="utf-8")
             touched.append("README.md")

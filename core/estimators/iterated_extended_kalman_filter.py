@@ -69,7 +69,9 @@ class IteratedExtendedKalmanFilter(StateEstimator):
     def __init__(
         self,
         process_model: Callable[[np.ndarray, Optional[np.ndarray], float], np.ndarray],
-        process_jacobian: Callable[[np.ndarray, Optional[np.ndarray], float], np.ndarray],
+        process_jacobian: Callable[
+            [np.ndarray, Optional[np.ndarray], float], np.ndarray
+        ],
         measurement_model: Callable[[np.ndarray], np.ndarray],
         measurement_jacobian: Callable[[np.ndarray], np.ndarray],
         Q: Callable[[float], np.ndarray],
@@ -78,7 +80,9 @@ class IteratedExtendedKalmanFilter(StateEstimator):
         P0: np.ndarray,
         max_iterations: int = 5,
         convergence_tol: float = 1e-6,
-        innovation_func: Optional[Callable[[np.ndarray, np.ndarray], np.ndarray]] = None,
+        innovation_func: Optional[
+            Callable[[np.ndarray, np.ndarray], np.ndarray]
+        ] = None,
     ):
         """
         Initialize Iterated Extended Kalman Filter.
@@ -316,9 +320,14 @@ def check_iekf_convergence():
     P0 = np.eye(2)
 
     iekf = IteratedExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0, P0,
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0,
+        P0,
         max_iterations=10,
         convergence_tol=1e-8,
     )
@@ -350,21 +359,11 @@ def check_iekf_vs_ekf_high_nonlinearity():
 
     # Process model
     def process_model(x, u, dt):
-        F = np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
         return F @ x
 
     def process_jacobian(x, u, dt):
-        return np.array([
-            [1, 0, dt, 0],
-            [0, 1, 0, dt],
-            [0, 0, 1, 0],
-            [0, 0, 0, 1]
-        ])
+        return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # Highly nonlinear measurement: range from origin
     def measurement_model(x):
@@ -379,12 +378,14 @@ def check_iekf_vs_ekf_high_nonlinearity():
     q = 0.1
 
     def Q_func(dt):
-        return q * np.array([
-            [dt ** 3 / 3, 0, dt ** 2 / 2, 0],
-            [0, dt ** 3 / 3, 0, dt ** 2 / 2],
-            [dt ** 2 / 2, 0, dt, 0],
-            [0, dt ** 2 / 2, 0, dt]
-        ])
+        return q * np.array(
+            [
+                [dt**3 / 3, 0, dt**2 / 2, 0],
+                [0, dt**3 / 3, 0, dt**2 / 2],
+                [dt**2 / 2, 0, dt, 0],
+                [0, dt**2 / 2, 0, dt],
+            ]
+        )
 
     def R_func():
         return np.array([[0.5]])
@@ -396,16 +397,26 @@ def check_iekf_vs_ekf_high_nonlinearity():
 
     # Create both filters
     ekf = ExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0_est.copy(), P0.copy()
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0_est.copy(),
+        P0.copy(),
     )
 
     iekf = IteratedExtendedKalmanFilter(
-        process_model, process_jacobian,
-        measurement_model, measurement_jacobian,
-        Q_func, R_func, x0_est.copy(), P0.copy(),
-        max_iterations=5
+        process_model,
+        process_jacobian,
+        measurement_model,
+        measurement_jacobian,
+        Q_func,
+        R_func,
+        x0_est.copy(),
+        P0.copy(),
+        max_iterations=5,
     )
 
     # Run simulation
@@ -444,12 +455,14 @@ def check_iekf_vs_ekf_high_nonlinearity():
     print("\nIEKF vs EKF Comparison Test:")
     print(f"  Mean EKF position error:  {mean_ekf_error:.4f} m")
     print(f"  Mean IEKF position error: {mean_iekf_error:.4f} m")
-    print(f"  IEKF improvement: {(mean_ekf_error - mean_iekf_error) / mean_ekf_error * 100:.1f}%")
+    print(
+        f"  IEKF improvement: {(mean_ekf_error - mean_iekf_error) / mean_ekf_error * 100:.1f}%"
+    )
 
     # IEKF should be at least as good as EKF (usually better)
-    assert mean_iekf_error <= mean_ekf_error * 1.1, (
-        "IEKF should not be significantly worse than EKF"
-    )
+    assert (
+        mean_iekf_error <= mean_ekf_error * 1.1
+    ), "IEKF should not be significantly worse than EKF"
     print("  [PASS] IEKF performs at least as well as EKF")
 
 
@@ -467,4 +480,3 @@ if __name__ == "__main__":
     print("=" * 70)
     print("ALL CHECKS PASSED")
     print("=" * 70)
-

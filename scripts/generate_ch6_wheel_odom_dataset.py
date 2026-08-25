@@ -107,7 +107,9 @@ def generate_square_trajectory(
         elif time_in_lap < 2 * straight_time + 2 * turn_time:  # Turn 2
             omega_z = turn_omega
             v_forward = speed * 0.8
-            yaw_target = np.pi / 2 + (time_in_lap - 2 * straight_time - turn_time) * turn_omega
+            yaw_target = (
+                np.pi / 2 + (time_in_lap - 2 * straight_time - turn_time) * turn_omega
+            )
         elif time_in_lap < 3 * straight_time + 2 * turn_time:  # Side 3: West
             omega_z = 0.0
             v_forward = speed
@@ -115,7 +117,9 @@ def generate_square_trajectory(
         elif time_in_lap < 3 * straight_time + 3 * turn_time:  # Turn 3
             omega_z = turn_omega
             v_forward = speed * 0.8
-            yaw_target = np.pi + (time_in_lap - 3 * straight_time - 2 * turn_time) * turn_omega
+            yaw_target = (
+                np.pi + (time_in_lap - 3 * straight_time - 2 * turn_time) * turn_omega
+            )
         elif time_in_lap < 4 * straight_time + 3 * turn_time:  # Side 4: South
             omega_z = 0.0
             v_forward = speed
@@ -123,7 +127,10 @@ def generate_square_trajectory(
         else:  # Turn 4
             omega_z = turn_omega
             v_forward = speed * 0.8
-            yaw_target = 3 * np.pi / 2 + (time_in_lap - 4 * straight_time - 3 * turn_time) * turn_omega
+            yaw_target = (
+                3 * np.pi / 2
+                + (time_in_lap - 4 * straight_time - 3 * turn_time) * turn_omega
+            )
 
         # Update yaw
         yaw = yaw_target
@@ -218,7 +225,7 @@ def add_wheel_noise(
         for start_t, end_t in slip_intervals:
             mask = (t >= start_t) & (t <= end_t)
             # Slip: reduce measured wheel speed (wheel spins but vehicle doesn't move)
-            wheel_meas[mask, 0] *= (1.0 + slip_magnitude)
+            wheel_meas[mask, 0] *= 1.0 + slip_magnitude
 
     return wheel_meas, gyro_meas
 
@@ -417,12 +424,14 @@ def generate_dataset(
 
     # Generate trajectory
     print("\nStep 1: Generating square trajectory...")
-    t, pos_true, vel_true, quat_true, wheel_true, gyro_true = generate_square_trajectory(
-        side_length=side_length,
-        speed=speed,
-        num_laps=num_laps,
-        dt=dt,
-        lever_arm=np.array(lever_arm),
+    t, pos_true, vel_true, quat_true, wheel_true, gyro_true = (
+        generate_square_trajectory(
+            side_length=side_length,
+            speed=speed,
+            num_laps=num_laps,
+            dt=dt,
+            lever_arm=np.array(lever_arm),
+        )
     )
 
     total_distance = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
@@ -446,7 +455,9 @@ def generate_dataset(
             t_offset = lap * lap_time
             # 4 turns per lap
             for turn_idx in range(4):
-                t_start = t_offset + (turn_idx + 1) * straight_time + turn_idx * turn_time
+                t_start = (
+                    t_offset + (turn_idx + 1) * straight_time + turn_idx * turn_time
+                )
                 t_end = t_start + turn_time
                 slip_intervals.append((t_start, t_end))
 
@@ -609,7 +620,10 @@ Book Reference: Chapter 6, Section 6.2 (Wheel Odometry)
     # Trajectory parameters
     traj_group = parser.add_argument_group("Trajectory Parameters")
     traj_group.add_argument(
-        "--side-length", type=float, default=20.0, help="Square side length in meters (default: 20.0)"
+        "--side-length",
+        type=float,
+        default=20.0,
+        help="Square side length in meters (default: 20.0)",
     )
     traj_group.add_argument(
         "--speed", type=float, default=5.0, help="Forward speed in m/s (default: 5.0)"
@@ -624,16 +638,28 @@ Book Reference: Chapter 6, Section 6.2 (Wheel Odometry)
     # Sensor noise parameters
     noise_group = parser.add_argument_group("Sensor Noise Parameters")
     noise_group.add_argument(
-        "--encoder-noise", type=float, default=0.05, help="Encoder noise std dev in m/s (default: 0.05)"
+        "--encoder-noise",
+        type=float,
+        default=0.05,
+        help="Encoder noise std dev in m/s (default: 0.05)",
     )
     noise_group.add_argument(
-        "--gyro-noise", type=float, default=0.001, help="Gyro noise std dev in rad/s (default: 0.001)"
+        "--gyro-noise",
+        type=float,
+        default=0.001,
+        help="Gyro noise std dev in rad/s (default: 0.001)",
     )
     noise_group.add_argument(
-        "--wheel-bias", type=float, default=0.01, help="Wheel speed bias in m/s (default: 0.01)"
+        "--wheel-bias",
+        type=float,
+        default=0.01,
+        help="Wheel speed bias in m/s (default: 0.01)",
     )
     noise_group.add_argument(
-        "--gyro-bias", type=float, default=0.0005, help="Gyro bias in rad/s (default: 0.0005)"
+        "--gyro-bias",
+        type=float,
+        default=0.0005,
+        help="Gyro bias in rad/s (default: 0.0005)",
     )
 
     # Lever arm
@@ -660,7 +686,9 @@ Book Reference: Chapter 6, Section 6.2 (Wheel Odometry)
     )
 
     # Other
-    parser.add_argument("--seed", type=int, default=42, help="Random seed (default: 42)")
+    parser.add_argument(
+        "--seed", type=int, default=42, help="Random seed (default: 42)"
+    )
 
     args = parser.parse_args()
 
@@ -685,4 +713,3 @@ Book Reference: Chapter 6, Section 6.2 (Wheel Odometry)
 
 if __name__ == "__main__":
     main()
-

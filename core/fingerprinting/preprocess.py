@@ -98,9 +98,7 @@ def average_scans(
         # Trimmed mean: remove extreme values, then average
         # Good balance between robustness and efficiency
         if not 0.0 <= trim_percent < 0.5:
-            raise ValueError(
-                f"trim_percent must be in [0.0, 0.5), got {trim_percent}"
-            )
+            raise ValueError(f"trim_percent must be in [0.0, 0.5), got {trim_percent}")
 
         S, N = scans.shape
         result = np.zeros(N)
@@ -219,7 +217,9 @@ def normalize_fingerprint(
                 # Per-feature normalization (ref_mean is array)
                 pass
             else:
-                raise ValueError(f"ref_mean shape {ref_mean.shape} incompatible with z shape {z.shape}")
+                raise ValueError(
+                    f"ref_mean shape {ref_mean.shape} incompatible with z shape {z.shape}"
+                )
 
         if ref_std is None:
             ref_std = np.nanstd(z, ddof=1)
@@ -235,7 +235,9 @@ def normalize_fingerprint(
                 # Replace zeros/NaNs with 1.0
                 ref_std = np.where((ref_std == 0) | np.isnan(ref_std), 1.0, ref_std)
             else:
-                raise ValueError(f"ref_std shape {ref_std.shape} incompatible with z shape {z.shape}")
+                raise ValueError(
+                    f"ref_std shape {ref_std.shape} incompatible with z shape {z.shape}"
+                )
 
         # Normalize
         z_norm = (z - ref_mean) / ref_std
@@ -263,14 +265,18 @@ def normalize_fingerprint(
         else:
             ref_min = np.asarray(ref_min)
             if ref_min.ndim > 0 and ref_min.shape != z.shape:
-                raise ValueError(f"ref_min shape {ref_min.shape} incompatible with z shape {z.shape}")
+                raise ValueError(
+                    f"ref_min shape {ref_min.shape} incompatible with z shape {z.shape}"
+                )
 
         if ref_max is None:
             ref_max = np.nanmax(z)
         else:
             ref_max = np.asarray(ref_max)
             if ref_max.ndim > 0 and ref_max.shape != z.shape:
-                raise ValueError(f"ref_max shape {ref_max.shape} incompatible with z shape {z.shape}")
+                raise ValueError(
+                    f"ref_max shape {ref_max.shape} incompatible with z shape {z.shape}"
+                )
 
         # Avoid division by zero
         range_val = ref_max - ref_min
@@ -289,7 +295,9 @@ def normalize_fingerprint(
                 "method": "minmax",
                 "min": ref_min.copy(),
                 "max": ref_max.copy(),
-                "range": range_val.copy() if isinstance(range_val, np.ndarray) else range_val,
+                "range": (
+                    range_val.copy() if isinstance(range_val, np.ndarray) else range_val
+                ),
             }
         else:
             params = {
@@ -461,4 +469,3 @@ def compute_normalization_params(
 
     else:
         raise ValueError(f"Unknown method '{method}'. Use 'zscore' or 'minmax'.")
-

@@ -313,8 +313,8 @@ def remove_gravity_component(
         # Broadcast gravity_body across batch dimension
         a_true = accel_body - gravity_body[np.newaxis, :]
     else:
-        raise ValueError(f"accel_body must have shape (3,) or (N, 3), got {accel_body.shape}")
+        raise ValueError(
+            f"accel_body must have shape (3,) or (N, 3), got {accel_body.shape}"
+        )
 
     return a_true
-
-

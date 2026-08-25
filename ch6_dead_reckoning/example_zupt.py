@@ -54,14 +54,14 @@ def generate_walking_trajectory(
     """
     Generate walking trajectory with periodic stops (stance phases).
     Uses correct IMU forward model.
-    
+
     Args:
         duration: Total duration [s].
         dt: Time step [s].
         step_freq: Steps per second when walking.
         step_length: Length per step [m].
         frame: Frame convention (default: ENU).
-    
+
     Returns:
         Tuple of (t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask).
     """
@@ -128,12 +128,9 @@ def generate_walking_trajectory(
             yaw[k] = yaw[k - 1]  # Maintain previous heading during stance
 
     # Convert to quaternions (scalar-first, body-to-map)
-    quat_true = np.column_stack([
-        np.cos(yaw / 2),
-        np.zeros(N),
-        np.zeros(N),
-        np.sin(yaw / 2)
-    ])
+    quat_true = np.column_stack(
+        [np.cos(yaw / 2), np.zeros(N), np.zeros(N), np.sin(yaw / 2)]
+    )
 
     # Generate IMU measurements using correct forward model
     accel_body, gyro_body = generate_imu_from_trajectory(
@@ -142,7 +139,7 @@ def generate_walking_trajectory(
         quat_b_to_m=quat_true,
         dt=dt,
         frame=frame,
-        g=9.81
+        g=9.81,
     )
 
     return t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask
@@ -182,19 +179,27 @@ def run_imu_only(t, accel_meas, gyro_meas, initial_state, frame):
     pos_est[0], vel_est[0] = p, v
 
     for k in range(1, N):
-        q, v, p = strapdown_update(q, v, p, gyro_meas[k-1], accel_meas[k-1], dt, frame=frame)
+        q, v, p = strapdown_update(
+            q, v, p, gyro_meas[k - 1], accel_meas[k - 1], dt, frame=frame
+        )
         pos_est[k], vel_est[k] = p, v
 
     return pos_est, vel_est
 
 
 def run_imu_with_zupt(
-    t, accel_meas, gyro_meas, initial_state, frame, imu_params,
-    window_size=10, gamma=1e6
+    t,
+    accel_meas,
+    gyro_meas,
+    initial_state,
+    frame,
+    imu_params,
+    window_size=10,
+    gamma=1e6,
 ):
     """
     Run IMU with ZUPT corrections using windowed detector (Eq. 6.44).
-    
+
     Args:
         t: Time array [s].
         accel_meas: Measured acceleration [m/s²], shape (N, 3).
@@ -204,7 +209,7 @@ def run_imu_with_zupt(
         imu_params: IMUNoiseParams with noise specifications.
         window_size: ZUPT detector window size (samples). Default: 10.
         gamma: ZUPT detection threshold. Default: 1e6.
-    
+
     Returns:
         Tuple of (pos_est, vel_est, zupt_detections).
     """
@@ -226,7 +231,9 @@ def run_imu_with_zupt(
 
     for k in range(1, N):
         # Propagate
-        q, v, p = strapdown_update(q, v, p, gyro_meas[k-1], accel_meas[k-1], dt, frame=frame)
+        q, v, p = strapdown_update(
+            q, v, p, gyro_meas[k - 1], accel_meas[k - 1], dt, frame=frame
+        )
 
         # ZUPT detection using windowed test statistic (Eq. 6.44)
         # Build window centered at current sample
@@ -250,11 +257,12 @@ def run_imu_with_zupt(
         # Detect ZUPT if window has enough samples
         if len(accel_window) >= window_size // 2:
             is_stationary = detect_zupt_windowed(
-                accel_window, gyro_window,
+                accel_window,
+                gyro_window,
                 sigma_a=sigma_a,
                 sigma_g=sigma_g,
                 gamma=gamma,
-                g=9.81
+                g=9.81,
             )
         else:
             is_stationary = False
@@ -271,15 +279,21 @@ def run_imu_with_zupt(
 
 
 def run_imu_with_zupt_ekf(
-    t, accel_meas, gyro_meas, initial_state, frame, imu_params,
-    window_size=10, gamma=10.0
+    t,
+    accel_meas,
+    gyro_meas,
+    initial_state,
+    frame,
+    imu_params,
+    window_size=10,
+    gamma=10.0,
 ):
     """
     Run IMU with ZUPT corrections using EKF (Eqs. 6.40-6.43 + 6.45).
-    
+
     This is the proper implementation that uses Kalman filter measurement
     update instead of hard-coding v=0.
-    
+
     Args:
         t: Time array [s].
         accel_meas: Measured acceleration [m/s²], shape (N, 3).
@@ -289,7 +303,7 @@ def run_imu_with_zupt_ekf(
         imu_params: IMUNoiseParams with noise specifications.
         window_size: ZUPT detector window size (samples). Default: 10.
         gamma: ZUPT detection threshold. Default: 10.0.
-    
+
     Returns:
         Tuple of (pos_est, vel_est, zupt_detections).
     """
@@ -299,9 +313,7 @@ def run_imu_with_zupt_ekf(
     # Initialize EKF (sigma_zupt = 0.001 makes ZUPT measurements highly trusted)
     ekf = ZUPT_EKF(frame=frame, imu_params=imu_params, sigma_zupt=0.001)
     state = ekf.initialize(
-        p0=initial_state.p.copy(),
-        v0=initial_state.v.copy(),
-        q0=initial_state.q.copy()
+        p0=initial_state.p.copy(), v0=initial_state.v.copy(), q0=initial_state.q.copy()
     )
 
     pos_est = np.zeros((N, 3))
@@ -316,7 +328,7 @@ def run_imu_with_zupt_ekf(
 
     for k in range(1, N):
         # EKF Prediction Step
-        state = ekf.predict(state, gyro_meas[k-1], accel_meas[k-1], dt)
+        state = ekf.predict(state, gyro_meas[k - 1], accel_meas[k - 1], dt)
 
         # ZUPT detection using raw measurements (bias-agnostic detector)
         window_start = max(0, k - window_size // 2)
@@ -328,11 +340,12 @@ def run_imu_with_zupt_ekf(
         # Detect ZUPT if window has enough samples
         if len(accel_window) >= window_size // 2:
             is_stationary = detect_zupt_windowed(
-                accel_window, gyro_window,
+                accel_window,
+                gyro_window,
                 sigma_a=sigma_a,
                 sigma_g=sigma_g,
                 gamma=gamma,
-                g=9.81
+                g=9.81,
             )
         else:
             is_stationary = False
@@ -348,8 +361,17 @@ def run_imu_with_zupt_ekf(
     return pos_est, vel_est, zupt_detections
 
 
-def plot_results(t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
-                 zupt_detections, stance_mask, figs_dir):
+def plot_results(
+    t,
+    pos_true,
+    pos_imu,
+    pos_zupt,
+    vel_imu,
+    vel_zupt,
+    zupt_detections,
+    stance_mask,
+    figs_dir,
+):
     """Generate publication-quality plots."""
 
     # Compute errors
@@ -358,35 +380,81 @@ def plot_results(t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
 
     # Figure 1: Trajectory comparison
     fig1, ax1 = plt.subplots(figsize=(12, 8))
-    ax1.plot(pos_true[:, 0], pos_true[:, 1], 'k-', linewidth=3, label='True Trajectory', zorder=1)
-    ax1.plot(pos_imu[:, 0], pos_imu[:, 1], 'r--', linewidth=2, alpha=0.7, label='IMU only (no ZUPT)', zorder=2)
-    ax1.plot(pos_zupt[:, 0], pos_zupt[:, 1], 'g-', linewidth=2, label='IMU + ZUPT', zorder=3)
-    ax1.scatter(pos_true[0, 0], pos_true[0, 1], c='blue', s=150, marker='o', label='Start', zorder=5)
-    ax1.scatter(pos_true[-1, 0], pos_true[-1, 1], c='red', s=150, marker='s', label='End', zorder=5)
-    ax1.set_xlabel('East [m]', fontsize=12)
-    ax1.set_ylabel('North [m]', fontsize=12)
-    ax1.set_title('ZUPT Example: Trajectory Comparison (Walking with Stops)', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=11, loc='best')
+    ax1.plot(
+        pos_true[:, 0],
+        pos_true[:, 1],
+        "k-",
+        linewidth=3,
+        label="True Trajectory",
+        zorder=1,
+    )
+    ax1.plot(
+        pos_imu[:, 0],
+        pos_imu[:, 1],
+        "r--",
+        linewidth=2,
+        alpha=0.7,
+        label="IMU only (no ZUPT)",
+        zorder=2,
+    )
+    ax1.plot(
+        pos_zupt[:, 0], pos_zupt[:, 1], "g-", linewidth=2, label="IMU + ZUPT", zorder=3
+    )
+    ax1.scatter(
+        pos_true[0, 0],
+        pos_true[0, 1],
+        c="blue",
+        s=150,
+        marker="o",
+        label="Start",
+        zorder=5,
+    )
+    ax1.scatter(
+        pos_true[-1, 0],
+        pos_true[-1, 1],
+        c="red",
+        s=150,
+        marker="s",
+        label="End",
+        zorder=5,
+    )
+    ax1.set_xlabel("East [m]", fontsize=12)
+    ax1.set_ylabel("North [m]", fontsize=12)
+    ax1.set_title(
+        "ZUPT Example: Trajectory Comparison (Walking with Stops)",
+        fontsize=14,
+        fontweight="bold",
+    )
+    ax1.legend(fontsize=11, loc="best")
     ax1.grid(True, alpha=0.3)
-    ax1.axis('equal')
+    ax1.axis("equal")
     plt.tight_layout()
-    paths = save_figure(fig1, figs_dir, 'zupt_trajectory')
+    paths = save_figure(fig1, figs_dir, "zupt_trajectory")
     print(f"  [OK] Saved: {paths[0]}")
 
     # Figure 2: Position error comparison
     fig2, ax2 = plt.subplots(figsize=(12, 6))
-    ax2.plot(t, error_imu, 'r-', linewidth=2, label='IMU only (no ZUPT)', alpha=0.8)
-    ax2.plot(t, error_zupt, 'g-', linewidth=2, label='IMU + ZUPT')
-    ax2.fill_between(t, 0, np.max(error_imu)*1.1, where=stance_mask,
-                     alpha=0.2, color='gray', label='True stance phases')
-    ax2.set_xlabel('Time [s]', fontsize=12)
-    ax2.set_ylabel('Position Error [m]', fontsize=12)
-    ax2.set_title('ZUPT Example: Position Error vs Time', fontsize=14, fontweight='bold')
+    ax2.plot(t, error_imu, "r-", linewidth=2, label="IMU only (no ZUPT)", alpha=0.8)
+    ax2.plot(t, error_zupt, "g-", linewidth=2, label="IMU + ZUPT")
+    ax2.fill_between(
+        t,
+        0,
+        np.max(error_imu) * 1.1,
+        where=stance_mask,
+        alpha=0.2,
+        color="gray",
+        label="True stance phases",
+    )
+    ax2.set_xlabel("Time [s]", fontsize=12)
+    ax2.set_ylabel("Position Error [m]", fontsize=12)
+    ax2.set_title(
+        "ZUPT Example: Position Error vs Time", fontsize=14, fontweight="bold"
+    )
     ax2.legend(fontsize=11)
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim([0, t[-1]])
     plt.tight_layout()
-    paths = save_figure(fig2, figs_dir, 'zupt_error_time')
+    paths = save_figure(fig2, figs_dir, "zupt_error_time")
     print(f"  [OK] Saved: {paths[0]}")
 
     # Figure 3: ZUPT detector performance
@@ -395,38 +463,52 @@ def plot_results(t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
     # Velocity magnitude
     vel_mag_imu = np.linalg.norm(vel_imu, axis=1)
     vel_mag_zupt = np.linalg.norm(vel_zupt, axis=1)
-    ax3a.plot(t, vel_mag_imu, 'r-', linewidth=1.5, label='IMU only', alpha=0.7)
-    ax3a.plot(t, vel_mag_zupt, 'g-', linewidth=2, label='IMU + ZUPT')
-    ax3a.fill_between(t, 0, np.max(vel_mag_imu)*1.1, where=stance_mask,
-                      alpha=0.2, color='gray', label='True stance')
-    ax3a.set_ylabel('Velocity [m/s]', fontsize=12)
-    ax3a.set_title('ZUPT Example: Velocity and Detector Timeline', fontsize=14, fontweight='bold')
+    ax3a.plot(t, vel_mag_imu, "r-", linewidth=1.5, label="IMU only", alpha=0.7)
+    ax3a.plot(t, vel_mag_zupt, "g-", linewidth=2, label="IMU + ZUPT")
+    ax3a.fill_between(
+        t,
+        0,
+        np.max(vel_mag_imu) * 1.1,
+        where=stance_mask,
+        alpha=0.2,
+        color="gray",
+        label="True stance",
+    )
+    ax3a.set_ylabel("Velocity [m/s]", fontsize=12)
+    ax3a.set_title(
+        "ZUPT Example: Velocity and Detector Timeline", fontsize=14, fontweight="bold"
+    )
     ax3a.legend(fontsize=10)
     ax3a.grid(True, alpha=0.3)
 
     # ZUPT detections
-    ax3b.fill_between(t, 0, 1, where=stance_mask, alpha=0.3, color='gray', label='True stance')
-    ax3b.fill_between(t, 0, 1, where=zupt_detections, alpha=0.5, color='green', label='ZUPT detected')
-    ax3b.set_xlabel('Time [s]', fontsize=12)
-    ax3b.set_ylabel('Detection', fontsize=12)
+    ax3b.fill_between(
+        t, 0, 1, where=stance_mask, alpha=0.3, color="gray", label="True stance"
+    )
+    ax3b.fill_between(
+        t, 0, 1, where=zupt_detections, alpha=0.5, color="green", label="ZUPT detected"
+    )
+    ax3b.set_xlabel("Time [s]", fontsize=12)
+    ax3b.set_ylabel("Detection", fontsize=12)
     ax3b.set_ylim([-0.1, 1.1])
     ax3b.set_yticks([0, 1])
-    ax3b.set_yticklabels(['Moving', 'Stationary'])
-    ax3b.legend(fontsize=10, loc='upper right')
-    ax3b.grid(True, alpha=0.3, axis='x')
+    ax3b.set_yticklabels(["Moving", "Stationary"])
+    ax3b.legend(fontsize=10, loc="upper right")
+    ax3b.grid(True, alpha=0.3, axis="x")
     ax3b.set_xlim([0, t[-1]])
 
     plt.tight_layout()
-    paths = save_figure(fig3, figs_dir, 'zupt_detector_timeline')
+    paths = save_figure(fig3, figs_dir, "zupt_detector_timeline")
     print(f"  [OK] Saved: {paths[0]}")
 
-    plt.close('all')
+    plt.close("all")
 
     return error_imu, error_zupt
 
 
-def animate_zupt_drift(t, pos_true, pos_imu, pos_zupt, stance_mask,
-                       zupt_detections, n_frames: int = 40):
+def animate_zupt_drift(
+    t, pos_true, pos_imu, pos_zupt, stance_mask, zupt_detections, n_frames: int = 40
+):
     """Build the ZUPT drift animation, Section 6.5.
 
     Dead reckoning fails *over time* -- that is the whole point of the chapter,
@@ -477,16 +559,45 @@ def animate_zupt_drift(t, pos_true, pos_imu, pos_zupt, stance_mask,
         for ax in axes:
             ax.clear()
 
-        axes[0].plot(pos_true[:end, 0], pos_true[:end, 1], "k-",
-                     linewidth=2.0, label="ground truth")
-        axes[0].plot(pos_imu[:end, 0], pos_imu[:end, 1], "-",
-                     color="#d62728", linewidth=1.6, label="IMU only")
-        axes[0].plot(pos_zupt[:end, 0], pos_zupt[:end, 1], "-",
-                     color="#1f77b4", linewidth=1.6, label="IMU + ZUPT")
-        axes[0].plot(pos_imu[end - 1, 0], pos_imu[end - 1, 1], "o",
-                     color="#d62728", markersize=7, markeredgecolor="k")
-        axes[0].plot(pos_zupt[end - 1, 0], pos_zupt[end - 1, 1], "o",
-                     color="#1f77b4", markersize=7, markeredgecolor="k")
+        axes[0].plot(
+            pos_true[:end, 0],
+            pos_true[:end, 1],
+            "k-",
+            linewidth=2.0,
+            label="ground truth",
+        )
+        axes[0].plot(
+            pos_imu[:end, 0],
+            pos_imu[:end, 1],
+            "-",
+            color="#d62728",
+            linewidth=1.6,
+            label="IMU only",
+        )
+        axes[0].plot(
+            pos_zupt[:end, 0],
+            pos_zupt[:end, 1],
+            "-",
+            color="#1f77b4",
+            linewidth=1.6,
+            label="IMU + ZUPT",
+        )
+        axes[0].plot(
+            pos_imu[end - 1, 0],
+            pos_imu[end - 1, 1],
+            "o",
+            color="#d62728",
+            markersize=7,
+            markeredgecolor="k",
+        )
+        axes[0].plot(
+            pos_zupt[end - 1, 0],
+            pos_zupt[end - 1, 1],
+            "o",
+            color="#1f77b4",
+            markersize=7,
+            markeredgecolor="k",
+        )
         axes[0].set_xlim(*xlim)
         axes[0].set_ylim(*ylim)
         axes[0].set_aspect("equal")
@@ -501,12 +612,29 @@ def animate_zupt_drift(t, pos_true, pos_imu, pos_zupt, stance_mask,
         )
 
         # Zoomed to the walk, where the ZUPT track is actually legible.
-        axes[1].plot(pos_true[:end, 0], pos_true[:end, 1], "k-",
-                     linewidth=2.0, label="ground truth")
-        axes[1].plot(pos_zupt[:end, 0], pos_zupt[:end, 1], "-",
-                     color="#1f77b4", linewidth=1.6, label="IMU + ZUPT")
-        axes[1].plot(pos_zupt[end - 1, 0], pos_zupt[end - 1, 1], "o",
-                     color="#1f77b4", markersize=7, markeredgecolor="k")
+        axes[1].plot(
+            pos_true[:end, 0],
+            pos_true[:end, 1],
+            "k-",
+            linewidth=2.0,
+            label="ground truth",
+        )
+        axes[1].plot(
+            pos_zupt[:end, 0],
+            pos_zupt[:end, 1],
+            "-",
+            color="#1f77b4",
+            linewidth=1.6,
+            label="IMU + ZUPT",
+        )
+        axes[1].plot(
+            pos_zupt[end - 1, 0],
+            pos_zupt[end - 1, 1],
+            "o",
+            color="#1f77b4",
+            markersize=7,
+            markeredgecolor="k",
+        )
         axes[1].set_xlim(*zoom_xlim)
         axes[1].set_ylim(*zoom_ylim)
         axes[1].set_aspect("equal")
@@ -518,14 +646,32 @@ def animate_zupt_drift(t, pos_true, pos_imu, pos_zupt, stance_mask,
             "zoom: ZUPT vs truth (IMU-only is off this scale)", fontsize=10
         )
 
-        axes[2].plot(t[:end], error_imu[:end], "-", color="#d62728",
-                     linewidth=1.6, label="IMU only")
-        axes[2].plot(t[:end], error_zupt[:end], "-", color="#1f77b4",
-                     linewidth=1.6, label="IMU + ZUPT")
+        axes[2].plot(
+            t[:end],
+            error_imu[:end],
+            "-",
+            color="#d62728",
+            linewidth=1.6,
+            label="IMU only",
+        )
+        axes[2].plot(
+            t[:end],
+            error_zupt[:end],
+            "-",
+            color="#1f77b4",
+            linewidth=1.6,
+            label="IMU + ZUPT",
+        )
         # Shade the stance phases: this is where the correction happens.
-        axes[2].fill_between(t[:end], 0, max_error,
-                             where=stance_mask[:end], color="0.85",
-                             step="mid", zorder=0)
+        axes[2].fill_between(
+            t[:end],
+            0,
+            max_error,
+            where=stance_mask[:end],
+            color="0.85",
+            step="mid",
+            zorder=0,
+        )
         axes[2].set_xlim(t[0], t[-1])
         axes[2].set_ylim(0, max_error)
         axes[2].grid(alpha=0.3)
@@ -558,9 +704,9 @@ def main(animate: bool = False):
     # Set random seed for reproducibility
     np.random.seed(42)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Chapter 6: Zero-Velocity Update (ZUPT) for Foot-Mounted IMU")
-    print("="*70)
+    print("=" * 70)
     print("\nDemonstrates drift elimination using ZUPT during stance phases.")
     print("Key equations: 6.44 (ZUPT detection), 6.45 (ZUPT correction)\n")
 
@@ -586,8 +732,8 @@ def main(animate: bool = False):
 
     # Generate trajectory with correct IMU forward model
     print("Generating walking trajectory with stance phases...")
-    t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask = generate_walking_trajectory(
-        duration, dt, step_freq, step_length, frame
+    t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask = (
+        generate_walking_trajectory(duration, dt, step_freq, step_length, frame)
     )
 
     total_distance = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
@@ -617,8 +763,14 @@ def main(animate: bool = False):
     print("\nRunning IMU + ZUPT-EKF (Kalman filter update)...")
     start = time.time()
     pos_zupt, vel_zupt, zupt_detections = run_imu_with_zupt_ekf(
-        t, accel_meas, gyro_meas, initial_state, frame, imu_params,
-        window_size=10, gamma=1000.0  # Much higher threshold for noisy consumer IMU
+        t,
+        accel_meas,
+        gyro_meas,
+        initial_state,
+        frame,
+        imu_params,
+        window_size=10,
+        gamma=1000.0,  # Much higher threshold for noisy consumer IMU
     )
     elapsed_zupt = time.time() - start
     detection_rate = np.sum(zupt_detections) / len(zupt_detections) * 100
@@ -627,14 +779,21 @@ def main(animate: bool = False):
     print("  Method:           EKF measurement update (not hard-coded v=0)")
 
     # Create output directory
-    figs_dir = Path(__file__).parent / 'figs'
+    figs_dir = Path(__file__).parent / "figs"
     figs_dir.mkdir(exist_ok=True)
 
     # Generate plots
     print("\nGenerating plots...")
     error_imu, error_zupt = plot_results(
-        t, pos_true, pos_imu, pos_zupt, vel_imu, vel_zupt,
-        zupt_detections, stance_mask, figs_dir
+        t,
+        pos_true,
+        pos_imu,
+        pos_zupt,
+        vel_imu,
+        vel_zupt,
+        zupt_detections,
+        stance_mask,
+        figs_dir,
     )
 
     # Compute metrics
@@ -642,18 +801,22 @@ def main(animate: bool = False):
     final_error_zupt = error_zupt[-1]
     rmse_imu = np.sqrt(np.mean(error_imu**2))
     rmse_zupt = np.sqrt(np.mean(error_zupt**2))
-    improvement = (1 - rmse_zupt/rmse_imu) * 100
+    improvement = (1 - rmse_zupt / rmse_imu) * 100
 
     # Print results
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("RESULTS")
-    print("="*70)
+    print("=" * 70)
     print("IMU-only (no ZUPT):")
-    print(f"  Final error:  {final_error_imu:.2f} m ({final_error_imu/total_distance*100:.1f}% of distance)")
+    print(
+        f"  Final error:  {final_error_imu:.2f} m ({final_error_imu/total_distance*100:.1f}% of distance)"
+    )
     print(f"  RMSE:         {rmse_imu:.2f} m")
     print()
     print("IMU + ZUPT:")
-    print(f"  Final error:  {final_error_zupt:.2f} m ({final_error_zupt/total_distance*100:.1f}% of distance)")
+    print(
+        f"  Final error:  {final_error_zupt:.2f} m ({final_error_zupt/total_distance*100:.1f}% of distance)"
+    )
     print(f"  RMSE:         {rmse_zupt:.2f} m")
     print()
     print(f"Improvement:    {improvement:.1f}% reduction in RMSE")
@@ -663,20 +826,19 @@ def main(animate: bool = False):
         fig, update, n_frames = animate_zupt_drift(
             t, pos_true, pos_imu, pos_zupt, stance_mask, zupt_detections
         )
-        path = save_animation(fig, update, n_frames, figs_dir,
-                              "ch6_zupt_drift", fps=5)
+        path = save_animation(fig, update, n_frames, figs_dir, "ch6_zupt_drift", fps=5)
         plt.close(fig)
         size_mb = path.stat().st_size / (1024 * 1024)
         print(f"  [OK] Saved: {path} ({n_frames} frames, {size_mb:.2f} MB)")
 
     print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
-    print("="*70)
+    print("=" * 70)
     print("KEY INSIGHT: ZUPT-EKF corrects velocity drift using Kalman updates!")
     print("             Eqs. 6.40-6.43 (Kalman filter) + Eq. 6.45 (ZUPT measurement)")
     print("             Essential for foot-mounted IMU navigation.")
     print("             Typical improvement: >90% error reduction.")
-    print("="*70)
+    print("=" * 70)
     print()
     show_figures_if_requested()
 
@@ -686,9 +848,9 @@ if __name__ == "__main__":
         description="ZUPT for foot-mounted IMU (Chapter 6)"
     )
     parser.add_argument(
-        "--animate", action="store_true", default=False,
-        help="Also render the drift animation GIF (slower)"
+        "--animate",
+        action="store_true",
+        default=False,
+        help="Also render the drift animation GIF (slower)",
     )
     main(animate=parser.parse_args().animate)
-
-

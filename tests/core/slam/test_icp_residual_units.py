@@ -69,7 +69,9 @@ class TestResidualIsAnRmsDistance(unittest.TestCase):
             _, _, residual, _ = icp_point_to_point(scan, target, max_iterations=50)
             residuals[n] = residual
 
-        self.assertAlmostEqual(residuals[100], residuals[400], delta=0.3 * residuals[100])
+        self.assertAlmostEqual(
+            residuals[100], residuals[400], delta=0.3 * residuals[100]
+        )
 
     def test_residual_tracks_the_noise_it_is_measuring(self):
         """It is in metres, so it should read like the displacement it sees."""
@@ -111,16 +113,19 @@ class TestCorrespondenceGatingPreventsDivergence(unittest.TestCase):
         """Documents why the gate is needed, so the next test means something."""
         source, target = self._partial_overlap()
         _, _, ungated, _ = icp_point_to_point(
-            source, target, max_iterations=50, max_correspondence_distance=None)
+            source, target, max_iterations=50, max_correspondence_distance=None
+        )
         _, _, gated, _ = icp_point_to_point(
-            source, target, max_iterations=50, max_correspondence_distance=1.0)
+            source, target, max_iterations=50, max_correspondence_distance=1.0
+        )
 
         self.assertLess(gated, ungated)
 
     def test_gating_keeps_the_alignment_near_the_truth(self):
         source, target = self._partial_overlap()
         pose, _, residual, _ = icp_point_to_point(
-            source, target, max_iterations=50, max_correspondence_distance=1.0)
+            source, target, max_iterations=50, max_correspondence_distance=1.0
+        )
 
         self.assertLess(np.linalg.norm(pose[:2]), 1.0)
         self.assertLess(residual, 0.5)

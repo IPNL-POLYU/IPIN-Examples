@@ -93,23 +93,23 @@ Example:
     ...     strapdown_update
     ... )
     >>> import numpy as np
-    >>> 
+    >>>
     >>> # Create IMU data packet
     >>> t = np.linspace(0, 1, 100)
     >>> accel = np.random.randn(100, 3) * 0.1 + [0, 0, -9.81]
     >>> gyro = np.random.randn(100, 3) * 0.01
     >>> imu = ImuSeries(t=t, accel=accel, gyro=gyro, meta={'sample_rate_hz': 100})
-    >>> 
+    >>>
     >>> # Create navigation state
     >>> q0 = np.array([1.0, 0.0, 0.0, 0.0])  # identity quaternion
     >>> state = NavStateQPVP(q=q0, v=np.zeros(3), p=np.zeros(3))
-    >>> 
+    >>>
     >>> # Correct IMU measurements
     >>> bias_g = np.array([0.001, -0.0005, 0.0002])
     >>> bias_a = np.array([0.01, -0.005, 0.02])
     >>> omega = correct_gyro(gyro[0, :], bias_g)
     >>> f_b = correct_accel(accel[0, :], bias_a)
-    >>> 
+    >>>
     >>> # Strapdown integration step
     >>> dt = t[1] - t[0]
     >>> q1, v1, p1 = strapdown_update(state.q, state.v, state.p, omega, f_b, dt)
@@ -276,4 +276,3 @@ __all__ = [
 ]
 
 __version__ = "1.0.0"
-

@@ -78,9 +78,7 @@ class TestAllanVariance(unittest.TestCase):
         taus_fixed = np.logspace(-1, 0, 20)
 
         taus_over, adev_over = allan_variance(x, fs, taus=taus_fixed, overlapping=True)
-        taus_non, adev_non = allan_variance(
-            x, fs, taus=taus_fixed, overlapping=False
-        )
+        taus_non, adev_non = allan_variance(x, fs, taus=taus_fixed, overlapping=False)
 
         # Both should produce results
         assert len(adev_over) > 0
@@ -325,7 +323,9 @@ class TestCharacterizeImuNoise(unittest.TestCase):
         assert "gyro" in results
         assert "accel" in results
         assert isinstance(results["gyro"]["angle_random_walk"], (float, np.floating))
-        assert isinstance(results["accel"]["velocity_random_walk"], (float, np.floating))
+        assert isinstance(
+            results["accel"]["velocity_random_walk"], (float, np.floating)
+        )
 
     def test_characterize_imu_realistic_parameters(self) -> None:
         """Test with realistic IMU noise parameters."""
@@ -616,4 +616,3 @@ class TestEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

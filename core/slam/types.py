@@ -200,13 +200,9 @@ class CameraIntrinsics:
         if self.height <= 0:
             raise ValueError(f"height must be positive, got {self.height}")
         if not (0 <= self.cx < self.width):
-            raise ValueError(
-                f"cx must be in [0, {self.width}), got {self.cx}"
-            )
+            raise ValueError(f"cx must be in [0, {self.width}), got {self.cx}")
         if not (0 <= self.cy < self.height):
-            raise ValueError(
-                f"cy must be in [0, {self.height}), got {self.cy}"
-            )
+            raise ValueError(f"cy must be in [0, {self.height}), got {self.cy}")
 
     def to_matrix(self) -> np.ndarray:
         """
@@ -257,5 +253,3 @@ class CameraIntrinsics:
             f"distortion=[k1={self.k1:.4f}, k2={self.k2:.4f}, k3={self.k3:.4f}, "
             f"p1={self.p1:.4f}, p2={self.p2:.4f}])"
         )
-
-

@@ -190,9 +190,9 @@ class TestMagHeading(unittest.TestCase):
 
                 recovered = mag_heading(mag, 0.0, 0.0, frame=frame)
 
-                assert np.isclose(recovered, psi, atol=1e-9), (
-                    f"{frame.map_frame}: {psi} -> {direction} -> {recovered}"
-                )
+                assert np.isclose(
+                    recovered, psi, atol=1e-9
+                ), f"{frame.map_frame}: {psi} -> {direction} -> {recovered}"
 
     def test_mag_heading_with_declination(self) -> None:
         """Test heading with magnetic declination correction."""
@@ -225,20 +225,32 @@ class TestMagHeading(unittest.TestCase):
         tilt body = Ry(pitch) @ Rx(roll) @ level, then checks the recovered
         heading is the same for any tilt.
         """
+
         def Rx(a):
-            return np.array([[1, 0, 0], [0, np.cos(a), np.sin(a)], [0, -np.sin(a), np.cos(a)]])
+            return np.array(
+                [[1, 0, 0], [0, np.cos(a), np.sin(a)], [0, -np.sin(a), np.cos(a)]]
+            )
 
         def Ry(a):
-            return np.array([[np.cos(a), 0, -np.sin(a)], [0, 1, 0], [np.sin(a), 0, np.cos(a)]])
+            return np.array(
+                [[np.cos(a), 0, -np.sin(a)], [0, 1, 0], [np.sin(a), 0, np.cos(a)]]
+            )
 
         m_level = np.array([18.0, 7.0, 35.0])
         target = np.arctan2(m_level[1], m_level[0])
-        for roll, pitch in [(0.0, 0.0), (0.3, 0.0), (0.0, 0.4), (0.3, -0.4), (-0.5, 0.6), (0.7, 0.7)]:
+        for roll, pitch in [
+            (0.0, 0.0),
+            (0.3, 0.0),
+            (0.0, 0.4),
+            (0.3, -0.4),
+            (-0.5, 0.6),
+            (0.7, 0.7),
+        ]:
             mag_b = Ry(pitch) @ Rx(roll) @ m_level
             heading = mag_heading(mag_b, roll, pitch)
-            assert np.isclose(heading, target, atol=1e-9), (
-                f"heading not tilt-invariant at roll={roll}, pitch={pitch}"
-            )
+            assert np.isclose(
+                heading, target, atol=1e-9
+            ), f"heading not tilt-invariant at roll={roll}, pitch={pitch}"
 
     def test_mag_heading_wrapping(self) -> None:
         """Test that heading is wrapped to [-π, π]."""
@@ -565,4 +577,3 @@ class TestEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

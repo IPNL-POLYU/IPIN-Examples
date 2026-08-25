@@ -18,9 +18,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.fusion import TimeSyncModel
 
 
-def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_uwb_timeoffset"):
+def verify_temporal_calibration(
+    dataset_path: str = "data/sim/ch8_fusion_2d_imu_uwb_timeoffset",
+):
     """Verify that temporal calibration is real, not cosmetic.
-    
+
     Args:
         dataset_path: Path to the timeoffset dataset
     """
@@ -35,11 +37,12 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
 
     # Load config
     import json
+
     with open(dataset_path / "config.json") as f:
         config = json.load(f)
 
-    time_offset = config['temporal_calibration']['time_offset_sec']
-    clock_drift = config['temporal_calibration']['clock_drift']
+    time_offset = config["temporal_calibration"]["time_offset_sec"]
+    clock_drift = config["temporal_calibration"]["clock_drift"]
 
     print("\nConfig parameters:")
     print(f"  Time offset: {time_offset*1000:.1f} ms")
@@ -50,9 +53,9 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     imu = np.load(dataset_path / "imu.npz")
     uwb = np.load(dataset_path / "uwb_ranges.npz")
 
-    t_truth = truth['t']
-    t_imu = imu['t']
-    t_uwb_sensor = uwb['t']
+    t_truth = truth["t"]
+    t_imu = imu["t"]
+    t_uwb_sensor = uwb["t"]
 
     print("\nTimestamp ranges:")
     print(f"  Truth: [{t_truth[0]:.3f}, {t_truth[-1]:.3f}] s")
@@ -85,12 +88,16 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     print("\nAt fusion time t=0.0s:")
     print(f"  Expected sensor time: {t_sensor_expected_0:.6f} s")
     print(f"  Actual sensor time:   {t_sensor_actual_0:.6f} s")
-    print(f"  Difference:           {abs(t_sensor_actual_0 - t_sensor_expected_0)*1000:.3f} ms")
+    print(
+        f"  Difference:           {abs(t_sensor_actual_0 - t_sensor_expected_0)*1000:.3f} ms"
+    )
 
     print("\nAt fusion time t~10.0s:")
     print(f"  Expected sensor time: {t_sensor_expected_10:.6f} s")
     print(f"  Actual sensor time:   {t_sensor_actual_10:.6f} s")
-    print(f"  Difference:           {abs(t_sensor_actual_10 - t_sensor_expected_10)*1000:.3f} ms")
+    print(
+        f"  Difference:           {abs(t_sensor_actual_10 - t_sensor_expected_10)*1000:.3f} ms"
+    )
 
     # Check that UWB timestamps ARE different from fusion time
     offset_at_start = t_uwb_sensor[0] - t_truth[0]
@@ -101,12 +108,14 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     # At t_fusion=0: t_sensor ≈ 0.05 / 1.0001 ≈ 0.04999
     # So sensor is ahead by ~50ms (because offset is negative = sensor behind fusion)
 
-    test1_pass = abs(offset_at_start*1000 - (-time_offset*1000)) < 1.0  # Within 1ms
+    test1_pass = abs(offset_at_start * 1000 - (-time_offset * 1000)) < 1.0  # Within 1ms
 
     if test1_pass:
         print("[PASS] TEST 1 PASSED: UWB timestamps are in sensor time")
     else:
-        print("[FAIL] TEST 1 FAILED: UWB timestamps appear to be in fusion time (cosmetic offset)")
+        print(
+            "[FAIL] TEST 1 FAILED: UWB timestamps appear to be in fusion time (cosmetic offset)"
+        )
 
     # ========================================================================
     # TEST 2: Verify that drift accumulates over time
@@ -137,9 +146,11 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
         error = abs(t_sens_actual - t_sens_expected) * 1000
         drift_errors.append(error)
 
-        print(f"  t_fusion={t_fus:5.1f}s: sensor={t_sens_actual:7.4f}s, "
-              f"expected={t_sens_expected:7.4f}s, error={error:.3f}ms, "
-              f"drift_contrib={drift_contribution*1000:.2f}ms")
+        print(
+            f"  t_fusion={t_fus:5.1f}s: sensor={t_sens_actual:7.4f}s, "
+            f"expected={t_sens_expected:7.4f}s, error={error:.3f}ms, "
+            f"drift_contrib={drift_contribution*1000:.2f}ms"
+        )
 
     # Drift errors should be small and not grow significantly
     # (errors from nearest-neighbor sampling should dominate, not systematic drift error)
@@ -147,9 +158,13 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     test2_pass = max_drift_error < 2.0  # Within 2ms (generous for UWB rate)
 
     if test2_pass:
-        print(f"[PASS] TEST 2 PASSED: Drift correctly applied (max error {max_drift_error:.3f}ms)")
+        print(
+            f"[PASS] TEST 2 PASSED: Drift correctly applied (max error {max_drift_error:.3f}ms)"
+        )
     else:
-        print(f"[FAIL] TEST 2 FAILED: Drift not correctly applied (max error {max_drift_error:.3f}ms)")
+        print(
+            f"[FAIL] TEST 2 FAILED: Drift not correctly applied (max error {max_drift_error:.3f}ms)"
+        )
 
     # ========================================================================
     # TEST 3: TimeSyncModel can recover fusion time
@@ -168,7 +183,7 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
 
     # Expected: The recovered fusion times should be close to the original fusion time grid
     # UWB was sampled at 10 Hz starting at fusion t=0, so fusion grid is [0, 0.1, 0.2, 0.3, 0.4, ...]
-    uwb_rate = config['uwb']['rate_hz']
+    uwb_rate = config["uwb"]["rate_hz"]
     dt_uwb = 1.0 / uwb_rate
 
     # The generation code samples at np.arange(t[0], t[-1], dt_uwb)
@@ -176,25 +191,33 @@ def verify_temporal_calibration(dataset_path: str = "data/sim/ch8_fusion_2d_imu_
     t_fusion_grid = np.arange(0.0, 0.5, dt_uwb)
 
     print("\nFirst 5 UWB measurements:")
-    print(f"{'Sensor Time':>12} {'Recovered Fusion':>18} {'Expected Fusion':>18} {'Error (ms)':>12}")
+    print(
+        f"{'Sensor Time':>12} {'Recovered Fusion':>18} {'Expected Fusion':>18} {'Error (ms)':>12}"
+    )
     print(f"{'-'*70}")
 
     recovery_errors = []
     for i in range(min(5, len(t_uwb_recovered))):
         error = (t_uwb_recovered[i] - t_fusion_grid[i]) * 1000
         recovery_errors.append(abs(error))
-        print(f"{t_uwb_sensor[i]:12.6f} {t_uwb_recovered[i]:18.6f} "
-              f"{t_fusion_grid[i]:18.6f} {error:12.3f}")
+        print(
+            f"{t_uwb_sensor[i]:12.6f} {t_uwb_recovered[i]:18.6f} "
+            f"{t_fusion_grid[i]:18.6f} {error:12.3f}"
+        )
 
     max_recovery_error = max(recovery_errors)
     test3_pass = max_recovery_error < 0.5  # Within 0.5ms
 
     if test3_pass:
-        print(f"[PASS] TEST 3 PASSED: TimeSyncModel correctly recovers fusion time "
-              f"(max error {max_recovery_error:.3f}ms)")
+        print(
+            f"[PASS] TEST 3 PASSED: TimeSyncModel correctly recovers fusion time "
+            f"(max error {max_recovery_error:.3f}ms)"
+        )
     else:
-        print(f"[FAIL] TEST 3 FAILED: TimeSyncModel does not recover fusion time "
-              f"(max error {max_recovery_error:.3f}ms)")
+        print(
+            f"[FAIL] TEST 3 FAILED: TimeSyncModel does not recover fusion time "
+            f"(max error {max_recovery_error:.3f}ms)"
+        )
 
     # ========================================================================
     # FINAL VERDICT
@@ -230,11 +253,10 @@ if __name__ == "__main__":
         "--dataset",
         type=str,
         default="data/sim/ch8_fusion_2d_imu_uwb_timeoffset",
-        help="Path to timeoffset dataset (default: data/sim/ch8_fusion_2d_imu_uwb_timeoffset)"
+        help="Path to timeoffset dataset (default: data/sim/ch8_fusion_2d_imu_uwb_timeoffset)",
     )
 
     args = parser.parse_args()
 
     exit_code = verify_temporal_calibration(args.dataset)
     sys.exit(exit_code)
-

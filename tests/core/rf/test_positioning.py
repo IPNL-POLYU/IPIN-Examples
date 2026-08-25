@@ -101,9 +101,7 @@ class TestTOAPositioning:
 
         # Solve with clock bias estimation
         initial_guess = np.array([6.0, 6.0, 0.0])  # [x, y, clock_bias]
-        pos, bias, info = toa_solve_with_clock_bias(
-            anchors, ranges, initial_guess
-        )
+        pos, bias, info = toa_solve_with_clock_bias(anchors, ranges, initial_guess)
 
         # Check position accuracy
         assert np.linalg.norm(pos - true_pos) < 1e-3
@@ -225,9 +223,7 @@ class TestTDOAPositioning:
 
         # Solve
         positioner = TDOAPositioner(anchors, reference_idx=0)
-        estimated_pos, info = positioner.solve(
-            tdoa, initial_guess=np.array([6.0, 6.0])
-        )
+        estimated_pos, info = positioner.solve(tdoa, initial_guess=np.array([6.0, 6.0]))
 
         # Should converge to true position
         assert info["converged"]
@@ -249,9 +245,7 @@ class TestTDOAPositioning:
         tdoa = np.array(tdoa) + np.random.randn(3) * 0.05  # 5cm noise
 
         positioner = TDOAPositioner(anchors, reference_idx=0)
-        estimated_pos, info = positioner.solve(
-            tdoa, initial_guess=np.array([5.0, 5.0])
-        )
+        estimated_pos, info = positioner.solve(tdoa, initial_guess=np.array([5.0, 5.0]))
 
         # Should be close to true position
         error = np.linalg.norm(estimated_pos - true_pos)
@@ -273,9 +267,7 @@ class TestTDOAPositioning:
         tdoa = np.array(tdoa)
 
         positioner = TDOAPositioner(anchors, reference_idx=1)
-        estimated_pos, info = positioner.solve(
-            tdoa, initial_guess=np.array([6.0, 6.0])
-        )
+        estimated_pos, info = positioner.solve(tdoa, initial_guess=np.array([6.0, 6.0]))
 
         assert info["converged"]
         assert np.linalg.norm(estimated_pos - true_pos) < 1e-3
@@ -296,9 +288,7 @@ class TestAOAPositioning:
 
         # Solve
         positioner = AOAPositioner(anchors)
-        estimated_pos, info = positioner.solve(
-            aoa, initial_guess=np.array([5.0, 5.0])
-        )
+        estimated_pos, info = positioner.solve(aoa, initial_guess=np.array([5.0, 5.0]))
 
         # Should converge to true position
         assert info["converged"]
@@ -333,9 +323,7 @@ class TestAOAPositioning:
         aoa = aoa_angle_vector(anchors, true_pos, include_elevation=False)
 
         positioner = AOAPositioner(anchors)
-        estimated_pos, info = positioner.solve(
-            aoa, initial_guess=np.array([6.0, 6.0])
-        )
+        estimated_pos, info = positioner.solve(aoa, initial_guess=np.array([6.0, 6.0]))
 
         assert info["converged"]
         assert np.linalg.norm(estimated_pos - true_pos) < 1e-2
@@ -391,8 +379,7 @@ class TestAOAPositioning:
 
         # Solve with sigma_psi (should compute W_a)
         estimated_pos, info = positioner.solve(
-            aoa, initial_guess=np.array([5.0, 5.0]),
-            sigma_psi=np.deg2rad(2.0)
+            aoa, initial_guess=np.array([5.0, 5.0]), sigma_psi=np.deg2rad(2.0)
         )
 
         # Should converge and include weight matrix in info
@@ -415,8 +402,7 @@ class TestAOAPositioning:
         sigma_psi_per_anchor = np.deg2rad([1.0, 2.0, 5.0, 10.0])
 
         estimated_pos, info = positioner.solve(
-            aoa, initial_guess=np.array([5.0, 5.0]),
-            sigma_psi=sigma_psi_per_anchor
+            aoa, initial_guess=np.array([5.0, 5.0]), sigma_psi=sigma_psi_per_anchor
         )
 
         assert info["converged"]
@@ -440,7 +426,8 @@ class TestAOAPositioning:
 
         # Direct tan(psi) std
         estimated_pos, info = positioner.solve(
-            aoa, initial_guess=np.array([5.0, 5.0]),
+            aoa,
+            initial_guess=np.array([5.0, 5.0]),
             sigma_tan_psi=0.1,
             residual="tan",
         )
@@ -457,9 +444,7 @@ class TestAOAPositioning:
         positioner = AOAPositioner(anchors)
 
         with pytest.raises(ValueError, match="residual='tan'"):
-            positioner.solve(
-                aoa, initial_guess=np.array([5.0, 5.0]), sigma_tan_psi=0.1
-            )
+            positioner.solve(aoa, initial_guess=np.array([5.0, 5.0]), sigma_tan_psi=0.1)
 
     def test_aoa_weighting_3d_with_sigmas(self):
         """Test 3D AOA with sigma_theta and sigma_psi weighting."""
@@ -473,9 +458,10 @@ class TestAOAPositioning:
         positioner = AOAPositioner(anchors)
 
         estimated_pos, info = positioner.solve(
-            aoa, initial_guess=np.array([6.0, 6.0, 1.0]),
+            aoa,
+            initial_guess=np.array([6.0, 6.0, 1.0]),
             sigma_theta=np.deg2rad(1.0),
-            sigma_psi=np.deg2rad(2.0)
+            sigma_psi=np.deg2rad(2.0),
         )
 
         assert info["converged"]
@@ -509,15 +495,12 @@ class TestAOAPositioning:
             positioner = AOAPositioner(anchors)
 
             # Unweighted
-            est_uw, _ = positioner.solve(
-                aoa_noisy, initial_guess=np.array([5.0, 5.0])
-            )
+            est_uw, _ = positioner.solve(aoa_noisy, initial_guess=np.array([5.0, 5.0]))
             errors_unweighted.append(np.linalg.norm(est_uw - true_pos))
 
             # Weighted with known noise
             est_w, _ = positioner.solve(
-                aoa_noisy, initial_guess=np.array([5.0, 5.0]),
-                sigma_psi=sigma_rad
+                aoa_noisy, initial_guess=np.array([5.0, 5.0]), sigma_psi=sigma_rad
             )
             errors_weighted.append(np.linalg.norm(est_w - true_pos))
 
@@ -541,9 +524,10 @@ class TestAOAPositioning:
         explicit_weights = np.eye(4) * 5.0
 
         estimated_pos, info = positioner.solve(
-            aoa, initial_guess=np.array([5.0, 5.0]),
+            aoa,
+            initial_guess=np.array([5.0, 5.0]),
             weights=explicit_weights,
-            sigma_psi=np.deg2rad(2.0)  # Should be ignored
+            sigma_psi=np.deg2rad(2.0),  # Should be ignored
         )
 
         # Explicit weights should be used
@@ -563,11 +547,11 @@ class TestAOAPositioning:
 
         # Compute expected variances using error propagation
         # var(tan ψ) = sec^4(ψ) * var(ψ)
-        var_psi = sigma_psi ** 2
+        var_psi = sigma_psi**2
         expected_var = []
         for psi_i in psi:
             sec_sq = 1 + np.tan(psi_i) ** 2
-            expected_var.append(sec_sq ** 2 * var_psi)
+            expected_var.append(sec_sq**2 * var_psi)
 
         expected_weights = 1.0 / np.array(expected_var)
         assert np.allclose(np.diag(W), expected_weights)
@@ -604,8 +588,11 @@ class TestAOAJacobian:
 
         # Compare
         np.testing.assert_allclose(
-            H_analytical, H_numerical, rtol=1e-5, atol=1e-8,
-            err_msg="2D Jacobian mismatch vs finite difference"
+            H_analytical,
+            H_numerical,
+            rtol=1e-5,
+            atol=1e-8,
+            err_msg="2D Jacobian mismatch vs finite difference",
         )
 
     def test_jacobian_3d_finite_difference(self):
@@ -637,8 +624,11 @@ class TestAOAJacobian:
 
         # Compare
         np.testing.assert_allclose(
-            H_analytical, H_numerical, rtol=1e-5, atol=1e-8,
-            err_msg="3D Jacobian mismatch vs finite difference"
+            H_analytical,
+            H_numerical,
+            rtol=1e-5,
+            atol=1e-8,
+            err_msg="3D Jacobian mismatch vs finite difference",
         )
 
     def test_jacobian_f_partial_derivatives(self):
@@ -915,11 +905,11 @@ class TestTDOACovariance:
         cov = build_tdoa_covariance(sigmas, ref_idx=0)
 
         # Diagonal: 2 * sigma^2
-        expected_diag = 2 * sigma ** 2
+        expected_diag = 2 * sigma**2
         assert np.allclose(np.diag(cov), expected_diag)
 
         # Off-diagonal: sigma^2
-        expected_offdiag = sigma ** 2
+        expected_offdiag = sigma**2
         for i in range(3):
             for j in range(3):
                 if i != j:
@@ -957,14 +947,15 @@ class TestTDOACovariance:
             # Generate noisy ranges
             range_noise = np.random.randn(len(anchors)) * sigmas
             noisy_ranges = np.array(
-                [np.linalg.norm(true_pos - anchors[i]) + range_noise[i]
-                 for i in range(len(anchors))]
+                [
+                    np.linalg.norm(true_pos - anchors[i]) + range_noise[i]
+                    for i in range(len(anchors))
+                ]
             )
 
             # Compute TDOA
             tdoa_noisy = np.array(
-                [noisy_ranges[i] - noisy_ranges[0]
-                 for i in range(1, len(anchors))]
+                [noisy_ranges[i] - noisy_ranges[0] for i in range(1, len(anchors))]
             )
 
             positioner = TDOAPositioner(anchors, reference_idx=0)
@@ -972,7 +963,8 @@ class TestTDOACovariance:
             # Correlated weighting
             try:
                 est_corr, info = positioner.solve(
-                    tdoa_noisy, initial_guess=np.array([10.0, 10.0]),
+                    tdoa_noisy,
+                    initial_guess=np.array([10.0, 10.0]),
                     covariance=cov_corr,
                 )
                 if info["converged"]:
@@ -983,7 +975,8 @@ class TestTDOACovariance:
             # Identity weighting
             try:
                 est_id, info = positioner.solve(
-                    tdoa_noisy, initial_guess=np.array([10.0, 10.0]),
+                    tdoa_noisy,
+                    initial_guess=np.array([10.0, 10.0]),
                     covariance=cov_id,
                 )
                 if info["converged"]:
@@ -1018,7 +1011,7 @@ class TestFangTOASolver:
         # Solve
         pos, info = toa_fang_solver(anchors, ranges)
 
-        assert info['method'] == 'Fang_TOA'
+        assert info["method"] == "Fang_TOA"
         assert np.linalg.norm(pos - true_pos) < 1e-6
 
     def test_fang_with_noise(self):
@@ -1098,15 +1091,17 @@ class TestChanTDOASolver:
         # Compute true ranges and TDOA
         ranges = np.linalg.norm(anchors - true_pos, axis=1)
         d_ref = ranges[ref_idx]
-        tdoa = np.array([ranges[i] - d_ref for i in range(len(anchors)) if i != ref_idx])
+        tdoa = np.array(
+            [ranges[i] - d_ref for i in range(len(anchors)) if i != ref_idx]
+        )
 
         # Solve
         pos, info = tdoa_chan_solver(anchors, tdoa, ref_idx=ref_idx)
 
-        assert info['method'] == 'Chan_TDOA'
+        assert info["method"] == "Chan_TDOA"
         assert np.linalg.norm(pos - true_pos) < 1e-4
         # Reference distance should be close to true
-        assert np.abs(info['reference_distance'] - d_ref) < 1e-3
+        assert np.abs(info["reference_distance"] - d_ref) < 1e-3
 
     def test_chan_with_noise(self):
         """Test Chan's solver with noisy TDOA measurements."""
@@ -1122,7 +1117,9 @@ class TestChanTDOASolver:
 
         # Compute noisy TDOA
         d_ref = ranges_noisy[ref_idx]
-        tdoa = np.array([ranges_noisy[i] - d_ref for i in range(len(anchors)) if i != ref_idx])
+        tdoa = np.array(
+            [ranges_noisy[i] - d_ref for i in range(len(anchors)) if i != ref_idx]
+        )
 
         pos, info = tdoa_chan_solver(anchors, tdoa, ref_idx=ref_idx)
 
@@ -1148,7 +1145,9 @@ class TestChanTDOASolver:
 
         # Compute TDOA
         d_ref = ranges_noisy[ref_idx]
-        tdoa = np.array([ranges_noisy[i] - d_ref for i in range(len(anchors)) if i != ref_idx])
+        tdoa = np.array(
+            [ranges_noisy[i] - d_ref for i in range(len(anchors)) if i != ref_idx]
+        )
 
         # Solve with covariance (WLS)
         pos, info = tdoa_chan_solver(anchors, tdoa, ref_idx=ref_idx, covariance=cov)
@@ -1164,7 +1163,9 @@ class TestChanTDOASolver:
 
         ranges = np.linalg.norm(anchors - true_pos, axis=1)
         d_ref = ranges[ref_idx]
-        tdoa = np.array([ranges[i] - d_ref for i in range(len(anchors)) if i != ref_idx])
+        tdoa = np.array(
+            [ranges[i] - d_ref for i in range(len(anchors)) if i != ref_idx]
+        )
 
         pos, info = tdoa_chan_solver(anchors, tdoa, ref_idx=ref_idx)
 
@@ -1203,7 +1204,9 @@ class TestChanTDOASolver:
         # Perfect measurements
         ranges = np.linalg.norm(anchors - true_pos, axis=1)
         d_ref = ranges[ref_idx]
-        tdoa = np.array([ranges[i] - d_ref for i in range(len(anchors)) if i != ref_idx])
+        tdoa = np.array(
+            [ranges[i] - d_ref for i in range(len(anchors)) if i != ref_idx]
+        )
 
         # Chan's solver
         chan_pos, _ = tdoa_chan_solver(anchors, tdoa, ref_idx=ref_idx)
@@ -1253,6 +1256,3 @@ class TestPositioningEdgeCases:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
-
-

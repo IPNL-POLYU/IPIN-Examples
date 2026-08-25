@@ -35,17 +35,19 @@ from typing import Dict, List, Tuple
 
 class Colors:
     """ANSI color codes for terminal output."""
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BLUE = '\033[94m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
+
+    GREEN = "\033[92m"
+    YELLOW = "\033[93m"
+    RED = "\033[91m"
+    BLUE = "\033[94m"
+    BOLD = "\033[1m"
+    END = "\033[0m"
+
 
 # Unicode-safe symbols (fallback for Windows)
-CHECK = 'OK'  # Was: ✓
-CROSS = 'X'   # Was: ✗
-WARN = '!'    # Was: ⚠
+CHECK = "OK"  # Was: ✓
+CROSS = "X"  # Was: ✗
+WARN = "!"  # Was: ⚠
 
 
 # Datasets whose documentation is genuinely incomplete, with what is missing.
@@ -100,10 +102,10 @@ RECOMMENDED_SECTIONS = [
 
 def check_dataset_files(dataset_path: Path) -> Tuple[List[str], List[str]]:
     """Check for required dataset files.
-    
+
     Args:
         dataset_path: Path to dataset directory.
-    
+
     Returns:
         Tuple of (found_files, missing_files)
     """
@@ -131,8 +133,11 @@ def check_dataset_files(dataset_path: Path) -> Tuple[List[str], List[str]]:
     # it is accepted here rather than reported as a missing file. The naming
     # inconsistency is noted above.
     config = next(
-        (name for name in ("config.json", "metadata.json")
-         if (dataset_path / name).exists()),
+        (
+            name
+            for name in ("config.json", "metadata.json")
+            if (dataset_path / name).exists()
+        ),
         None,
     )
     if config:
@@ -150,17 +155,17 @@ def check_dataset_files(dataset_path: Path) -> Tuple[List[str], List[str]]:
 
 def check_readme_sections(readme_path: Path) -> Dict[str, bool]:
     """Check which required sections are present in README.
-    
+
     Args:
         readme_path: Path to README.md file.
-    
+
     Returns:
         Dictionary mapping section names to presence (True/False).
     """
     if not readme_path.exists():
         return {section: False for section in REQUIRED_SECTIONS + RECOMMENDED_SECTIONS}
 
-    content = readme_path.read_text(encoding='utf-8')
+    content = readme_path.read_text(encoding="utf-8")
 
     results = {}
     for section in REQUIRED_SECTIONS + RECOMMENDED_SECTIONS:
@@ -171,17 +176,17 @@ def check_readme_sections(readme_path: Path) -> Dict[str, bool]:
 
 def check_readme_code_blocks(readme_path: Path) -> Tuple[int, List[str]]:
     """Check for code examples in README.
-    
+
     Args:
         readme_path: Path to README.md file.
-    
+
     Returns:
         Tuple of (num_code_blocks, languages_found)
     """
     if not readme_path.exists():
         return 0, []
 
-    content = readme_path.read_text(encoding='utf-8')
+    content = readme_path.read_text(encoding="utf-8")
 
     # Count code blocks
     code_blocks = content.count("```")
@@ -201,17 +206,17 @@ def check_readme_code_blocks(readme_path: Path) -> Tuple[int, List[str]]:
 
 def check_parameter_table(readme_path: Path) -> bool:
     """Check if README contains a parameter effects table.
-    
+
     Args:
         readme_path: Path to README.md file.
-    
+
     Returns:
         True if parameter table found.
     """
     if not readme_path.exists():
         return False
 
-    content = readme_path.read_text(encoding='utf-8')
+    content = readme_path.read_text(encoding="utf-8")
 
     # A markdown table inside the parameter-effects section.
     #
@@ -243,27 +248,27 @@ def check_parameter_table(readme_path: Path) -> bool:
 
 def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Dict]:
     """Validate a single dataset directory.
-    
+
     Args:
         dataset_path: Path to dataset directory.
         verbose: Print detailed output.
-    
+
     Returns:
         Tuple of (is_valid, results_dict)
     """
     results = {
-        'path': dataset_path,
-        'dataset': dataset_path.name,
-        'has_readme': False,
-        'has_config': False,
-        'has_data_files': False,
-        'required_sections': {},
-        'recommended_sections': {},
-        'num_code_blocks': 0,
-        'code_languages': [],
-        'has_parameter_table': False,
-        'warnings': [],
-        'errors': [],
+        "path": dataset_path,
+        "dataset": dataset_path.name,
+        "has_readme": False,
+        "has_config": False,
+        "has_data_files": False,
+        "required_sections": {},
+        "recommended_sections": {},
+        "num_code_blocks": 0,
+        "code_languages": [],
+        "has_parameter_table": False,
+        "warnings": [],
+        "errors": [],
     }
 
     if verbose:
@@ -272,14 +277,14 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
 
     # Check files
     found_files, missing_files = check_dataset_files(dataset_path)
-    results['has_config'] = any(
+    results["has_config"] = any(
         name in found_files for name in ("config.json", "metadata.json")
     )
-    results['has_data_files'] = any("data files" in f for f in found_files)
+    results["has_data_files"] = any("data files" in f for f in found_files)
 
     if missing_files:
         for mf in missing_files:
-            results['errors'].append(f"Missing required file: {mf}")
+            results["errors"].append(f"Missing required file: {mf}")
             if verbose:
                 print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing: {mf}")
     else:
@@ -288,10 +293,10 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
 
     # Check README
     readme_path = dataset_path / "README.md"
-    results['has_readme'] = readme_path.exists()
+    results["has_readme"] = readme_path.exists()
 
     if not readme_path.exists():
-        results['errors'].append("Missing README.md")
+        results["errors"].append("Missing README.md")
         if verbose:
             print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing README.md")
         return False, results
@@ -302,47 +307,51 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
     # Check sections
     sections = check_readme_sections(readme_path)
     for section in REQUIRED_SECTIONS:
-        results['required_sections'][section] = sections[section]
+        results["required_sections"][section] = sections[section]
         if not sections[section]:
-            results['errors'].append(f"Missing required section: {section}")
+            results["errors"].append(f"Missing required section: {section}")
             if verbose:
                 print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing section: {section}")
 
     for section in RECOMMENDED_SECTIONS:
-        results['recommended_sections'][section] = sections[section]
+        results["recommended_sections"][section] = sections[section]
         if not sections[section]:
-            results['warnings'].append(f"Missing recommended section: {section}")
+            results["warnings"].append(f"Missing recommended section: {section}")
 
-    if verbose and not results['errors']:
+    if verbose and not results["errors"]:
         print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} All required sections present")
 
     # Check code examples
     num_blocks, languages = check_readme_code_blocks(readme_path)
-    results['num_code_blocks'] = num_blocks
-    results['code_languages'] = languages
+    results["num_code_blocks"] = num_blocks
+    results["code_languages"] = languages
 
     if num_blocks < 3:
-        results['warnings'].append(f"Only {num_blocks} code blocks (recommend ≥3)")
+        results["warnings"].append(f"Only {num_blocks} code blocks (recommend ≥3)")
         if verbose:
-            print(f"  {Colors.YELLOW}[{WARN}]{Colors.END} Only {num_blocks} code blocks (recommend ≥3)")
+            print(
+                f"  {Colors.YELLOW}[{WARN}]{Colors.END} Only {num_blocks} code blocks (recommend ≥3)"
+            )
     elif verbose:
         print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} {num_blocks} code blocks found")
 
-    if 'python' not in languages:
-        results['warnings'].append("No Python loading examples found")
+    if "python" not in languages:
+        results["warnings"].append("No Python loading examples found")
         if verbose:
             print(f"  {Colors.YELLOW}[{WARN}]{Colors.END} No Python loading examples")
 
     # Check parameter table
-    results['has_parameter_table'] = check_parameter_table(readme_path)
-    if not results['has_parameter_table']:
-        results['errors'].append("Missing parameter effects table")
+    results["has_parameter_table"] = check_parameter_table(readme_path)
+    if not results["has_parameter_table"]:
+        results["errors"].append("Missing parameter effects table")
         if verbose:
-            print(f"  {Colors.RED}[{CROSS}]{Colors.END} Missing parameter effects table")
+            print(
+                f"  {Colors.RED}[{CROSS}]{Colors.END} Missing parameter effects table"
+            )
     elif verbose:
         print(f"  {Colors.GREEN}[{CHECK}]{Colors.END} Parameter effects table present")
 
-    is_valid = len(results['errors']) == 0
+    is_valid = len(results["errors"]) == 0
 
     if verbose:
         if is_valid:
@@ -350,7 +359,7 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
         else:
             print(f"  {Colors.RED}{Colors.BOLD}Status: INVALID [{CROSS}]{Colors.END}")
 
-        if results['warnings']:
+        if results["warnings"]:
             print(f"  {Colors.YELLOW}Warnings: {len(results['warnings'])}{Colors.END}")
 
     return is_valid, results
@@ -358,10 +367,10 @@ def validate_dataset(dataset_path: Path, verbose: bool = True) -> Tuple[bool, Di
 
 def find_datasets(data_sim_path: Path) -> List[Path]:
     """Find all dataset directories in data/sim/.
-    
+
     Args:
         data_sim_path: Path to data/sim/ directory.
-    
+
     Returns:
         List of dataset directory paths.
     """
@@ -378,7 +387,7 @@ def find_datasets(data_sim_path: Path) -> List[Path]:
     suffixes = ("*.npz", "*.npy", "*.txt")
 
     for item in data_sim_path.iterdir():
-        if not item.is_dir() or item.name.startswith('.'):
+        if not item.is_dir() or item.name.startswith("."):
             continue
         looks_like_dataset = (
             (item / "README.md").exists()
@@ -393,7 +402,7 @@ def find_datasets(data_sim_path: Path) -> List[Path]:
 
 def print_summary(results_list: List[Tuple[bool, Dict]]):
     """Print summary of validation results.
-    
+
     Args:
         results_list: List of (is_valid, results_dict) tuples.
     """
@@ -409,17 +418,21 @@ def print_summary(results_list: List[Tuple[bool, Dict]]):
     print(f"Invalid datasets: {Colors.RED}{total_count - valid_count}{Colors.END}")
 
     if valid_count == total_count:
-        print(f"\n{Colors.GREEN}{Colors.BOLD}All datasets have complete documentation! [{CHECK}]{Colors.END}")
+        print(
+            f"\n{Colors.GREEN}{Colors.BOLD}All datasets have complete documentation! [{CHECK}]{Colors.END}"
+        )
     else:
-        print(f"\n{Colors.RED}{Colors.BOLD}Some datasets need documentation fixes.{Colors.END}")
+        print(
+            f"\n{Colors.RED}{Colors.BOLD}Some datasets need documentation fixes.{Colors.END}"
+        )
         print("\nDatasets needing attention:")
         for is_valid, results in results_list:
             if not is_valid:
                 print(f"  - {results['path'].name}: {len(results['errors'])} errors")
 
     # Print statistics
-    total_errors = sum(len(r['errors']) for _, r in results_list)
-    total_warnings = sum(len(r['warnings']) for _, r in results_list)
+    total_errors = sum(len(r["errors"]) for _, r in results_list)
+    total_warnings = sum(len(r["warnings"]) for _, r in results_list)
 
     print(f"\nTotal errors: {Colors.RED}{total_errors}{Colors.END}")
     print(f"Total warnings: {Colors.YELLOW}{total_warnings}{Colors.END}")
@@ -443,32 +456,29 @@ Examples:
   
   # Strict mode (warnings treated as errors)
   python tools/validate_dataset_docs.py --strict
-        """
+        """,
     )
 
     parser.add_argument(
-        'dataset',
-        nargs='?',
-        help='Specific dataset to check (default: check all)'
+        "dataset", nargs="?", help="Specific dataset to check (default: check all)"
     )
 
     parser.add_argument(
-        '--quiet', '-q',
-        action='store_true',
-        help='Only print summary (no per-dataset details)'
+        "--quiet",
+        "-q",
+        action="store_true",
+        help="Only print summary (no per-dataset details)",
     )
 
     parser.add_argument(
-        '--strict',
-        action='store_true',
-        help='Treat warnings as errors'
+        "--strict", action="store_true", help="Treat warnings as errors"
     )
 
     parser.add_argument(
-        '--data-dir',
+        "--data-dir",
         type=str,
-        default='data/sim',
-        help='Path to data/sim directory (default: data/sim)'
+        default="data/sim",
+        help="Path to data/sim directory (default: data/sim)",
     )
 
     args = parser.parse_args()
@@ -501,10 +511,10 @@ Examples:
         is_valid, results = validate_dataset(dataset_path, verbose=not args.quiet)
 
         # In strict mode, treat warnings as errors
-        if args.strict and results['warnings']:
+        if args.strict and results["warnings"]:
             is_valid = False
-            results['errors'].extend(results['warnings'])
-            results['warnings'] = []
+            results["errors"].extend(results["warnings"])
+            results["warnings"] = []
 
         results_list.append((is_valid, results))
 
@@ -521,11 +531,13 @@ Examples:
     # optional sections.
     if args.strict:
         failing = sorted(
-            results['dataset'] for is_valid, results in results_list if not is_valid
+            results["dataset"] for is_valid, results in results_list if not is_valid
         )
         if failing:
-            print(f"\n{Colors.YELLOW}{Colors.BOLD}Strict mode: recommended "
-                  f"sections missing{Colors.END}")
+            print(
+                f"\n{Colors.YELLOW}{Colors.BOLD}Strict mode: recommended "
+                f"sections missing{Colors.END}"
+            )
             for name in failing:
                 print(f"  - {name}")
             print(
@@ -544,12 +556,14 @@ Examples:
     # become valid also fails it, so the register cannot quietly grow stale --
     # the same reasoning as the ratchets in tests/test_repo_conventions.py.
     unregistered = sorted(
-        results['dataset'] for is_valid, results in results_list
-        if not is_valid and results['dataset'] not in KNOWN_INCOMPLETE
+        results["dataset"]
+        for is_valid, results in results_list
+        if not is_valid and results["dataset"] not in KNOWN_INCOMPLETE
     )
     fixed = sorted(
-        results['dataset'] for is_valid, results in results_list
-        if is_valid and results['dataset'] in KNOWN_INCOMPLETE
+        results["dataset"]
+        for is_valid, results in results_list
+        if is_valid and results["dataset"] in KNOWN_INCOMPLETE
     )
 
     if unregistered:
@@ -561,22 +575,26 @@ Examples:
             "line saying what it still needs."
         )
     if fixed:
-        print(f"\n{Colors.GREEN}{Colors.BOLD}Now valid, so drop from "
-              f"KNOWN_INCOMPLETE:{Colors.END}")
+        print(
+            f"\n{Colors.GREEN}{Colors.BOLD}Now valid, so drop from "
+            f"KNOWN_INCOMPLETE:{Colors.END}"
+        )
         for name in fixed:
             print(f"  - {name}")
 
     if not unregistered and not fixed:
         registered = sum(
-            1 for is_valid, results in results_list
-            if not is_valid and results['dataset'] in KNOWN_INCOMPLETE
+            1
+            for is_valid, results in results_list
+            if not is_valid and results["dataset"] in KNOWN_INCOMPLETE
         )
-        print(f"\n{Colors.GREEN}{Colors.BOLD}[PASSED]{Colors.END} "
-              f"no new gaps ({registered} known, listed in KNOWN_INCOMPLETE)")
+        print(
+            f"\n{Colors.GREEN}{Colors.BOLD}[PASSED]{Colors.END} "
+            f"no new gaps ({registered} known, listed in KNOWN_INCOMPLETE)"
+        )
 
     return 1 if (unregistered or fixed) else 0
 
 
 if __name__ == "__main__":
     sys.exit(main())
-

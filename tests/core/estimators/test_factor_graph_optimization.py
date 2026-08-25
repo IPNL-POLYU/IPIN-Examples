@@ -22,7 +22,7 @@ def create_range_positioning_graph(
     anchors: np.ndarray,
     true_pos: np.ndarray,
     initial_guess: np.ndarray,
-    noise_std: float = 0.0
+    noise_std: float = 0.0,
 ) -> FactorGraph:
     """
     Create a factor graph for 2D positioning from range measurements.
@@ -80,16 +80,15 @@ class TestLevenbergMarquardt(unittest.TestCase):
         graph = create_range_positioning_graph(anchors, true_pos, initial_guess)
 
         optimized_vars, error_history = graph.optimize(
-            method="levenberg_marquardt",
-            max_iterations=50,
-            initial_mu=1e-2
+            method="levenberg_marquardt", max_iterations=50, initial_mu=1e-2
         )
 
         estimated_pos = optimized_vars[0]
         position_error = np.linalg.norm(estimated_pos - true_pos)
 
-        self.assertLess(position_error, 0.01,
-                        f"LM should converge, got error {position_error}")
+        self.assertLess(
+            position_error, 0.01, f"LM should converge, got error {position_error}"
+        )
 
     def test_lm_error_decreases(self):
         """LM should decrease error overall (not diverge)."""
@@ -100,14 +99,13 @@ class TestLevenbergMarquardt(unittest.TestCase):
         graph = create_range_positioning_graph(anchors, true_pos, initial_guess)
 
         _, error_history = graph.optimize(
-            method="levenberg_marquardt",
-            max_iterations=30,
-            initial_mu=1e-2
+            method="levenberg_marquardt", max_iterations=30, initial_mu=1e-2
         )
 
         # Final error should be less than initial
-        self.assertLess(error_history[-1], error_history[0],
-                        "LM should reduce total error")
+        self.assertLess(
+            error_history[-1], error_history[0], "LM should reduce total error"
+        )
 
     def test_lm_does_not_diverge(self):
         """LM should not diverge even with poor initial guess."""
@@ -118,14 +116,15 @@ class TestLevenbergMarquardt(unittest.TestCase):
         graph = create_range_positioning_graph(anchors, true_pos, initial_guess)
 
         _, error_history = graph.optimize(
-            method="levenberg_marquardt",
-            max_iterations=100,
-            initial_mu=0.1
+            method="levenberg_marquardt", max_iterations=100, initial_mu=0.1
         )
 
         # Should not diverge: final error should not be much worse than initial
-        self.assertLessEqual(error_history[-1], error_history[0] * 1.5,
-                             "LM should not diverge significantly")
+        self.assertLessEqual(
+            error_history[-1],
+            error_history[0] * 1.5,
+            "LM should not diverge significantly",
+        )
 
     def test_lm_alias_works(self):
         """The 'lm' alias should work."""
@@ -174,8 +173,9 @@ class TestLineSearch(unittest.TestCase):
         # Check monotonic decrease
         for i in range(1, len(error_history)):
             self.assertLessEqual(
-                error_history[i], error_history[i - 1] + 1e-10,
-                f"Line search should guarantee decrease at step {i}"
+                error_history[i],
+                error_history[i - 1] + 1e-10,
+                f"Line search should guarantee decrease at step {i}",
             )
 
 
@@ -192,24 +192,22 @@ class TestMethodComparison(unittest.TestCase):
         solutions = {}
 
         for method in methods:
-            graph = create_range_positioning_graph(
-                anchors, true_pos, initial_guess
-            )
+            graph = create_range_positioning_graph(anchors, true_pos, initial_guess)
             optimized_vars, _ = graph.optimize(method=method, max_iterations=50)
             solutions[method] = optimized_vars[0]
 
         # All methods should find similar solutions
         for method in methods:
             error = np.linalg.norm(solutions[method] - true_pos)
-            self.assertLess(error, 0.01,
-                            f"{method} should converge, got error {error}")
+            self.assertLess(error, 0.01, f"{method} should converge, got error {error}")
 
         # All solutions should be close to each other
         for m1 in methods:
             for m2 in methods:
                 diff = np.linalg.norm(solutions[m1] - solutions[m2])
-                self.assertLess(diff, 0.01,
-                                f"{m1} and {m2} should find similar solutions")
+                self.assertLess(
+                    diff, 0.01, f"{m1} and {m2} should find similar solutions"
+                )
 
     def test_lm_handles_poor_initial_better_than_gn(self):
         """LM should handle poor initial guesses at least as well as GN."""
@@ -238,10 +236,12 @@ class TestMethodComparison(unittest.TestCase):
         self.assertLess(error_lm, 0.1, "LM should converge")
 
         # LM should reduce error significantly from initial
-        self.assertLess(error_history_lm[-1], error_history_lm[0] * 0.01,
-                        "LM should reduce error significantly")
+        self.assertLess(
+            error_history_lm[-1],
+            error_history_lm[0] * 0.01,
+            "LM should reduce error significantly",
+        )
 
 
 if __name__ == "__main__":
     unittest.main()
-

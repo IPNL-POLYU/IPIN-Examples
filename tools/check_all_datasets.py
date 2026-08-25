@@ -80,10 +80,10 @@ def extract_code_blocks(readme_path: Path) -> List[Tuple[str, str, int]]:
 
     for match in matches:
         code = match.group(1)
-        line_number = content[:match.start()].count("\n") + 1
+        line_number = content[: match.start()].count("\n") + 1
 
         # Find section name (look backwards for ## heading)
-        before = content[:match.start()]
+        before = content[: match.start()]
         section_matches = re.findall(r"##\s+(.+)", before)
         if section_matches:
             current_section = section_matches[-1].strip()
@@ -146,7 +146,9 @@ def check_code_block(code: str, dataset_path: Path, verbose: bool = False) -> Di
         Dict with test results.
     """
     # Create temporary script
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False, encoding="utf-8") as f:
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".py", delete=False, encoding="utf-8"
+    ) as f:
         # Add necessary imports and setup
         test_code = f"""
 import sys
@@ -260,13 +262,17 @@ def check_dataset(dataset_path: Path, verbose: bool = False) -> Dict:
     for i, (code, section, line_num) in enumerate(code_blocks, 1):
         if not is_runnable_code(code):
             if verbose:
-                print(f"  [{i}/{len(code_blocks)}] Skipping snippet in '{section}' (not runnable)")
+                print(
+                    f"  [{i}/{len(code_blocks)}] Skipping snippet in '{section}' (not runnable)"
+                )
             continue
 
         results["code_blocks_runnable"] += 1
 
         if verbose:
-            print(f"  [{i}/{len(code_blocks)}] Testing code in '{section}' (line {line_num})...")
+            print(
+                f"  [{i}/{len(code_blocks)}] Testing code in '{section}' (line {line_num})..."
+            )
 
         test_result = check_code_block(code, dataset_path, verbose)
 
@@ -358,7 +364,9 @@ def main():
             "7": ["ch7_slam"],
             "8": ["ch8_fusion"],
         }
-        datasets_to_test = {k: v for k, v in DATASETS.items() if k in chapter_map[args.chapter]}
+        datasets_to_test = {
+            k: v for k, v in DATASETS.items() if k in chapter_map[args.chapter]
+        }
     else:
         datasets_to_test = DATASETS
 
@@ -388,13 +396,10 @@ def main():
 
     # Exit with error code if any tests failed
     total_failed = sum(
-        1 for results in all_results.values()
-        for result in results
-        if result["issues"]
+        1 for results in all_results.values() for result in results if result["issues"]
     )
     sys.exit(0 if total_failed == 0 else 1)
 
 
 if __name__ == "__main__":
     main()
-

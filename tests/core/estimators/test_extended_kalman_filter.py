@@ -42,10 +42,7 @@ class TestEKFJacobianEvaluationPoint(unittest.TestCase):
 
         def process_jacobian(x, u, dt):
             """Jacobian depends on x[0], so evaluation point matters!"""
-            return np.array([
-                [1.0 + 0.2 * x[0] * dt, dt],
-                [0.0, 1.0]
-            ])
+            return np.array([[1.0 + 0.2 * x[0] * dt, dt], [0.0, 1.0]])
 
         def measurement_model(x):
             return np.array([x[0]])
@@ -73,9 +70,14 @@ class TestEKFJacobianEvaluationPoint(unittest.TestCase):
         P0 = np.diag([1.0, 0.5])
 
         ekf = ExtendedKalmanFilter(
-            self.process_model, self.process_jacobian,
-            self.measurement_model, self.measurement_jacobian,
-            self.Q_func, self.R_func, x0, P0
+            self.process_model,
+            self.process_jacobian,
+            self.measurement_model,
+            self.measurement_jacobian,
+            self.Q_func,
+            self.R_func,
+            x0,
+            P0,
         )
 
         # Record pre-prediction state
@@ -99,20 +101,28 @@ class TestEKFJacobianEvaluationPoint(unittest.TestCase):
         P_wrong = F_wrong @ P0 @ F_wrong.T + self.Q_func(self.dt)
 
         # Jacobians at different points should differ
-        self.assertFalse(np.allclose(F_correct, F_wrong),
-                         "Jacobians at different states should differ")
+        self.assertFalse(
+            np.allclose(F_correct, F_wrong),
+            "Jacobians at different states should differ",
+        )
 
         # ...and so must the covariances they produce. Without this the check
         # below is not discriminating: if P_correct and P_wrong happened to
         # coincide, asserting the filter matches P_correct would pass whichever
         # evaluation point it had used.
-        self.assertFalse(np.allclose(P_correct, P_wrong),
-                         "Covariances from the two Jacobians should differ, "
-                         "otherwise this test cannot tell them apart")
+        self.assertFalse(
+            np.allclose(P_correct, P_wrong),
+            "Covariances from the two Jacobians should differ, "
+            "otherwise this test cannot tell them apart",
+        )
 
         # EKF must use CORRECT (pre-state) Jacobian
-        assert_allclose(ekf.covariance, P_correct, atol=1e-10,
-                        err_msg="EKF used wrong Jacobian evaluation point!")
+        assert_allclose(
+            ekf.covariance,
+            P_correct,
+            atol=1e-10,
+            err_msg="EKF used wrong Jacobian evaluation point!",
+        )
 
     def test_jacobian_difference_is_significant(self):
         """Test that the Jacobian difference is large enough to matter."""
@@ -126,8 +136,9 @@ class TestEKFJacobianEvaluationPoint(unittest.TestCase):
         diff = abs(F_pre[0, 0] - F_post[0, 0])
         relative_diff = diff / F_pre[0, 0]
 
-        self.assertGreater(relative_diff, 0.01,
-                           f"Jacobian difference too small: {relative_diff:.4f}")
+        self.assertGreater(
+            relative_diff, 0.01, f"Jacobian difference too small: {relative_diff:.4f}"
+        )
 
 
 class TestEKFRangeOnlyTracking(unittest.TestCase):
@@ -139,21 +150,11 @@ class TestEKFRangeOnlyTracking(unittest.TestCase):
         n_steps = 100
 
         def process_model(x, u, dt):
-            F = np.array([
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ])
+            F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
             return F @ x
 
         def process_jacobian(x, u, dt):
-            return np.array([
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ])
+            return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
         def measurement_model(x):
             return np.array([np.sqrt(x[0] ** 2 + x[1] ** 2)])
@@ -167,12 +168,14 @@ class TestEKFRangeOnlyTracking(unittest.TestCase):
         q = 0.1
 
         def Q_func(dt):
-            return q * np.array([
-                [dt ** 3 / 3, 0, dt ** 2 / 2, 0],
-                [0, dt ** 3 / 3, 0, dt ** 2 / 2],
-                [dt ** 2 / 2, 0, dt, 0],
-                [0, dt ** 2 / 2, 0, dt]
-            ])
+            return q * np.array(
+                [
+                    [dt**3 / 3, 0, dt**2 / 2, 0],
+                    [0, dt**3 / 3, 0, dt**2 / 2],
+                    [dt**2 / 2, 0, dt, 0],
+                    [0, dt**2 / 2, 0, dt],
+                ]
+            )
 
         def R_func():
             return np.array([[0.5]])
@@ -181,9 +184,14 @@ class TestEKFRangeOnlyTracking(unittest.TestCase):
         P0 = np.diag([1.0, 1.0, 0.5, 0.5])
 
         ekf = ExtendedKalmanFilter(
-            process_model, process_jacobian,
-            measurement_model, measurement_jacobian,
-            Q_func, R_func, x0, P0
+            process_model,
+            process_jacobian,
+            measurement_model,
+            measurement_jacobian,
+            Q_func,
+            R_func,
+            x0,
+            P0,
         )
 
         # Generate true trajectory
@@ -206,10 +214,12 @@ class TestEKFRangeOnlyTracking(unittest.TestCase):
         position_error = np.linalg.norm(x_est[:2] - true_state[:2])
         velocity_error = np.linalg.norm(x_est[2:] - true_state[2:])
 
-        self.assertLess(position_error, 3.0,
-                        f"Position error too large: {position_error}")
-        self.assertLess(velocity_error, 2.0,
-                        f"Velocity error too large: {velocity_error}")
+        self.assertLess(
+            position_error, 3.0, f"Position error too large: {position_error}"
+        )
+        self.assertLess(
+            velocity_error, 2.0, f"Velocity error too large: {velocity_error}"
+        )
 
 
 class TestEKFCovarianceProperties(unittest.TestCase):
@@ -217,6 +227,7 @@ class TestEKFCovarianceProperties(unittest.TestCase):
 
     def test_covariance_remains_positive_definite(self):
         """Test covariance stays positive definite after prediction."""
+
         def process_model(x, u, dt):
             return x + np.array([x[1] * dt, 0])
 
@@ -239,9 +250,14 @@ class TestEKFCovarianceProperties(unittest.TestCase):
         P0 = np.eye(2)
 
         ekf = ExtendedKalmanFilter(
-            process_model, process_jacobian,
-            measurement_model, measurement_jacobian,
-            Q_func, R_func, x0, P0
+            process_model,
+            process_jacobian,
+            measurement_model,
+            measurement_jacobian,
+            Q_func,
+            R_func,
+            x0,
+            P0,
         )
 
         for _ in range(10):
@@ -249,23 +265,8 @@ class TestEKFCovarianceProperties(unittest.TestCase):
 
             # Check positive definite
             eigvals = np.linalg.eigvalsh(ekf.covariance)
-            self.assertTrue(np.all(eigvals > 0),
-                            "Covariance not positive definite")
+            self.assertTrue(np.all(eigvals > 0), "Covariance not positive definite")
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-

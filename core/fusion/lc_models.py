@@ -35,15 +35,15 @@ def solve_uwb_position_wls(
     cov_floor_std: float = 0.2,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], bool]:
     """Solve for 2D position from UWB ranges using Weighted Least Squares.
-    
+
     This implements the iterative WLS position solver from Chapter 4,
     with proper measurement covariance handling for LC fusion.
-    
+
     Key improvements over naive WLS:
     - Uses proper measurement covariance: W = R^{-1} where R = diag(σ_i²)
     - Supports anchor-dependent noise levels (e.g., based on SNR, NLOS flags)
     - Enforces covariance floor to prevent absurd certainty
-    
+
     Args:
         ranges: Range measurements to each anchor (A,), NaN for dropouts
         anchor_positions: Anchor positions (A, 2)
@@ -55,23 +55,23 @@ def solve_uwb_position_wls(
         tolerance: Convergence tolerance (meters, default 0.01)
         cov_floor_std: Minimum position std (meters, default 0.2)
                        Prevents overconfident covariance estimates
-    
+
     Returns:
         Tuple of (position, covariance, converged):
             position: Estimated 2D position (2,) or None if failed
             covariance: Position covariance (2, 2) or None if failed
             converged: True if solver converged
-    
+
     Example:
         >>> ranges = np.array([5.0, 7.0, 8.5, 6.2])
         >>> anchors = np.array([[0, 0], [20, 0], [20, 15], [0, 15]])
         >>> # Uniform noise
         >>> pos, cov, ok = solve_uwb_position_wls(ranges, anchors, range_noise_std=0.05)
-        >>> 
+        >>>
         >>> # Anchor-dependent noise (e.g., anchor 1 has NLOS)
         >>> anchor_stds = np.array([0.05, 0.5, 0.05, 0.05])  # Anchor 1 degraded
         >>> pos, cov, ok = solve_uwb_position_wls(ranges, anchors, anchor_noise_std=anchor_stds)
-    
+
     References:
         Chapter 4, Section 4.2: TOA Positioning with Iterative WLS
         Equations (4.14)-(4.23): Nonlinear TOA I-WLS
@@ -186,35 +186,36 @@ def solve_uwb_position_wls(
 
 
 def create_lc_process_model(
-    process_noise_std: np.ndarray = None
+    process_noise_std: np.ndarray = None,
 ) -> Tuple[Callable, Callable, Callable]:
     """Create process model for LC fusion (same as TC).
-    
+
     Args:
         process_noise_std: [σ_p, σ_v, σ_yaw] (default: [0.01, 0.05, 0.01])
-    
+
     Returns:
         Tuple of (process_model, process_jacobian, process_noise_cov)
     """
     # Reuse TC process model
     from core.fusion.tc_models import create_process_model
+
     return create_process_model(process_noise_std)
 
 
 def create_lc_position_measurement_model(
-    position_noise_std: np.ndarray = None
+    position_noise_std: np.ndarray = None,
 ) -> Tuple[Callable, Callable, Callable]:
     """Create position measurement model for LC fusion.
-    
+
     In LC fusion, the UWB position fix is treated as a 2D position measurement.
-    
+
     Measurement: z = [px_meas, py_meas]
     Model: h(x) = [px, py] (direct observation of position state)
-    
+
     Args:
         position_noise_std: Position measurement noise [σ_x, σ_y]
                             Default: [0.5, 0.5] meters
-    
+
     Returns:
         Tuple of (measurement_model, measurement_jacobian, measurement_noise_cov)
     """
@@ -233,10 +234,7 @@ def create_lc_position_measurement_model(
         # h(x) = [px, py] = [x[0], x[1]]
         # H = [[1, 0, 0, 0, 0],
         #      [0, 1, 0, 0, 0]]
-        H = np.array([
-            [1.0, 0.0, 0.0, 0.0, 0.0],
-            [0.0, 1.0, 0.0, 0.0, 0.0]
-        ])
+        H = np.array([[1.0, 0.0, 0.0, 0.0, 0.0], [0.0, 1.0, 0.0, 0.0, 0.0]])
         return H
 
     def measurement_noise_cov() -> np.ndarray:
@@ -252,12 +250,12 @@ def create_lc_fusion_ekf(
     process_noise_std: np.ndarray = None,
 ) -> any:
     """Create and initialize loosely coupled fusion EKF.
-    
+
     Args:
         initial_state: Initial state [px, py, vx, vy, yaw] (5,)
         initial_cov: Initial covariance (5, 5)
         process_noise_std: Process noise std [σ_p, σ_v, σ_yaw]
-    
+
     Returns:
         Initialized ExtendedKalmanFilter instance
     """
@@ -284,8 +282,7 @@ def create_lc_fusion_ekf(
         Q=process_Q,
         R=dummy_R,
         x0=initial_state.copy(),
-        P0=initial_cov.copy()
+        P0=initial_cov.copy(),
     )
 
     return ekf
-

@@ -44,30 +44,30 @@ def wrap_angle_deg(angle_deg: float) -> float:
     number, but a calibration near +/-180 deg would otherwise report a 2 deg
     misalignment as 358.
     """
-    return float(np.degrees(np.arctan2(
-        np.sin(np.radians(angle_deg)), np.cos(np.radians(angle_deg))
-    )))
+    return float(
+        np.degrees(
+            np.arctan2(np.sin(np.radians(angle_deg)), np.cos(np.radians(angle_deg)))
+        )
+    )
 
 
 def estimate_imu_bias_stationary(
-    accel_samples: np.ndarray,
-    gyro_samples: np.ndarray,
-    gravity_magnitude: float = 9.81
+    accel_samples: np.ndarray, gyro_samples: np.ndarray, gravity_magnitude: float = 9.81
 ) -> Dict:
     """Estimate IMU biases from stationary measurements.
-    
+
     During a stationary period:
     - Gyroscope should read zero (any reading is bias)
     - Accelerometer should read gravity vector (deviation is bias)
-    
+
     This is the simplest intrinsic IMU calibration method mentioned
     in the book (Section 8.4.1.3).
-    
+
     Args:
         accel_samples: Accelerometer samples (N, 3) in m/s²
         gyro_samples: Gyroscope samples (N, 3) in rad/s
         gravity_magnitude: Expected gravity magnitude (default 9.81 m/s²)
-    
+
     Returns:
         Dictionary with:
             - 'accel_bias': Estimated accelerometer bias (3,) in m/s²
@@ -75,7 +75,7 @@ def estimate_imu_bias_stationary(
             - 'accel_std': Standard deviation of accel samples
             - 'gyro_std': Standard deviation of gyro samples
             - 'gravity_axis': Identified gravity axis (0=x, 1=y, 2=z)
-    
+
     References:
         Chapter 8, Section 8.4.1.3: IMU Intrinsic Calibration
     """
@@ -98,39 +98,38 @@ def estimate_imu_bias_stationary(
     accel_bias = accel_mean - expected_accel
 
     return {
-        'accel_bias': accel_bias,
-        'gyro_bias': gyro_bias,
-        'accel_std': accel_std,
-        'gyro_std': gyro_std,
-        'gravity_axis': gravity_axis,
-        'accel_mean': accel_mean,
-        'n_samples': len(accel_samples)
+        "accel_bias": accel_bias,
+        "gyro_bias": gyro_bias,
+        "accel_std": accel_std,
+        "gyro_std": gyro_std,
+        "gravity_axis": gravity_axis,
+        "accel_mean": accel_mean,
+        "n_samples": len(accel_samples),
     }
 
 
 def calibrate_extrinsic_2d_least_squares(
-    p_sensor1: np.ndarray,
-    p_sensor2: np.ndarray
+    p_sensor1: np.ndarray, p_sensor2: np.ndarray
 ) -> Tuple[np.ndarray, np.ndarray]:
     """Estimate 2D extrinsic calibration between two sensors.
-    
+
     Estimates the relative pose (translation + rotation) between two sensors
     observing the same motion or scene.
-    
+
     Model: p_sensor2 = R @ p_sensor1 + t
-    
+
     This uses least-squares fitting to estimate R (2x2 rotation) and
     t (2D translation/lever-arm).
-    
+
     Args:
         p_sensor1: Positions from sensor 1 (N, 2)
         p_sensor2: Positions from sensor 2 (N, 2) at same timestamps
-    
+
     Returns:
         Tuple of (R, t):
             R: 2D rotation matrix (2, 2)
             t: 2D translation vector (2,) - lever-arm
-    
+
     References:
         Chapter 8, Section 8.4.2: Extrinsic Calibration
     """
@@ -165,10 +164,10 @@ def generate_synthetic_imu_stationary(
     accel_bias: np.ndarray = None,
     gyro_bias: np.ndarray = None,
     accel_noise_std: float = 0.01,
-    gyro_noise_std: float = 0.001
+    gyro_noise_std: float = 0.001,
 ) -> Dict:
     """Generate synthetic stationary IMU data for calibration testing.
-    
+
     Args:
         duration: Duration in seconds
         rate: Sampling rate in Hz
@@ -176,7 +175,7 @@ def generate_synthetic_imu_stationary(
         gyro_bias: True gyroscope bias (3,) in rad/s
         accel_noise_std: Accelerometer noise std
         gyro_noise_std: Gyroscope noise std
-    
+
     Returns:
         Dictionary with 't', 'accel', 'gyro', 'true_accel_bias', 'true_gyro_bias'
     """
@@ -201,11 +200,11 @@ def generate_synthetic_imu_stationary(
         gyro[i] = gyro_bias + np.random.randn(3) * gyro_noise_std
 
     return {
-        't': t,
-        'accel': accel,
-        'gyro': gyro,
-        'true_accel_bias': accel_bias,
-        'true_gyro_bias': gyro_bias
+        "t": t,
+        "accel": accel,
+        "gyro": gyro,
+        "true_accel_bias": accel_bias,
+        "true_gyro_bias": gyro_bias,
     }
 
 
@@ -213,19 +212,19 @@ def generate_synthetic_extrinsic_data(
     duration: float = 30.0,
     rate: float = 10.0,
     lever_arm: np.ndarray = None,
-    rotation_angle: float = np.pi / 6  # 30 degrees
+    rotation_angle: float = np.pi / 6,  # 30 degrees
 ) -> Dict:
     """Generate synthetic data for 2D extrinsic calibration.
-    
+
     Simulates two sensors observing the same trajectory with known
     relative pose (lever-arm + rotation).
-    
+
     Args:
         duration: Duration in seconds
         rate: Sampling rate in Hz
         lever_arm: True lever-arm (2,) in meters
         rotation_angle: Rotation angle in radians
-    
+
     Returns:
         Dictionary with positions from both sensors and true calibration
     """
@@ -246,10 +245,12 @@ def generate_synthetic_extrinsic_data(
         p_sensor1[i, 1] = radius * np.sin(angle)
 
     # Apply transformation to get sensor 2 positions
-    R_true = np.array([
-        [np.cos(rotation_angle), -np.sin(rotation_angle)],
-        [np.sin(rotation_angle), np.cos(rotation_angle)]
-    ])
+    R_true = np.array(
+        [
+            [np.cos(rotation_angle), -np.sin(rotation_angle)],
+            [np.sin(rotation_angle), np.cos(rotation_angle)],
+        ]
+    )
 
     p_sensor2 = (R_true @ p_sensor1.T).T + lever_arm
 
@@ -259,25 +260,21 @@ def generate_synthetic_extrinsic_data(
     p_sensor2 += np.random.randn(n_samples, 2) * noise_std
 
     return {
-        't': t,
-        'p_sensor1': p_sensor1,
-        'p_sensor2': p_sensor2,
-        'true_R': R_true,
-        'true_t': lever_arm,
-        'true_rotation_angle': rotation_angle,
+        "t": t,
+        "p_sensor1": p_sensor1,
+        "p_sensor2": p_sensor2,
+        "true_R": R_true,
+        "true_t": lever_arm,
+        "true_rotation_angle": rotation_angle,
         # Exposed so the caller can derive the expected alignment residual
         # instead of quoting a number that has to be kept in sync by hand.
-        'noise_std': noise_std,
+        "noise_std": noise_std,
     }
 
 
-def plot_imu_calibration(
-    data: Dict,
-    calibration: Dict,
-    save_path: str = None
-):
+def plot_imu_calibration(data: Dict, calibration: Dict, save_path: str = None):
     """Plot IMU calibration results.
-    
+
     Args:
         data: IMU data dictionary
         calibration: Calibration results
@@ -288,69 +285,79 @@ def plot_imu_calibration(
 
     # Accelerometer data
     ax1 = fig.add_subplot(gs[0, :])
-    for i, axis in enumerate(['X', 'Y', 'Z']):
-        ax1.plot(data['t'], data['accel'][:, i], label=f'Accel {axis}',
-                alpha=0.7, linewidth=0.5)
+    for i, axis in enumerate(["X", "Y", "Z"]):
+        ax1.plot(
+            data["t"],
+            data["accel"][:, i],
+            label=f"Accel {axis}",
+            alpha=0.7,
+            linewidth=0.5,
+        )
 
-    ax1.axhline(0, color='k', linestyle='--', alpha=0.3)
-    ax1.axhline(-9.81, color='r', linestyle='--', alpha=0.3, label='Gravity')
-    ax1.set_xlabel('Time [s]')
-    ax1.set_ylabel('Acceleration [m/s²]')
-    ax1.set_title('Accelerometer Raw Data (Stationary)')
+    ax1.axhline(0, color="k", linestyle="--", alpha=0.3)
+    ax1.axhline(-9.81, color="r", linestyle="--", alpha=0.3, label="Gravity")
+    ax1.set_xlabel("Time [s]")
+    ax1.set_ylabel("Acceleration [m/s²]")
+    ax1.set_title("Accelerometer Raw Data (Stationary)")
     ax1.legend(ncol=4)
     ax1.grid(True, alpha=0.3)
 
     # Gyroscope data
     ax2 = fig.add_subplot(gs[1, :])
-    for i, axis in enumerate(['X', 'Y', 'Z']):
-        ax2.plot(data['t'], data['gyro'][:, i] * 180/np.pi,
-                label=f'Gyro {axis}', alpha=0.7, linewidth=0.5)
+    for i, axis in enumerate(["X", "Y", "Z"]):
+        ax2.plot(
+            data["t"],
+            data["gyro"][:, i] * 180 / np.pi,
+            label=f"Gyro {axis}",
+            alpha=0.7,
+            linewidth=0.5,
+        )
 
-    ax2.axhline(0, color='k', linestyle='--', alpha=0.3)
-    ax2.set_xlabel('Time [s]')
-    ax2.set_ylabel('Angular Rate [deg/s]')
-    ax2.set_title('Gyroscope Raw Data (Stationary)')
+    ax2.axhline(0, color="k", linestyle="--", alpha=0.3)
+    ax2.set_xlabel("Time [s]")
+    ax2.set_ylabel("Angular Rate [deg/s]")
+    ax2.set_title("Gyroscope Raw Data (Stationary)")
     ax2.legend(ncol=3)
     ax2.grid(True, alpha=0.3)
 
     # Bias estimation results
     ax3 = fig.add_subplot(gs[2, 0])
 
-    axes = ['X', 'Y', 'Z']
+    axes = ["X", "Y", "Z"]
     x_pos = np.arange(3)
 
-    true_bias = data['true_accel_bias']
-    est_bias = calibration['accel_bias']
+    true_bias = data["true_accel_bias"]
+    est_bias = calibration["accel_bias"]
 
     width = 0.35
-    ax3.bar(x_pos - width/2, true_bias, width, label='True Bias', alpha=0.7)
-    ax3.bar(x_pos + width/2, est_bias, width, label='Estimated Bias', alpha=0.7)
+    ax3.bar(x_pos - width / 2, true_bias, width, label="True Bias", alpha=0.7)
+    ax3.bar(x_pos + width / 2, est_bias, width, label="Estimated Bias", alpha=0.7)
 
-    ax3.set_xlabel('Axis')
-    ax3.set_ylabel('Bias [m/s²]')
-    ax3.set_title('Accelerometer Bias Estimation')
+    ax3.set_xlabel("Axis")
+    ax3.set_ylabel("Bias [m/s²]")
+    ax3.set_title("Accelerometer Bias Estimation")
     ax3.set_xticks(x_pos)
     ax3.set_xticklabels(axes)
     ax3.legend()
-    ax3.grid(True, alpha=0.3, axis='y')
+    ax3.grid(True, alpha=0.3, axis="y")
 
     ax4 = fig.add_subplot(gs[2, 1])
 
-    true_bias_gyro = data['true_gyro_bias'] * 180/np.pi
-    est_bias_gyro = calibration['gyro_bias'] * 180/np.pi
+    true_bias_gyro = data["true_gyro_bias"] * 180 / np.pi
+    est_bias_gyro = calibration["gyro_bias"] * 180 / np.pi
 
-    ax4.bar(x_pos - width/2, true_bias_gyro, width, label='True Bias', alpha=0.7)
-    ax4.bar(x_pos + width/2, est_bias_gyro, width, label='Estimated Bias', alpha=0.7)
+    ax4.bar(x_pos - width / 2, true_bias_gyro, width, label="True Bias", alpha=0.7)
+    ax4.bar(x_pos + width / 2, est_bias_gyro, width, label="Estimated Bias", alpha=0.7)
 
-    ax4.set_xlabel('Axis')
-    ax4.set_ylabel('Bias [deg/s]')
-    ax4.set_title('Gyroscope Bias Estimation')
+    ax4.set_xlabel("Axis")
+    ax4.set_ylabel("Bias [deg/s]")
+    ax4.set_title("Gyroscope Bias Estimation")
     ax4.set_xticks(x_pos)
     ax4.set_xticklabels(axes)
     ax4.legend()
-    ax4.grid(True, alpha=0.3, axis='y')
+    ax4.grid(True, alpha=0.3, axis="y")
 
-    plt.suptitle('IMU Intrinsic Calibration (Section 8.4.1.3)', fontsize=14, y=0.995)
+    plt.suptitle("IMU Intrinsic Calibration (Section 8.4.1.3)", fontsize=14, y=0.995)
 
     if save_path:
         # save_figure takes a directory and a stem, and writes svg/pdf/png
@@ -363,13 +370,10 @@ def plot_imu_calibration(
 
 
 def plot_extrinsic_calibration(
-    data: Dict,
-    R_est: np.ndarray,
-    t_est: np.ndarray,
-    save_path: str = None
+    data: Dict, R_est: np.ndarray, t_est: np.ndarray, save_path: str = None
 ):
     """Plot extrinsic calibration results.
-    
+
     Args:
         data: Extrinsic calibration data
         R_est: Estimated rotation matrix
@@ -380,42 +384,64 @@ def plot_extrinsic_calibration(
 
     # Trajectories
     ax = axes[0, 0]
-    ax.plot(data['p_sensor1'][:, 0], data['p_sensor1'][:, 1],
-           'b-', label='Sensor 1', alpha=0.7)
-    ax.plot(data['p_sensor2'][:, 0], data['p_sensor2'][:, 1],
-           'r-', label='Sensor 2', alpha=0.7)
-    ax.scatter(0, 0, c='black', s=100, marker='x', label='Origin', zorder=5)
-    ax.set_xlabel('X [m]')
-    ax.set_ylabel('Y [m]')
-    ax.set_title('Sensor Trajectories')
+    ax.plot(
+        data["p_sensor1"][:, 0],
+        data["p_sensor1"][:, 1],
+        "b-",
+        label="Sensor 1",
+        alpha=0.7,
+    )
+    ax.plot(
+        data["p_sensor2"][:, 0],
+        data["p_sensor2"][:, 1],
+        "r-",
+        label="Sensor 2",
+        alpha=0.7,
+    )
+    ax.scatter(0, 0, c="black", s=100, marker="x", label="Origin", zorder=5)
+    ax.set_xlabel("X [m]")
+    ax.set_ylabel("Y [m]")
+    ax.set_title("Sensor Trajectories")
     ax.legend()
     ax.grid(True, alpha=0.3)
-    ax.axis('equal')
+    ax.axis("equal")
 
     # Aligned trajectories
     ax = axes[0, 1]
 
     # Transform sensor 1 to sensor 2 frame using estimated calibration
-    p1_transformed = (R_est @ data['p_sensor1'].T).T + t_est
+    p1_transformed = (R_est @ data["p_sensor1"].T).T + t_est
 
-    ax.plot(data['p_sensor2'][:, 0], data['p_sensor2'][:, 1],
-           'r-', label='Sensor 2 (reference)', alpha=0.7, linewidth=2)
-    ax.plot(p1_transformed[:, 0], p1_transformed[:, 1],
-           'b--', label='Sensor 1 (transformed)', alpha=0.7, linewidth=2)
-    ax.set_xlabel('X [m]')
-    ax.set_ylabel('Y [m]')
-    ax.set_title('After Calibration (Aligned)')
+    ax.plot(
+        data["p_sensor2"][:, 0],
+        data["p_sensor2"][:, 1],
+        "r-",
+        label="Sensor 2 (reference)",
+        alpha=0.7,
+        linewidth=2,
+    )
+    ax.plot(
+        p1_transformed[:, 0],
+        p1_transformed[:, 1],
+        "b--",
+        label="Sensor 1 (transformed)",
+        alpha=0.7,
+        linewidth=2,
+    )
+    ax.set_xlabel("X [m]")
+    ax.set_ylabel("Y [m]")
+    ax.set_title("After Calibration (Aligned)")
     ax.legend()
     ax.grid(True, alpha=0.3)
-    ax.axis('equal')
+    ax.axis("equal")
 
     # Calibration parameters
     ax = axes[1, 0]
-    ax.axis('off')
+    ax.axis("off")
 
-    t_true = data['true_t']
-    angle_true = data['true_rotation_angle'] * 180/np.pi
-    angle_est = np.arctan2(R_est[1, 0], R_est[0, 0]) * 180/np.pi
+    t_true = data["true_t"]
+    angle_true = data["true_rotation_angle"] * 180 / np.pi
+    angle_est = np.arctan2(R_est[1, 0], R_est[0, 0]) * 180 / np.pi
 
     info_text = f"""
 Extrinsic Calibration Results:
@@ -433,22 +459,25 @@ Rotation Matrix (Estimated):
   [{R_est[1,0]:>7.4f}, {R_est[1,1]:>7.4f}]
     """
 
-    ax.text(0.1, 0.5, info_text, fontsize=11, family='monospace',
-           verticalalignment='center')
+    ax.text(
+        0.1, 0.5, info_text, fontsize=11, family="monospace", verticalalignment="center"
+    )
 
     # Residual errors
     ax = axes[1, 1]
 
-    residuals = data['p_sensor2'] - p1_transformed
+    residuals = data["p_sensor2"] - p1_transformed
     residual_norms = np.linalg.norm(residuals, axis=1)
 
-    ax.plot(data['t'], residual_norms, 'g-', linewidth=1)
-    ax.set_xlabel('Time [s]')
-    ax.set_ylabel('Alignment Error [m]')
-    ax.set_title(f'Calibration Residuals (RMSE: {np.sqrt(np.mean(residual_norms**2)):.4f} m)')
+    ax.plot(data["t"], residual_norms, "g-", linewidth=1)
+    ax.set_xlabel("Time [s]")
+    ax.set_ylabel("Alignment Error [m]")
+    ax.set_title(
+        f"Calibration Residuals (RMSE: {np.sqrt(np.mean(residual_norms**2)):.4f} m)"
+    )
     ax.grid(True, alpha=0.3)
 
-    plt.suptitle('2D Extrinsic Calibration (Section 8.4.2)', fontsize=14)
+    plt.suptitle("2D Extrinsic Calibration (Section 8.4.2)", fontsize=14)
 
     if save_path:
         # save_figure takes a directory and a stem, and writes svg/pdf/png
@@ -466,29 +495,20 @@ def main():
         description="Calibration Demo: Intrinsic and Extrinsic Calibration"
     )
     parser.add_argument(
-        "--skip-intrinsic",
-        action="store_true",
-        help="Skip intrinsic calibration demo"
+        "--skip-intrinsic", action="store_true", help="Skip intrinsic calibration demo"
     )
     parser.add_argument(
-        "--skip-extrinsic",
-        action="store_true",
-        help="Skip extrinsic calibration demo"
+        "--skip-extrinsic", action="store_true", help="Skip extrinsic calibration demo"
     )
-    parser.add_argument(
-        "--seed",
-        type=int,
-        default=42,
-        help="Random seed"
-    )
+    parser.add_argument("--seed", type=int, default=42, help="Random seed")
 
     args = parser.parse_args()
 
     np.random.seed(args.seed)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Calibration Demonstration (Chapter 8, Section 8.4)")
-    print("="*70)
+    print("=" * 70)
 
     # =====================================================================
     # Part 1: Intrinsic IMU Calibration
@@ -503,10 +523,7 @@ def main():
         print("")
 
         print("Generating synthetic stationary IMU data...")
-        imu_data = generate_synthetic_imu_stationary(
-            duration=10.0,
-            rate=100.0
-        )
+        imu_data = generate_synthetic_imu_stationary(duration=10.0, rate=100.0)
 
         print(f"  Duration: {imu_data['t'][-1]:.1f}s")
         print(f"  Samples: {len(imu_data['t'])}")
@@ -515,32 +532,35 @@ def main():
         print("")
 
         print("Estimating biases from stationary window...")
-        calibration = estimate_imu_bias_stationary(
-            imu_data['accel'],
-            imu_data['gyro']
-        )
+        calibration = estimate_imu_bias_stationary(imu_data["accel"], imu_data["gyro"])
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("IMU Calibration Results")
-        print("="*70)
+        print("=" * 70)
         print(f"{'Parameter':<30} {'Estimated':>15} {'True':>15} {'Error':>10}")
         print("-" * 70)
 
-        for i, axis in enumerate(['X', 'Y', 'Z']):
-            true_val = imu_data['true_accel_bias'][i]
-            est_val = calibration['accel_bias'][i]
+        for i, axis in enumerate(["X", "Y", "Z"]):
+            true_val = imu_data["true_accel_bias"][i]
+            est_val = calibration["accel_bias"][i]
             error = abs(est_val - true_val)
-            print(f"Accel Bias {axis} [m/s^2]       {est_val:>15.4f} {true_val:>15.4f} {error:>10.5f}")
+            print(
+                f"Accel Bias {axis} [m/s^2]       {est_val:>15.4f} {true_val:>15.4f} {error:>10.5f}"
+            )
 
         print("")
-        for i, axis in enumerate(['X', 'Y', 'Z']):
-            true_val = imu_data['true_gyro_bias'][i] * 180/np.pi
-            est_val = calibration['gyro_bias'][i] * 180/np.pi
+        for i, axis in enumerate(["X", "Y", "Z"]):
+            true_val = imu_data["true_gyro_bias"][i] * 180 / np.pi
+            est_val = calibration["gyro_bias"][i] * 180 / np.pi
             error = abs(est_val - true_val)
-            print(f"Gyro Bias {axis} [deg/s]       {est_val:>15.4f} {true_val:>15.4f} {error:>10.5f}")
+            print(
+                f"Gyro Bias {axis} [deg/s]       {est_val:>15.4f} {true_val:>15.4f} {error:>10.5f}"
+            )
 
-        print("="*70)
-        print(f"\nGravity identified along axis: {['X', 'Y', 'Z'][calibration['gravity_axis']]}")
+        print("=" * 70)
+        print(
+            f"\nGravity identified along axis: {['X', 'Y', 'Z'][calibration['gravity_axis']]}"
+        )
         print(f"Number of samples used: {calibration['n_samples']}")
 
         # Plot
@@ -562,10 +582,7 @@ def main():
         print("")
 
         print("Generating synthetic dual-sensor data...")
-        ext_data = generate_synthetic_extrinsic_data(
-            duration=30.0,
-            rate=10.0
-        )
+        ext_data = generate_synthetic_extrinsic_data(duration=30.0, rate=10.0)
 
         print(f"  Duration: {ext_data['t'][-1]:.1f}s")
         print(f"  Samples: {len(ext_data['t'])}")
@@ -575,26 +592,31 @@ def main():
 
         print("Estimating extrinsic calibration (least-squares)...")
         R_est, t_est = calibrate_extrinsic_2d_least_squares(
-            ext_data['p_sensor1'],
-            ext_data['p_sensor2']
+            ext_data["p_sensor1"], ext_data["p_sensor2"]
         )
 
-        angle_est = np.arctan2(R_est[1, 0], R_est[0, 0]) * 180/np.pi
-        angle_true = ext_data['true_rotation_angle'] * 180/np.pi
+        angle_est = np.arctan2(R_est[1, 0], R_est[0, 0]) * 180 / np.pi
+        angle_true = ext_data["true_rotation_angle"] * 180 / np.pi
 
-        print("\n" + "="*70)
+        print("\n" + "=" * 70)
         print("Extrinsic Calibration Results")
-        print("="*70)
+        print("=" * 70)
         print(f"{'Parameter':<30} {'Estimated':>15} {'True':>15} {'Error':>10}")
         print("-" * 70)
-        print(f"Rotation Angle [deg]          {angle_est:>15.2f} {angle_true:>15.2f} {abs(wrap_angle_deg(angle_est - angle_true)):>10.4f}")
-        print(f"Lever-arm X [m]               {t_est[0]:>15.4f} {ext_data['true_t'][0]:>15.4f} {abs(t_est[0] - ext_data['true_t'][0]):>10.5f}")
-        print(f"Lever-arm Y [m]               {t_est[1]:>15.4f} {ext_data['true_t'][1]:>15.4f} {abs(t_est[1] - ext_data['true_t'][1]):>10.5f}")
-        print("="*70)
+        print(
+            f"Rotation Angle [deg]          {angle_est:>15.2f} {angle_true:>15.2f} {abs(wrap_angle_deg(angle_est - angle_true)):>10.4f}"
+        )
+        print(
+            f"Lever-arm X [m]               {t_est[0]:>15.4f} {ext_data['true_t'][0]:>15.4f} {abs(t_est[0] - ext_data['true_t'][0]):>10.5f}"
+        )
+        print(
+            f"Lever-arm Y [m]               {t_est[1]:>15.4f} {ext_data['true_t'][1]:>15.4f} {abs(t_est[1] - ext_data['true_t'][1]):>10.5f}"
+        )
+        print("=" * 70)
 
         # Compute RMSE after calibration
-        p1_transformed = (R_est @ ext_data['p_sensor1'].T).T + t_est
-        residuals = ext_data['p_sensor2'] - p1_transformed
+        p1_transformed = (R_est @ ext_data["p_sensor1"].T).T + t_est
+        residuals = ext_data["p_sensor2"] - p1_transformed
         rmse = np.sqrt(np.mean(np.sum(residuals**2, axis=1)))
 
         # Derive the expectation rather than quoting the sensor noise. The
@@ -602,22 +624,26 @@ def main():
         # its per-axis std is sigma*sqrt(2), and this RMSE is the 2-D magnitude,
         # which brings another sqrt(2): 2*sigma, not sigma. Printing "~0.05 m"
         # made a calibration that is right to 2% look twice as bad as expected.
-        sigma = ext_data['noise_std']
+        sigma = ext_data["noise_std"]
         expected = 2.0 * sigma
         print(f"\nAlignment RMSE after calibration: {rmse:.4f} m")
-        print(f"(Expected {expected:.4f} m = 2 x the {sigma:.2f} m per-axis "
-              f"sensor noise: sqrt(2) for differencing two noisy sensors,")
-        print(f" and sqrt(2) again because this is a 2-D magnitude rather than "
-              f"one axis. Measured/expected = {rmse / expected:.2f}.)")
+        print(
+            f"(Expected {expected:.4f} m = 2 x the {sigma:.2f} m per-axis "
+            f"sensor noise: sqrt(2) for differencing two noisy sensors,"
+        )
+        print(
+            f" and sqrt(2) again because this is a 2-D magnitude rather than "
+            f"one axis. Measured/expected = {rmse / expected:.2f}.)"
+        )
 
         # Plot
         save_path = "ch8_sensor_fusion/figs/extrinsic_calibration.svg"
         Path(save_path).parent.mkdir(parents=True, exist_ok=True)
         plot_extrinsic_calibration(ext_data, R_est, t_est, save_path=save_path)
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Calibration Demo Complete")
-    print("="*70)
+    print("=" * 70)
     print("\nKey Takeaways:")
     print("  1. Intrinsic calibration corrects sensor-specific errors (biases)")
     print("  2. Extrinsic calibration aligns multi-sensor coordinate frames")
@@ -626,6 +652,5 @@ def main():
     print("")
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
-

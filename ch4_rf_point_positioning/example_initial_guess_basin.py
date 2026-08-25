@@ -108,8 +108,9 @@ def seed_grid():
     axis = np.arange(GRID_MIN, GRID_MAX + GRID_STEP / 2, GRID_STEP)
     xx, yy = np.meshgrid(axis, axis)
     seeds = np.column_stack([xx.ravel(), yy.ravel()])
-    assert np.min(np.linalg.norm(seeds - TRUTH, axis=1)) > STALL_M, (
-        "a seed coincides with the target: it cannot move, and would be scored a stall")
+    assert (
+        np.min(np.linalg.norm(seeds - TRUTH, axis=1)) > STALL_M
+    ), "a seed coincides with the target: it cannot move, and would be scored a stall"
     return axis, xx, yy, seeds
 
 
@@ -161,8 +162,10 @@ def sweep(residual, verbose=True):
     }
     if verbose:
         n_bad = result["n"] - result["counts"][SOLVED]
-        print(f"\n  residual={residual!r}: {n_bad}/{result['n']} seeds failed to reach "
-              f"the target")
+        print(
+            f"\n  residual={residual!r}: {n_bad}/{result['n']} seeds failed to reach "
+            f"the target"
+        )
         for c, name in LABELS.items():
             if result["counts"][c]:
                 print(f"      {name:<24} {result['counts'][c]:>5}")
@@ -187,7 +190,7 @@ def trace_worst(result):
     finite = np.where(np.isfinite(flat), flat, -np.inf)
     lying = result["claimed"].ravel() & (result["codes"].ravel() == DIVERGED)
     ranked = np.where(lying, finite, -np.inf)
-    if not np.isfinite(ranked).any():          # no silent failure: fall back to the worst
+    if not np.isfinite(ranked).any():  # no silent failure: fall back to the worst
         ranked = finite
     seed = result["seeds"][int(np.argmax(ranked))]
     _, info = AOAPositioner(ANCHORS).solve(
@@ -199,14 +202,23 @@ def trace_worst(result):
 def plot_basin(ax, result):
     """One basin map: every seed coloured by what the solve did from there."""
     cmap = ListedColormap(COLOURS)
-    ax.pcolormesh(result["xx"], result["yy"], result["codes"], cmap=cmap,
-                  vmin=-0.5, vmax=len(COLOURS) - 0.5, shading="auto")
+    ax.pcolormesh(
+        result["xx"],
+        result["yy"],
+        result["codes"],
+        cmap=cmap,
+        vmin=-0.5,
+        vmax=len(COLOURS) - 0.5,
+        shading="auto",
+    )
     ax.plot(ANCHORS[:, 0], ANCHORS[:, 1], "k^", ms=9, label="anchors")
     ax.plot(*TRUTH, "w*", ms=18, mec="k", mew=1.2, label="target")
     solved = result["counts"][SOLVED]
-    ax.set_title(f'residual="{result["residual"]}"   '
-                 f'{result["n"] - solved}/{result["n"]} seeds fail',
-                 fontsize=11)
+    ax.set_title(
+        f'residual="{result["residual"]}"   '
+        f'{result["n"] - solved}/{result["n"]} seeds fail',
+        fontsize=11,
+    )
     ax.set_xlabel("initial guess x (m)")
     ax.set_ylabel("initial guess y (m)")
     ax.set_aspect("equal")
@@ -223,11 +235,23 @@ def plot_failure_rates(ax, results):
     for k, r in enumerate(results):
         pos = np.arange(len(codes)) + k * width - 0.4 + width / 2
         pct = [100 * r["counts"][c] / r["n"] for c in codes]
-        bars = ax.bar(pos, pct, width, label=f'residual="{r["residual"]}"',
-                      color=SERIES[k], edgecolor="black", linewidth=0.5)
+        bars = ax.bar(
+            pos,
+            pct,
+            width,
+            label=f'residual="{r["residual"]}"',
+            color=SERIES[k],
+            edgecolor="black",
+            linewidth=0.5,
+        )
         for b, v, c in zip(bars, pct, codes, strict=True):
-            ax.text(b.get_x() + b.get_width() / 2, max(v, 0) + 1.5,
-                    f"{r['counts'][c]}", ha="center", fontsize=9)
+            ax.text(
+                b.get_x() + b.get_width() / 2,
+                max(v, 0) + 1.5,
+                f"{r['counts'][c]}",
+                ha="center",
+                fontsize=9,
+            )
     ax.set_xticks(np.arange(len(codes)))
     ax.set_xticklabels([LABELS[c].replace(" ", "\n", 1) for c in codes], fontsize=9)
     ax.set_ylabel("% of seeds")
@@ -240,12 +264,16 @@ def plot_trace(ax, seed, history, converged):
     """The walk to infinity, with the flag it set on arrival."""
     d = np.linalg.norm(history - TRUTH, axis=1)
     ax.semilogy(np.arange(len(d)), np.maximum(d, 1e-12), "o-", color="#6A1B9A", ms=4)
-    ax.axhline(100.0, color="#C62828", ls="--", lw=1,
-               label="divergence threshold, 100 m")
+    ax.axhline(
+        100.0, color="#C62828", ls="--", lw=1, label="divergence threshold, 100 m"
+    )
     ax.set_xlabel("Gauss-Newton iteration")
     ax.set_ylabel("distance from the target (m)")
-    ax.set_title(f'seed ({seed[0]:.1f}, {seed[1]:.1f}) -> {d[-1]:.1e} m, '
-                 f'converged={converged}', fontsize=11)
+    ax.set_title(
+        f"seed ({seed[0]:.1f}, {seed[1]:.1f}) -> {d[-1]:.1e} m, "
+        f"converged={converged}",
+        fontsize=11,
+    )
     ax.grid(True, which="both", alpha=0.3)
     ax.legend(fontsize=9, loc="lower right")
 
@@ -261,14 +289,27 @@ def plot_summary(results, trace):
     # only the outcomes that actually occurred: an unused "solver raised" patch sat in a
     # grey almost identical to the tan bars, which is a second meaning for one colour
     seen = [c for c in LABELS if any(r["counts"][c] for r in results)]
-    handles = [Patch(facecolor=COLOURS[c], edgecolor="black", label=LABELS[c])
-               for c in seen]
-    handles += [plt.Line2D([], [], color="k", marker="^", ls="", label="anchor"),
-                plt.Line2D([], [], color="w", marker="*", mec="k", ls="", ms=12,
-                           label="target")]
-    fig.legend(handles=handles, loc="lower center", ncol=len(handles), frameon=False, fontsize=9)
-    fig.suptitle("An initial-guess problem that is not about the initial guess\n"
-                 "AOA, four anchors, zero measurement noise", fontsize=13)
+    handles = [
+        Patch(facecolor=COLOURS[c], edgecolor="black", label=LABELS[c]) for c in seen
+    ]
+    handles += [
+        plt.Line2D([], [], color="k", marker="^", ls="", label="anchor"),
+        plt.Line2D(
+            [], [], color="w", marker="*", mec="k", ls="", ms=12, label="target"
+        ),
+    ]
+    fig.legend(
+        handles=handles,
+        loc="lower center",
+        ncol=len(handles),
+        frameon=False,
+        fontsize=9,
+    )
+    fig.suptitle(
+        "An initial-guess problem that is not about the initial guess\n"
+        "AOA, four anchors, zero measurement noise",
+        fontsize=13,
+    )
     fig.tight_layout(rect=(0, 0.045, 1, 0.96))
     return fig
 
@@ -276,17 +317,21 @@ def plot_summary(results, trace):
 def main() -> None:
     """Sweep both parameterisations and write the figure."""
     parser = argparse.ArgumentParser(
-        description="Initial-guess basin for AOA positioning (Chapter 4)")
-    parser.add_argument("--out-dir", default=str(FIGS_DIR),
-                        help="Output directory for figures")
+        description="Initial-guess basin for AOA positioning (Chapter 4)"
+    )
+    parser.add_argument(
+        "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
+    )
     args = parser.parse_args()
 
     axis, *_ = seed_grid()
     print("=" * 70)
     print("Chapter 4: the initial guess is not usually the problem")
     print("=" * 70)
-    print(f"  {len(axis)}x{len(axis)} seeds over [{GRID_MIN:.0f}, {GRID_MAX:.0f}] m, "
-          f"target at ({TRUTH[0]:.1f}, {TRUTH[1]:.1f}), zero measurement noise")
+    print(
+        f"  {len(axis)}x{len(axis)} seeds over [{GRID_MIN:.0f}, {GRID_MAX:.0f}] m, "
+        f"target at ({TRUTH[0]:.1f}, {TRUTH[1]:.1f}), zero measurement noise"
+    )
 
     tan_r = sweep("tan")
     ang_r = sweep("angle")
@@ -300,28 +345,49 @@ def main() -> None:
     print(f"  {'':30}{'tan(psi)':>12}{'wrap(angle)':>14}")
     print(f"  {'seeds that fail':30}{bad_tan:>12}{bad_ang:>14}")
     print(f"  {'  quiet: stalled or plausible':30}{quiet_tan:>12}{quiet_ang:>14}")
-    print(f"  {'  loud: walked off past 100 m':30}"
-          f"{tan_r['counts'][DIVERGED]:>12}{ang_r['counts'][DIVERGED]:>14}")
-    print(f"  {'failures claiming converged':30}"
-          f"{tan_r['silent']:>12}{ang_r['silent']:>14}")
-    print(f"\n  Overall {bad_tan / max(bad_ang, 1):.1f}x fewer failures -- but the honest "
-          f"statement is narrower:")
-    print(f"  the wrapped-angle form removes the QUIET failures ({quiet_tan} -> "
-          f"{quiet_ang}), the ones")
-    print("  that look like answers. Seeds far outside the room still walk off under both,")
-    print(f"  and {ang_r['silent']} of those still set converged=True. The residual fix "
-          f"makes the")
-    print("  solver honest, not safe -- the four-condition test is still what catches it.")
+    print(
+        f"  {'  loud: walked off past 100 m':30}"
+        f"{tan_r['counts'][DIVERGED]:>12}{ang_r['counts'][DIVERGED]:>14}"
+    )
+    print(
+        f"  {'failures claiming converged':30}"
+        f"{tan_r['silent']:>12}{ang_r['silent']:>14}"
+    )
+    print(
+        f"\n  Overall {bad_tan / max(bad_ang, 1):.1f}x fewer failures -- but the honest "
+        f"statement is narrower:"
+    )
+    print(
+        f"  the wrapped-angle form removes the QUIET failures ({quiet_tan} -> "
+        f"{quiet_ang}), the ones"
+    )
+    print(
+        "  that look like answers. Seeds far outside the room still walk off under both,"
+    )
+    print(
+        f"  and {ang_r['silent']} of those still set converged=True. The residual fix "
+        f"makes the"
+    )
+    print(
+        "  solver honest, not safe -- the four-condition test is still what catches it."
+    )
 
     seed, history, converged = trace_worst(tan_r)
-    print(f"\n  Worst SILENT tan failure: seed ({seed[0]:.1f}, {seed[1]:.1f}) walked to "
-          f"{np.linalg.norm(history[-1] - TRUTH):.2e} m")
+    print(
+        f"\n  Worst SILENT tan failure: seed ({seed[0]:.1f}, {seed[1]:.1f}) walked to "
+        f"{np.linalg.norm(history[-1] - TRUTH):.2e} m"
+    )
     print(f"  in {len(history) - 1} iterations and reported converged={converged}.")
 
-    paths = save_figure(plot_summary([tan_r, ang_r], (seed, history, converged)),
-                        args.out_dir, "ch4_initial_guess_basin")
-    print(f"\n  saved ch4_initial_guess_basin: "
-          f"{', '.join(p.suffix.lstrip('.') for p in paths)}")
+    paths = save_figure(
+        plot_summary([tan_r, ang_r], (seed, history, converged)),
+        args.out_dir,
+        "ch4_initial_guess_basin",
+    )
+    print(
+        f"\n  saved ch4_initial_guess_basin: "
+        f"{', '.join(p.suffix.lstrip('.') for p in paths)}"
+    )
     plt.close("all")
     print(f"Figures written to {resolve_figs_dir(args.out_dir)}")
     show_figures_if_requested()

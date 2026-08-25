@@ -283,9 +283,15 @@ class TestIMUForwardModel:
         radius = 5.0
         omega = 1.0  # rad/s
 
-        pos_map = np.column_stack([radius * np.cos(omega * t), radius * np.sin(omega * t), np.zeros(N)])
+        pos_map = np.column_stack(
+            [radius * np.cos(omega * t), radius * np.sin(omega * t), np.zeros(N)]
+        )
         vel_map = np.column_stack(
-            [-radius * omega * np.sin(omega * t), radius * omega * np.cos(omega * t), np.zeros(N)]
+            [
+                -radius * omega * np.sin(omega * t),
+                radius * omega * np.cos(omega * t),
+                np.zeros(N),
+            ]
         )
 
         # Yaw follows velocity direction
@@ -318,4 +324,3 @@ class TestIMUForwardModel:
 if __name__ == "__main__":
     # Run tests with pytest
     pytest.main([__file__, "-v", "-s"])
-

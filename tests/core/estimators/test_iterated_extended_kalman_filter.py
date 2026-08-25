@@ -22,6 +22,7 @@ class TestIEKFAlgorithm(unittest.TestCase):
 
     def setUp(self):
         """Setup simple nonlinear system for testing."""
+
         # Process model: simple 2D motion
         def process_model(x, u, dt):
             return np.array([x[0] + x[1] * dt, x[1]])
@@ -56,10 +57,15 @@ class TestIEKFAlgorithm(unittest.TestCase):
         P0 = np.eye(2)
 
         iekf = IteratedExtendedKalmanFilter(
-            self.process_model, self.process_jacobian,
-            self.measurement_model, self.measurement_jacobian,
-            self.Q_func, self.R_func, x0, P0,
-            max_iterations=1  # Only one iteration
+            self.process_model,
+            self.process_jacobian,
+            self.measurement_model,
+            self.measurement_jacobian,
+            self.Q_func,
+            self.R_func,
+            x0,
+            P0,
+            max_iterations=1,  # Only one iteration
         )
 
         x_before_update, _ = iekf.get_state()
@@ -80,11 +86,16 @@ class TestIEKFAlgorithm(unittest.TestCase):
         P0 = np.eye(2)
 
         iekf = IteratedExtendedKalmanFilter(
-            self.process_model, self.process_jacobian,
-            self.measurement_model, self.measurement_jacobian,
-            self.Q_func, self.R_func, x0, P0,
+            self.process_model,
+            self.process_jacobian,
+            self.measurement_model,
+            self.measurement_jacobian,
+            self.Q_func,
+            self.R_func,
+            x0,
+            P0,
             max_iterations=10,
-            convergence_tol=1e-8
+            convergence_tol=1e-8,
         )
 
         iekf.predict(dt=0.1)
@@ -99,10 +110,15 @@ class TestIEKFAlgorithm(unittest.TestCase):
         P0 = np.eye(2)
 
         iekf = IteratedExtendedKalmanFilter(
-            self.process_model, self.process_jacobian,
-            self.measurement_model, self.measurement_jacobian,
-            self.Q_func, self.R_func, x0, P0,
-            max_iterations=5
+            self.process_model,
+            self.process_jacobian,
+            self.measurement_model,
+            self.measurement_jacobian,
+            self.Q_func,
+            self.R_func,
+            x0,
+            P0,
+            max_iterations=5,
         )
 
         iekf.predict(dt=0.1)
@@ -120,25 +136,14 @@ class TestIEKFvsEKF(unittest.TestCase):
         self.landmarks = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
 
         def process_model(x, u, dt):
-            F = np.array([
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ])
+            F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
             return F @ x
 
         def process_jacobian(x, u, dt):
-            return np.array([
-                [1, 0, dt, 0],
-                [0, 1, 0, dt],
-                [0, 0, 1, 0],
-                [0, 0, 0, 1]
-            ])
+            return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
         def measurement_model(x):
-            return np.array([np.linalg.norm(lm - x[:2])
-                             for lm in self.landmarks])
+            return np.array([np.linalg.norm(lm - x[:2]) for lm in self.landmarks])
 
         def measurement_jacobian(x):
             H = []
@@ -153,12 +158,14 @@ class TestIEKFvsEKF(unittest.TestCase):
 
         def Q_func(dt):
             q = 0.1
-            return q * np.array([
-                [dt ** 3 / 3, 0, dt ** 2 / 2, 0],
-                [0, dt ** 3 / 3, 0, dt ** 2 / 2],
-                [dt ** 2 / 2, 0, dt, 0],
-                [0, dt ** 2 / 2, 0, dt]
-            ])
+            return q * np.array(
+                [
+                    [dt**3 / 3, 0, dt**2 / 2, 0],
+                    [0, dt**3 / 3, 0, dt**2 / 2],
+                    [dt**2 / 2, 0, dt, 0],
+                    [0, dt**2 / 2, 0, dt],
+                ]
+            )
 
         def R_func():
             return 0.5 * np.eye(4)
@@ -177,16 +184,26 @@ class TestIEKFvsEKF(unittest.TestCase):
         P0 = np.diag([2.0, 2.0, 1.0, 1.0])
 
         ekf = ExtendedKalmanFilter(
-            self.process_model, self.process_jacobian,
-            self.measurement_model, self.measurement_jacobian,
-            self.Q_func, self.R_func, x0_est.copy(), P0.copy()
+            self.process_model,
+            self.process_jacobian,
+            self.measurement_model,
+            self.measurement_jacobian,
+            self.Q_func,
+            self.R_func,
+            x0_est.copy(),
+            P0.copy(),
         )
 
         iekf = IteratedExtendedKalmanFilter(
-            self.process_model, self.process_jacobian,
-            self.measurement_model, self.measurement_jacobian,
-            self.Q_func, self.R_func, x0_est.copy(), P0.copy(),
-            max_iterations=5
+            self.process_model,
+            self.process_jacobian,
+            self.measurement_model,
+            self.measurement_jacobian,
+            self.Q_func,
+            self.R_func,
+            x0_est.copy(),
+            P0.copy(),
+            max_iterations=5,
         )
 
         # Run simulation
@@ -200,12 +217,11 @@ class TestIEKFvsEKF(unittest.TestCase):
 
         for _ in range(n_steps):
             true_state = self.process_model(true_state, None, dt)
-            true_state += np.random.multivariate_normal(
-                np.zeros(4), self.Q_func(dt)
-            )
+            true_state += np.random.multivariate_normal(np.zeros(4), self.Q_func(dt))
 
-            z = self.measurement_model(true_state) + \
-                np.random.multivariate_normal(np.zeros(4), self.R_func())
+            z = self.measurement_model(true_state) + np.random.multivariate_normal(
+                np.zeros(4), self.R_func()
+            )
 
             ekf.predict(dt=dt)
             ekf.update(z)
@@ -222,7 +238,7 @@ class TestIEKFvsEKF(unittest.TestCase):
         self.assertLessEqual(
             np.mean(iekf_errors),
             np.mean(ekf_errors) * 1.1,
-            "IEKF should not be significantly worse than EKF"
+            "IEKF should not be significantly worse than EKF",
         )
 
 
@@ -254,10 +270,15 @@ class TestIEKFCovarianceUpdate(unittest.TestCase):
         P0 = np.eye(2)
 
         iekf = IteratedExtendedKalmanFilter(
-            process_model, process_jacobian,
-            measurement_model, measurement_jacobian,
-            Q_func, R_func, x0, P0,
-            max_iterations=5
+            process_model,
+            process_jacobian,
+            measurement_model,
+            measurement_jacobian,
+            Q_func,
+            R_func,
+            x0,
+            P0,
+            max_iterations=5,
         )
 
         for _ in range(10):
@@ -268,23 +289,9 @@ class TestIEKFCovarianceUpdate(unittest.TestCase):
             eigvals = np.linalg.eigvalsh(P)
             self.assertTrue(
                 np.all(eigvals > 0),
-                f"Covariance not positive definite: eigvals={eigvals}"
+                f"Covariance not positive definite: eigvals={eigvals}",
             )
 
 
 if __name__ == "__main__":
     unittest.main()
-
-
-
-
-
-
-
-
-
-
-
-
-
-

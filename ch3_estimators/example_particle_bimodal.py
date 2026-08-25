@@ -140,9 +140,7 @@ def run_bimodal_scenario(seed: int = SEED):
             anchors = _anchors_at(step)
             particle_filter.likelihood_func = _make_likelihood(anchors)
 
-            ranges = np.array(
-                [np.linalg.norm(truth[step][:2] - a) for a in anchors]
-            )
+            ranges = np.array([np.linalg.norm(truth[step][:2] - a) for a in anchors])
             ranges = ranges + np.random.normal(0.0, RANGE_STD, len(anchors))
 
             particle_filter.predict(dt=DT)
@@ -169,7 +167,8 @@ def run_bimodal_scenario(seed: int = SEED):
             error_mean.append(np.linalg.norm(mean_xy - truth_xy))
             error_best_mode.append(
                 min(np.linalg.norm(m - truth_xy) for m in modes)
-                if modes else np.linalg.norm(mean_xy - truth_xy)
+                if modes
+                else np.linalg.norm(mean_xy - truth_xy)
             )
     finally:
         np.random.set_state(rng_state)
@@ -202,19 +201,58 @@ def _draw_frame(axes, scenario, index):
     # --- particle cloud
     above = cloud[cloud[:, 1] > 0]
     below = cloud[cloud[:, 1] <= 0]
-    axes[0].scatter(above[:, 0], above[:, 1], s=5, c="tab:blue", alpha=0.35,
-                    label=f"particles above baseline ({len(above)})")
-    axes[0].scatter(below[:, 0], below[:, 1], s=5, c="tab:purple", alpha=0.35,
-                    label=f"particles below ({len(below)})")
-    axes[0].plot(truth[: step + 1, 0], truth[: step + 1, 1], "k-",
-                 linewidth=2.0, label="true trajectory")
-    axes[0].scatter(*truth[step][:2], s=90, marker="*", c="lime",
-                    edgecolors="black", zorder=6, label="true position")
-    axes[0].scatter(*scenario["means"][index], s=70, marker="X", c="red",
-                    edgecolors="black", zorder=6, label="posterior mean")
-    axes[0].scatter(anchors[:, 0], anchors[:, 1], s=150, marker="^", c="orange",
-                    edgecolors="black", linewidths=1.5, zorder=5,
-                    label=f"{len(anchors)} anchors")
+    axes[0].scatter(
+        above[:, 0],
+        above[:, 1],
+        s=5,
+        c="tab:blue",
+        alpha=0.35,
+        label=f"particles above baseline ({len(above)})",
+    )
+    axes[0].scatter(
+        below[:, 0],
+        below[:, 1],
+        s=5,
+        c="tab:purple",
+        alpha=0.35,
+        label=f"particles below ({len(below)})",
+    )
+    axes[0].plot(
+        truth[: step + 1, 0],
+        truth[: step + 1, 1],
+        "k-",
+        linewidth=2.0,
+        label="true trajectory",
+    )
+    axes[0].scatter(
+        *truth[step][:2],
+        s=90,
+        marker="*",
+        c="lime",
+        edgecolors="black",
+        zorder=6,
+        label="true position",
+    )
+    axes[0].scatter(
+        *scenario["means"][index],
+        s=70,
+        marker="X",
+        c="red",
+        edgecolors="black",
+        zorder=6,
+        label="posterior mean",
+    )
+    axes[0].scatter(
+        anchors[:, 0],
+        anchors[:, 1],
+        s=150,
+        marker="^",
+        c="orange",
+        edgecolors="black",
+        linewidths=1.5,
+        zorder=5,
+        label=f"{len(anchors)} anchors",
+    )
     axes[0].axhline(0.0, color="0.6", linestyle=":", linewidth=1.2)
     axes[0].set_xlim(-6, 26)
     axes[0].set_ylim(-16, 22)
@@ -232,28 +270,47 @@ def _draw_frame(axes, scenario, index):
     )
 
     # --- how the two modes share the particles
-    axes[1].plot(steps[: index + 1], scenario["fraction_above"][: index + 1],
-                 "-", color="tab:blue", linewidth=1.8)
+    axes[1].plot(
+        steps[: index + 1],
+        scenario["fraction_above"][: index + 1],
+        "-",
+        color="tab:blue",
+        linewidth=1.8,
+    )
     axes[1].axhline(0.5, color="0.6", linestyle=":", linewidth=1.2)
-    axes[1].axvline(THIRD_ANCHOR_STEP, color="tab:green", linestyle="--",
-                    linewidth=1.4, label="third anchor appears")
+    axes[1].axvline(
+        THIRD_ANCHOR_STEP,
+        color="tab:green",
+        linestyle="--",
+        linewidth=1.4,
+        label="third anchor appears",
+    )
     axes[1].set_xlim(steps[0], steps[-1])
     axes[1].set_ylim(-0.05, 1.05)
     axes[1].grid(alpha=0.3)
     axes[1].set_xlabel("step")
     axes[1].set_ylabel("fraction of particles above baseline")
     axes[1].legend(fontsize=8, loc="lower right")
-    axes[1].set_title(
-        "two live hypotheses, then one", fontsize=10
-    )
+    axes[1].set_title("two live hypotheses, then one", fontsize=10)
 
     # --- the punchline: the mean is not where the target is
-    axes[2].plot(steps[: index + 1], scenario["error_mean"][: index + 1],
-                 "-", color="red", linewidth=1.8, label="posterior mean")
-    axes[2].plot(steps[: index + 1], scenario["error_best_mode"][: index + 1],
-                 "-", color="tab:blue", linewidth=1.8, label="nearest mode")
-    axes[2].axvline(THIRD_ANCHOR_STEP, color="tab:green", linestyle="--",
-                    linewidth=1.4)
+    axes[2].plot(
+        steps[: index + 1],
+        scenario["error_mean"][: index + 1],
+        "-",
+        color="red",
+        linewidth=1.8,
+        label="posterior mean",
+    )
+    axes[2].plot(
+        steps[: index + 1],
+        scenario["error_best_mode"][: index + 1],
+        "-",
+        color="tab:blue",
+        linewidth=1.8,
+        label="nearest mode",
+    )
+    axes[2].axvline(THIRD_ANCHOR_STEP, color="tab:green", linestyle="--", linewidth=1.4)
     axes[2].set_xlim(steps[0], steps[-1])
     axes[2].set_ylim(0, max(scenario["error_mean"].max() * 1.15, 1.0))
     axes[2].grid(alpha=0.3)
@@ -306,11 +363,17 @@ def plot_bimodal_summary(scenario) -> plt.Figure:
     # complete run so the static figure shows the whole story at once.
     steps = scenario["steps"]
     axes[1].clear()
-    axes[1].plot(steps, scenario["fraction_above"], "-", color="tab:blue",
-                 linewidth=1.8)
+    axes[1].plot(
+        steps, scenario["fraction_above"], "-", color="tab:blue", linewidth=1.8
+    )
     axes[1].axhline(0.5, color="0.6", linestyle=":", linewidth=1.2)
-    axes[1].axvline(THIRD_ANCHOR_STEP, color="tab:green", linestyle="--",
-                    linewidth=1.4, label="third anchor appears")
+    axes[1].axvline(
+        THIRD_ANCHOR_STEP,
+        color="tab:green",
+        linestyle="--",
+        linewidth=1.4,
+        label="third anchor appears",
+    )
     axes[1].set_xlim(steps[0], steps[-1])
     axes[1].set_ylim(-0.05, 1.05)
     axes[1].grid(alpha=0.3)
@@ -320,12 +383,23 @@ def plot_bimodal_summary(scenario) -> plt.Figure:
     axes[1].set_title("two live hypotheses, then one", fontsize=10)
 
     axes[2].clear()
-    axes[2].plot(steps, scenario["error_mean"], "-", color="red",
-                 linewidth=1.8, label="posterior mean")
-    axes[2].plot(steps, scenario["error_best_mode"], "-", color="tab:blue",
-                 linewidth=1.8, label="nearest mode")
-    axes[2].axvline(THIRD_ANCHOR_STEP, color="tab:green", linestyle="--",
-                    linewidth=1.4)
+    axes[2].plot(
+        steps,
+        scenario["error_mean"],
+        "-",
+        color="red",
+        linewidth=1.8,
+        label="posterior mean",
+    )
+    axes[2].plot(
+        steps,
+        scenario["error_best_mode"],
+        "-",
+        color="tab:blue",
+        linewidth=1.8,
+        label="nearest mode",
+    )
+    axes[2].axvline(THIRD_ANCHOR_STEP, color="tab:green", linestyle="--", linewidth=1.4)
     axes[2].set_xlim(steps[0], steps[-1])
     axes[2].set_ylim(0, scenario["error_mean"].max() * 1.15)
     axes[2].grid(alpha=0.3)
@@ -352,44 +426,61 @@ def main() -> None:
     parser = argparse.ArgumentParser(
         description="Bimodal particle-filter posterior (Chapter 3)"
     )
-    parser.add_argument("--out-dir", default=str(FIGS_DIR),
-                        help="Output directory for figures")
-    parser.add_argument("--animate", action="store_true", default=False,
-                        help="Also render the animation GIF (slower)")
+    parser.add_argument(
+        "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
+    )
+    parser.add_argument(
+        "--animate",
+        action="store_true",
+        default=False,
+        help="Also render the animation GIF (slower)",
+    )
     args = parser.parse_args()
 
     print("=" * 70)
     print("Chapter 3, Section 3.3: a posterior that is not Gaussian")
     print("=" * 70)
-    print(f"Two range-only anchors for steps 1-{THIRD_ANCHOR_STEP - 1}, "
-          f"a third from step {THIRD_ANCHOR_STEP}.\n")
+    print(
+        f"Two range-only anchors for steps 1-{THIRD_ANCHOR_STEP - 1}, "
+        f"a third from step {THIRD_ANCHOR_STEP}.\n"
+    )
 
     scenario = run_bimodal_scenario()
 
     bimodal = scenario["steps"] < THIRD_ANCHOR_STEP
     resolved = ~bimodal
     print(f"  While bimodal ({bimodal.sum()} steps):")
-    print(f"    particles above baseline: "
-          f"{scenario['fraction_above'][bimodal].min():.2f} to "
-          f"{scenario['fraction_above'][bimodal].max():.2f}")
+    print(
+        f"    particles above baseline: "
+        f"{scenario['fraction_above'][bimodal].min():.2f} to "
+        f"{scenario['fraction_above'][bimodal].max():.2f}"
+    )
     print(f"    mean error      {scenario['error_mean'][bimodal].mean():.2f} m")
-    print(f"    nearest-mode    "
-          f"{scenario['error_best_mode'][bimodal].mean():.2f} m"
-          f"   <- the mean is the misleading one")
+    print(
+        f"    nearest-mode    "
+        f"{scenario['error_best_mode'][bimodal].mean():.2f} m"
+        f"   <- the mean is the misleading one"
+    )
     print(f"  After the third anchor ({resolved.sum()} steps):")
     print(f"    mean error      {scenario['error_mean'][resolved].mean():.2f} m")
-    print(f"    nearest-mode    "
-          f"{scenario['error_best_mode'][resolved].mean():.2f} m\n")
+    print(
+        f"    nearest-mode    "
+        f"{scenario['error_best_mode'][resolved].mean():.2f} m\n"
+    )
 
-    paths = save_figure(plot_bimodal_summary(scenario), args.out_dir,
-                        "ch3_particle_bimodal")
-    print(f"  saved ch3_particle_bimodal: "
-          f"{', '.join(p.suffix.lstrip('.') for p in paths)}")
+    paths = save_figure(
+        plot_bimodal_summary(scenario), args.out_dir, "ch3_particle_bimodal"
+    )
+    print(
+        f"  saved ch3_particle_bimodal: "
+        f"{', '.join(p.suffix.lstrip('.') for p in paths)}"
+    )
 
     if args.animate:
         fig, update, n_frames = animate_bimodal(scenario)
-        path = save_animation(fig, update, n_frames, args.out_dir,
-                              "ch3_particle_bimodal", fps=4)
+        path = save_animation(
+            fig, update, n_frames, args.out_dir, "ch3_particle_bimodal", fps=4
+        )
         plt.close(fig)
         size_mb = path.stat().st_size / (1024 * 1024)
         print(f"  saved {path.name}: {n_frames} frames, {size_mb:.2f} MB")

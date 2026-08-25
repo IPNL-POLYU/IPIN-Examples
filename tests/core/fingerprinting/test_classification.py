@@ -38,27 +38,27 @@ class TestFitClassifier:
         """Test fitting Random Forest with RP-based classes."""
         # Create simple database
         locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         # Fit classifier
         classifier = fit_classifier(
-            db,
-            classifier_type="random_forest",
-            zone_type="rp",
-            n_estimators=50
+            db, classifier_type="random_forest", zone_type="rp", n_estimators=50
         )
 
         assert classifier is not None
@@ -68,28 +68,27 @@ class TestFitClassifier:
     def test_fit_svm_rp_based(self):
         """Test fitting SVM with RP-based classes."""
         locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         # Fit SVM classifier
         classifier = fit_classifier(
-            db,
-            classifier_type="svm",
-            zone_type="rp",
-            C=1.0,
-            kernel="rbf"
+            db, classifier_type="svm", zone_type="rp", C=1.0, kernel="rbf"
         )
 
         assert classifier is not None
@@ -99,27 +98,27 @@ class TestFitClassifier:
         """Test fitting classifier on single floor only."""
         # Multi-floor database
         locations = np.array([[0, 0], [10, 0], [0, 5], [10, 5]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-55, -65, -75],
-            [-65, -55, -85],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-55, -65, -75],
+                [-65, -55, -85],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 1, 1])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         # Fit on floor 0 only
         classifier = fit_classifier(
-            db,
-            classifier_type="random_forest",
-            zone_type="rp",
-            floor_id=0
+            db, classifier_type="random_forest", zone_type="rp", floor_id=0
         )
 
         # Should only have 2 classes (floor 0 RPs)
@@ -132,10 +131,7 @@ class TestFitClassifier:
         floor_ids = np.array([0, 0])
 
         db = FingerprintDatabase(
-            locations=locations,
-            features=features,
-            floor_ids=floor_ids,
-            meta={}
+            locations=locations, features=features, floor_ids=floor_ids, meta={}
         )
 
         with pytest.raises((ValueError, NotImplementedError)):
@@ -148,10 +144,7 @@ class TestFitClassifier:
         floor_ids = np.array([0, 0])
 
         db = FingerprintDatabase(
-            locations=locations,
-            features=features,
-            floor_ids=floor_ids,
-            meta={}
+            locations=locations, features=features, floor_ids=floor_ids, meta={}
         )
 
         with pytest.raises(ValueError, match="Unknown classifier_type"):
@@ -164,18 +157,21 @@ class TestClassificationLocalizer:
     def test_predict_exact_match(self):
         """Test prediction with exact feature match."""
         locations = np.array([[0, 0], [10, 0], [10, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         classifier = fit_classifier(db, classifier_type="random_forest", zone_type="rp")
@@ -191,18 +187,21 @@ class TestClassificationLocalizer:
     def test_predict_approximate_match(self):
         """Test prediction with approximate feature match."""
         locations = np.array([[0, 0], [10, 0], [10, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         classifier = fit_classifier(db, classifier_type="random_forest", zone_type="rp")
@@ -217,18 +216,21 @@ class TestClassificationLocalizer:
     def test_predict_with_probabilities(self):
         """Test prediction with class probabilities."""
         locations = np.array([[0, 0], [10, 0], [10, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         classifier = fit_classifier(db, classifier_type="random_forest", zone_type="rp")
@@ -242,18 +244,21 @@ class TestClassificationLocalizer:
     def test_predict_with_missing_values(self):
         """Test prediction with missing values (NaN) in query."""
         locations = np.array([[0, 0], [10, 0], [10, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         classifier = fit_classifier(db, classifier_type="random_forest", zone_type="rp")
@@ -278,38 +283,46 @@ class TestHierarchicalLocalize:
     def test_hierarchical_floor_then_knn(self):
         """Test hierarchical: floor classification, then k-NN."""
         # Multi-floor database
-        locations = np.array([
-            [0, 0], [10, 0], [10, 10], [0, 10],  # Floor 0
-            [0, 0], [10, 0], [10, 10], [0, 10],  # Floor 1
-        ], dtype=float)
-        features = np.array([
-            [-50, -60, -70],  # Floor 0
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-            [-55, -65, -75],  # Floor 1 (different RSS)
-            [-65, -55, -85],
-            [-75, -85, -55],
-            [-85, -75, -65],
-        ], dtype=float)
+        locations = np.array(
+            [
+                [0, 0],
+                [10, 0],
+                [10, 10],
+                [0, 10],  # Floor 0
+                [0, 0],
+                [10, 0],
+                [10, 10],
+                [0, 10],  # Floor 1
+            ],
+            dtype=float,
+        )
+        features = np.array(
+            [
+                [-50, -60, -70],  # Floor 0
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+                [-55, -65, -75],  # Floor 1 (different RSS)
+                [-65, -55, -85],
+                [-75, -85, -55],
+                [-85, -75, -65],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 0, 1, 1, 1, 1])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         # Query on floor 1
         query = np.array([-60, -70, -80])
 
         pos, info = hierarchical_localize(
-            query,
-            db,
-            coarse_method="floor",
-            fine_method="knn",
-            k=3
+            query, db, coarse_method="floor", fine_method="knn", k=3
         )
 
         assert pos.shape == (2,)
@@ -320,28 +333,28 @@ class TestHierarchicalLocalize:
     def test_hierarchical_single_floor(self):
         """Test hierarchical on single-floor database (should skip coarse)."""
         locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-        ], dtype=float)
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 0])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         query = np.array([-55, -65, -75])
 
         pos, info = hierarchical_localize(
-            query,
-            db,
-            coarse_method="floor",
-            fine_method="nn"
+            query, db, coarse_method="floor", fine_method="nn"
         )
 
         assert pos.shape == (2,)
@@ -350,35 +363,42 @@ class TestHierarchicalLocalize:
     def test_hierarchical_with_probabilistic_fine(self):
         """Test hierarchical with probabilistic fine localization."""
         # Multi-floor database
-        locations = np.array([
-            [0, 0], [10, 0], [10, 10],  # Floor 0
-            [0, 0], [10, 0], [10, 10],  # Floor 1
-        ], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-55, -65, -75],
-            [-65, -55, -85],
-            [-75, -85, -55],
-        ], dtype=float)
+        locations = np.array(
+            [
+                [0, 0],
+                [10, 0],
+                [10, 10],  # Floor 0
+                [0, 0],
+                [10, 0],
+                [10, 10],  # Floor 1
+            ],
+            dtype=float,
+        )
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-55, -65, -75],
+                [-65, -55, -85],
+                [-75, -85, -55],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 1, 1, 1])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         query = np.array([-58, -68, -78])
 
         # Test MAP fine method
         pos_map, info_map = hierarchical_localize(
-            query,
-            db,
-            coarse_method="floor",
-            fine_method="map"
+            query, db, coarse_method="floor", fine_method="map"
         )
 
         assert pos_map.shape == (2,)
@@ -386,10 +406,7 @@ class TestHierarchicalLocalize:
 
         # Test posterior mean fine method
         pos_mean, info_mean = hierarchical_localize(
-            query,
-            db,
-            coarse_method="floor",
-            fine_method="posterior_mean"
+            query, db, coarse_method="floor", fine_method="posterior_mean"
         )
 
         assert pos_mean.shape == (2,)
@@ -397,35 +414,41 @@ class TestHierarchicalLocalize:
     def test_hierarchical_random_forest_coarse(self):
         """Test hierarchical with Random Forest coarse classification."""
         # Multi-floor database
-        locations = np.array([
-            [0, 0], [10, 0], [10, 10],  # Floor 0
-            [0, 0], [10, 0], [10, 10],  # Floor 1
-        ], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-55, -65, -75],
-            [-65, -55, -85],
-            [-75, -85, -55],
-        ], dtype=float)
+        locations = np.array(
+            [
+                [0, 0],
+                [10, 0],
+                [10, 10],  # Floor 0
+                [0, 0],
+                [10, 0],
+                [10, 10],  # Floor 1
+            ],
+            dtype=float,
+        )
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-55, -65, -75],
+                [-65, -55, -85],
+                [-75, -85, -55],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 1, 1, 1])
 
         db = FingerprintDatabase(
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
         )
 
         query = np.array([-58, -68, -78])
 
         pos, info = hierarchical_localize(
-            query,
-            db,
-            coarse_method="random_forest",
-            fine_method="knn",
-            k=3
+            query, db, coarse_method="random_forest", fine_method="knn", k=3
         )
 
         assert pos.shape == (2,)
@@ -439,10 +462,7 @@ class TestHierarchicalLocalize:
         floor_ids = np.array([0, 0])
 
         db = FingerprintDatabase(
-            locations=locations,
-            features=features,
-            floor_ids=floor_ids,
-            meta={}
+            locations=locations, features=features, floor_ids=floor_ids, meta={}
         )
 
         query = np.array([-55, -65])
@@ -457,10 +477,7 @@ class TestHierarchicalLocalize:
         floor_ids = np.array([0, 0])
 
         db = FingerprintDatabase(
-            locations=locations,
-            features=features,
-            floor_ids=floor_ids,
-            meta={}
+            locations=locations, features=features, floor_ids=floor_ids, meta={}
         )
 
         query = np.array([-55, -65])
@@ -474,18 +491,28 @@ class TestFitFloorClassifier:
 
     @staticmethod
     def _make_multi_floor_db():
-        locations = np.array([
-            [0, 0], [10, 0], [10, 10],
-            [0, 0], [10, 0], [10, 10],
-        ], dtype=float)
-        features = np.array([
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-55, -65, -75],
-            [-65, -55, -85],
-            [-75, -85, -55],
-        ], dtype=float)
+        locations = np.array(
+            [
+                [0, 0],
+                [10, 0],
+                [10, 10],
+                [0, 0],
+                [10, 0],
+                [10, 10],
+            ],
+            dtype=float,
+        )
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-55, -65, -75],
+                [-65, -55, -85],
+                [-75, -85, -55],
+            ],
+            dtype=float,
+        )
         floor_ids = np.array([0, 0, 0, 1, 1, 1])
         return FingerprintDatabase(
             locations=locations,
@@ -520,10 +547,12 @@ class TestFitFloorClassifier:
 
         query = np.array([-58, -68, -78])
         pos, info = hierarchical_localize(
-            query, db,
+            query,
+            db,
             coarse_method="random_forest",
             coarse_model=clf,
-            fine_method="knn", k=3,
+            fine_method="knn",
+            k=3,
         )
         assert pos.shape == (2,)
         assert info["coarse_method"] == "random_forest"
@@ -534,9 +563,11 @@ class TestFitFloorClassifier:
         db = self._make_multi_floor_db()
         query = np.array([-58, -68, -78])
         pos, info = hierarchical_localize(
-            query, db,
+            query,
+            db,
             coarse_method="random_forest",
-            fine_method="knn", k=3,
+            fine_method="knn",
+            k=3,
         )
         assert pos.shape == (2,)
         assert "coarse_floor" in info
@@ -559,15 +590,12 @@ class TestIntegration:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": [f"AP{i}" for i in range(5)], "unit": "dBm"}
+            meta={"ap_ids": [f"AP{i}" for i in range(5)], "unit": "dBm"},
         )
 
         # Fit classifier
         classifier = fit_classifier(
-            db,
-            classifier_type="random_forest",
-            zone_type="rp",
-            n_estimators=100
+            db, classifier_type="random_forest", zone_type="rp", n_estimators=100
         )
 
         # Test queries
@@ -612,23 +640,17 @@ class TestIntegration:
             locations=locations,
             features=features,
             floor_ids=floor_ids,
-            meta={"ap_ids": ["AP1", "AP2", "AP3", "AP4"], "unit": "dBm"}
+            meta={"ap_ids": ["AP1", "AP2", "AP3", "AP4"], "unit": "dBm"},
         )
 
         # Query on floor 1
         query = -50 - 1 * 10 - np.random.rand(4) * 20
 
         pos, info = hierarchical_localize(
-            query,
-            db,
-            coarse_method="floor",
-            fine_method="knn",
-            k=5
+            query, db, coarse_method="floor", fine_method="knn", k=5
         )
 
         # Should correctly identify floor 1
         # (coarse step reduces search space from 75 to 25 RPs)
         assert pos.shape == (2,)
         assert 0 <= info["coarse_floor"] < 3
-
-

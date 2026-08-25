@@ -87,24 +87,26 @@ def run_example(module: str, *args: str, cwd: str = None) -> ExampleRun:
     figs_root = _figs_root()
 
     env = os.environ.copy()
-    env.update({
-        "MPLBACKEND": "Agg",
-        "PYTHONPATH": str(WORKSPACE_ROOT),
-        # Send the figures to scratch. Without this these tests rewrite the
-        # tracked chX_*/figs/*, so every run manufactured a diff -- which is
-        # why slam_with_maps.png kept turning up in git status. The examples
-        # still name their own chX/figs; core.eval mirrors in-repo writes under
-        # this root, preserving the repo-relative path.
-        "IPIN_FIGS_DIR": str(figs_root),
-        # Decode the child's stdout the same way on every machine. The examples
-        # legitimately print U+00B0 (tests/test_example_console_encoding.py
-        # keeps it legal on a legacy console), but on a CJK Windows host the
-        # child encodes it as a cp950 byte, which arrives here as U+FFFD --
-        # while on the Ubuntu runner it arrives as the degree sign. Any test
-        # comparing this text against a file in the repo would then pass on CI
-        # and fail locally, for a reason that has nothing to do with the code.
-        "PYTHONIOENCODING": "utf-8",
-    })
+    env.update(
+        {
+            "MPLBACKEND": "Agg",
+            "PYTHONPATH": str(WORKSPACE_ROOT),
+            # Send the figures to scratch. Without this these tests rewrite the
+            # tracked chX_*/figs/*, so every run manufactured a diff -- which is
+            # why slam_with_maps.png kept turning up in git status. The examples
+            # still name their own chX/figs; core.eval mirrors in-repo writes under
+            # this root, preserving the repo-relative path.
+            "IPIN_FIGS_DIR": str(figs_root),
+            # Decode the child's stdout the same way on every machine. The examples
+            # legitimately print U+00B0 (tests/test_example_console_encoding.py
+            # keeps it legal on a legacy console), but on a CJK Windows host the
+            # child encodes it as a cp950 byte, which arrives here as U+FFFD --
+            # while on the Ubuntu runner it arrives as the degree sign. Any test
+            # comparing this text against a file in the repo would then pass on CI
+            # and fail locally, for a reason that has nothing to do with the code.
+            "PYTHONIOENCODING": "utf-8",
+        }
+    )
 
     started_at = time.time()
     process = subprocess.run(

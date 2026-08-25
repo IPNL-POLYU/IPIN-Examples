@@ -145,11 +145,7 @@ class TestInnovationCovariance(unittest.TestCase):
     def test_not_2d_raises(self) -> None:
         """Test that 1D inputs raise ValueError."""
         with self.assertRaises(ValueError):
-            innovation_covariance(
-                np.array([1.0, 0.0]),  # 1D
-                np.eye(2),
-                np.eye(2)
-            )
+            innovation_covariance(np.array([1.0, 0.0]), np.eye(2), np.eye(2))  # 1D
 
 
 class TestScaleMeasurementCovariance(unittest.TestCase):
@@ -249,8 +245,8 @@ class TestHuberRScale(unittest.TestCase):
         """Test that higher delta is more tolerant (smaller scale for same r)."""
         residual = 2.0
 
-        scale_strict = huber_R_scale(residual, delta=1.0)   # strict
-        scale_loose = huber_R_scale(residual, delta=3.0)    # loose
+        scale_strict = huber_R_scale(residual, delta=1.0)  # strict
+        scale_loose = huber_R_scale(residual, delta=3.0)  # loose
 
         # Strict: 2.0/1.0 = 2.0, Loose: 2.0 < 3.0 -> 1.0
         self.assertAlmostEqual(scale_strict, 2.0, places=10)
@@ -354,8 +350,8 @@ class TestHuberWeight(unittest.TestCase):
         residual = 2.0
 
         with self.assertWarns(DeprecationWarning):
-            w_strict = huber_weight(residual, threshold=1.0)   # strict
-            w_loose = huber_weight(residual, threshold=3.0)    # loose
+            w_strict = huber_weight(residual, threshold=1.0)  # strict
+            w_loose = huber_weight(residual, threshold=3.0)  # loose
 
         # Strict threshold treats 2.0 as outlier, loose treats as inlier
         self.assertLess(w_strict, 1.0)
@@ -555,4 +551,3 @@ class TestEq87CovarianceInflation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

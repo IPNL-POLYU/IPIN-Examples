@@ -37,7 +37,9 @@ from core.coords import (
     quat_to_rotation_matrix,
 )
 
-DATA_DIR = Path(__file__).resolve().parents[2] / "data" / "sim" / "ch2_coords_san_francisco"
+DATA_DIR = (
+    Path(__file__).resolve().parents[2] / "data" / "sim" / "ch2_coords_san_francisco"
+)
 
 #: Files store 6 decimal places, so ~2e-6 is the floor for any comparison.
 STORAGE_TOL = 1e-5
@@ -61,11 +63,14 @@ class TestCh2RotationFilesAgree(unittest.TestCase):
         for i, (roll, pitch, yaw) in enumerate(euler):
             with self.subTest(point=i):
                 np.testing.assert_allclose(
-                    quats[i], euler_to_quat(roll, pitch, yaw), atol=STORAGE_TOL,
+                    quats[i],
+                    euler_to_quat(roll, pitch, yaw),
+                    atol=STORAGE_TOL,
                     err_msg="quaternion does not match its Euler angles",
                 )
                 np.testing.assert_allclose(
-                    mats[i], euler_to_rotation_matrix(roll, pitch, yaw),
+                    mats[i],
+                    euler_to_rotation_matrix(roll, pitch, yaw),
                     atol=STORAGE_TOL,
                     err_msg="rotation matrix does not match its Euler angles",
                 )
@@ -82,7 +87,9 @@ class TestCh2RotationFilesAgree(unittest.TestCase):
         for i in range(len(quats)):
             with self.subTest(point=i):
                 np.testing.assert_allclose(
-                    quat_to_rotation_matrix(quats[i]), mats[i], atol=STORAGE_TOL,
+                    quat_to_rotation_matrix(quats[i]),
+                    mats[i],
+                    atol=STORAGE_TOL,
                     err_msg="quaternion and matrix describe different rotations",
                 )
 

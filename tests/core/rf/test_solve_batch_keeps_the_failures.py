@@ -65,12 +65,14 @@ def _outcome(script, **kwargs):
 
 def test_a_converged_fix_that_landed_far_away_is_a_failure():
     """The AOA case: `converged=True` at 1e11 m is not a measurement."""
-    out = _outcome([
-        ([1.0, 1.0], True),
-        ([1e11, 1e11], True),          # converged, and absurd
-        ([3.0, 3.0], True),
-        ([4.0, 4.0], True),
-    ])
+    out = _outcome(
+        [
+            ([1.0, 1.0], True),
+            ([1e11, 1e11], True),  # converged, and absurd
+            ([3.0, 3.0], True),
+            ([4.0, 4.0], True),
+        ]
+    )
     assert out.n_failed == 1
     assert not out.solved[1]
     assert out.max_solved_m < DIVERGENCE_M, (
@@ -86,12 +88,14 @@ def test_a_fix_that_never_left_the_initial_guess_is_a_failure():
     scores as the distance from the seed to the truth -- which is why all three
     methods returned an identical 6.77 m on the collinear beacons.
     """
-    out = _outcome([
-        (GUESS, True),                 # stalled, but says it converged
-        ([2.0, 2.0], True),
-        ([3.0, 3.0], True),
-        ([4.0, 4.0], True),
-    ])
+    out = _outcome(
+        [
+            (GUESS, True),  # stalled, but says it converged
+            ([2.0, 2.0], True),
+            ([3.0, 3.0], True),
+            ([4.0, 4.0], True),
+        ]
+    )
     assert out.stalled[0]
     assert not out.solved[0]
     assert out.n_failed == 1
@@ -99,12 +103,14 @@ def test_a_fix_that_never_left_the_initial_guess_is_a_failure():
 
 def test_a_raise_is_a_failure_and_does_not_become_a_zero_error():
     """NaN, not 0.0 -- a dropped fix must not read as a perfect one."""
-    out = _outcome([
-        (None, True),                  # raises
-        ([2.0, 2.0], True),
-        ([3.0, 3.0], True),
-        ([4.0, 4.0], True),
-    ])
+    out = _outcome(
+        [
+            (None, True),  # raises
+            ([2.0, 2.0], True),
+            ([3.0, 3.0], True),
+            ([4.0, 4.0], True),
+        ]
+    )
     assert np.isnan(out.errors[0])
     assert not out.solved[0]
     assert out.n_failed == 1
@@ -121,12 +127,14 @@ def test_errors_stay_aligned_with_the_measurements():
     successes gives an array that is still a valid array, still plottable, and
     silently paired with the wrong per-position quantity.
     """
-    out = _outcome([
-        ([1.0, 1.0], True),
-        (None, True),
-        ([3.0, 3.0], True),
-        ([1e11, 1e11], True),
-    ])
+    out = _outcome(
+        [
+            ([1.0, 1.0], True),
+            (None, True),
+            ([3.0, 3.0], True),
+            ([1e11, 1e11], True),
+        ]
+    )
     gdop = np.array([10.0, 20.0, 30.0, 40.0])
 
     assert len(out.errors) == len(TRUTH) == len(gdop)
@@ -144,12 +152,14 @@ def test_the_median_includes_failures_and_the_mean_does_not():
     accuracy of the fixes that happened to work. `mean_solved_m` is the other
     question and needs the failures gone.
     """
-    out = _outcome([
-        (GUESS, True),                 # stalled at 0,0: error |(1,1)| = sqrt(2)
-        (GUESS, True),                 # stalled at 0,0: error |(2,2)| = 2 sqrt(2)
-        ([3.0, 3.0], True),            # exact
-        ([4.0, 4.0], True),            # exact
-    ])
+    out = _outcome(
+        [
+            (GUESS, True),  # stalled at 0,0: error |(1,1)| = sqrt(2)
+            (GUESS, True),  # stalled at 0,0: error |(2,2)| = 2 sqrt(2)
+            ([3.0, 3.0], True),  # exact
+            ([4.0, 4.0], True),  # exact
+        ]
+    )
     # Two stalls and two exact fixes, so the median sits between them and the
     # mean over the successes is 0. One stall would not discriminate: the
     # median of [sqrt(2), 0, 0, 0] is 0, and the assertion would hold whether

@@ -56,10 +56,12 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
     min_x, max_x = rp_locs[:, 0].min(), rp_locs[:, 0].max()
     min_y, max_y = rp_locs[:, 1].min(), rp_locs[:, 1].max()
 
-    true_locs = np.column_stack([
-        np.random.uniform(min_x, max_x, n_queries),
-        np.random.uniform(min_y, max_y, n_queries),
-    ])
+    true_locs = np.column_stack(
+        [
+            np.random.uniform(min_x, max_x, n_queries),
+            np.random.uniform(min_y, max_y, n_queries),
+        ]
+    )
 
     query_fingerprints = []
 
@@ -140,29 +142,60 @@ def visualize_posterior(model, query, true_loc, floor_id, ax, title):
     # Create grid for visualization
 
     # Scatter plot with posterior as color
-    scatter = ax.scatter(rp_locs[:, 0], rp_locs[:, 1],
-                        c=posteriors, s=100, cmap='hot', alpha=0.8,
-                        vmin=0, vmax=posteriors.max())
+    scatter = ax.scatter(
+        rp_locs[:, 0],
+        rp_locs[:, 1],
+        c=posteriors,
+        s=100,
+        cmap="hot",
+        alpha=0.8,
+        vmin=0,
+        vmax=posteriors.max(),
+    )
 
     # Mark estimates
     x_map = map_localize(query, model, floor_id=floor_id)
     x_post_mean = posterior_mean_localize(query, model, floor_id=floor_id)
 
-    ax.scatter(*x_map, marker='s', s=200, c='blue', edgecolors='white',
-              linewidth=2, label='MAP', zorder=10)
-    ax.scatter(*x_post_mean, marker='^', s=200, c='green', edgecolors='white',
-              linewidth=2, label='Post. Mean', zorder=10)
-    ax.scatter(*true_loc, marker='*', s=300, c='yellow', edgecolors='black',
-              linewidth=2, label='True', zorder=10)
+    ax.scatter(
+        *x_map,
+        marker="s",
+        s=200,
+        c="blue",
+        edgecolors="white",
+        linewidth=2,
+        label="MAP",
+        zorder=10,
+    )
+    ax.scatter(
+        *x_post_mean,
+        marker="^",
+        s=200,
+        c="green",
+        edgecolors="white",
+        linewidth=2,
+        label="Post. Mean",
+        zorder=10,
+    )
+    ax.scatter(
+        *true_loc,
+        marker="*",
+        s=300,
+        c="yellow",
+        edgecolors="black",
+        linewidth=2,
+        label="True",
+        zorder=10,
+    )
 
-    ax.set_xlabel('X (m)')
-    ax.set_ylabel('Y (m)')
+    ax.set_xlabel("X (m)")
+    ax.set_ylabel("Y (m)")
     ax.set_title(title)
     ax.legend(fontsize=8)
     ax.grid(True, alpha=0.3)
-    ax.axis('equal')
+    ax.axis("equal")
 
-    plt.colorbar(scatter, ax=ax, label='p(x_i|z)')
+    plt.colorbar(scatter, ax=ax, label="p(x_i|z)")
 
 
 def main():
@@ -174,9 +207,9 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     ).parse_args()
 
-    print("="*70)
+    print("=" * 70)
     print("Chapter 5: Probabilistic Fingerprinting (Bayesian Methods)")
-    print("="*70)
+    print("=" * 70)
 
     # Load database
     print("\n1. Loading fingerprint database...")
@@ -222,31 +255,43 @@ def main():
         model = models[std_val]
 
         # MAP
-        results.append(evaluate_method(
-            f"MAP (std={std_val}dBm)",
-            map_localize,
-            queries, true_locs,
-            model=model, floor_id=floor_id
-        ))
+        results.append(
+            evaluate_method(
+                f"MAP (std={std_val}dBm)",
+                map_localize,
+                queries,
+                true_locs,
+                model=model,
+                floor_id=floor_id,
+            )
+        )
 
         # Posterior Mean
-        results.append(evaluate_method(
-            f"Post.Mean (std={std_val}dBm)",
-            posterior_mean_localize,
-            queries, true_locs,
-            model=model, floor_id=floor_id
-        ))
+        results.append(
+            evaluate_method(
+                f"Post.Mean (std={std_val}dBm)",
+                posterior_mean_localize,
+                queries,
+                true_locs,
+                model=model,
+                floor_id=floor_id,
+            )
+        )
 
     # Print summary
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("RESULTS SUMMARY")
-    print("="*70)
-    print(f"{'Method':<28} {'RMSE (m)':<12} {'Median (m)':<12} {'P90 (m)':<12} {'Time (ms)':<12}")
-    print("-"*70)
+    print("=" * 70)
+    print(
+        f"{'Method':<28} {'RMSE (m)':<12} {'Median (m)':<12} {'P90 (m)':<12} {'Time (ms)':<12}"
+    )
+    print("-" * 70)
 
     for r in results:
-        print(f"{r['method']:<28} {r['rmse']:<12.2f} {r['median']:<12.2f} "
-              f"{r['p90']:<12.2f} {r['mean_time_ms']:<12.3f}")
+        print(
+            f"{r['method']:<28} {r['rmse']:<12.2f} {r['median']:<12.2f} "
+            f"{r['p90']:<12.2f} {r['mean_time_ms']:<12.3f}"
+        )
 
     # Visualizations
     print("\n5. Generating visualizations...")
@@ -256,14 +301,20 @@ def main():
     # Plot 1-3: Posterior probability maps for different std
     for idx, std_val in enumerate(std_values):
         ax = plt.subplot(3, 3, idx + 1)
-        visualize_posterior(models[std_val], queries[0], true_locs[0],
-                          floor_id, ax, f'Posterior Map (std={std_val}dBm)')
+        visualize_posterior(
+            models[std_val],
+            queries[0],
+            true_locs[0],
+            floor_id,
+            ax,
+            f"Posterior Map (std={std_val}dBm)",
+        )
 
     # Plot 4: Error CDF comparison
     ax4 = plt.subplot(3, 3, 4)
     plot_error_cdf(
-        {r['method']: r['errors'] for r in results},
-        title='Cumulative Distribution of Errors',
+        {r["method"]: r["errors"] for r in results},
+        title="Cumulative Distribution of Errors",
         ax=ax4,
         title_fontweight="normal",
     )
@@ -272,47 +323,70 @@ def main():
 
     # Plot 5: Box plot comparison
     ax5 = plt.subplot(3, 3, 5)
-    error_data = [r['errors'] for r in results]
-    method_names = [r['method'].replace(' (std=', '\n(').replace('dBm)', ')') for r in results]
+    error_data = [r["errors"] for r in results]
+    method_names = [
+        r["method"].replace(" (std=", "\n(").replace("dBm)", ")") for r in results
+    ]
     bp = ax5.boxplot(error_data, tick_labels=method_names, patch_artist=True)
-    for patch in bp['boxes']:
-        patch.set_facecolor('lightcoral')
-    ax5.set_ylabel('Positioning Error (m)')
-    ax5.set_title('Error Distribution by Method')
-    plt.setp(ax5.xaxis.get_majorticklabels(), rotation=45, ha='right', fontsize=7)
-    ax5.grid(True, alpha=0.3, axis='y')
+    for patch in bp["boxes"]:
+        patch.set_facecolor("lightcoral")
+    ax5.set_ylabel("Positioning Error (m)")
+    ax5.set_title("Error Distribution by Method")
+    plt.setp(ax5.xaxis.get_majorticklabels(), rotation=45, ha="right", fontsize=7)
+    ax5.grid(True, alpha=0.3, axis="y")
 
     # Plot 6: RMSE vs std
     ax6 = plt.subplot(3, 3, 6)
-    map_results = [r for r in results if 'MAP' in r['method']]
-    pm_results = [r for r in results if 'Post.Mean' in r['method']]
+    map_results = [r for r in results if "MAP" in r["method"]]
+    pm_results = [r for r in results if "Post.Mean" in r["method"]]
 
-    ax6.plot(std_values, [r['rmse'] for r in map_results], 'o-',
-            linewidth=2, markersize=8, label='MAP')
-    ax6.plot(std_values, [r['rmse'] for r in pm_results], 's-',
-            linewidth=2, markersize=8, label='Posterior Mean')
-    ax6.set_xlabel('Model Std (dBm)')
-    ax6.set_ylabel('RMSE (m)')
-    ax6.set_title('Effect of Model Uncertainty (std)')
+    ax6.plot(
+        std_values,
+        [r["rmse"] for r in map_results],
+        "o-",
+        linewidth=2,
+        markersize=8,
+        label="MAP",
+    )
+    ax6.plot(
+        std_values,
+        [r["rmse"] for r in pm_results],
+        "s-",
+        linewidth=2,
+        markersize=8,
+        label="Posterior Mean",
+    )
+    ax6.set_xlabel("Model Std (dBm)")
+    ax6.set_ylabel("RMSE (m)")
+    ax6.set_title("Effect of Model Uncertainty (std)")
     ax6.legend()
     ax6.grid(True, alpha=0.3)
 
     # Plot 7: MAP vs Posterior Mean scatter
     ax7 = plt.subplot(3, 3, 7)
-    map_rmse = [r['rmse'] for r in map_results]
-    pm_rmse = [r['rmse'] for r in pm_results]
+    map_rmse = [r["rmse"] for r in map_results]
+    pm_rmse = [r["rmse"] for r in pm_results]
     ax7.scatter(map_rmse, pm_rmse, s=150, alpha=0.7)
     for i, std in enumerate(std_values):
-        ax7.annotate(f'std={std}', (map_rmse[i], pm_rmse[i]),
-                    xytext=(5, 5), textcoords='offset points')
-    ax7.plot([min(map_rmse), max(map_rmse)], [min(map_rmse), max(map_rmse)],
-            'k--', alpha=0.5, label='x=y')
-    ax7.set_xlabel('MAP RMSE (m)')
-    ax7.set_ylabel('Posterior Mean RMSE (m)')
-    ax7.set_title('MAP vs Posterior Mean Accuracy')
+        ax7.annotate(
+            f"std={std}",
+            (map_rmse[i], pm_rmse[i]),
+            xytext=(5, 5),
+            textcoords="offset points",
+        )
+    ax7.plot(
+        [min(map_rmse), max(map_rmse)],
+        [min(map_rmse), max(map_rmse)],
+        "k--",
+        alpha=0.5,
+        label="x=y",
+    )
+    ax7.set_xlabel("MAP RMSE (m)")
+    ax7.set_ylabel("Posterior Mean RMSE (m)")
+    ax7.set_title("MAP vs Posterior Mean Accuracy")
     ax7.legend()
     ax7.grid(True, alpha=0.3)
-    ax7.axis('equal')
+    ax7.axis("equal")
 
     # Plot 8: Per-query cost, counted rather than timed
     #
@@ -336,16 +410,27 @@ def main():
     # MAP then takes an argmax over the RPs (Eq. 5.4); the posterior mean
     # exponentiates and forms a weighted sum over them instead (Eq. 5.5).
     estimator_ops = [n_rps, n_rps + n_rps * n_dims]
-    labels = ['MAP', 'Posterior Mean']
+    labels = ["MAP", "Posterior Mean"]
 
-    ax8.bar(labels, [likelihood_ops] * 2, label='Gaussian log-densities',
-            alpha=0.85, color='steelblue')
-    ax8.bar(labels, estimator_ops, bottom=[likelihood_ops] * 2,
-            label='Estimator step', alpha=0.85, color='indianred')
-    ax8.set_ylabel('Operations per query')
-    ax8.set_title('Per-Query Cost (independent of std)')
+    ax8.bar(
+        labels,
+        [likelihood_ops] * 2,
+        label="Gaussian log-densities",
+        alpha=0.85,
+        color="steelblue",
+    )
+    ax8.bar(
+        labels,
+        estimator_ops,
+        bottom=[likelihood_ops] * 2,
+        label="Estimator step",
+        alpha=0.85,
+        color="indianred",
+    )
+    ax8.set_ylabel("Operations per query")
+    ax8.set_title("Per-Query Cost (independent of std)")
     ax8.legend(fontsize=7)
-    ax8.grid(True, alpha=0.3, axis='y')
+    ax8.grid(True, alpha=0.3, axis="y")
 
     # Plot 9: Example posterior distribution
     ax9 = plt.subplot(3, 3, 9)
@@ -358,21 +443,22 @@ def main():
     # Sort and plot top 20 RPs
     sorted_idx = np.argsort(posteriors)[::-1][:20]
     ax9.bar(range(len(sorted_idx)), posteriors[sorted_idx])
-    ax9.set_xlabel('RP Index (sorted by posterior)')
-    ax9.set_ylabel('Posterior Probability')
-    ax9.set_title('Posterior Distribution (Top 20 RPs)')
-    ax9.grid(True, alpha=0.3, axis='y')
+    ax9.set_xlabel("RP Index (sorted by posterior)")
+    ax9.set_ylabel("Posterior Probability")
+    ax9.set_title("Posterior Distribution (Top 20 RPs)")
+    ax9.grid(True, alpha=0.3, axis="y")
 
     plt.tight_layout()
 
     # Save (svg + pdf + png via the shared layer)
-    paths = save_figure(fig, Path(__file__).parent / "figs",
-                        "probabilistic_positioning")
+    paths = save_figure(
+        fig, Path(__file__).parent / "figs", "probabilistic_positioning"
+    )
     print(f"   Saved: {paths[0]}")
 
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("Example complete!")
-    print("="*70)
+    print("=" * 70)
     print("\nKey Findings:")
     print("  - MAP provides discrete estimates (selects one RP)")
     print("  - Posterior Mean provides smooth estimates (weighted average)")
@@ -389,4 +475,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-

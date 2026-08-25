@@ -518,9 +518,7 @@ class TestStepLengthBookEq649(unittest.TestCase):
 
         # Book Eq. (6.49):
         #   SL = [L_offset + a*(h - h_ref) + b*(SF - SF_ref)*(h/h_ref)] * c
-        L_expected = (
-            L_offset + a * (h - h_ref) + b * (SF - SF_ref) * (h / h_ref)
-        ) * c
+        L_expected = (L_offset + a * (h - h_ref) + b * (SF - SF_ref) * (h / h_ref)) * c
 
         assert np.isclose(L, L_expected)
 
@@ -560,7 +558,7 @@ class TestStepLengthWeinberg(unittest.TestCase):
         L = step_length_weinberg(f_window, G_w)
 
         # ptp = 4.0, so L = 0.5 * 4.0^0.25 = 0.5 * 1.414... ≈ 0.707
-        expected = G_w * (4.0 ** 0.25)
+        expected = G_w * (4.0**0.25)
         assert np.isclose(L, expected, atol=0.01)
 
     def test_weinberg_monotonicity(self) -> None:
@@ -600,7 +598,7 @@ class TestStepLengthWeinberg(unittest.TestCase):
         L = step_length_weinberg(f_window, G_w, power=power_custom)
 
         # ptp = 8.0, L = 0.5 * 8.0^0.5 = 0.5 * 2.828... ≈ 1.414
-        expected = G_w * (8.0 ** power_custom)
+        expected = G_w * (8.0**power_custom)
         assert np.isclose(L, expected, atol=0.01)
 
     def test_weinberg_eps_floor(self) -> None:
@@ -613,7 +611,7 @@ class TestStepLengthWeinberg(unittest.TestCase):
         L = step_length_weinberg(f_flat, G_w, eps=eps)
 
         # Should use eps as ptp: L = G_w * eps^0.25
-        expected = G_w * (eps ** 0.25)
+        expected = G_w * (eps**0.25)
         assert np.isclose(L, expected, atol=0.01)
 
     def test_weinberg_invalid_inputs(self) -> None:
@@ -640,7 +638,7 @@ class TestCalibrateWeinbergGain(unittest.TestCase):
         G_w = calibrate_weinberg_gain(ptp_per_step, distance_known)
 
         # Verify: sum of step lengths should equal distance
-        total_length = G_w * np.sum(ptp_per_step ** 0.25)
+        total_length = G_w * np.sum(ptp_per_step**0.25)
         assert np.isclose(total_length, distance_known, atol=0.01)
 
     def test_calibrate_gain_consistency(self) -> None:
@@ -651,7 +649,7 @@ class TestCalibrateWeinbergGain(unittest.TestCase):
         G_w = calibrate_weinberg_gain(ptp_per_step, distance_known)
 
         # Each step should be 0.5m
-        step_length = G_w * (4.0 ** 0.25)
+        step_length = G_w * (4.0**0.25)
         assert np.isclose(step_length, 0.5, atol=0.01)
 
     def test_calibrate_gain_more_steps_same_distance(self) -> None:
@@ -733,4 +731,3 @@ class TestEdgeCases(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

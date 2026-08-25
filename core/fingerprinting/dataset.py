@@ -280,7 +280,9 @@ def print_database_summary(db: FingerprintDatabase) -> None:
         # Show within-RP variability
         within_rp_stds = db.get_std_features(min_std=0.0)
         print(f"  Within-RP Std (mean): {np.mean(within_rp_stds):.2f}")
-        print(f"  Within-RP Std (range): [{np.min(within_rp_stds):.2f}, {np.max(within_rp_stds):.2f}]")
+        print(
+            f"  Within-RP Std (range): [{np.min(within_rp_stds):.2f}, {np.max(within_rp_stds):.2f}]"
+        )
     print()
 
     # Location bounds
@@ -299,4 +301,3 @@ def print_database_summary(db: FingerprintDatabase) -> None:
         if len(value_str) > 60:
             value_str = value_str[:57] + "..."
         print(f"  {key}: {value_str}")
-

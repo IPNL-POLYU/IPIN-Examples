@@ -104,9 +104,7 @@ VOLATILE_SPANS = [
     (re.compile(r"\S*[/\\]figs[/\\]?\S*"), "<path>"),
 ]
 
-MARKER = re.compile(
-    r"^<!--\s*example-output:\s*([\w.]+)([^>]*?)-->\s*$", re.M
-)
+MARKER = re.compile(r"^<!--\s*example-output:\s*([\w.]+)([^>]*?)-->\s*$", re.M)
 ELISION = "..."
 WILDCARD = "~"
 
@@ -268,7 +266,7 @@ def test_readme_transcript_is_what_the_example_prints(case):
         if hit >= 0:
             cursor = hit + 1
         else:
-            nearby = "\n    ".join(live[max(0, cursor - 2):cursor + 8])
+            nearby = "\n    ".join(live[max(0, cursor - 2) : cursor + 8])
             pytest.fail(
                 f"{readme.relative_to(REPO_ROOT).as_posix()} shows a line that "
                 f"`python -m {module} {' '.join(args)}`.strip() no longer "
@@ -281,8 +279,9 @@ def test_readme_transcript_is_what_the_example_prints(case):
             )
 
 
-@pytest.mark.parametrize("readme", sorted(REPO_ROOT.glob("ch*_*/README.md")),
-                         ids=lambda p: p.parent.name)
+@pytest.mark.parametrize(
+    "readme", sorted(REPO_ROOT.glob("ch*_*/README.md")), ids=lambda p: p.parent.name
+)
 def test_unmarked_transcripts_match_the_register(readme):
     """No new unchecked transcript blocks."""
     chapter = readme.parent.name

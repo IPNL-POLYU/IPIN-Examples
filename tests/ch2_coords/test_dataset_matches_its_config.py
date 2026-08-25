@@ -37,8 +37,7 @@ from pathlib import Path
 import numpy as np
 
 DATA_DIR = (
-    Path(__file__).resolve().parents[2]
-    / "data" / "sim" / "ch2_coords_san_francisco"
+    Path(__file__).resolve().parents[2] / "data" / "sim" / "ch2_coords_san_francisco"
 )
 
 #: ENU is stored at ``fmt="%.3f"``, so 1 mm is the quantisation floor. The

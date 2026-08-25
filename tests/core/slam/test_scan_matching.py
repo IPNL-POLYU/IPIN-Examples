@@ -281,9 +281,7 @@ class TestICPPointToPoint:
     def test_rotation_and_translation(self):
         """Test ICP with rotation and translation."""
         # Create a distinctive pattern
-        source = np.array(
-            [[0.0, 0.0], [1.0, 0.0], [2.0, 0.0], [0.0, 1.0], [1.0, 1.0]]
-        )
+        source = np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
 
         # Apply known transformation
         true_pose = np.array([1.0, 2.0, np.pi / 6])  # 30° rotation
@@ -300,7 +298,9 @@ class TestICPPointToPoint:
     def test_max_correspondence_distance(self):
         """Test ICP with max correspondence distance."""
         source = np.array([[0.0, 0.0], [1.0, 0.0], [2.0, 0.0]])
-        target = np.array([[0.1, 0.0], [1.1, 0.0], [10.0, 10.0]])  # Last point is outlier
+        target = np.array(
+            [[0.1, 0.0], [1.1, 0.0], [10.0, 10.0]]
+        )  # Last point is outlier
 
         pose, iters, residual, converged = icp_point_to_point(
             source, target, max_correspondence_distance=1.0
@@ -421,7 +421,9 @@ class TestComputeICPCovariance:
         target = np.array([[0.1, 0.0]])  # Only one point nearby
         pose = np.array([0.0, 0.0, 0.0])
 
-        cov = compute_icp_covariance(source, target, pose, max_correspondence_distance=1.0)
+        cov = compute_icp_covariance(
+            source, target, pose, max_correspondence_distance=1.0
+        )
 
         # Should have high uncertainty (large diagonal values)
         assert cov[0, 0] > 0.1
@@ -512,4 +514,3 @@ class TestICPIntegration:
         # Translation should be roughly [0.5, 0.5]
         assert 0.0 <= pose[0] <= 1.5
         assert 0.0 <= pose[1] <= 1.5
-

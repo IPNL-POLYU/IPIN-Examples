@@ -17,9 +17,15 @@ def test_sigma_point_weights_match_eq_3_24():
     n = 3
     alpha, beta, kappa = 0.5, 2.0, 0.0
     ukf = UnscentedKalmanFilter(
-        lambda x, u, dt: x, lambda x: x,
-        lambda dt: np.zeros((n, n)), lambda: np.zeros((n, n)),
-        np.zeros(n), np.eye(n), alpha=alpha, beta=beta, kappa=kappa,
+        lambda x, u, dt: x,
+        lambda x: x,
+        lambda dt: np.zeros((n, n)),
+        lambda: np.zeros((n, n)),
+        np.zeros(n),
+        np.eye(n),
+        alpha=alpha,
+        beta=beta,
+        kappa=kappa,
     )
     lam = alpha**2 * (n + kappa) - n
     assert np.isclose(ukf.Wm[0], lam / (n + lam))
@@ -47,9 +53,15 @@ def test_ukf_matches_kf_on_linear_system():
 
     kf = KalmanFilter(F, Q, H, R, x0.copy(), P0.copy())
     ukf = UnscentedKalmanFilter(
-        lambda x, u, dt: F @ x, lambda x: H @ x,
-        lambda dt: Q, lambda: R, x0.copy(), P0.copy(),
-        alpha=1.0, beta=2.0, kappa=0.0,
+        lambda x, u, dt: F @ x,
+        lambda x: H @ x,
+        lambda dt: Q,
+        lambda: R,
+        x0.copy(),
+        P0.copy(),
+        alpha=1.0,
+        beta=2.0,
+        kappa=0.0,
     )
     for z_val in [0.7, 1.9, 2.5, 3.1]:
         z = np.array([z_val])

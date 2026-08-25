@@ -60,8 +60,9 @@ class TestBimodalScenario(unittest.TestCase):
             [np.sqrt(np.linalg.det(np.cov(c.T))) for c in self.scenario["clouds"]]
         )
 
-        self.assertGreater(spread[self.bimodal].mean(),
-                           10.0 * spread[self.resolved].mean())
+        self.assertGreater(
+            spread[self.bimodal].mean(), 10.0 * spread[self.resolved].mean()
+        )
 
     def test_mean_is_misleading_while_bimodal(self):
         """The headline lesson: the mean sits between the modes, in nothing.

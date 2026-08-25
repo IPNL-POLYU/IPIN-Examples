@@ -74,9 +74,7 @@ class TestModelEvaluationCounts(unittest.TestCase):
         This is why the panel needs a log axis: 300 particles put the PF two and
         a half decades above everything else.
         """
-        self.assertEqual(
-            self.counts["PF"], self.counts["EKF"] * N_PARTICLES
-        )
+        self.assertEqual(self.counts["PF"], self.counts["EKF"] * N_PARTICLES)
 
     def test_fgo_costs_the_iterations_it_actually_took(self):
         """FGO scales with real iterations, not the limit it was given.
@@ -85,9 +83,7 @@ class TestModelEvaluationCounts(unittest.TestCase):
         returns, so an early-converging solve is reported as cheaper rather than
         being charged for all ten.
         """
-        self.assertEqual(
-            self.counts["FGO"], self.counts["EKF"] * FGO_ITERATIONS
-        )
+        self.assertEqual(self.counts["FGO"], self.counts["EKF"] * FGO_ITERATIONS)
 
         half = model_evaluation_counts(
             n_steps=N_STEPS,

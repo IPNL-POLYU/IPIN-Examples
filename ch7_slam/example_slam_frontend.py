@@ -44,10 +44,10 @@ DEFAULT_SEED = 42
 
 def generate_simple_trajectory(n_poses: int = 10) -> list:
     """Generate simple straight-line trajectory.
-    
+
     Args:
         n_poses: Number of poses.
-    
+
     Returns:
         List of poses [x, y, yaw].
     """
@@ -60,11 +60,11 @@ def generate_simple_trajectory(n_poses: int = 10) -> list:
 
 def generate_wall_scan(pose: np.ndarray, wall_x: float = 5.0) -> np.ndarray:
     """Generate synthetic scan of a wall parallel to Y-axis.
-    
+
     Args:
         pose: Robot pose [x, y, yaw].
         wall_x: X-coordinate of wall in map frame.
-    
+
     Returns:
         Scan points in robot frame.
     """
@@ -91,9 +91,7 @@ def generate_wall_scan(pose: np.ndarray, wall_x: float = 5.0) -> np.ndarray:
     return scan
 
 
-def run_frontend_demo(
-    n_poses: int = 10, seed: int = DEFAULT_SEED
-) -> Dict[str, object]:
+def run_frontend_demo(n_poses: int = 10, seed: int = DEFAULT_SEED) -> Dict[str, object]:
     """Run the front-end loop over a synthetic straight-line walk.
 
     Kept separate from ``main`` so the figure -- and the tests that pin what
@@ -118,11 +116,13 @@ def run_frontend_demo(
     odom_poses = [true_poses[0].copy()]
     for i in range(1, n_poses):
         true_delta = se2_relative(true_poses[i - 1], true_poses[i])
-        noisy_delta = true_delta + np.array([
-            np.random.normal(0, 0.05),
-            np.random.normal(0, 0.02),
-            np.random.normal(0, 0.01),
-        ])
+        noisy_delta = true_delta + np.array(
+            [
+                np.random.normal(0, 0.05),
+                np.random.normal(0, 0.02),
+                np.random.normal(0, 0.01),
+            ]
+        )
         # Simplified composition, valid only because this walk holds yaw at 0.
         odom_poses.append(odom_poses[-1] + noisy_delta)
 
@@ -139,7 +139,7 @@ def run_frontend_demo(
             odom_delta = se2_relative(odom_poses[i - 1], odom_poses[i])
 
         result = frontend.step(i, odom_delta, scans[i])
-        frontend_poses.append(result['pose_est'])
+        frontend_poses.append(result["pose_est"])
         steps.append(result)
 
     true_xy = np.array([pose[:2] for pose in true_poses])
@@ -147,13 +147,13 @@ def run_frontend_demo(
     frontend_xy = np.array([pose[:2] for pose in frontend_poses])
 
     return {
-        'true_xy': true_xy,
-        'odom_xy': odom_xy,
-        'frontend_xy': frontend_xy,
-        'odom_errors': np.linalg.norm(odom_xy - true_xy, axis=1),
-        'frontend_errors': np.linalg.norm(frontend_xy - true_xy, axis=1),
-        'scans': scans,
-        'steps': steps,
+        "true_xy": true_xy,
+        "odom_xy": odom_xy,
+        "frontend_xy": frontend_xy,
+        "odom_errors": np.linalg.norm(odom_xy - true_xy, axis=1),
+        "frontend_errors": np.linalg.norm(frontend_xy - true_xy, axis=1),
+        "scans": scans,
+        "steps": steps,
     }
 
 
@@ -176,28 +176,28 @@ def build_figure(demo: Dict[str, object]) -> plt.Figure:
     # labels the axes as not-to-scale in exchange, which is the right trade
     # here: the reader is being shown a cross-track deviation, not a shape.
     plot_trajectory_2d(
-        demo['true_xy'],
+        demo["true_xy"],
         {
-            'Odometry (Drift)': demo['odom_xy'],
-            'Frontend (Scan-to-Map)': demo['frontend_xy'],
+            "Odometry (Drift)": demo["odom_xy"],
+            "Frontend (Scan-to-Map)": demo["frontend_xy"],
         },
-        title='SLAM Front-End: Trajectories',
-        axis_labels=('X [m]', 'Y [m]'),
+        title="SLAM Front-End: Trajectories",
+        axis_labels=("X [m]", "Y [m]"),
         ax=axes[0],
         equal_aspect=False,
     )
 
     plot_error_magnitude_time(
         {
-            'Odometry Error': demo['odom_errors'],
-            'Frontend Error': demo['frontend_errors'],
+            "Odometry Error": demo["odom_errors"],
+            "Frontend Error": demo["frontend_errors"],
         },
-        t=np.arange(len(demo['odom_errors'])),
-        title='Position Error Over Time',
+        t=np.arange(len(demo["odom_errors"])),
+        title="Position Error Over Time",
         ax=axes[1],
     )
     # This series is indexed by pose, not seconds, so correct the shared label.
-    axes[1].set_xlabel('Step Index', fontsize=12)
+    axes[1].set_xlabel("Step Index", fontsize=12)
 
     fig.tight_layout()
     return fig
@@ -219,9 +219,9 @@ def main():
 
     n_poses = 10
     demo = run_frontend_demo(n_poses=n_poses)
-    true_xy = demo['true_xy']
-    odom_xy = demo['odom_xy']
-    scans = demo['scans']
+    true_xy = demo["true_xy"]
+    odom_xy = demo["odom_xy"]
+    scans = demo["scans"]
 
     print("1. Generating trajectory...")
     print(f"   Generated {n_poses} poses (straight line)")
@@ -231,22 +231,28 @@ def main():
     print(f"   Odometry drift: {odom_drift:.3f} m")
 
     print("\n3. Generating LiDAR scans...")
-    print(f"   Generated {n_poses} scans "
-          f"(avg {np.mean([len(s) for s in scans]):.1f} points/scan)")
+    print(
+        f"   Generated {n_poses} scans "
+        f"(avg {np.mean([len(s) for s in scans]):.1f} points/scan)"
+    )
 
     print("\n4. Running SLAM front-end...")
     print("=" * 80)
-    print(f"{'Step':<6} {'Pred X':<10} {'Est X':<10} {'Correction':<12} {'Residual':<10} {'Converged'}")
+    print(
+        f"{'Step':<6} {'Pred X':<10} {'Est X':<10} {'Correction':<12} {'Residual':<10} {'Converged'}"
+    )
     print("=" * 80)
 
-    for i, result in enumerate(demo['steps']):
-        pred = result['pose_pred']
-        est = result['pose_est']
-        mq = result['match_quality']
+    for i, result in enumerate(demo["steps"]):
+        pred = result["pose_pred"]
+        est = result["pose_est"]
+        mq = result["match_quality"]
 
-        print(f"{i:<6} {pred[0]:<10.3f} {est[0]:<10.3f} "
-              f"{result['correction_magnitude']:<12.4f} "
-              f"{mq.residual:<10.4f} {str(mq.converged)}")
+        print(
+            f"{i:<6} {pred[0]:<10.3f} {est[0]:<10.3f} "
+            f"{result['correction_magnitude']:<12.4f} "
+            f"{mq.residual:<10.4f} {str(mq.converged)}"
+        )
 
     print("=" * 80)
     print()
@@ -254,8 +260,8 @@ def main():
     # Evaluate results
     print("5. Evaluating results...")
 
-    odom_rmse = np.sqrt(np.mean(demo['odom_errors'] ** 2))
-    frontend_rmse = np.sqrt(np.mean(demo['frontend_errors'] ** 2))
+    odom_rmse = np.sqrt(np.mean(demo["odom_errors"] ** 2))
+    frontend_rmse = np.sqrt(np.mean(demo["frontend_errors"] ** 2))
 
     print(f"   Odometry RMSE: {odom_rmse:.4f} m")
     print(f"   Frontend RMSE: {frontend_rmse:.4f} m")

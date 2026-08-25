@@ -22,7 +22,9 @@ def simple_database():
     # x ≈ 0.1 * z1, y ≈ 0.1 * z2
     # z3 has independent variation
     return FingerprintDatabase(
-        locations=np.array([[0.0, 0.0], [1.0, 2.0], [2.0, 4.0], [3.0, 6.0], [4.0, 8.0]]),
+        locations=np.array(
+            [[0.0, 0.0], [1.0, 2.0], [2.0, 4.0], [3.0, 6.0], [4.0, 8.0]]
+        ),
         features=np.array(
             [
                 [0, 0, -70],
@@ -433,4 +435,3 @@ class TestIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
-
