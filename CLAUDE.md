@@ -1561,17 +1561,17 @@ listed, so one new unguarded `zip()` turns it red. Verified by adding one and
 watching `B905: 1 findings, new`, not by reading the assertion.
 
 **A green sweep only means something where the line runs, so that was measured
-too.** Of the 42 `.py` sites, **34 execute** under the examples, the generators
-and two flag-gated paths that a plain run never reaches -- ch4's `--data`
-branch and ch7's `--animate` callback, which between them held two sites that
-nothing else touches. Six more sit inside test bodies; one is reached only by
-`tests/core/fingerprinting/test_classification.py`; and the last, ch8's
-unobservable-mode print, is behind `if n_unobservable > 0`, which the
-fixes-aided configuration never enters. That one is equal-length by
-construction -- `Vt` from `svd(..., full_matrices=True)` is square, so a mode
-column is `n_states` long and `state_names` comes from the same analysis -- and
-its identical twin in the odometry-only branch does execute. The 17 notebook
-sites are covered by `tests/docs/test_notebooks_run.py`.
+too. 41 of the 42 `.py` sites execute**, and the one that does not is the
+interesting entry. 34 run under the examples, the generators and two flag-gated
+paths a plain run never reaches -- ch4's `--data` branch and ch7's `--animate`
+callback, which between them hold two sites nothing else touches. Six more sit
+inside test bodies and one in `core/fingerprinting`, all seven confirmed rather
+than assumed. The last, ch8's unobservable-mode print, is behind
+`if n_unobservable > 0`, which the fixes-aided configuration never enters. It
+is equal-length by construction -- `Vt` from `svd(..., full_matrices=True)` is
+square, so a mode column is `n_states` long and `state_names` comes from the
+same analysis -- and its identical twin in the odometry-only branch executes.
+The 17 notebook sites are covered by `tests/docs/test_notebooks_run.py`.
 
 **The measurement lied twice before it said anything true**, both times looking
 exactly like "this code never runs":
