@@ -42,24 +42,34 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 #: trailing flags. Anchored to a chapter directory so that prose about a path
 #: (`see ch4_rf_point_positioning/example_toa_positioning.py`) is untouched --
 #: this is a claim about how to *invoke* something, not about where it lives.
-SCRIPT_FORM = re.compile(
-    r"python\s+(ch\d+_[a-z0-9_]+)/([A-Za-z0-9_]+)\.py"
-)
+SCRIPT_FORM = re.compile(r"python\s+(ch\d+_[a-z0-9_]+)/([A-Za-z0-9_]+)\.py")
 
 #: Directories whose documents record a past state rather than instruct a reader.
 #: `.claude` holds other sessions' worktrees, which are separate checkouts.
 EXEMPT_DIRS = (".git", ".claude", ".dev", "node_modules")
 
-#: Agent working notes, not reader instructions. CLAUDE.md documents the
-#: editable-install `sys.path` trap and quotes the script form *as the failing
-#: case*, which is the one place the spelling is deliberate.
-EXEMPT_FILES = {"CLAUDE.md"}
+#: Files that quote the script form *as the failing case*, which is the one
+#: place the spelling is deliberate: CLAUDE.md's note on the editable-install
+#: `sys.path` trap, and the two tests that exist because of it -- this one and
+#: the import guard next door.
+EXEMPT_FILES = {
+    "CLAUDE.md",
+    "tests/docs/test_documented_commands_use_module_form.py",
+    "tests/test_examples_import_this_checkout.py",
+}
 
 
 def _documents():
-    """Every reader-facing markdown and notebook file, in a stable order."""
+    """Every reader-facing markdown, notebook and source file, in a stable order.
+
+    `.py` is in the list because every example now passes `description=__doc__`
+    to argparse, so a module docstring is printed by `--help` -- it is reader
+    documentation whatever its file extension. Six commands in Chapter 3's
+    docstrings were still the script form when this was widened, and the
+    original markdown-only sweep could not see any of them.
+    """
     found = []
-    for pattern in ("*.md", "*.ipynb"):
+    for pattern in ("*.md", "*.ipynb", "*.py"):
         for path in sorted(REPO_ROOT.rglob(pattern)):
             relative = path.relative_to(REPO_ROOT)
             if any(part in EXEMPT_DIRS for part in relative.parts):

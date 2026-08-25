@@ -5,7 +5,7 @@ This script compares all state estimation methods from Chapter 3 on the same
 2D tracking problem with nonlinear range measurements from multiple anchors.
 
 Run from repository root:
-    python ch3_estimators/example_comparison.py
+    python -m ch3_estimators.example_comparison
 
 Compares (Section 3.5, Table 3.4):
     - Extended Kalman Filter (EKF) - Section 3.2.2, Eqs. (3.21)-(3.23)

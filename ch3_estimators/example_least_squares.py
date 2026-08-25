@@ -5,7 +5,7 @@ This script demonstrates various least squares methods applied to 2D positioning
 from range measurements (Time-of-Arrival positioning), following Chapter 3.
 
 Run from repository root:
-    python ch3_estimators/example_least_squares.py
+    python -m ch3_estimators.example_least_squares
 
 Demonstrates:
     - Linear least squares (LS) with linearization

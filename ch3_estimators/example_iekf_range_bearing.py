@@ -6,7 +6,7 @@ range and bearing measurements, comparing it with standard EKF to show
 improved stability with high nonlinearity.
 
 Run from repository root:
-    python ch3_estimators/example_iekf_range_bearing.py
+    python -m ch3_estimators.example_iekf_range_bearing
 
 Demonstrates:
     - Iterated Extended Kalman Filter (IEKF) from Section 3.2.3

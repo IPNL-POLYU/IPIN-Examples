@@ -5,8 +5,8 @@ This script demonstrates the Extended Kalman Filter applied to 2D positioning
 using nonlinear range and bearing measurements from known landmarks.
 
 Run from repository root:
-    python ch3_estimators/example_ekf_range_bearing.py
-    python ch3_estimators/example_ekf_range_bearing.py --data ch3_estimator_nonlinear
+    python -m ch3_estimators.example_ekf_range_bearing
+    python -m ch3_estimators.example_ekf_range_bearing --data ch3_estimator_nonlinear
 
 Demonstrates:
     - Extended Kalman Filter (EKF) for nonlinear systems (Section 3.2.2)
