@@ -524,14 +524,37 @@ def visualize_results():
 
     ax.set_xlabel("X (m)", fontsize=12)
     ax.set_ylabel("Y (m)", fontsize=12)
-    ax.set_title("Examples 1-4: LS Methods (Clean Data)\n"
-                 "Gauss-Newton (Eq. 3.52) & LM (Eq. 3.53, Alg. 3.2)",
+    ax.set_title("On clean data all three solvers agree to centimetres\n"
+                 "(inset: a 20 cm window on the same estimates)",
                  fontsize=12, fontweight="bold")
     ax.legend(fontsize=9, loc="upper right")
     ax.grid(True, alpha=0.3)
     ax.set_aspect("equal")
     ax.set_xlim(-1, 11)
     ax.set_ylim(-1, 11)
+
+    # The three estimates land within about 5 cm of each other and of the
+    # truth, so at the scale that shows the anchors they are one dot with a
+    # seven-entry legend beside it -- the panel's whole subject, invisible.
+    # The inset is the same fix Chapter 6's comparison figure uses: keep the
+    # overview, and put the part worth seeing beside it.
+    spread = 0.1
+    axins = ax.inset_axes([0.03, 0.03, 0.36, 0.36])
+    axins.scatter(true_position[0], true_position[1], s=250, c="green",
+                  marker="*", zorder=5)
+    axins.scatter(pos_linear[0], pos_linear[1], s=150, c="orange", marker="o",
+                  zorder=4)
+    # Gauss-Newton and LM converge to the same point here, so LM is drawn as a
+    # larger hollow marker around it: two rings mean they agree exactly.
+    axins.scatter(pos_gn[0], pos_gn[1], s=110, c="red", marker="s", zorder=4)
+    axins.scatter(pos_lm[0], pos_lm[1], s=320, facecolors="none",
+                  edgecolors="purple", marker="D", linewidths=2, zorder=4)
+    axins.set_xlim(true_position[0] - spread, true_position[0] + spread)
+    axins.set_ylim(true_position[1] - spread, true_position[1] + spread)
+    axins.set_xticks([])
+    axins.set_yticks([])
+    axins.grid(True, alpha=0.3)
+    ax.indicate_inset_zoom(axins, edgecolor="black", alpha=0.6)
 
     # ----- Plot 2: Robust LS with outlier (Table 3.1) -----
     ax = axes[1]
@@ -570,8 +593,8 @@ def visualize_results():
 
     ax.set_xlabel("X (m)", fontsize=12)
     ax.set_ylabel("Y (m)", fontsize=12)
-    ax.set_title("Example 5: Robust LS with Table 3.1 Estimators\n"
-                 "(Section 3.1.1: Outlier Rejection)",
+    ax.set_title("One corrupted anchor drags plain least squares off the truth\n"
+                 "while every robust loss in Table 3.1 ignores it",
                  fontsize=12, fontweight="bold")
     ax.legend(fontsize=9, loc="upper right")
     ax.grid(True, alpha=0.3)

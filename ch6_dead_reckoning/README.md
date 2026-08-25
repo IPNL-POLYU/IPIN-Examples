@@ -1,5 +1,10 @@
 # Chapter 6: Dead Reckoning
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch6_dead_reckoning.ipynb)
+
+Run this chapter in your browser — every figure below is one you can
+regenerate and change. No install: [`notebooks/ch6_dead_reckoning.ipynb`](../notebooks/ch6_dead_reckoning.ipynb)
+
 ## Overview
 
 This module implements dead reckoning and sensor algorithms described in **Chapter 6** of *Principles of Indoor Positioning and Indoor Navigation*. Dead reckoning propagates position using proprioceptive sensors (IMU, wheel encoders, step counters) without external references.
@@ -14,6 +19,38 @@ The module provides simulation-based examples of:
 
 **Key Insight:** Dead reckoning drifts unbounded without corrections. Examples demonstrate both the drift problem and solutions.
 
+## Quick Start
+
+```bash
+# Run individual examples
+python -m ch6_dead_reckoning.example_imu_strapdown
+python -m ch6_dead_reckoning.example_zupt
+python -m ch6_dead_reckoning.example_wheel_odometry
+python -m ch6_dead_reckoning.example_pdr
+python -m ch6_dead_reckoning.example_environment
+python -m ch6_dead_reckoning.example_allan_variance         # Standard analysis
+python -m ch6_dead_reckoning.example_allan_variance  # prints the component breakdown
+
+# Run PDR with pre-generated dataset
+python -m ch6_dead_reckoning.example_pdr --data ch6_pdr_corridor_walk
+
+# Run comprehensive comparison
+python -m ch6_dead_reckoning.example_comparison
+
+# Animate the drift and its correction (writes figs/ch6_zupt_drift.gif)
+python -m ch6_dead_reckoning.example_zupt --animate
+```
+
+
+### What this chapter is about, in one picture
+
+![All four dead-reckoning methods against ground truth, full extent and zoomed](figs/comparison_trajectories.svg)
+
+Left: the full extent. IMU alone drifts clean off a walk that never left a
+30 m by 20 m box — **54 m RMSE**. Right: the same run zoomed to the truth,
+which is the only scale at which ZUPT (8.8 m), wheel odometry (0.42 m) and PDR
+(0.51 m) are distinguishable from each other at all. Every method below is a
+way of stopping the left-hand picture from happening.
 ## ⚙️ Frame Conventions (IMPORTANT!)
 
 All Chapter 6 algorithms use **explicit frame conventions** via the `FrameConvention` dataclass. This ensures:
@@ -55,28 +92,6 @@ x = [p, v, q, b_g, b_a]
 | **b_a** | 13:16 | 3 | Accelerometer bias (m/s²) |
 
 This ordering matches **Eq. (6.16)** in the book and is used consistently across all EKF-related code.
-
-## Quick Start
-
-```bash
-# Run individual examples
-python -m ch6_dead_reckoning.example_imu_strapdown
-python -m ch6_dead_reckoning.example_zupt
-python -m ch6_dead_reckoning.example_wheel_odometry
-python -m ch6_dead_reckoning.example_pdr
-python -m ch6_dead_reckoning.example_environment
-python -m ch6_dead_reckoning.example_allan_variance         # Standard analysis
-python -m ch6_dead_reckoning.example_allan_variance  # prints the component breakdown
-
-# Run PDR with pre-generated dataset
-python -m ch6_dead_reckoning.example_pdr --data ch6_pdr_corridor_walk
-
-# Run comprehensive comparison
-python -m ch6_dead_reckoning.example_comparison
-
-# Animate the drift and its correction (writes figs/ch6_zupt_drift.gif)
-python -m ch6_dead_reckoning.example_zupt --animate
-```
 
 ## Animations
 
@@ -128,67 +143,6 @@ gyro = np.loadtxt(path / "gyro.txt")
 mag = np.loadtxt(path / "magnetometer.txt")
 config = json.load(open(path / "config.json"))
 ```
-
-## Equation Reference
-
-### IMU Strapdown Integration
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `omega_matrix()` | `core/sensors/strapdown.py` | Eq. (6.3) | Skew-symmetric matrix for quaternion kinematics |
-| `quat_integrate()` | `core/sensors/strapdown.py` | Eq. (6.2-6.4) | Discrete quaternion integration |
-| `vel_update()` | `core/sensors/strapdown.py` | Eq. (6.7) | Velocity update with specific force |
-| `pos_update()` | `core/sensors/strapdown.py` | Eq. (6.10) | Position update |
-| `strapdown_update()` | `core/sensors/strapdown.py` | Eq. (6.2-6.10) | Full strapdown loop |
-
-### Wheel Odometry
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `wheel_speed_to_attitude_velocity()` | `core/sensors/wheel_odometry.py` | Eq. (6.11) | Lever arm compensation with C_S^A rotation |
-| `attitude_to_map_velocity()` | `core/sensors/wheel_odometry.py` | Eq. (6.14) | Frame transform |
-| `odom_pos_update()` | `core/sensors/wheel_odometry.py` | Eq. (6.15) | Position update |
-
-**Note:** Speed frame convention follows book: x-right, y-forward, z-up.
-
-### Drift Correction Constraints
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `detect_zupt_windowed()` | `core/sensors/constraints.py` | Eq. (6.44) | ZUPT windowed test statistic |
-| `ZuptMeasurementModel` | `core/sensors/constraints.py` | Eq. (6.45) | ZUPT pseudo-measurement |
-| `ZaruMeasurementModelPlaceholder` | `core/sensors/constraints.py` | ⚠️ INCOMPLETE | ZARU placeholder (see class docs) |
-| `NhcMeasurementModel` | `core/sensors/constraints.py` | Eq. (6.61) | NHC pseudo-measurement |
-
-### Pedestrian Dead Reckoning (PDR)
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `total_accel_magnitude()` | `core/sensors/pdr.py` | Eq. (6.46) | Total acceleration magnitude |
-| `detect_steps_peak_detector()` | `core/sensors/pdr.py` | Eq. (6.46-6.47) | Peak-based step detection |
-| `step_length()` | `core/sensors/pdr.py` | ⚠️ DEPRECATED | Generic power-law (not Eq. 6.49 or Weinberg) |
-| `step_length_book_eq6_49()` | `core/sensors/pdr.py` | Eq. (6.49) | Book's actual step length formula |
-| `step_length_weinberg()` | `core/sensors/pdr.py` | Weinberg (1995) | Actual Weinberg model: SL = G_w·ptp^0.25 |
-| `calibrate_weinberg_gain()` | `core/sensors/pdr.py` | — | Calibrate G_w from known distance |
-| `pdr_step_update()` | `core/sensors/pdr.py` | Eq. (6.50) | 2D position update |
-
-### Environmental Sensors
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `mag_tilt_compensate()` | `core/sensors/environment.py` | Eq. (6.52) | Tilt compensation |
-| `mag_heading()` | `core/sensors/environment.py` | Eq. (6.51-6.53) | Heading from magnetometer |
-| `pressure_to_altitude()` | `core/sensors/environment.py` | Eq. (6.54) | Barometric altitude |
-
-### Allan Variance / IMU Calibration
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `allan_variance()` | `core/sensors/calibration.py` | IEEE Std 952-1997 | Standard Allan variance computation |
-| `identify_random_walk()` | `core/sensors/calibration.py` | Eq. (6.56) | ARW/VRW extraction from slope=-0.5 region |
-| `arw_to_noise_std()` | `core/sensors/calibration.py` | Eq. (6.58) | Convert ARW to per-sample noise: σ = ARW × √Δt |
-
----
 
 ## Step-Length Models (Important Clarification)
 
@@ -678,6 +632,67 @@ consumer-grade IMU, seed 42):
   by the step-length model respectively, both of which show up in `Path Traced`
   rather than in `Final Error` on a closed loop.
 - All corrections dramatically outperform pure IMU integration.
+
+---
+
+## Equation Reference
+
+### IMU Strapdown Integration
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `omega_matrix()` | `core/sensors/strapdown.py` | Eq. (6.3) | Skew-symmetric matrix for quaternion kinematics |
+| `quat_integrate()` | `core/sensors/strapdown.py` | Eq. (6.2-6.4) | Discrete quaternion integration |
+| `vel_update()` | `core/sensors/strapdown.py` | Eq. (6.7) | Velocity update with specific force |
+| `pos_update()` | `core/sensors/strapdown.py` | Eq. (6.10) | Position update |
+| `strapdown_update()` | `core/sensors/strapdown.py` | Eq. (6.2-6.10) | Full strapdown loop |
+
+### Wheel Odometry
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `wheel_speed_to_attitude_velocity()` | `core/sensors/wheel_odometry.py` | Eq. (6.11) | Lever arm compensation with C_S^A rotation |
+| `attitude_to_map_velocity()` | `core/sensors/wheel_odometry.py` | Eq. (6.14) | Frame transform |
+| `odom_pos_update()` | `core/sensors/wheel_odometry.py` | Eq. (6.15) | Position update |
+
+**Note:** Speed frame convention follows book: x-right, y-forward, z-up.
+
+### Drift Correction Constraints
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `detect_zupt_windowed()` | `core/sensors/constraints.py` | Eq. (6.44) | ZUPT windowed test statistic |
+| `ZuptMeasurementModel` | `core/sensors/constraints.py` | Eq. (6.45) | ZUPT pseudo-measurement |
+| `ZaruMeasurementModelPlaceholder` | `core/sensors/constraints.py` | ⚠️ INCOMPLETE | ZARU placeholder (see class docs) |
+| `NhcMeasurementModel` | `core/sensors/constraints.py` | Eq. (6.61) | NHC pseudo-measurement |
+
+### Pedestrian Dead Reckoning (PDR)
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `total_accel_magnitude()` | `core/sensors/pdr.py` | Eq. (6.46) | Total acceleration magnitude |
+| `detect_steps_peak_detector()` | `core/sensors/pdr.py` | Eq. (6.46-6.47) | Peak-based step detection |
+| `step_length()` | `core/sensors/pdr.py` | ⚠️ DEPRECATED | Generic power-law (not Eq. 6.49 or Weinberg) |
+| `step_length_book_eq6_49()` | `core/sensors/pdr.py` | Eq. (6.49) | Book's actual step length formula |
+| `step_length_weinberg()` | `core/sensors/pdr.py` | Weinberg (1995) | Actual Weinberg model: SL = G_w·ptp^0.25 |
+| `calibrate_weinberg_gain()` | `core/sensors/pdr.py` | — | Calibrate G_w from known distance |
+| `pdr_step_update()` | `core/sensors/pdr.py` | Eq. (6.50) | 2D position update |
+
+### Environmental Sensors
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `mag_tilt_compensate()` | `core/sensors/environment.py` | Eq. (6.52) | Tilt compensation |
+| `mag_heading()` | `core/sensors/environment.py` | Eq. (6.51-6.53) | Heading from magnetometer |
+| `pressure_to_altitude()` | `core/sensors/environment.py` | Eq. (6.54) | Barometric altitude |
+
+### Allan Variance / IMU Calibration
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `allan_variance()` | `core/sensors/calibration.py` | IEEE Std 952-1997 | Standard Allan variance computation |
+| `identify_random_walk()` | `core/sensors/calibration.py` | Eq. (6.56) | ARW/VRW extraction from slope=-0.5 region |
+| `arw_to_noise_std()` | `core/sensors/calibration.py` | Eq. (6.58) | Convert ARW to per-sample noise: σ = ARW × √Δt |
 
 ---
 

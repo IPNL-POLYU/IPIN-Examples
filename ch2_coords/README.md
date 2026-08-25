@@ -1,5 +1,10 @@
 # Chapter 2: Coordinate Systems and Transformations
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch2_coordinate_systems.ipynb)
+
+Run this chapter in your browser — every figure below is one you can
+regenerate and change. No install: [`notebooks/ch2_coordinate_systems.ipynb`](../notebooks/ch2_coordinate_systems.ipynb)
+
 ## Overview
 
 This module implements the coordinate systems and transformation functions described in **Chapter 2** of *Principles of Indoor Positioning and Indoor Navigation*. It provides the foundational mathematical tools for converting between different coordinate frames and rotation representations commonly used in indoor navigation systems.
@@ -14,22 +19,49 @@ python -m ch2_coords.example_coordinate_transforms
 python -m ch2_coords.example_coordinate_transforms --data ch2_coords_san_francisco
 
 # Draw the frames and the attitude convention (writes to figs/)
-python -m ch2_coords.example_attitude_visualization --no-show
+python -m ch2_coords.example_attitude_visualization
 ```
 
-## Figures
+## Four pictures worth more than the algebra
 
-`example_attitude_visualization.py` writes four figures to `figs/`. They exist
-because this chapter's attitude convention is **not** the aerospace default —
-roll turns about **Y** (2.15) and pitch about **X** (2.16) — and that is far
-easier to see than to read.
+This chapter's attitude convention is **not** the aerospace default — roll turns
+about **Y** (2.15) and pitch about **X** (2.16) — and that is far easier to see
+than to read. All four are written by
+`python -m ch2_coords.example_attitude_visualization`.
 
-| Figure | Shows |
-|--------|-------|
-| `ch2_euler_convention` | The elemental rotations (2.14)–(2.16) and their composition (2.17), each with its axis of rotation marked, so the Y/X pairing is visible |
-| `ch2_passive_vs_active` | The transpose trap: Chapter 2's passive `C` (2.21) beside the active body-to-map rotation of Chapter 6 (6.13) |
-| `ch2_gimbal_lock` | The singularity, which in this convention sits at **roll** = ±90°, not pitch, with two different (yaw, pitch) pairs collapsing to one attitude |
-| `ch2_frame_chain` | ENU → NED → body, the local-frame chain of (2.5)–(2.7) |
+### The frames, and how they relate
+
+![ENU, NED and body frames side by side](figs/ch2_frame_chain.svg)
+
+NED is a swap-and-flip of ENU that preserves handedness — **not** a rotation.
+The dashed axes behind each frame are the same ENU reference, so you can read
+each frame against it. Eqs. (2.5)–(2.7).
+
+### What "roll" and "pitch" turn about here
+
+![The three elemental rotations and their composition](figs/ch2_euler_convention.svg)
+
+Yaw about Z, then roll about **Y**, then pitch about **X**, composed as
+`C = Rx(pitch) Ry(roll) Rz(yaw)`. The dotted line in each panel is that panel's
+axis of rotation. Eqs. (2.14)–(2.17).
+
+### The transpose trap
+
+![Passive rotation beside active rotation](figs/ch2_passive_vs_active.svg)
+
+Chapter 2's `C` rotates *coordinates* (passive, 2.21); Chapter 6's body-to-map
+rotates the *vector* (active, 6.13). They differ by a transpose, so at yaw = 50°
+the two answers sit **100° apart**. This is the single easiest mistake to make
+in the whole chapter.
+
+### Where the convention breaks
+
+![Gimbal lock at roll = 90 degrees](figs/ch2_gimbal_lock.svg)
+
+The singularity is at **roll = ±90°**, not pitch, because roll is the middle
+rotation. The bottom row is the proof: `(roll, pitch, yaw) = (90, 0, 30)` and
+`(90, -30, 0)` are two different inputs that produce matrices agreeing to
+3.1e-17 — the same attitude. Recovery can only report one of them.
 
 ## 📂 Dataset Connection
 
@@ -50,36 +82,6 @@ ecef = np.loadtxt(path / "ecef_coordinates.txt")
 enu = np.loadtxt(path / "enu_coordinates.txt")
 config = json.load(open(path / "config.json"))
 ```
-
-## Equation Reference
-
-### Coordinate Transformations
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `llh_to_ecef()` | `core/coords/transforms.py` | Eq. (2.9) | Geodetic (LLH) to ECEF Cartesian coordinates |
-| `ecef_to_llh()` | `core/coords/transforms.py` | Iterative (see [2]) | ECEF to Geodetic (LLH) - iterative solution |
-| `ecef_to_enu()` | `core/coords/transforms.py` | Eq. (2.10) | ECEF to local East-North-Up frame |
-| `enu_to_ecef()` | `core/coords/transforms.py` | Eq. (2.10) inverse | Local ENU to ECEF coordinates |
-
-### Rotation Representations
-
-| Function | Location | Equation | Description |
-|----------|----------|----------|-------------|
-| `euler_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.17) | Euler angles (ZYX) to 3×3 rotation matrix |
-| `rotation_matrix_to_euler()` | `core/coords/rotations.py` | Eq. (2.17) inverse | Rotation matrix to Euler angles |
-| `euler_to_quat()` | `core/coords/rotations.py` | Eq. (2.23) | Euler angles to unit quaternion |
-| `quat_to_euler()` | `core/coords/rotations.py` | Eq. (2.22) | Quaternion to Euler angles |
-| `quat_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.21) | Quaternion to rotation matrix |
-| `rotation_matrix_to_quat()` | `core/coords/rotations.py` | Eq. (2.21) inverse | Rotation matrix to quaternion |
-
-### WGS84 Constants
-
-| Constant | Value | Description |
-|----------|-------|-------------|
-| `WGS84_A` | 6378137.0 m | Semi-major axis |
-| `WGS84_F` | 1/298.257223563 | Flattening |
-| `WGS84_B` | 6356752.314245 m | Semi-minor axis |
 
 ## Examples
 
@@ -157,6 +159,9 @@ print(f"||q|| = {np.linalg.norm(q):.6f}")  # Should be 1.0
 ## Expected Output
 
 When you run the demonstration script, you should see:
+
+<details>
+<summary>Full console output — 103 lines</summary>
 
 <!-- example-output: ch2_coords.example_coordinate_transforms -->
 ```
@@ -264,6 +269,38 @@ Examples completed successfully!
 
 Tip: Run with --data ch2_coords_san_francisco to use pre-generated dataset
 ```
+
+</details>
+
+## Equation Reference
+
+### Coordinate Transformations
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `llh_to_ecef()` | `core/coords/transforms.py` | Eq. (2.9) | Geodetic (LLH) to ECEF Cartesian coordinates |
+| `ecef_to_llh()` | `core/coords/transforms.py` | Iterative (see [2]) | ECEF to Geodetic (LLH) - iterative solution |
+| `ecef_to_enu()` | `core/coords/transforms.py` | Eq. (2.10) | ECEF to local East-North-Up frame |
+| `enu_to_ecef()` | `core/coords/transforms.py` | Eq. (2.10) inverse | Local ENU to ECEF coordinates |
+
+### Rotation Representations
+
+| Function | Location | Equation | Description |
+|----------|----------|----------|-------------|
+| `euler_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.17) | Euler angles (ZYX) to 3×3 rotation matrix |
+| `rotation_matrix_to_euler()` | `core/coords/rotations.py` | Eq. (2.17) inverse | Rotation matrix to Euler angles |
+| `euler_to_quat()` | `core/coords/rotations.py` | Eq. (2.23) | Euler angles to unit quaternion |
+| `quat_to_euler()` | `core/coords/rotations.py` | Eq. (2.22) | Quaternion to Euler angles |
+| `quat_to_rotation_matrix()` | `core/coords/rotations.py` | Eq. (2.21) | Quaternion to rotation matrix |
+| `rotation_matrix_to_quat()` | `core/coords/rotations.py` | Eq. (2.21) inverse | Rotation matrix to quaternion |
+
+### WGS84 Constants
+
+| Constant | Value | Description |
+|----------|-------|-------------|
+| `WGS84_A` | 6378137.0 m | Semi-major axis |
+| `WGS84_F` | 1/298.257223563 | Flattening |
+| `WGS84_B` | 6356752.314245 m | Semi-minor axis |
 
 ## Architecture
 

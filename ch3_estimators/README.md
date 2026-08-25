@@ -1,5 +1,10 @@
 # Chapter 3: Estimators and Filters for Indoor Positioning
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/IPNL-POLYU/IPIN-Examples/blob/main/notebooks/ch3_state_estimation.ipynb)
+
+Run this chapter in your browser — every figure below is one you can
+regenerate and change. No install: [`notebooks/ch3_state_estimation.ipynb`](../notebooks/ch3_state_estimation.ipynb)
+
 ## Overview
 
 This module implements the state estimation algorithms described in **Chapter 3** of *Principles of Indoor Positioning and Indoor Navigation*. It provides the mathematical foundations for estimating position, velocity, and other states from noisy measurements using various filtering and optimization techniques.
@@ -41,6 +46,8 @@ python -m ch3_estimators.example_particle_bimodal
 |--------|----------|------|
 | `ch3_particle_bimodal.{svg,pdf,png}` | `example_particle_bimodal.py` | — |
 | `ch3_particle_bimodal.gif` | `example_particle_bimodal.py --animate` | 0.35 MB |
+
+![A bimodal posterior the particle cloud carries, which a single Gaussian cannot](figs/ch3_particle_bimodal.svg)
 
 Section 3.3 sells the particle filter on its ability to carry *any* posterior,
 not just a Gaussian one — but none of this chapter's other examples can show
@@ -115,6 +122,118 @@ config = json.load(open(path / "config.json"))
 | Gradient Descent Optimizer | 3.4.1.1 | `core/estimators/factor_graph.py` | ✅ `method="gd"` (+ optional `line_search=True`) |
 | Gauss-Newton + Line Search | 3.4.1.1 | `core/estimators/factor_graph.py` | ✅ `method="line_search"` |
 | Levenberg-Marquardt Optimizer | 3.4.1.3 | `core/estimators/factor_graph.py` | ✅ `method="levenberg_marquardt"` |
+
+---
+
+## Examples
+
+### Example 1: Least Squares Methods (Section 3.1)
+
+```bash
+python -m ch3_estimators.example_least_squares
+```
+
+Demonstrates Linear LS, Weighted LS, Iterative LS (Gauss-Newton), and Robust LS for 2D positioning from range measurements.
+
+**Key Insight:** The Robust LS example uses **8 anchors** (not 4) to demonstrate proper outlier rejection—robust estimation requires sufficient measurement redundancy.
+
+### Example 2: 1D Kalman Filter Tracking (Section 3.2.1)
+
+```bash
+python -m ch3_estimators.example_kalman_1d
+```
+
+Demonstrates constant-velocity Kalman Filter for 1D position and velocity estimation.
+
+### Example 3: EKF Range-Bearing Tracking (Section 3.2.2)
+
+```bash
+python -m ch3_estimators.example_ekf_range_bearing
+```
+
+Demonstrates Extended Kalman Filter for 2D trajectory estimation with nonlinear range-bearing measurements. Includes proper angle wrapping for bearing innovations.
+
+### Example 4: IEKF vs EKF Comparison (Section 3.2.3)
+
+```bash
+python -m ch3_estimators.example_iekf_range_bearing
+```
+
+Demonstrates the Iterated Extended Kalman Filter and compares it with standard EKF in high-nonlinearity scenarios. Shows IEKF's improved stability when measurements are highly nonlinear.
+
+### Example 5: Estimator Comparison (Section 3.5)
+
+```bash
+python -m ch3_estimators.example_comparison
+```
+
+Compares EKF, UKF, Particle Filter, and Factor Graph Optimization on the same 2D tracking problem. Demonstrates accuracy vs. computational cost trade-offs.
+
+---
+
+## Expected Output
+
+### Example 1: Least Squares Methods
+
+**Console output:**
+
+<!-- example-output: ch3_estimators.example_least_squares -->
+```
+EXAMPLE 1: Linear Least Squares (Eq. 3.2-3.3)
+======================================================================
+Measurement model: h_i(x) = ||x - a_i|| (range to anchor)
+Residual: r_i = y_i - h_i(x)  (book convention)
+True position:      [3. 4.]
+Initial guess:      [5. 5.]
+LS estimate:        [3.02093732 3.9228227 ]
+Position error:     0.0800 m
+...
+EXAMPLE 5: Robust LS with Table 3.1 Estimators
+======================================================================
+Scenario: 2D positioning from 8 anchors
+Added 5.0 m NLOS outlier to anchor 2
+(8 anchors provide redundancy for outlier rejection)
+...
+Method               Position                  Error (m)  Outlier w
+-----------------------------------------------------------------
+L2 (Table 3.1)       [3.525, 2.826]            1.2858     1.0000
+Cauchy (Table 3.1)   [3.005, 3.973]            0.0274     0.0010
+Huber (Table 3.1)    [3.039, 3.888]            0.1186     0.0467
+G-M (Table 3.1)      [3.009, 3.994]            0.0112     0.0000
+Tukey (extra)        [3.025, 4.012]            0.0282     0.0000
+```
+
+The `Outlier w` column is the weight each estimator gave the corrupted anchor,
+which is the mechanism behind the error column beside it: L2 keeps the outlier
+at full weight and is dragged 1.29 m off; Geman-McClure drives it to zero.
+
+**Generated figure:** `figs/ch3_least_squares_examples.png`
+
+![Least Squares Examples](figs/ch3_least_squares_examples.png)
+
+### Example 2: 1D Kalman Filter
+
+**Generated figure:** `figs/ch3_kalman_1d_tracking.png`
+
+![1D Kalman Filter Tracking](figs/ch3_kalman_1d_tracking.png)
+
+### Example 3: EKF Range-Bearing
+
+**Generated figure:** `figs/ch3_ekf_range_bearing.png`
+
+![EKF Range-Bearing Tracking](figs/ch3_ekf_range_bearing.png)
+
+### Example 4: IEKF vs EKF
+
+**Generated figure:** `figs/ch3_iekf_vs_ekf_comparison.png`
+
+![IEKF vs EKF Comparison](figs/ch3_iekf_vs_ekf_comparison.png)
+
+### Example 5: Estimator Comparison
+
+**Generated figure:** `figs/ch3_estimator_comparison.png`
+
+![Estimator Comparison](figs/ch3_estimator_comparison.png)
 
 ---
 
@@ -316,118 +435,6 @@ Key takeaways from Chapter 3:
 - **FGO**: Maximum accuracy via batch optimization; enables loop closures
 
 No single method dominates universally—hybrid approaches combining multiple techniques represent the state of the art.
-
----
-
-## Examples
-
-### Example 1: Least Squares Methods (Section 3.1)
-
-```bash
-python -m ch3_estimators.example_least_squares
-```
-
-Demonstrates Linear LS, Weighted LS, Iterative LS (Gauss-Newton), and Robust LS for 2D positioning from range measurements.
-
-**Key Insight:** The Robust LS example uses **8 anchors** (not 4) to demonstrate proper outlier rejection—robust estimation requires sufficient measurement redundancy.
-
-### Example 2: 1D Kalman Filter Tracking (Section 3.2.1)
-
-```bash
-python -m ch3_estimators.example_kalman_1d
-```
-
-Demonstrates constant-velocity Kalman Filter for 1D position and velocity estimation.
-
-### Example 3: EKF Range-Bearing Tracking (Section 3.2.2)
-
-```bash
-python -m ch3_estimators.example_ekf_range_bearing
-```
-
-Demonstrates Extended Kalman Filter for 2D trajectory estimation with nonlinear range-bearing measurements. Includes proper angle wrapping for bearing innovations.
-
-### Example 4: IEKF vs EKF Comparison (Section 3.2.3)
-
-```bash
-python -m ch3_estimators.example_iekf_range_bearing
-```
-
-Demonstrates the Iterated Extended Kalman Filter and compares it with standard EKF in high-nonlinearity scenarios. Shows IEKF's improved stability when measurements are highly nonlinear.
-
-### Example 5: Estimator Comparison (Section 3.5)
-
-```bash
-python -m ch3_estimators.example_comparison
-```
-
-Compares EKF, UKF, Particle Filter, and Factor Graph Optimization on the same 2D tracking problem. Demonstrates accuracy vs. computational cost trade-offs.
-
----
-
-## Expected Output
-
-### Example 1: Least Squares Methods
-
-**Console output:**
-
-<!-- example-output: ch3_estimators.example_least_squares -->
-```
-EXAMPLE 1: Linear Least Squares (Eq. 3.2-3.3)
-======================================================================
-Measurement model: h_i(x) = ||x - a_i|| (range to anchor)
-Residual: r_i = y_i - h_i(x)  (book convention)
-True position:      [3. 4.]
-Initial guess:      [5. 5.]
-LS estimate:        [3.02093732 3.9228227 ]
-Position error:     0.0800 m
-...
-EXAMPLE 5: Robust LS with Table 3.1 Estimators
-======================================================================
-Scenario: 2D positioning from 8 anchors
-Added 5.0 m NLOS outlier to anchor 2
-(8 anchors provide redundancy for outlier rejection)
-...
-Method               Position                  Error (m)  Outlier w
------------------------------------------------------------------
-L2 (Table 3.1)       [3.525, 2.826]            1.2858     1.0000
-Cauchy (Table 3.1)   [3.005, 3.973]            0.0274     0.0010
-Huber (Table 3.1)    [3.039, 3.888]            0.1186     0.0467
-G-M (Table 3.1)      [3.009, 3.994]            0.0112     0.0000
-Tukey (extra)        [3.025, 4.012]            0.0282     0.0000
-```
-
-The `Outlier w` column is the weight each estimator gave the corrupted anchor,
-which is the mechanism behind the error column beside it: L2 keeps the outlier
-at full weight and is dragged 1.29 m off; Geman-McClure drives it to zero.
-
-**Generated figure:** `figs/ch3_least_squares_examples.png`
-
-![Least Squares Examples](figs/ch3_least_squares_examples.png)
-
-### Example 2: 1D Kalman Filter
-
-**Generated figure:** `figs/ch3_kalman_1d_tracking.png`
-
-![1D Kalman Filter Tracking](figs/ch3_kalman_1d_tracking.png)
-
-### Example 3: EKF Range-Bearing
-
-**Generated figure:** `figs/ch3_ekf_range_bearing.png`
-
-![EKF Range-Bearing Tracking](figs/ch3_ekf_range_bearing.png)
-
-### Example 4: IEKF vs EKF
-
-**Generated figure:** `figs/ch3_iekf_vs_ekf_comparison.png`
-
-![IEKF vs EKF Comparison](figs/ch3_iekf_vs_ekf_comparison.png)
-
-### Example 5: Estimator Comparison
-
-**Generated figure:** `figs/ch3_estimator_comparison.png`
-
-![Estimator Comparison](figs/ch3_estimator_comparison.png)
 
 ---
 

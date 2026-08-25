@@ -697,7 +697,7 @@ def plot_comparison(
     fig1 = plot_trajectory_2d(
         pos_true[:, :2],
         {name: pos[:, :2] for name, pos in results.items()},
-        title='Chapter 6 Comparison: All Dead Reckoning Methods',
+        title='IMU alone drifts to 54 m RMSE; ZUPT cuts it to 8.8, odometry and PDR to under a metre',
         axis_labels=('East [m]', 'North [m]'),
         zoom_to_truth=True,
     )
