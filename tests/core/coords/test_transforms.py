@@ -17,6 +17,7 @@ import unittest
 
 import numpy as np
 
+from core.coords.rotations import euler_to_rotation_matrix
 from core.coords.transforms import (
     body_to_enu,
     body_to_map,
@@ -382,6 +383,62 @@ class TestEnuBody(unittest.TestCase):
             x_body = enu_to_body(x_enu, roll, pitch, yaw)
             recovered = body_to_enu(x_body, roll, pitch, yaw)
             np.testing.assert_allclose(recovered, x_enu, atol=1e-9)
+
+    def test_round_trip_with_offset_origin(self) -> None:
+        """enu -> body -> enu recovers the point with a non-coincident origin.
+
+        ``enu_to_body``'s ``body_origin_enu`` and ``body_to_enu``'s
+        ``enu_origin_body`` are different quantities expressed in different
+        frames (the body origin in ENU vs. the ENU origin in body
+        coordinates), and the docstrings on both functions carry a
+        CONVENTION WARNING to that effect. This test exercises the origin
+        argument at all -- ``test_round_trip`` above only ever calls with
+        the default ``None`` -- using the correct conversion between the two,
+        ``enu_origin_body = -C @ body_origin_enu``.
+        """
+        rng = np.random.default_rng(3)
+        for _ in range(20):
+            x_enu = rng.uniform(-50.0, 50.0, 3)
+            body_origin_enu = rng.uniform(-10.0, 10.0, 3)
+            roll, pitch, yaw = rng.uniform(-np.pi, np.pi, 3)
+            c_body_enu = euler_to_rotation_matrix(roll, pitch, yaw)
+            enu_origin_body = -c_body_enu @ body_origin_enu
+
+            x_body = enu_to_body(x_enu, roll, pitch, yaw, body_origin_enu)
+            recovered = body_to_enu(x_body, roll, pitch, yaw, enu_origin_body)
+            np.testing.assert_allclose(recovered, x_enu, atol=1e-9)
+
+    def test_same_array_as_both_origins_does_not_round_trip(self) -> None:
+        """Passing one origin array to both functions is a silent trap.
+
+        ``body_origin_enu`` (body origin in ENU) and ``enu_origin_body`` (ENU
+        origin in the body frame) are related by a sign-flipped rotation, not
+        equality, so the obvious-looking call that reuses the same array for
+        both arguments is wrong: it silently returns the wrong point rather
+        than raising. This is an inequality assertion on purpose -- there is
+        no "correct" round-trip value to pin here, only the fact that the
+        naive usage must NOT recover the original point. If a future
+        "simplification" unifies the two arguments (e.g. treats them as
+        interchangeable, or auto-negates one to match the other), this test
+        goes green (recovered == x_enu) and should be read as a sign that the
+        convention -- and the CONVENTION WARNING docstrings -- changed
+        underneath it.
+        """
+        x_enu = np.array([10.0, 20.0, 5.0])
+        origin = np.array([1.0, 2.0, 3.0])
+        roll, pitch, yaw = 0.1, 0.2, 0.3
+
+        x_body = enu_to_body(x_enu, roll, pitch, yaw, origin)
+        recovered = body_to_enu(x_body, roll, pitch, yaw, origin)
+
+        # Measured round-trip error here is ~7.47 m (verified when this test
+        # was written), i.e. recovered - x_enu == -(I + C.T) @ origin, which
+        # is nonzero for a generic origin and rotation -- so the error is
+        # checkable by inspection, not just by rerunning. Assert well below
+        # the measured value so the test still catches the trap even if the
+        # specific numbers above are edited later, without pinning today's
+        # exact figure.
+        self.assertGreater(np.linalg.norm(recovered - x_enu), 1.0)
 
 
 class TestENUToLLHOffset(unittest.TestCase):

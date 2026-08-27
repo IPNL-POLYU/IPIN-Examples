@@ -474,6 +474,19 @@ def enu_to_body(
     Returns:
         Point expressed in the local body frame, array [x, y, z] (meters).
 
+    Notes:
+        - CONVENTION WARNING: ``body_origin_enu`` is the body origin expressed
+          in ENU -- NOT the same quantity as :func:`body_to_enu`'s
+          ``enu_origin_body``, which is the ENU origin expressed in the body
+          frame. Passing the identical array to both functions is the obvious
+          thing a reader tries and does NOT round-trip; it silently returns a
+          wrong point. The two are related by
+          ``enu_origin_body = -C @ body_origin_enu``, where
+          ``C = euler_to_rotation_matrix(roll, pitch, yaw)``. See
+          ``tests/core/coords/test_transforms.py::TestEnuBody`` for a pinned
+          failure of the naive (same-array) usage and the corrected round
+          trip.
+
     Reference:
         Chapter 2, Eq. (2.6) - ENU to local body transformation.
     """
@@ -504,6 +517,19 @@ def body_to_enu(
 
     Returns:
         Point expressed in the ENU frame, array [east, north, up] (meters).
+
+    Notes:
+        - CONVENTION WARNING: ``enu_origin_body`` is the ENU origin expressed
+          in the body frame -- NOT the same quantity as :func:`enu_to_body`'s
+          ``body_origin_enu``, which is the body origin expressed in ENU.
+          Passing the identical array to both functions is the obvious thing
+          a reader tries and does NOT round-trip; it silently returns a wrong
+          point. The two are related by
+          ``enu_origin_body = -C @ body_origin_enu``, where
+          ``C = euler_to_rotation_matrix(roll, pitch, yaw)``. See
+          ``tests/core/coords/test_transforms.py::TestEnuBody`` for a pinned
+          failure of the naive (same-array) usage and the corrected round
+          trip.
 
     Reference:
         Chapter 2, Eq. (2.7) - local body to ENU transformation.
