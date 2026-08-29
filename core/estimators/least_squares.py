@@ -432,6 +432,26 @@ def robust_least_squares(
           the true a-priori variance, cauchy and gm 15-30% low. Huber's
           threshold-gated weight (only |r̃|>δ is downweighted) keeps this
           smaller than cauchy/gm's continuous downweighting.
+        - The textbook remedy for that bias is the M-estimator sandwich,
+          P = (E[ψ²] / (E[ψ'])²) (A'A)⁻¹ with ψ(r) = w(r)·r. It was measured
+          against the a-posteriori scaling used here and it does NOT help --
+          it moves the bias to the other side rather than removing it. Mean
+          ratio of reported σ to true a-priori σ, 400 replicates at n=60,
+          σ=0.5 (measured by the reviewer of the change that introduced this
+          scaling, not taken from a reference):
+
+              method   a-posteriori (this function)   sandwich
+              l2                0.991                  0.974
+              huber             0.947                  0.987
+              cauchy            0.914                  1.033
+              gm                0.836                  1.160
+
+          The residual spread across methods is 1.19x either way; gm simply
+          goes from 16% low to 16% high. So neither estimator dominates, and
+          the a-posteriori form is kept because it is the one that matches
+          linear_least_squares's footing. Recorded so the next reader who
+          notices the cauchy/gm bias does not spend an afternoon
+          rediscovering that the obvious fix is a wash.
 
     Example:
         >>> import numpy as np
