@@ -70,12 +70,13 @@ from tests.example_runner import run_example
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-#: Unmarked transcript-looking blocks still in each chapter README.
+#: Unmarked transcript-looking blocks still in each doc _doc_paths() covers
+#: (every chapter README, plus any EXTRA_DOCS).
 #:
 #: THIS REGISTER MUST ONLY SHRINK. An entry is a block whose numbers nothing
 #: checks, which is exactly the state the audit found the whole set in.
 #:
-#: It is empty. Every transcript in every chapter README is marked and checked.
+#: It is empty. Every transcript in every covered doc is marked and checked.
 #:
 #: The last entry was ch2's, held back because marking it would have pinned a
 #: bug: the example built "100m East" as `np.deg2rad(-122.4194) + 100 / 78800`,
@@ -225,10 +226,37 @@ def _looks_like_transcript(language: str, body: list) -> bool:
     return sum(joined.count(s) for s in TRANSCRIPT_SIGNALS) >= 3
 
 
+#: Reader-facing docs carrying transcripts, beyond the ``ch*_*/README.md`` that
+#: every chapter has. ch7_slam/QUICK_START.md is the only one today -- no other
+#: chapter has a second entry document -- added after its own transcript was
+#: found to predate the observation-based loop-closure detector entirely.
+EXTRA_DOCS = ("ch7_slam/QUICK_START.md",)
+
+
+def _doc_paths():
+    """Every reader-facing doc this suite checks for marked transcripts."""
+    paths = list(REPO_ROOT.glob("ch*_*/README.md"))
+    paths += [REPO_ROOT / doc for doc in EXTRA_DOCS]
+    return sorted(paths)
+
+
+def _doc_key(readme: Path) -> str:
+    """Identify a doc uniquely, e.g. for UNCHECKED_TRANSCRIPTS and test ids.
+
+    ``README.md`` keeps the bare chapter name so existing register entries do
+    not need rewriting. Any other doc (QUICK_START.md today) is qualified with
+    its stem -- otherwise it would share ``ch7_slam``'s key with README.md and
+    silently inherit its allowance in UNCHECKED_TRANSCRIPTS, or vice versa.
+    """
+    if readme.stem == "README":
+        return readme.parent.name
+    return f"{readme.parent.name}/{readme.stem}"
+
+
 def _marked_blocks():
     """Every opted-in transcript, as (readme, module, args, body)."""
     found = []
-    for readme in sorted(REPO_ROOT.glob("ch*_*/README.md")):
+    for readme in _doc_paths():
         text = readme.read_text(encoding="utf-8")
         for _language, body, marker in _fenced_blocks(text):
             if marker:
@@ -239,7 +267,7 @@ def _marked_blocks():
 
 def _block_id(case) -> str:
     readme, module, args, _body = case
-    return f"{readme.parent.name}:{module.split('.')[-1]}{'+' + '+'.join(args) if args else ''}"
+    return f"{_doc_key(readme)}:{module.split('.')[-1]}{'+' + '+'.join(args) if args else ''}"
 
 
 @pytest.mark.slow
@@ -279,12 +307,10 @@ def test_readme_transcript_is_what_the_example_prints(case):
             )
 
 
-@pytest.mark.parametrize(
-    "readme", sorted(REPO_ROOT.glob("ch*_*/README.md")), ids=lambda p: p.parent.name
-)
+@pytest.mark.parametrize("readme", _doc_paths(), ids=_doc_key)
 def test_unmarked_transcripts_match_the_register(readme):
     """No new unchecked transcript blocks."""
-    chapter = readme.parent.name
+    doc = _doc_key(readme)
     text = readme.read_text(encoding="utf-8")
 
     unmarked = sum(
@@ -292,17 +318,17 @@ def test_unmarked_transcripts_match_the_register(readme):
         for language, body, marker in _fenced_blocks(text)
         if marker is None and _looks_like_transcript(language, body)
     )
-    allowed = UNCHECKED_TRANSCRIPTS.get(chapter, 0)
+    allowed = UNCHECKED_TRANSCRIPTS.get(doc, 0)
 
     assert unmarked <= allowed, (
-        f"{chapter} has {unmarked} unmarked transcript blocks, more than the "
+        f"{doc} has {unmarked} unmarked transcript blocks, more than the "
         f"{allowed} on the register. A block showing example output needs an "
         f"<!-- example-output: <module> --> marker above its fence so this "
         f"suite checks it, or a deliberate entry in UNCHECKED_TRANSCRIPTS "
         f"saying why it cannot be checked yet."
     )
     assert unmarked == allowed, (
-        f"{chapter} now has {unmarked} unmarked transcript blocks where the "
+        f"{doc} now has {unmarked} unmarked transcript blocks where the "
         f"register expects {allowed}. Lower the UNCHECKED_TRANSCRIPTS entry -- "
         f"it is a debt register and only shrinks."
     )

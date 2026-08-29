@@ -6,9 +6,9 @@ This chapter demonstrates a **complete observation-driven 2D SLAM pipeline**:
 
 | Stage | Description | Performance |
 |-------|-------------|-------------|
-| **1. Front-End** | Prediction → Scan-to-map ICP → Map update | ~36% local improvement |
-| **2. Loop Closure** | Observation-based detection + ICP verification | 5+ closures/trajectory |
-| **3. Back-End** | Pose graph optimization | ~63% full improvement |
+| **1. Front-End** | Prediction → Scan-to-map ICP → Map update | ~37% local improvement |
+| **2. Loop Closure** | Observation-based detection + ICP verification | 147 closures (3-lap square) |
+| **3. Back-End** | Pose graph optimization | ~64% full improvement |
 
 **Default:** Square trajectory (8m x 8m, 3 laps) with asymmetric room features.
 
@@ -135,54 +135,53 @@ optimized_vars, error_history = graph.optimize(
 
 ### Square Dataset Results
 
-```
-======================================================================
-CHAPTER 7: 2D POSE GRAPH SLAM EXAMPLE
-Using dataset: data/sim/ch7_slam_2d_square
-======================================================================
+Running `python -m ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square` produces:
 
+<!-- example-output: ch7_slam.example_pose_graph_slam --data ch7_slam_2d_square -->
+```
 Dataset Info:
   Trajectory: square
   Poses: 41
+  Landmarks: 50
   Loop closures: 2
 
-Loop Closure Detection (observation-based)...
-  Loop closure: 0 <-> 40, desc_sim=0.973, icp_residual=0.1532, iters=4
-  Loop closure: 2 <-> 40, desc_sim=0.824, icp_residual=0.1546, iters=4
-  Loop closure: 4 <-> 40, desc_sim=0.796, icp_residual=0.1915, iters=4
-  Loop closure: 1 <-> 40, desc_sim=0.765, icp_residual=0.1449, iters=5
-  Loop closure: 3 <-> 40, desc_sim=0.764, icp_residual=0.1609, iters=4
-
-  Detected 5 loop closures (observation-based)
-
+  Initial drift: 0.000 m
+  Final drift (without SLAM): 0.546 m
+...
+  Frontend converged ratio: 26.8%
+  Frontend avg residual: 0.0725 m
+...
+  Detected 1 loop closures (observation-based)
+...
 Building pose graph...
-  Pose graph: 41 variables, 46 factors
-  Factors: 1 prior + 40 odometry + 5 loop closures
-
+  Graph initial: frontend_poses (scan-to-map corrected trajectory)
+  Pose graph: 41 variables, 42 factors
+  Factors: 1 prior + 40 odometry + 1 loop closures
+...
 Optimizing pose graph...
-  Initial error: 1535.447086
-  Final error: 0.755672
-  Iterations: 50
-  Error reduction: 99.95%
-
+  Initial error: 8.350582
+  Final error: 0.003522
+  Iterations: 3
+  Error reduction: 99.96%
+...
 Results:
   Odometry RMSE: 0.3281 m (baseline)
-  Optimized RMSE: 0.2130 m (with 5 loop closures)
-  Improvement: +35.10% ✅
-  Final loop closure error: 0.0679 m
-
-----------------------------------------------------------------------
-Generating plots...
+  Frontend RMSE: 0.3404 m (scan-to-map corrected)
+  Optimized RMSE: 0.2184 m (backend with 1 loop closures)
+  Frontend improvement: -3.74%
+  Full pipeline improvement: +33.44%
+  Final loop closure error: 0.0360 m
+...
    Building map point clouds...
-   Map before: 593 points
-   Map after:  547 points
-
-[OK] Saved figure: ch7_slam\figs\slam_with_maps.png
-
-======================================================================
-SLAM PIPELINE COMPLETE!
-======================================================================
+   Map before (front-end): 537 points
+   Map after (backend):    481 points
 ```
+
+This dataset has only 41 poses and one lap, so the front-end has little overlap
+to align against — its RMSE is slightly *worse* than raw odometry here, and the
+whole improvement comes from the single loop closure the backend finds. The
+default inline run (145 poses, 3 laps) behaves differently; see the Performance
+Summary below.
 
 ### Visualization Output
 
@@ -195,7 +194,7 @@ The script generates a comprehensive figure showing:
 4. **Right:** Position error over time
 
 **Key Visual Features:**
-- Map "tightening" is clearly visible: 593 → 547 points (8% reduction)
+- Map "tightening" is clearly visible: 537 → 481 points (~10% reduction)
 - Red map shows odometry drift and misalignment
 - Blue map shows optimized alignment and consistency
 - Loop closure connections shown in magenta
@@ -206,14 +205,17 @@ The script generates a comprehensive figure showing:
 
 ## Performance Summary (Default: Square, 3 laps)
 
+This is the **inline mode** default — `python -m ch7_slam.example_pose_graph_slam`
+with no `--data` flag (145 poses over 3 laps), not the dataset run shown above.
+
 | Stage | RMSE | Improvement | Notes |
 |-------|------|-------------|-------|
 | **Odometry** | 0.85 m | baseline | Raw sensor integration |
-| **Front-end** | 0.54 m | **+36%** ✅ | Scan-to-map ICP |
-| **Full SLAM** | 0.31 m | **+63%** | + 5 loop closures |
+| **Front-end** | 0.53 m | **+37%** ✅ | Scan-to-map ICP |
+| **Full SLAM** | 0.30 m | **+64%** | + 147 loop closures |
 
 **Verification Checks:**
-- `Detected 5 loop closures` ✅
+- `Detected 147 loop closures` ✅
 - `Frontend RMSE <= Odometry RMSE` ✅
 - `Optimized RMSE <= 0.95 * Odometry RMSE` ✅ (>5% improvement)
 
@@ -291,9 +293,15 @@ The script generates a comprehensive figure showing:
 
 ### Frontend Making Results Worse
 
-**Cause:** Coordinate frame mismatch in synthetic data
+**Cause:** Not enough scan overlap for ICP to help. This is expected on the
+41-pose, single-lap square dataset (see Example Output above) — the front-end
+has too little overlap between consecutive scans to extract a correction bigger
+than the noise, so its RMSE lands slightly above raw odometry. It is not a
+broken front-end: the same code improves the 145-pose, 3-lap inline default by
+~37% (see Performance Summary).
 
-**Solution:** Use real sensor data or generate scans from true trajectory
+**Solution:** Use a trajectory with more revisit/overlap (more laps, or the
+inline default) if you need the front-end stage itself to show improvement.
 
 ---
 
