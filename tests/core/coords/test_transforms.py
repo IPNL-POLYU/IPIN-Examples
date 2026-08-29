@@ -17,7 +17,13 @@ import unittest
 
 import numpy as np
 
-from core.coords import FRAME_BODY, FRAME_BODY_CH2, FRAME_BODY_FRD, FrameType
+from core.coords import (
+    FRAME_BODY,
+    FRAME_BODY_CH2,
+    FRAME_BODY_FLU,
+    FRAME_BODY_FRD,
+    FrameType,
+)
 from core.coords.rotations import euler_to_rotation_matrix
 from core.coords.transforms import (
     body_to_enu,
@@ -35,7 +41,8 @@ from core.coords.transforms import (
 
 
 class TestBodyFrameNames(unittest.TestCase):
-    """Explicit body-frame names keep Ch2 and aerospace conventions separate."""
+    """Explicit body-frame names keep Ch2, Ch6, and aerospace conventions
+    separate."""
 
     def test_body_conventions_are_named_explicitly(self) -> None:
         self.assertEqual(FRAME_BODY_CH2.frame_type, FrameType.BODY_CH2)
@@ -43,13 +50,48 @@ class TestBodyFrameNames(unittest.TestCase):
         self.assertIn("y=forward", FRAME_BODY_CH2.description)
         self.assertIn("z=up", FRAME_BODY_CH2.description)
 
+        self.assertEqual(FRAME_BODY_FLU.frame_type, FrameType.BODY_FLU)
+        self.assertIn("x=forward", FRAME_BODY_FLU.description)
+        self.assertIn("y=left", FRAME_BODY_FLU.description)
+        self.assertIn("z=up", FRAME_BODY_FLU.description)
+
         self.assertEqual(FRAME_BODY_FRD.frame_type, FrameType.BODY_FRD)
         self.assertIn("x=forward", FRAME_BODY_FRD.description)
+        self.assertIn("y=right", FRAME_BODY_FRD.description)
         self.assertIn("z=down", FRAME_BODY_FRD.description)
+
+    def test_body_frames_are_pairwise_distinct(self) -> None:
+        """Three body frames in one registry must not collapse onto the same
+        type or the same description -- either would silently reintroduce
+        the ambiguity these explicit names exist to remove."""
+        frames = [FRAME_BODY_CH2, FRAME_BODY_FLU, FRAME_BODY_FRD]
+        self.assertEqual(
+            len({f.frame_type for f in frames}),
+            len(frames),
+            "body frame types must be pairwise distinct",
+        )
+        self.assertEqual(
+            len({f.description for f in frames}),
+            len(frames),
+            "body frame descriptions must be pairwise distinct",
+        )
+
+    def test_body_frames_name_which_part_of_the_repo_uses_them(self) -> None:
+        """Each explicit body frame states where it is used, so a frame no
+        chapter uses cannot be mistaken for the one a reader needs."""
+        self.assertIn("Chapter 2", FRAME_BODY_CH2.description)
+        self.assertIn("core/coords/rotations.py", FRAME_BODY_CH2.description)
+
+        self.assertIn("Chapter 6", FRAME_BODY_FLU.description)
+        self.assertIn("core/sensors", FRAME_BODY_FLU.description)
+
+        self.assertIn("no chapter", FRAME_BODY_FRD.description.lower())
 
     def test_legacy_body_label_points_to_explicit_names(self) -> None:
         self.assertEqual(FRAME_BODY.frame_type, FrameType.BODY)
-        self.assertIn("prefer FRAME_BODY_CH2 or FRAME_BODY_FRD", FRAME_BODY.description)
+        self.assertIn("FRAME_BODY_CH2", FRAME_BODY.description)
+        self.assertIn("FRAME_BODY_FLU", FRAME_BODY.description)
+        self.assertIn("FRAME_BODY_FRD", FRAME_BODY.description)
 
 
 class TestLLHtoECEF(unittest.TestCase):
