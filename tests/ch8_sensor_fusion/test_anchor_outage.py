@@ -74,27 +74,49 @@ class TestOutageClaims(unittest.TestCase):
         """LC's front end cannot solve a position from two ranges."""
         self.assertGreater(self.scenario["lc"]["n_uwb_failed"], 50)
 
-    def test_tc_far_better_during_the_outage(self):
-        """The headline claim: LC dead-reckons, TC keeps correcting.
+    def test_tc_bounds_its_worst_case_lc_does_not(self):
+        """LC has no worst-case guarantee during an outage; TC does.
 
-        Measured away from the mirror-flip window below, because that flip is
-        a separate phenomenon and would otherwise mask this one. Checked at
-        four outage placements rather than one, since the whole reason the
-        claim needed re-establishing is that its previous evidence came from a
-        trajectory with 5 g corners.
+        Was ``test_tc_far_better_during_the_outage``, asserting a fixed
+        per-window bound (``peak_lc > 1.5``) at all four placements. That
+        stopped holding once ``run_lc_fusion`` was fixed to read the
+        dataset's real UWB noise and stopped flooring its WLS covariance
+        (see CLAUDE.md's Chapter 8 entries): LC now enters every outage from
+        much better baseline tracking, so its peak error during any one
+        placement is no longer reliably large -- three of these four windows
+        now give LC a peak under 1 m, where all four used to exceed 1.5 m.
+
+        What survives is the asymmetry, not a fixed per-window number: TC can
+        always take a partial (1-2 range) update, so its worst case across
+        placements stays small everywhere. LC gets zero updates for the whole
+        window and has no such guarantee -- at at least one of the same four
+        placements its peak is still far larger than TC's worst case at any
+        of them.
+
+        Measured away from the mirror-flip window elsewhere in this file,
+        because that flip is a separate phenomenon and would otherwise mask
+        this one. Checked at four outage placements rather than one, since
+        the whole reason the claim needed re-establishing (twice now) is that
+        single-window evidence does not generalise.
         """
+        peaks_lc = []
+        peaks_tc = []
         for window in ((18.0, 26.0), (22.0, 30.0), (24.0, 32.0), (40.0, 48.0)):
-            with self.subTest(window=window):
-                scenario = run_outage_scenario(window=window, verbose=False)
-                end = window[1] + 3.0
-                t_lc, e_lc = scenario["t_lc"], scenario["error_lc"]
-                t_tc, e_tc = scenario["t_tc"], scenario["error_tc"]
-                peak_lc = e_lc[(t_lc >= window[0]) & (t_lc <= end)].max()
-                peak_tc = e_tc[(t_tc >= window[0]) & (t_tc <= end)].max()
+            scenario = run_outage_scenario(window=window, verbose=False)
+            end = window[1] + 3.0
+            t_lc, e_lc = scenario["t_lc"], scenario["error_lc"]
+            t_tc, e_tc = scenario["t_tc"], scenario["error_tc"]
+            peaks_lc.append(e_lc[(t_lc >= window[0]) & (t_lc <= end)].max())
+            peaks_tc.append(e_tc[(t_tc >= window[0]) & (t_tc <= end)].max())
 
-                self.assertGreater(peak_lc, 1.5)
-                self.assertLess(peak_tc, 1.0)
-                self.assertLess(np.sqrt(np.mean(e_tc**2)), np.sqrt(np.mean(e_lc**2)))
+        # TC always gets some correction (2 surviving ranges), so its worst
+        # case across placements stays small. Measured max is 0.79 m.
+        self.assertLess(max(peaks_tc), 1.0)
+
+        # LC gets none (it needs 3+ ranges and has at most 2), so its peak
+        # depends on trajectory dynamics during the blackout and has no such
+        # guarantee. Measured max is 8.29 m, at window (18, 26).
+        self.assertGreater(max(peaks_lc), 5.0)
 
     def test_the_default_window_hits_a_mirror_ambiguity(self):
         """The caveat the demo now leads with, pinned as a measurement.
@@ -128,7 +150,11 @@ class TestOutageClaims(unittest.TestCase):
     def test_that_flip_is_what_costs_tc_the_run_at_this_window(self):
         """Honest about the one number where LC wins, and about why.
 
-        Excluding the sub-second excursion, TC is far ahead over the same run.
+        Excluding the sub-second excursion, TC is still ahead over the same
+        run, though by a smaller margin than before ``run_lc_fusion``'s WLS
+        noise/covariance-floor bug was fixed (CLAUDE.md): TC-without-flip
+        measures 0.387 m against LC's whole-run 0.707 m, about 0.55x, where
+        it used to be about 0.35x against LC's larger (buggy) 1.566 m.
         Reporting only the whole-run RMSE would make a 0.2 s geometry event
         look like a verdict on tight coupling.
         """
@@ -139,7 +165,7 @@ class TestOutageClaims(unittest.TestCase):
         rmse_tc_without = np.sqrt(np.mean(error_tc[error_tc <= 5.0] ** 2))
 
         self.assertGreater(rmse_tc, rmse_lc)
-        self.assertLess(rmse_tc_without, 0.5 * rmse_lc)
+        self.assertLess(rmse_tc_without, 0.6 * rmse_lc)
 
 
 class TestOutageAnimation(unittest.TestCase):
