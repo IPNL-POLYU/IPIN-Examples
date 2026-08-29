@@ -143,7 +143,7 @@ def print_method_table(
     )
     header = (
         f"{'Method':<8}{'median(m)':>11}{'mean(m)':>11}{'worst(m)':>11}"
-        f"{'failed':>12}{'GDOP':>10}"
+        f"{'failed':>12}{'DOP':>10}"
     )
     print(header)
     print("-" * len(header))
@@ -155,6 +155,18 @@ def print_method_table(
             f"{out.max_solved_m:>11.3f}{failed:>12}"
             f"{np.mean(gdop[method]):>10.2f}"
         )
+    # The AOA entry in that column is not a GDOP and must not be read against
+    # the other two. Its geometry rows are [-dy/d^2, dx/d^2], units 1/m, so
+    # the number is metres of position error per radian of bearing error.
+    # Printed rather than left implicit because the column header cannot say
+    # two things at once, and "AOA 15.04 vs TOA 1.02" is the wrong reading.
+    print(
+        "\nDOP is dimensionless for TOA and TDOA. The AOA entry is a "
+        "sensitivity in\nmetres per radian, so it is not comparable to them: "
+        "multiply it by the\nangular noise in radians to get a position error. "
+        "Divide by a reference\nrange for the dimensionless form -- see "
+        "config.json's dop block."
+    )
 
 
 def run_with_dataset(data_dir: str, verbose: bool = True) -> dict:
@@ -194,12 +206,30 @@ def run_with_dataset(data_dir: str, verbose: bool = True) -> dict:
 
     outcomes = solve_every_method(data, verbose=verbose)
 
+    # `gdop_aoa.txt` is a *sensitivity* in metres per radian, not a
+    # dimensionless DOP -- the AOA geometry rows are [-dy/d^2, dx/d^2], units
+    # 1/m. The printed table reports it as shipped, with a footnote. The
+    # figure divides it by the mean beacon range at each point so that its two
+    # DOP panels compare one quantity across all three methods instead of
+    # putting 15.04 m/rad on the same axis as a dimensionless 1.02. Without
+    # that, the scatter reads as "AOA is worse because its geometry is worse",
+    # which on the NLOS dataset is exactly backwards: the geometry is
+    # byte-identical to the clean square and the error is bias.
+    mean_range = np.linalg.norm(
+        positions[:, None, :] - beacons[None, :, :], axis=2
+    ).mean(axis=1)
+
     results = {
         "outcomes": outcomes,
         "gdop": {
             "TOA": data["gdop_toa"],
             "TDOA": data["gdop_tdoa"],
             "AOA": data["gdop_aoa"],
+        },
+        "dop_dimensionless": {
+            "TOA": data["gdop_toa"],
+            "TDOA": data["gdop_tdoa"],
+            "AOA": data["gdop_aoa"] / mean_range,
         },
         "n_points": len(positions),
         "beacons": beacons,
@@ -797,19 +827,16 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     ax2.grid(True, alpha=0.3)
     ax2.set_xlim(left=0)
 
-    # 3. GDOP distribution
+    # 3. DOP distribution, dimensionless for all three (see `run_with_dataset`)
     ax3 = axes[1, 0]
-    gdop_data = [
-        results["gdop"]["TOA"],
-        results["gdop"]["TDOA"],
-        results["gdop"]["AOA"],
-    ]
+    dop = results.get("dop_dimensionless", results["gdop"])
+    gdop_data = [dop["TOA"], dop["TDOA"], dop["AOA"]]
     bp = ax3.boxplot(gdop_data, tick_labels=["TOA", "TDOA", "AOA"], patch_artist=True)
     for patch, color in zip(bp["boxes"], ["blue", "red", "green"], strict=True):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
-    ax3.set_ylabel("GDOP")
-    ax3.set_title("Geometric Dilution of Precision")
+    ax3.set_ylabel("GDOP (dimensionless)")
+    ax3.set_title("Dilution of precision\n(AOA divided by mean beacon range)")
     ax3.grid(True, alpha=0.3, axis="y")
 
     # 4. Error vs GDOP scatter.
@@ -820,7 +847,7 @@ def plot_dataset_results(results: Dict, output_file: str = None):
     ax4 = axes[1, 1]
     for method, color in colors.items():
         out = results["outcomes"][method]
-        gdop = results["gdop"][method]
+        gdop = dop[method]
         if out.solved.any():
             ax4.scatter(
                 gdop[out.solved],
@@ -830,9 +857,14 @@ def plot_dataset_results(results: Dict, output_file: str = None):
                 color=color,
                 s=20,
             )
-    ax4.set_xlabel("GDOP")
+    ax4.set_xlabel("GDOP (dimensionless)")
     ax4.set_ylabel("Position Error (m)")
-    ax4.set_title("Error vs GDOP (lower GDOP = better geometry)")
+    # Not "lower GDOP = better geometry", which is true of geometry and false
+    # of the picture: on the NLOS dataset AOA has the *lowest* DOP of the
+    # three and the worst error by 5x, because its corruption is an 18 deg
+    # bearing bias and DOP is blind to bias. A title asserting the opposite of
+    # what the panel shows is worse than no title.
+    ax4.set_title("Error vs GDOP (DOP predicts noise, not bias)")
     ax4.legend()
     ax4.grid(True, alpha=0.3)
 

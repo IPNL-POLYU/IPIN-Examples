@@ -115,9 +115,9 @@ questions catch both defects, and they are worth asking of any residual: *is it 
 | Example Script | Dataset | Description |
 |----------------|---------|-------------|
 | `example_comparison.py` | `data/sim/ch4_rf_2d_square/` | Square geometry (4 corners) - good baseline |
-| `example_comparison.py` | `data/sim/ch4_rf_2d_optimal/` | Circular geometry - best AOA GDOP of the two enclosing layouts (11.54 against 15.04) |
-| `example_comparison.py` | `data/sim/ch4_rf_2d_linear/` | Collinear array - worst for TDOA (GDOP 11.95), *best* for AOA (9.25) |
-| `example_comparison.py` | `data/sim/ch4_rf_2d_nlos/` | Square + NLOS bias - robustness testing |
+| `example_comparison.py` | `data/sim/ch4_rf_2d_optimal/` | Circular geometry - lowest AOA sensitivity of the two enclosing layouts (11.54 against 15.04 m/rad) |
+| `example_comparison.py` | `data/sim/ch4_rf_2d_linear/` | Collinear array - worst for TDOA (GDOP 11.95); lowest AOA sensitivity (9.25 m/rad) but the *worst* dimensionless AOA DOP (1.13) |
+| `example_comparison.py` | `data/sim/ch4_rf_2d_nlos/` | Square + NLOS bias on 2 of 4 beacons - degrades range *and* bearing |
 
 **Load dataset manually:**
 ```python
@@ -406,22 +406,43 @@ says "poor". It is bad for ranges and the best of the three for bearings:
   from its mirror image about the beacon line, so half the fixes land on the
   wrong side. [`data/sim/ch4_rf_2d_linear`](../data/sim/ch4_rf_2d_linear/README.md)
   measures both halves.
-- AOA is *better* here than on the square array, because reflecting a position
-  flips every azimuth: bearings carry the side information ranges do not. Its
-  eight failures are the grid rows within 1 m of the beacon line, where all
-  four bearings are nearly parallel.
+- AOA is *better* here than on the square array — 0.262 m against 0.397 m —
+  because reflecting a position flips every azimuth: bearings carry the side
+  information ranges do not. Its eight failures are the grid rows within 1 m
+  of the beacon line, where all four bearings are nearly parallel. Note that
+  the accuracy half of that advantage is mostly lever arm rather than
+  geometry: dimensionless, this array's AOA DOP is the worst of the three
+  (1.13 against 1.00), as the table below sets out.
 
 **And "Optimal" does not win a single GDOP column outright**, which is the
-same lesson from the other end. Mean GDOP by dataset:
+same lesson from the other end. Mean DOP by dataset:
 
-| Geometry | TOA | TDOA | AOA |
-|---|---|---|---|
-| Square (4 corners) | 1.02 | 1.07 | 15.04 |
-| Optimal (circular) | 1.02 | 1.34 | 11.54 |
-| Collinear (4 in a row) | **1.43** | 11.95 | **9.25** |
+| Geometry | TOA | TDOA | AOA sensitivity (m/rad) | AOA DOP (dimensionless) |
+|---|---|---|---|---|
+| Square (4 corners) | 1.02 | 1.07 | 15.04 | 1.00 |
+| Optimal (circular) | 1.02 | 1.34 | 11.54 | 1.01 |
+| Collinear (4 in a row) | **1.43** | 11.95 | 9.25 | **1.13** |
 
-It ties the square for TOA, is clearly *worse* than it for TDOA, and loses
-AOA to the collinear array. The name describes a layout, not a ranking.
+It ties the square for TOA and is clearly *worse* than it for TDOA. The name
+describes a layout, not a ranking.
+
+**The AOA column needs two entries because the first one carries units.** The
+AOA geometry rows are `[-dy/d^2, dx/d^2]`, in 1/m, so `sqrt(trace (H^T H)^-1)`
+comes out in **metres per radian** — a sensitivity, not a dilution factor.
+15.04 m/rad x 2 deg = 0.525 m is what it supports; "15x worse than TOA's 1.02"
+is not, because those are different quantities. `config.json` names it
+`dop.aoa_sensitivity_m_per_rad` for that reason.
+
+The fourth column divides by the mean beacon range at each position, which
+restores a pure number comparable to the TOA and TDOA columns — and it
+reverses the ranking. On m/rad the collinear array looks like the *best* of the
+three for bearings; dimensionless it is the worst, at 1.13 against 1.00 and
+1.01. Its beacons simply sit closer to the query grid (mean range about 8 m
+against 15 m for the square), and a shorter lever arm turns the same angular
+error into fewer metres. **The geometry is not better; the arm is shorter.**
+That the other two land within 1% of each other, and of their own TOA GDOP, is
+the honest statement: for these enclosing layouts a bearing is worth about as
+much as a range once the lever arm is accounted for.
 
 And DOP sees none of it. TOA GDOP on the collinear array averages 1.43 against
 1.02 for the square — a local, first-order measure calling the configuration
@@ -929,9 +950,9 @@ data/sim/
 │   ├── aoa_angles.txt
 │   ├── gdop_toa.txt
 │   └── config.json
-├── ch4_rf_2d_linear/             # Collinear array (worst TDOA GDOP, best AOA GDOP)
+├── ch4_rf_2d_linear/             # Collinear array (worst TDOA GDOP, lowest AOA sensitivity)
 ├── ch4_rf_2d_nlos/               # Square + NLOS bias (robustness test)
-└── ch4_rf_2d_optimal/            # Circular geometry (best AOA GDOP of the enclosing layouts)
+└── ch4_rf_2d_optimal/            # Circular geometry (lowest AOA sensitivity of the enclosing layouts)
 ```
 
 ## Figure Gallery

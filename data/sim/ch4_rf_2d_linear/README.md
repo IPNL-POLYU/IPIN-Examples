@@ -45,7 +45,8 @@ Identical layout to `ch4_rf_2d_square`:
 - `beacons.txt`: Beacon positions [4×2] — all at y = 10 m
 - `ground_truth_positions.txt`: Agent positions [100×2] (10×10 grid, 2–18 m)
 - `toa_ranges.txt`, `tdoa_diffs.txt`, `aoa_angles.txt`: Measurements
-- `gdop_toa.txt`, `gdop_tdoa.txt`, `gdop_aoa.txt`: Per-position DOP
+- `gdop_toa.txt`, `gdop_tdoa.txt`: Per-position GDOP (dimensionless);
+  `gdop_aoa.txt`: per-position AOA sensitivity in metres per radian
 - `config.json`: Parameters and measured performance
 
 **Generate**:
@@ -154,7 +155,7 @@ never left the initial guess, or landed more than 100 m away.
 |--------|-----|------|-----|
 | **Median error** | 6.77m | 6.77m | **0.26m** |
 | **Failed to solve** | **100/100** | **100/100** | **8/100** |
-| **Mean GDOP** | 1.43 | 11.95 | 9.25 |
+| **Mean GDOP** | 1.43 | 11.95 | 9.25 m/rad (sensitivity; 1.13 dimensionless) |
 
 The identical 6.77 m median for TOA and TDOA is the tell: it is the distance
 from the centroid to the grid points, i.e. both solvers returned the seed
@@ -269,10 +270,20 @@ print(f"geometry:   {lin_config['geometry']['type']}, "
       f"{lin_config['geometry']['num_beacons']} beacons")
 print(f"TOA noise:  {lin_config['measurements']['toa_noise_std_m']} m")
 print(f"AOA noise:  {lin_config['measurements']['aoa_noise_std_deg']} deg")
-for lin_kind in ("toa", "tdoa", "aoa"):
+for lin_kind in ("toa", "tdoa"):
     lin_d = lin_config["dop"][lin_kind]
     print(f"GDOP {lin_kind:<4}: mean {lin_d['mean']:7.3f}  "
           f"min {lin_d['min']:6.3f}  max {lin_d['max']:8.3f}")
+
+# AOA is listed separately because it is not a GDOP: the AOA geometry rows are
+# [-dy/d^2, dx/d^2], units 1/m, so this quantity is metres per radian. The
+# dimensionless companion divides by the mean beacon range at each point.
+lin_sens = lin_config["dop"]["aoa_sensitivity_m_per_rad"]
+print(f"AOA  m/rad: mean {lin_sens['mean']:7.3f}  "
+      f"min {lin_sens['min']:6.3f}  max {lin_sens['max']:8.3f}")
+lin_adim = lin_config["dop"]["aoa_dimensionless_ref_mean_range"]
+print(f"AOA  DOP  : mean {lin_adim['mean']:7.3f}  "
+      f"min {lin_adim['min']:6.3f}  max {lin_adim['max']:8.3f}")
 ```
 
 Expected output:
@@ -282,16 +293,23 @@ preset:     poor_geometry
 geometry:   linear, 4 beacons
 TOA noise:  0.1 m
 AOA noise:  2.0 deg
-GDOP toa :  mean   1.426  min  1.016  max    3.603
-GDOP tdoa:  mean  10.355  min  1.613  max  111.018
-GDOP aoa :  mean   9.253  min  3.418  max   19.099
+GDOP toa : mean   1.426  min  1.016  max    3.603
+GDOP tdoa: mean  11.948  min  1.934  max  113.000
+AOA  m/rad: mean   9.253  min  3.418  max   19.099
+AOA  DOP  : mean   1.131  min  0.641  max    2.258
 ```
+
+Note the last two lines. On metres per radian this collinear array looks like
+the *best* of the three layouts for bearings (9.25 against the square's 15.04);
+dimensionless it is the **worst** (1.131 against 0.999). Its beacons simply sit
+closer to the query grid, and a shorter lever arm turns the same angular error
+into fewer metres. The geometry is not better — the arm is shorter.
 
 | Parameter | Value | Effect |
 |---|---|---|
 | `geometry.type` | `linear` | All four beacons on the line y = 10. This is the whole dataset |
 | `geometry.num_beacons` | 4 | Adding beacons *on the same line* does not help; the ambiguity is the line, not the count |
-| `measurements.toa_noise_std_m` | 0.1 | Multiply by GDOP for the error floor: 0.14 m typical for TOA, **11.1 m at the worst TDOA point** |
+| `measurements.toa_noise_std_m` | 0.1 | Multiply by GDOP for the error floor: 0.14 m typical for TOA, **11.3 m at the worst TDOA point** |
 | `measurements.aoa_noise_std_deg` | 2.0 | AOA is the one measurement type that breaks the reflection symmetry |
 | `nlos.enabled` | `false` | No bias. The difficulty here is geometric, not a corrupted measurement |
 

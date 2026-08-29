@@ -18,7 +18,8 @@
   "nlos": {
     "enabled": false,
     "beacon_indices": [],
-    "bias_m": 0.0
+    "bias_m": 0.0,
+    "bias_deg": 0.0
   },
   "dop": {
     "toa": {
@@ -31,10 +32,15 @@
       "min": 1.9338661861255202,
       "max": 113.00023294724171
     },
-    "aoa": {
+    "aoa_sensitivity_m_per_rad": {
       "mean": 9.252573662678621,
       "min": 3.417930411577225,
       "max": 19.098663167411868
+    },
+    "aoa_dimensionless_ref_mean_range": {
+      "mean": 1.1305668917939011,
+      "min": 0.6412742018276624,
+      "max": 2.257778769267855
     }
   },
   "performance": {
