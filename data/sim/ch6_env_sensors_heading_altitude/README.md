@@ -232,7 +232,7 @@ plt.show()
 import numpy as np
 from pathlib import Path
 import matplotlib.pyplot as plt
-from core.sensors import pressure_to_altitude, detect_floor_change, smooth_measurement_simple
+from core.sensors import pressure_to_altitude, smooth_measurement_simple
 
 # Load dataset
 data_dir = Path("data/sim/ch6_env_sensors_heading_altitude")
@@ -251,16 +251,16 @@ altitude_smooth[0] = altitude_est[0]
 for k in range(1, len(altitude_est)):
     altitude_smooth[k] = smooth_measurement_simple(altitude_smooth[k-1], altitude_est[k], alpha=0.1)
 
-# Detect floor changes
+# Detect floors from absolute altitude, not from a sample-to-sample delta.
+# alpha=0.1 smoothing spreads a floor_height step over dozens of samples, so
+# no adjacent-sample delta ever approaches a 1.5 m threshold -- that two-sample
+# form left floor_detected stuck at 0 for the whole walk. Round instead:
+# altitude 0 is the known ground floor, so altitude / floor_height rounds to
+# the nearest floor directly, then clamp to the building's floor range.
 floor_height = 3.5
-floor_detected = np.zeros_like(floor_true)
-current_floor = 0
-
-for k in range(1, len(t)):
-    delta_floor = detect_floor_change(altitude_smooth[k-1], altitude_smooth[k], 
-                                       floor_height=floor_height, threshold=1.5)
-    current_floor += delta_floor
-    floor_detected[k] = max(0, min(2, current_floor))  # Clamp to [0, 2]
+num_floors = len(np.unique(floor_true))
+floor_detected = np.rint(altitude_smooth / floor_height).astype(int)
+floor_detected = np.clip(floor_detected, 0, num_floors - 1)
 
 # Compute accuracy
 altitude_true = pos_true[:, 2]
@@ -296,7 +296,9 @@ plt.tight_layout()
 plt.show()
 ```
 
-**Expected Result**: ~1-2m altitude error, 50-70% floor detection accuracy
+**Expected Result**: ~1-2m altitude error, ~63% floor detection accuracy. The residual
+error is transition lag -- see Experiment 2 below for how accuracy varies with sensor
+noise.
 
 ## Visualization Example
 
@@ -479,10 +481,12 @@ plt.show()
 2. Run floor detection algorithm
 3. Compute floor detection accuracy
 
-**Expected Results**:
-- Clean (8 Pa noise, 30 Pa drift): 70-80% accuracy
-- Noisy (20 Pa noise, 80 Pa drift): 50-60% accuracy
-- Poor (30 Pa noise, 120 Pa drift): 30-40% accuracy
+**Expected Results** (measured, seed=42):
+- Clean/baseline (8 Pa noise, 30 Pa drift): 63.2% accuracy
+- Noisy (20 Pa noise, 80 Pa drift): 52.0% accuracy
+- Poor (30 Pa noise, 120 Pa drift): 49.4% accuracy -- at the ~50% base rate, because
+  one floor's pressure signature is only ~42 Pa (from the barometric formula above),
+  smaller than Poor's 30 Pa sensor noise plus its 120 Pa sinusoidal weather drift
 
 **Code**:
 ```bash
@@ -495,7 +499,11 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_poor --
 # Look for "floor_detection_accuracy_percent"
 ```
 
-**Learning Point**: Floor detection works but requires calibration and is sensitive to weather!
+**Learning Point**: Floor detection accuracy tracks sensor noise directly: it falls
+from ~63% toward the ~50% base rate as pressure noise and weather drift grow to rival
+a single floor's ~42 Pa pressure signature. There is no calibration step in this
+pipeline -- accuracy is governed entirely by how much noise overlaps the per-floor
+pressure gap.
 
 ### Experiment 3: Magnetometer vs. Gyro for Heading
 
@@ -579,16 +587,23 @@ if mag_norm > 1e-9:
 
 ### Issue 2: Floor Detection Always Returns Same Floor
 
-**Symptoms**: Floor number doesn't change despite altitude changes
+**Symptoms**: Floor number doesn't change despite altitude changing across floors
 
-**Likely Cause**: Threshold too large or altitude not changing enough
+**Likely Cause**: Detecting floor changes from the delta between adjacent smoothed
+altitude samples. The smoothing filter (alpha=0.1) spreads a floor_height step over
+dozens of samples, so no single-sample delta ever approaches even a generous
+threshold -- lowering the threshold does not help, since the deltas involved are two
+orders of magnitude smaller than it.
 
-**Solution**: Adjust floor detection threshold:
+**Solution**: Detect the floor from absolute altitude instead of a sample-to-sample
+delta -- no threshold to tune:
 ```py
-# Reduce threshold for more sensitive detection
-delta_floor = detect_floor_change(alt_prev, alt_curr, floor_height=3.5, threshold=1.0)  # was 1.5
+# Round absolute altitude to the nearest floor -- altitude 0 is the known ground
+# floor -- then clamp to the building's floor range.
+floor_detected = np.rint(alt_smooth / floor_height).astype(int)
+floor_detected = np.clip(floor_detected, 0, num_floors - 1)
 
-# Or check if altitude is actually changing
+# If this still returns one floor, check whether altitude is changing at all:
 print(f"Altitude range: {alt_smooth.min():.2f} to {alt_smooth.max():.2f} m")
 print(f"Expected range: 0 to {num_floors * floor_height:.2f} m")
 ```
@@ -638,15 +653,22 @@ if abs(mag_magnitude - MAG_NOMINAL) > 20.0:
     # Use previous heading or gyro-integrated heading instead
 ```
 
-### Error: Floor detection lags behind true floor changes
+### Note: Detected floor disagrees with ground truth during a climb
 
-**Cause**: Smoothing filter too aggressive (alpha too small)
+**Why this happens**: `floor_true` intentionally holds the departure floor for the
+whole ~30s stair climb and only flips once the walker reaches the top (see
+`generate_building_walk()`). An altitude-based detector cannot agree with that by
+design: once the walker is physically past the halfway point of the climb,
+`round(altitude / floor_height)` reports the arrival floor while `floor_true` still
+reports the departure floor. This is expected, not a bug.
 
-**Fix**: Increase filter responsiveness:
-```py
-# Increase alpha for faster response (but more noise)
-altitude_smooth[k] = smooth_measurement_simple(altitude_smooth[k-1], altitude_raw[k], alpha=0.2)  # was 0.1
-```
+**If you want a more responsive detector**: increasing `alpha` in
+`smooth_measurement_simple` does track true altitude faster, but it does not raise
+the accuracy score against `floor_true` -- measured on this dataset, accuracy falls
+from 67.2% (alpha=0.02) to 62.0% (alpha=0.5) as alpha increases, because more
+smoothing delays the detector's own transition closer to `floor_true`'s already-
+delayed flip. Tune alpha for the noise/responsiveness trade-off your application
+needs, not to chase this particular score.
 
 ## Next Steps
 

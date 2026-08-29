@@ -30,7 +30,7 @@
     "barometric_altitude": {
       "mean_error_m": 1.566487262667991,
       "max_error_m": 2.8453562195842728,
-      "floor_detection_accuracy_percent": 50.0
+      "floor_detection_accuracy_percent": 63.22222222222222
     }
   },
   "equations": [
