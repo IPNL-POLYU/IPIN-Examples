@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
     LinearRegressionLocalizer,
+    ShadowingField,
     fit_gaussian_naive_bayes,
     knn_localize,
     load_fingerprint_database,
@@ -40,6 +41,7 @@ from core.fingerprinting import (
     nn_localize,
     posterior_mean_localize,
 )
+from core.fingerprinting.probabilistic import log_posterior
 
 
 def generate_test_queries(
@@ -63,28 +65,37 @@ def generate_test_queries(
         n_queries: Number of query points to generate.
         floor_id: Restrict queries to a single floor.  ``None`` = random
             floors.
-        noise_std: Additional Gaussian noise std (dBm) on top of the shadow
-            fading already produced by the path-loss model. Read "on top of"
-            literally: every query draws its own shadow-fading term at the
-            model's shadow_fading_std_dBm, which is 4.0 for the shipped
-            database, so the scenario labels name the smaller half of the noise
-            a localiser actually faces. Measured on the grid database with
-            nearest-neighbour matching: sweeping this parameter from 1 to
-            5 dBm costs 3.49 m of RMSE, and removing the unmentioned query
-            shadowing recovers 2.59 m -- comparable, and invisible from the
-            labels.
+        noise_std: Additional Gaussian noise std (dBm), on top of the fast
+            fading the propagation model already gives every sample. It is
+            genuinely additional now, and small next to nothing else: a query is
+            built as ``pathloss(p) - floor_attenuation + S_ap(p) + fast``, where
+            ``S_ap`` is the *same spatially correlated shadowing field the radio
+            map was built from*, evaluated at the query's own position, and
+            ``fast`` is the per-sample term at the database's
+            ``fast_fading_std_dBm`` (1.5 dB for the shipped databases).
 
-            Worth knowing where the floor is, too. With no query shadowing and
-            no extra noise, NN still scores 7.18 m on a 5 m grid whose
-            quantisation floor is about 2 m. Neither term above explains that
-            gap; it is an open question rather than a known cause.
+            **This used to redraw the whole 4 dB of shadowing per query**, which
+            made the query inconsistent with the map at its own position -- the
+            correlation fingerprinting exists to exploit. It also made the map
+            itself a table of random numbers rather than a smooth function of
+            position, because the generator redrew shadowing per (RP, AP) too.
+            Both are fixed; the field is drawn once per (floor, AP) and everyone
+            reads it from ``db.meta['shadow_field']``.
 
-            That shadowing is redrawn per query is also a modelling choice
-            worth knowing. Shadowing is a property of a location -- the same
-            wall attenuates the same AP from the same spot every time -- so
-            redrawing it makes the query inconsistent with the map at its own
-            position, which is the correlation fingerprinting relies on. A
-            spatially correlated field would be the faithful model.
+            The decomposition, measured on the grid database with
+            nearest-neighbour matching over 200 queries on floor 0:
+
+                clean map, noiseless query (5 m quantisation floor)   2.27 m
+                shipped map, query = pathloss + S(p)                  3.39 m
+                shipped map, full query (+ fast fading)               3.82 m
+                shipped map, query carrying no shadowing at all       9.25 m
+
+            The last row is what the old model effectively measured, and it is
+            correctly bad: a query that ignores the building's shadowing is not
+            a measurement taken in that building. The 3.39 m row is the one that
+            matters -- it was 6.93 m before this change, against a floor of
+            2.27 m, and the residual gap is the map's own 1.5 dB of fast fading
+            plus the field changing between reference points 5 m apart.
         seed: Random seed for reproducibility.
 
     Returns:
@@ -121,13 +132,37 @@ def _generate_queries_pathloss(
     n_queries,
     floor_id,
     noise_std,
+    include_shadowing=True,
 ):
-    """Physics-based query generation using the log-distance path-loss model."""
+    """Physics-based query generation using the log-distance path-loss model.
+
+    The shadowing term is read from the database rather than redrawn, so a query
+    at position p carries the same ``S_ap(p)`` the radio map was built with.
+
+    Args:
+        db: Fingerprint database, carrying ``shadow_field`` in ``meta``.
+        ap_positions: AP coordinates, shape (N, 3).
+        pl_cfg: The database's ``path_loss_model`` block. Passing a modified
+            copy is how an experiment varies one term: zeroing
+            ``fast_fading_std_dBm`` gives a noiseless query.
+        n_queries: Number of queries.
+        floor_id: Restrict to one floor, or None for random floors.
+        noise_std: Extra Gaussian noise std (dBm), beyond fast fading.
+        include_shadowing: Evaluate the map's shadowing field at the query
+            position. ``False`` reproduces what the old per-query redraw
+            effectively measured -- a query inconsistent with the map -- and is
+            here so that comparison stays runnable rather than only described.
+    """
     p0 = pl_cfg.get("P0_dBm", -30.0)
     n_exp = pl_cfg.get("path_loss_exponent", 2.5)
-    sigma_shadow = pl_cfg.get("shadow_fading_std_dBm", 4.0)
+    sigma_fast = pl_cfg.get("fast_fading_std_dBm", 1.5)
     floor_att_db = pl_cfg.get("floor_attenuation_dB", 15.0)
     floor_height = db.meta.get("floor_height", 3.0)
+
+    # The map's own field, not a fresh draw. This one line is the whole point of
+    # the change: without it the query and the map disagree about where the
+    # walls are, by the full shadowing std, at every position.
+    shadow_field = ShadowingField.from_meta(db.meta) if include_shadowing else None
 
     if floor_id is not None:
         mask = db.get_floor_mask(floor_id)
@@ -151,9 +186,15 @@ def _generate_queries_pathloss(
     query_fingerprints = np.empty((n_queries, n_aps))
 
     for qi in range(n_queries):
-        fid = floor_ids_out[qi]
+        fid = int(floor_ids_out[qi])
         device_z = fid * floor_height + 1.5
         pos_3d = np.array([true_locs[qi, 0], true_locs[qi, 1], device_z])
+
+        # Shadowing at this position, for every AP at once.
+        if shadow_field is not None:
+            shadow = shadow_field(true_locs[qi], fid)
+        else:
+            shadow = np.zeros(n_aps)
 
         for ai in range(n_aps):
             ap = np.asarray(ap_positions[ai])
@@ -161,10 +202,15 @@ def _generate_queries_pathloss(
             d = max(d, 0.1)
 
             rss = p0 - 10.0 * n_exp * np.log10(d)
-            rss += np.random.randn() * sigma_shadow
+            rss += shadow[ai]
 
             ap_floor = int(ap[2] / floor_height) if len(ap) > 2 else 0
             rss -= abs(fid - ap_floor) * floor_att_db
+
+            # Fast fading: the per-sample term, and the only one a repeat visit
+            # to this exact spot would redraw.
+            if sigma_fast > 0:
+                rss += np.random.randn() * sigma_fast
 
             if noise_std > 0:
                 rss += np.random.randn() * noise_std
@@ -199,6 +245,156 @@ def _generate_queries_holdout(db, *, n_queries, floor_id, noise_std):
         floor_ids_out = np.random.choice(db.floor_list, len(true_locs))
 
     return query_fingerprints, true_locs, floor_ids_out
+
+
+def report_what_a_repeat_survey_buys(db_single, db_multi, queries, true_locs):
+    """Compare a one-visit survey against a ten-visit one, on the same queries.
+
+    This section exists because the summary table above shows MAP and
+    NN (Euclidean) scoring identically, and a reader is entitled to know whether
+    that is a coincidence, a bug, or a theorem. It is a theorem, and it is a
+    property of the *survey*, not of the method:
+
+    - A single-sample database has no variance to estimate, so
+      ``fit_gaussian_naive_bayes`` sets one global sigma and the Gaussian
+      log-likelihood becomes a monotone function of Euclidean distance. MAP is
+      then 1-NN exactly -- not approximately.
+    - A multi-sample database estimates sigma per (RP, AP), so the match is
+      weighted and MAP can disagree.
+
+    What the sweep over ``min_std`` shows is the part that is not in the book:
+    the sigma a repeat survey measures is the spread of repeat visits *at a
+    reference point*, while the spread the likelihood needs is the disagreement
+    between a query and the nearest reference point -- which also contains the
+    radio map changing over the gap between them. Those are different numbers,
+    1.5 dB against 2.09 dB on this grid, and ``min_std`` is the only knob that
+    reaches the difference. Raising it widens the posterior honestly and, at the
+    same time, floors away the per-RP sigma that made MAP interesting.
+
+    **MAP does not beat 1-NN here, and the reason is structural rather than a
+    missing ingredient.** The obvious diagnosis is that this model gives every
+    location the same true fast-fading std, so the sigma estimated from ten
+    visits is estimation noise and there is nothing for the weighting to
+    exploit. That diagnosis is wrong, and it was tested rather than argued:
+    giving the fast fading a physically standard attenuation dependence -- RSS
+    variance grows as SNR falls -- with the *mean* sigma held at 1.5 dB so the
+    total noise is unchanged, makes MAP monotonically **worse**, not better::
+
+        slope (dB per 10 dB attenuation)   0.0    0.5    1.0    2.0
+        NN   RMSE                         3.26   3.15   3.15   3.15  m
+        MAP  RMSE                         3.36   3.43   3.53   3.56  m
+
+    Two candidate explanations were ruled out by measurement. It is not
+    estimation noise: substituting the *oracle* sigma, the true one the samples
+    were drawn from, still loses to NN (3.23 to 3.35 m across the sweep). And it
+    is not the ``-log sigma_ij`` normalisation acting as a per-RP bonus for
+    confident locations: dropping that term entirely changes nothing (3.49 m
+    against 3.43 m at slope 0.5).
+
+    What is left is the term the likelihood cannot see. A query stands *between*
+    reference points, so it disagrees with the nearest one by the radio map's
+    change over that gap -- 1.43 dB rms on this grid, comparable to the entire
+    1.5 dB fast-fading budget -- and that term is **anti-correlated** with the
+    noise a repeat survey can measure: ``corr = -0.34`` over all (query, AP)
+    pairs. The path-loss gradient ``d(pathloss)/dd = -10 n / (d ln 10)`` is
+    steepest close to the AP, which is exactly where the signal is strongest and
+    the fast fading quietest. So Naive Bayes weighting systematically
+    up-weights the APs whose unmodelled spatial error is worst, and weighting by
+    the noise you can measure is worse than not weighting at all.
+
+    The dose-response confirms it. The penalty tracks the spatial term across
+    the three shipped survey grids, at slope 1.0::
+
+        survey        spacing   spatial mismatch   MAP - NN
+        dense            2 m         0.52 dB        +0.04 m
+        baseline         5 m         1.48 dB        +0.38 m
+        sparse          10 m         2.74 dB        +1.46 m
+
+    So the honest statement for the chapter is not "probabilistic fingerprinting
+    is better" but a sharper and more useful one: **Eq. (5.6) pays only when the
+    variability it models dominates the variability it does not.** That happens
+    on a grid dense relative to the radio map's correlation length, or with a
+    likelihood whose sigma includes the interpolation term rather than only the
+    per-visit one. On a 5 m grid with 8 APs, it does not, and the chapter is
+    better for saying so than for tuning until a table agrees.
+
+    Args:
+        db_single: Single-sample database (one visit per RP).
+        db_multi: Multi-sample database of the same building.
+        queries: Query fingerprints, shape (n, N).
+        true_locs: True query positions, shape (n, 2).
+    """
+    print("\n" + "=" * 70)
+    print("WHAT A REPEAT SURVEY BUYS (why MAP == NN above)")
+    print("=" * 70)
+
+    def characterise(db, min_std):
+        model = fit_gaussian_naive_bayes(db, min_std=min_std)
+        differ = 0
+        max_weight, effective, err_map, err_nn = [], [], [], []
+        for query, true_loc in zip(queries, true_locs, strict=True):
+            x_map = map_localize(query, model, floor_id=0)
+            x_nn = nn_localize(query, db, metric="euclidean", floor_id=0)
+            if not np.allclose(x_map, x_nn):
+                differ += 1
+            weights = np.exp(log_posterior(query, model, floor_id=0))
+            max_weight.append(weights.max())
+            # Participation ratio: how many RPs the posterior really spreads
+            # over. 1.0 is a delta; the count of RPs is uniform.
+            effective.append(1.0 / np.sum(weights**2))
+            err_map.append(np.linalg.norm(x_map - true_loc))
+            err_nn.append(np.linalg.norm(x_nn - true_loc))
+        return {
+            "model": model,
+            "differ": differ,
+            "max_weight": float(np.median(max_weight)),
+            "effective": float(np.median(effective)),
+            "rmse_map": float(np.sqrt(np.mean(np.array(err_map) ** 2))),
+            "rmse_nn": float(np.sqrt(np.mean(np.array(err_nn) ** 2))),
+        }
+
+    n = len(queries)
+    single = characterise(db_single, min_std=2.0)
+    print(f"\nSingle-sample survey ({db_single.n_reference_points} RPs, 1 visit each)")
+    print(f"  {single['model']}")
+    print(f"  {single['model'].sigma_summary()}")
+    print(f"  MAP differs from 1-NN on {single['differ']}/{n} queries")
+    print(f"  median max posterior weight  {single['max_weight']:.4f}")
+    print(f"  median effective RP count    {single['effective']:.2f}")
+    print(f"  RMSE  MAP {single['rmse_map']:.2f} m   NN {single['rmse_nn']:.2f} m")
+
+    print(
+        f"\nMulti-sample survey ({db_multi.n_reference_points} RPs, "
+        f"{db_multi.n_samples_per_rp} visits each)"
+    )
+    print(
+        f"  {'min_std':>7}  {'sigma range':>14}  {'MAP!=NN':>9}  "
+        f"{'max wt':>7}  {'eff RPs':>7}  {'MAP':>7}  {'NN':>7}"
+    )
+    for min_std in (0.5, 1.0, 1.5, 2.0, 2.5):
+        row = characterise(db_multi, min_std=min_std)
+        stds = row["model"].stds
+        print(
+            f"  {min_std:7.1f}  {stds.min():5.2f} - {stds.max():5.2f}  "
+            f"{row['differ']:5d}/{n:<3d}  {row['max_weight']:7.4f}  "
+            f"{row['effective']:7.2f}  {row['rmse_map']:5.2f} m  "
+            f"{row['rmse_nn']:5.2f} m"
+        )
+
+    print(
+        "\n  Read the two ends against each other. A floor below the measured "
+        "1.5 dB\n"
+        "  lets the estimated sigma vary, so MAP genuinely stops being 1-NN -- "
+        "and\n"
+        "  is slightly worse, because with one fast-fading std for the whole\n"
+        "  building that variation is estimation noise rather than signal. A "
+        "floor\n"
+        "  near the 2.09 dB a query really disagrees by gives the honest "
+        "posterior\n"
+        "  width and the better fix, at the cost of flooring the per-RP sigma "
+        "away.\n"
+        "  Neither column is the answer on its own; the gap between them is."
+    )
 
 
 def per_query_operation_counts(db, floor_id=None):
@@ -347,7 +543,15 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     # Probabilistic methods
     print("\nProbabilistic Methods (Eqs. 5.3-5.5):")
 
-    # Train Bayesian model
+    # Train Bayesian model.
+    #
+    # min_std = 2.0 dBm is not an arbitrary floor. On a single-sample database
+    # it is the *entire* likelihood model, so it should be the spread a query
+    # actually has about the reference point it is matched to -- measured at
+    # 2.09 dB on this grid. That is larger than the 1.5 dB of fast fading a
+    # repeat survey would measure, because a query stands between reference
+    # points and the radio map changes over the gap. See
+    # fit_gaussian_naive_bayes' docstring.
     print("  Training Bayesian model...", end=" ", flush=True)
     model_bayes = fit_gaussian_naive_bayes(db, min_std=2.0)
     print("Done")
@@ -537,6 +741,12 @@ def main():
         floor_id=0,
     )
 
+    # Why MAP and NN agree above: it is the survey, not the method.
+    db_multi = load_fingerprint_database(
+        Path("data/sim/ch5_wifi_fingerprint_multisamples")
+    )
+    report_what_a_repeat_survey_buys(db, db_multi, queries1, true_locs1)
+
     # Print summary table
     print("\n" + "=" * 70)
     print("COMPREHENSIVE RESULTS SUMMARY")
@@ -628,14 +838,32 @@ def main():
     noise_levels = [1.0, 2.0, 5.0]
     scenario_names = ["Baseline", "Moderate Noise", "High Noise"]
 
-    for i, method in enumerate(methods):
+    # Distinct dash patterns, because two pairs of these series lie exactly on
+    # top of each other and solid lines would show only the last one drawn.
+    # MAP is arithmetically identical to NN on this single-sample database, and
+    # the top-10 posterior mean to the full one -- both are findings of this
+    # figure, so they must not be what makes a curve disappear from it. No
+    # nudging of values; only the stroke changes.
+    dashes = [
+        (None, None),  # NN (Euclidean)
+        (6, 2),  # k-NN (k=3)
+        (2, 2),  # MAP -- lies on NN
+        (None, None),  # Posterior Mean
+        (1, 2),  # Post.Mean (k=10) -- lies on Posterior Mean
+        (6, 2, 1, 2),  # Linear Regression
+    ]
+    for method, dash in zip(methods, dashes, strict=True):
         rmses = []
         for scenario_name in scenario_names:
             method_result = [
                 r for r in all_results[scenario_name] if r["method"] == method
             ][0]
             rmses.append(method_result["rmse"])
-        ax5.plot(noise_levels, rmses, "o-", label=method, linewidth=2, markersize=6)
+        (line,) = ax5.plot(
+            noise_levels, rmses, "o-", label=method, linewidth=2, markersize=6
+        )
+        if dash[0] is not None:
+            line.set_dashes(dash)
 
     ax5.set_xlabel("RSS Noise Std (dBm)")
     ax5.set_ylabel("RMSE (m)")

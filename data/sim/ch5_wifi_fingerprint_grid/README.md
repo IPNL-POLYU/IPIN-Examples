@@ -168,12 +168,40 @@ print(f"AP positions: {metadata['ap_positions']}")
     "P0_dBm": -30.0,
     "path_loss_exponent": 2.5,
     "shadow_fading_std_dBm": 4.0,
+    "fast_fading_std_dBm": 1.5,
     "floor_attenuation_dB": 15.0
+  },
+  "shadow_field": {
+    "type": "random_fourier_modes",
+    "kernel": "squared_exponential",
+    "decorrelation_length_m": 8.0,
+    "n_modes": 256,
+    "seed": 42
   }
 }
 ```
 
-**Model**: RSS(d) = P₀ - 10×n×log₁₀(d/d₀) + X_σ - floor_attenuation
+**Model**: RSS(p, ap) = P₀ - 10×n×log₁₀(d/d₀) - floor_attenuation + S_ap(p) + fast
+
+The last two terms are separate on purpose, and the split is the difference
+between a radio map and a table of random numbers:
+
+- **S_ap(p)** is shadow fading, at `shadow_fading_std_dBm` = 4.0 dB. It is a
+  property of the **location**: the same wall attenuates the same AP from the
+  same spot on every visit. It is a spatially correlated Gaussian field with a
+  correlation length of 8 m — longer than the 5 m survey grid, which is the
+  condition under which a survey can represent the field at all. Rebuild the
+  exact field the generator used with
+  `ShadowingField.from_meta(db.meta)`, and evaluate it anywhere, including
+  between reference points.
+- **fast** is drawn per sample at `fast_fading_std_dBm` = 1.5 dB. It is the
+  **only** term that differs between repeat visits to one reference point,
+  which is what `ch5_wifi_fingerprint_multisamples` exists to let you estimate.
+
+This dataset previously redrew the whole 4 dB for every (RP, AP, sample), so
+adjacent reference points 5 m apart disagreed by 5.7 dB rms for no physical
+reason. Nearest neighbour then scored 6.93 m against noiseless queries where
+this grid's own quantisation floor is 2.27 m; it now scores 3.39 m.
 
 ## Quick Start Examples
 
@@ -512,9 +540,27 @@ print(f"Query features: {len(query)}")  # Must match!
 
 ### Warning: High RSS variability
 
-**Cause**: Shadow fading or measurement noise
+**Cause**: Shadow fading (4 dB) plus fast fading (1.5 dB). Real Wi-Fi does have
+σ = 4-8 dB of variability, so the *magnitude* is realistic.
 
-**Fix**: This is realistic! Real Wi-Fi has σ = 4-8 dBm variability
+**Fix**: Nothing to fix — but check *which* variability you are looking at
+before concluding that, because this entry used to say "this is realistic!" and
+nothing else, while the dataset had a real defect it was describing. The whole
+4 dB was being redrawn per sample, so two reference points a metre apart
+disagreed as much as two at opposite ends of the building. The magnitude was
+right and the spatial structure was wrong, which no check on the marginal
+distribution can see.
+
+The distinguishing measurement is a **variogram**: RSS difference against
+separation. It should rise from near zero and flatten at about √2 × 4 dB beyond
+8 m, not sit flat everywhere.
+
+```py
+# Shadowing between two nearby points should be nearly equal.
+field = ShadowingField.from_meta(db.meta)
+near = field(np.array([[10.0, 10.0], [10.5, 10.0]]), 0)
+print(abs(near[0] - near[1]).max())  # << 1 dB; an independent draw gives ~5.7
+```
 
 ## Next Steps
 

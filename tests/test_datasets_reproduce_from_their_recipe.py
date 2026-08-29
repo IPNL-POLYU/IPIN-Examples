@@ -104,6 +104,10 @@ RECIPES = {
         "generate_ch5_wifi_fingerprint_dataset.py",
         ["--preset", "sparse"],
     ),
+    "ch5_wifi_fingerprint_multisamples": (
+        "generate_ch5_wifi_fingerprint_dataset.py",
+        ["--preset", "multisamples"],
+    ),
     "ch6_env_sensors_heading_altitude": (
         "generate_ch6_env_sensors_dataset.py",
         ["--preset", "baseline"],

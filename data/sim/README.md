@@ -103,6 +103,7 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 | `ch5_wifi_fingerprint_grid/` | `ch5_fingerprinting/example_*.py` | CH5 |
 | `ch5_wifi_fingerprint_dense/` | `ch5_fingerprinting/example_*.py` | CH5 |
 | `ch5_wifi_fingerprint_sparse/` | `ch5_fingerprinting/example_*.py` | CH5 |
+| `ch5_wifi_fingerprint_multisamples/` | `ch5_fingerprinting/example_comparison.py` | CH5 |
 | `ch6_pdr_corridor_walk/` | `ch6_dead_reckoning/example_pdr.py` | CH6 |
 | `ch6_strapdown_basic/` | *(manual loading)* | CH6 |
 | `ch6_wheel_odom_square/` | *(manual loading)* | CH6 |
@@ -203,6 +204,7 @@ TDOA.
 | `ch5_wifi_fingerprint_grid/` | Baseline Wi-Fi fingerprinting | 5m | 121 (11×11) | NN, k-NN, MAP, Posterior Mean | [README](ch5_wifi_fingerprint_grid/README.md) |
 | `ch5_wifi_fingerprint_dense/` | High-accuracy variant | 2m | 676 (26×26) | Dense grids = better accuracy | [README](ch5_wifi_fingerprint_dense/README.md) |
 | `ch5_wifi_fingerprint_sparse/` | Quick deployment variant | 10m | 36 (6×6) | Accuracy vs. effort trade-off | [README](ch5_wifi_fingerprint_sparse/README.md) |
+| `ch5_wifi_fingerprint_multisamples/` | Repeat-survey variant, 10 visits per RP | 5m | 121 (11×11) | Eq. (5.6) with an estimated sigma; MAP stops being 1-NN | [README](ch5_wifi_fingerprint_multisamples/README.md) |
 
 **Key Equations**:
 - Eq. (5.1): Nearest-Neighbor (NN)

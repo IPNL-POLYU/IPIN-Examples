@@ -3,9 +3,9 @@
 The natural animation to reach for here is "watch the posterior sharpen as the
 user walks." Measurement says there is nothing to sharpen. With eight access
 points over this grid the Gaussian Naive-Bayes posterior of Eq. (5.3) is
-essentially a delta everywhere -- its entropy averages ~0.1 against a maximum
-of 4.8, and its peak probability sits between 0.92 and 1.00. The posterior does
-not gradually tighten; it is already tight.
+essentially a delta everywhere -- its entropy averages 0.18 against a maximum
+of 4.80, and its peak probability sits between 0.63 and 1.00, with a median of
+0.99. The posterior does not gradually tighten; it is already tight.
 
 What is genuinely dynamic, and specific to fingerprinting, is how that sharp
 posterior *fails*. It does not spread out and hedge when the measurement is
@@ -18,9 +18,9 @@ This example walks a user along an L-shaped path and shows the posterior over
 the floor as a heat map at each step, with the MAP estimate (Eq. 5.4) on top.
 At a modest measurement noise the hot spot tracks the user faithfully. Raise
 the noise and the estimate begins to *teleport*: measured over a 21-step walk,
-aliasing jumps beyond 10 m occur 0 times at 1 dB, 0 times at 3 dB, and 6 times
+aliasing jumps beyond 10 m occur 0 times at 1 dB, 0 times at 3 dB, and 4 times
 at 6 dB. The median error stays 0 throughout -- the estimate is usually exactly
-right -- while the mean is dragged to 6.6 m entirely by those few jumps. A mean
+right -- while the mean is dragged to 6.0 m entirely by those few jumps. A mean
 error alone would hide the failure completely; the walk makes it visible.
 
 Run:

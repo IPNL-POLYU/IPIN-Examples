@@ -55,10 +55,10 @@
     50.0,
     50.0
   ],
-  "grid_spacing": 10.0,
+  "grid_spacing": 5.0,
   "floor_height": 3.0,
   "n_floors": 3,
-  "n_samples_per_rp": 1,
+  "n_samples_per_rp": 10,
   "path_loss_model": {
     "type": "log_distance",
     "P0_dBm": -30.0,
@@ -77,7 +77,7 @@
     "n_aps": 8,
     "n_floors": 3
   },
-  "description": "Synthetic Wi-Fi RSS fingerprint database (single-sample)",
+  "description": "Synthetic Wi-Fi RSS fingerprint database (multi-sample)",
   "generation_date": "2024-12-24",
   "seed": 42,
   "n_aps": 8,

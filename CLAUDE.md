@@ -1588,6 +1588,98 @@ exactly like "this code never runs":
 Both were caught the same way: a number moved while the code did not. That is
 the fifth harness in this file to report the thing it could not read as broken.
 
+## Noise that belongs to a place, drawn as if it belonged to a measurement
+
+`generate_ch5_wifi_fingerprint_dataset.py` drew shadow fading independently for
+every (RP, AP, sample). Shadow fading is a property of a **location** -- the same
+wall attenuates the same AP from the same spot on every visit -- so the whole
+4 dB was being spent scrambling the radio map instead of describing the
+building. Chapter 5's radio map was, in the part that mattered, a table of
+random numbers, and smoothness is the only property fingerprinting exploits.
+
+`core/fingerprinting/shadowing.py` splits it:
+`rss(p, ap) = pathloss - floor_attenuation + S_ap(p) + fast`, with `S_ap` a
+spatially correlated Gaussian field (random Fourier modes, 8 m correlation
+length) and `fast` the only per-sample term, at 1.5 dB. Nearest neighbour
+against noiseless queries went 6.93 -> 3.39 m, on a grid whose own quantisation
+floor is 2.27 m.
+
+Five things from it are worth carrying, and only the first is about radio.
+
+- **Pick the decorrelation length against the sampling grid, not against
+  taste.** A survey can only represent a field it samples faster than the field
+  varies, so a radio map on a 5 m grid presupposes a correlation length longer
+  than 5 m. That is the Nyquist argument, and it is the reason 8 m is a
+  principled choice rather than a tuned one.
+- **A defect can be the thing making a metric look good.** Exact-RP
+  classification *fell* when the map was fixed -- Random Forest 83% -> 68%, SVM
+  97% -> 91% -- while every positioning error roughly halved. Measured on both
+  sides: adjacent reference points 5 m apart used to differ by **16.83 dB** in
+  fingerprint space and now differ by **11.23 dB**, because a smooth map makes
+  nearby places look alike. Exact-RP accuracy rewards distinctiveness; a
+  scrambled map is maximally distinctive. Before celebrating a metric, ask which
+  property of the data it is really reading.
+- **A parameter that silently stops being read looks exactly like one with no
+  effect.** The old guard varied shadowing by overwriting
+  `shadow_fading_std_dBm` in a copy of the path-loss config. Under the split
+  model the query's shadowing comes from `db.meta['shadow_field']`, so that key
+  no longer reaches it: the knob went inert, the test kept passing, and the
+  "difference" it reported was RNG wobble. Its replacement switches on
+  `include_shadowing`, a boolean the code actually branches on. Sixth harness in
+  this file to report something it could not read.
+- **Set a tolerance by sampling seeds, not by arguing.** The first version of
+  `test_the_marginal_std_is_the_sigma_it_was_asked_for` asserted the field's
+  domain mean was within `0.15 * sigma`, and seed 42 failed at 0.62. The field
+  was right and the test was wrong: a correlated field on a domain only six
+  correlation lengths wide has a *realisation-level* mean and variance of its
+  own. Over 32 seeds the realised std runs 3.68 to 4.40 with mean 3.994, and the
+  domain mean has std 0.28. A true Gaussian process does the same. There is now
+  a second test that averages over seeds, because "within 15%" would otherwise
+  hide a construction that is systematically hot.
+- **The claim was wrong where the numbers were right.** The dense dataset's
+  README argued "shadow fading is why density stops paying", with a correct
+  range-equivalence table under it. The table was right about *ranging* and the
+  conclusion was wrong about fingerprinting: correlated shadowing is sampled
+  better by a denser grid, and what actually stops density paying is the
+  uncorrelated per-visit term. Measured, 5 m -> 2 m cuts the quantisation floor
+  2.5x and the achieved error 14%; ten visits at 5 m (3.07 -> 2.57 m) beat one
+  visit at 2 m for a fifth of the reference points. A correct supporting
+  calculation is not evidence that the sentence above it follows.
+
+## MAP is 1-NN, and it is a theorem rather than a coincidence
+
+The same audit found Chapter 5's comparison table printing `MAP` and
+`NN (Euclidean)` identical to the digit at every noise level. Not approximately:
+**200 of 200 queries, same reference point.** With one global sigma the Gaussian
+log-likelihood is `const - ||z - mu_i||^2 / (2 sigma^2)`, monotone in Euclidean
+distance, so `argmax` over Eq. (5.4) is `argmin` over Eq. (5.1).
+
+A single-sample database always produces that constant sigma -- there is no
+second sample to take a standard deviation of, so `fit_gaussian_naive_bayes`
+uses `min_std` as the whole model. All three shipped databases were
+single-sample, so the chapter demonstrated probabilistic fingerprinting with a
+model that had no probabilistic content, and nothing said so. It says so now:
+`sigma_is_constant`, `sigma_summary()` and the model's `repr` all name the
+consequence, so printing the model is enough.
+
+`ch5_wifi_fingerprint_multisamples` (ten visits per RP) is the database where
+Eq. (5.6) has something to estimate. Two things about it were not expected:
+
+- **The two properties you want trade against each other, through `min_std`.**
+  Below the 1.5 dB fast fading the estimated sigma survives and MAP differs from
+  1-NN on 22% of queries -- and is slightly *worse*, because with one
+  fast-fading std for the whole building that variation is estimation noise.
+  Above it the floor erases sigma and MAP collapses back onto 1-NN, but the
+  posterior width becomes honest. Neither end is the answer; the example prints
+  the whole sweep rather than picking one.
+- **The sigma a repeat survey measures is not the sigma the likelihood needs.**
+  Repeat visits at a reference point spread by 1.5 dB; a query disagrees with
+  its nearest RP's mean by **2.09 dB**, because it stands *between* reference
+  points and the map changes over that gap. No amount of resampling at the RP
+  can see that term. It is why `min_std=2.0` is a better-calibrated choice here
+  than the library default of 1.0, and why that is a statement about the survey
+  grid rather than about numerical safety.
+
 ## Parallel sessions
 
 Several agents often work this repo at once, on separate worktrees off `main`.

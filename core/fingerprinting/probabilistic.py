@@ -103,6 +103,65 @@ class NaiveBayesFingerprintModel:
         """Get boolean mask for reference points on specified floor."""
         return self.floor_ids == floor_id
 
+    @property
+    def sigma_is_constant(self) -> bool:
+        """True when every σ_ij is the same number, which collapses MAP to 1-NN.
+
+        This is the state a **single-sample** database always produces: there is
+        no second sample to take a standard deviation of, so
+        :func:`fit_gaussian_naive_bayes` fills σ with ``min_std`` everywhere.
+
+        With a globally constant σ the Gaussian log-likelihood is::
+
+            log P(z | x_i) = const - ||z - mu_i||^2 / (2 sigma^2)
+
+        -- a strictly decreasing function of Euclidean distance. So
+        :func:`map_localize` returns *exactly* what
+        :func:`~core.fingerprinting.nn_localize` returns, on every query, and
+        Eq. (5.4) is Eq. (5.1) wearing a different name. Measured on the shipped
+        single-sample grid database: identical on 200 of 200 queries.
+
+        It is derived from ``stds`` rather than stored, so a model assembled by
+        hand cannot claim otherwise than its own numbers say.
+        """
+        return bool(np.all(self.stds == self.stds.flat[0]))
+
+    def sigma_summary(self) -> str:
+        """One line describing where σ came from and what follows from it.
+
+        Worth printing next to any probabilistic result. A reader handed a
+        single-sample survey should be told that the posterior cannot do
+        anything a nearest-neighbour search does not, rather than having to
+        measure it.
+        """
+        if self.sigma_is_constant:
+            return (
+                f"sigma = {self.stds.flat[0]:.3g} dBm everywhere (constant): the "
+                f"database carries one sample per RP, so there is no variance to "
+                f"estimate and min_std was used as-is. MAP (Eq. 5.4) is then "
+                f"EXACTLY 1-NN (Eq. 5.1), and the posterior mean (Eq. 5.5) is "
+                f"driven by whichever RPs that one sigma happens to leave in "
+                f"contention. Survey each RP more than once to change this."
+            )
+        return (
+            f"sigma estimated per (RP, AP) from {self.meta.get('n_samples_per_rp')} "
+            f"samples: {self.stds.min():.3g} to {self.stds.max():.3g} dBm. MAP is "
+            f"a weighted match rather than a Euclidean one, so it can and does "
+            f"disagree with 1-NN."
+        )
+
+    def __repr__(self) -> str:
+        """Readable summary that names the constant-sigma degeneracy out loud."""
+        if self.sigma_is_constant:
+            sigma = f"sigma=constant {self.stds.flat[0]:.3g} dBm -> MAP is exactly 1-NN"
+        else:
+            sigma = f"sigma={self.stds.min():.3g}..{self.stds.max():.3g} dBm"
+        return (
+            f"NaiveBayesFingerprintModel(n_rps={self.n_reference_points}, "
+            f"n_features={self.n_features}, {sigma}, "
+            f"floors={sorted(set(self.floor_ids.tolist()))})"
+        )
+
 
 def fit_gaussian_naive_bayes(
     db: FingerprintDatabase,
@@ -121,38 +180,69 @@ def fit_gaussian_naive_bayes(
 
     where N(·; μ, σ²) is the Gaussian density.
 
-    **Behavior depends on database format:**
-    - Single-sample DB (features shape M×N): Sets σ_ij = min_std everywhere.
+    **Behavior depends on database format, and one of the two cases is a
+    degeneracy worth knowing before you read any result out of it:**
+
+    - **Single-sample DB (features shape M×N): σ_ij = min_std everywhere, and
+      MAP is then exactly 1-NN.** There is no second sample to take a standard
+      deviation of, so nothing is estimated. With one global σ the log-likelihood
+      is ``const - ||z - mu_i||^2 / (2 sigma^2)``, monotone in Euclidean
+      distance, so :func:`map_localize` and
+      :func:`~core.fingerprinting.nn_localize` return the *same reference point
+      on every query* -- measured at 200 of 200 on the shipped grid database --
+      and Eq. (5.4) reduces to Eq. (5.1). The posterior mean (Eq. 5.5) is
+      likewise decided entirely by a number you chose rather than one the survey
+      measured. Check :attr:`NaiveBayesFingerprintModel.sigma_is_constant`, or
+      print the model: its ``repr`` says so.
     - Multi-sample DB (features shape M×S×N): Computes actual μ and σ from
       the S samples at each RP, then applies min_std as a numerical floor.
 
     This aligns with the book's assumption (Eq. 5.6) that sufficient survey
-    samples are available to estimate P(z|x_i) parameters.
+    samples are available to estimate P(z|x_i) parameters. The single-sample
+    case does not meet that assumption; it is supported because single-sample
+    surveys are common, not because the resulting model is Bayesian in any
+    useful sense.
+
+    **``min_std`` is doing more than preventing a divide-by-zero, and it is worth
+    choosing deliberately.** The σ this function estimates is the spread of
+    repeat visits *at a reference point*, which is not the spread the likelihood
+    actually needs: a query stands *between* reference points, so it also
+    disagrees with the nearest RP by however much the radio map changes over
+    that offset, and no amount of resampling at the RP can see that term.
+    Measured on the shipped 5 m grid: repeat visits spread by 1.5 dB while a
+    query disagrees with its nearest RP's mean by 2.09 dB. Setting ``min_std``
+    near the larger figure gives an honestly wide posterior; setting it near the
+    smaller gives a confident and slightly worse one.
 
     Args:
         db: FingerprintDatabase containing reference fingerprints.
             Can be single-sample (M, N) or multi-sample (M, S, N) format.
-        min_std: Minimum standard deviation floor to prevent numerical issues.
-                 Default is 1.0 dBm. Applied even when σ is computed from data.
+        min_std: Minimum standard deviation floor. On a multi-sample database
+                 this is a numerical floor; on a single-sample one it is the
+                 entire model, since σ is not estimated at all. Default 1.0 dBm.
         prior: Prior distribution type. Currently only 'uniform' is supported.
 
     Returns:
-        NaiveBayesFingerprintModel with learned parameters.
+        NaiveBayesFingerprintModel with learned parameters. Call
+        :meth:`NaiveBayesFingerprintModel.sigma_summary` for a one-line
+        statement of which of the two cases above you are in.
 
     Raises:
         ValueError: If prior type is not supported.
 
     Examples:
-        >>> # Single-sample database (constant std)
+        >>> # Single-sample database: sigma is constant and MAP degenerates.
         >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
         >>> model = fit_gaussian_naive_bayes(db, min_std=2.0)
-        >>> print(f"Trained model with {model.n_reference_points} RPs")
-        >>> # All stds will be 2.0 dBm
+        >>> model.sigma_is_constant
+        True
 
-        >>> # Multi-sample database (actual variance estimation)
-        >>> db_multi = load_fingerprint_database('data/sim/ch5_wifi_fp_multisamples')
-        >>> model = fit_gaussian_naive_bayes(db_multi, min_std=1.0)
-        >>> # stds vary by RP and feature, floor at 1.0 dBm
+        >>> # Multi-sample database: sigma is actually estimated.
+        >>> db_multi = load_fingerprint_database(
+        ...     'data/sim/ch5_wifi_fingerprint_multisamples')
+        >>> model = fit_gaussian_naive_bayes(db_multi, min_std=0.5)
+        >>> model.sigma_is_constant
+        False
 
     References:
         Chapter 5, Eq. (5.6): Gaussian likelihood model for P(z | x_i).
