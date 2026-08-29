@@ -78,9 +78,9 @@ SOURCE_DIRS = (
 #: where the whitespace is content that gets printed rather than layout --
 #: black leaves those alone, correctly, and so should you.
 BASELINE = {
-    "UP006": 386,
+    "UP006": 379,
     "UP045": 178,
-    "UP035": 123,
+    "UP035": 121,
     "I001": 84,
     "UP007": 38,
     "B007": 28,
