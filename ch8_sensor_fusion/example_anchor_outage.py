@@ -2,7 +2,7 @@
 
 The difference between loose and tight coupling is easy to state and hard to
 feel from summary statistics. On the shipped dataset the two are close --
-RMSE 0.95 m for LC against 0.74 m for TC -- and the natural anchor dropouts
+RMSE 0.143 m for LC against 0.167 m for TC -- and the natural anchor dropouts
 are single isolated epochs, so the loosely coupled filter simply coasts for a
 fraction of a second and nothing visible happens.
 
@@ -18,15 +18,27 @@ This example constructs that outage deliberately -- 8 seconds with at most two
 of four anchors visible -- because the shipped dataset does not contain one.
 (At most two, not exactly two: the dataset's own dropouts stack on top of the
 mask, leaving a single anchor for 6 of the 81 epochs.) With the outage in place
-the gap is no longer subtle. LC's error ramps to 5.7 m by the end of the outage
--- the shape of pure dead reckoning -- and snaps back the instant anchors
-return. TC keeps being corrected the whole way through: its median error inside
-the outage is 0.71 m against LC's 2.98 m, and at the moment anchors return LC
-sits at 5.65 m while TC is at 0.04 m. 93 LC position fixes fail outright.
+the gap is visible but more modest than it once looked here: LC's error ramps
+to 3.14 m by the end of the outage -- the shape of pure dead reckoning -- and
+snaps back the instant anchors return. TC keeps being corrected the whole way
+through: its median error inside the outage is 0.71 m against LC's 1.62 m, and
+at the moment anchors return LC sits at 3.14 m while TC is at 0.04 m. 93 LC
+position fixes fail outright.
+
+(An earlier version of this page reported a 5.7 m ramp: `run_lc_fusion` used to
+hardcode its WLS noise and covariance floor rather than reading the dataset's
+own 0.05 m noise, so LC entered every outage from much worse baseline tracking
+than it actually has. The structural point below is unaffected -- LC still
+gets zero corrections for the whole outage -- but the magnitude was inflated by
+a bug, not by the architecture, so it has been re-measured throughout this
+docstring. See `core/fusion/loosely_coupled.py` and CLAUDE.md's Chapter 8
+entries.)
 
 The comparison is between an estimator that stops updating and one that does
 not, so read the *end* of the outage rather than the average: LC's error grows
-without bound for as long as the outage lasts, while TC's does not.
+without bound for as long as the outage lasts, while TC's does not -- an 8 s
+outage just often is not long enough any more to make that visible in the
+overall RMSE, now that LC's baseline tracking is honest.
 
 Two caveats keep this honest, because tight coupling is a trade, not a free
 win:
@@ -41,17 +53,26 @@ win:
   back. LC never does this because its front end solves a position from all
   available ranges and simply fails when it cannot.
 
-  That excursion is brief but it is what puts TC's whole-run RMSE (2.34 m)
-  above LC's (1.57 m) *at this particular window*, which is worth stating
+  That excursion is brief but it is what puts TC's whole-run RMSE (2.338 m)
+  above LC's (0.707 m) *at this particular window*, which is worth stating
   because it is the one number in this demo where LC wins. It is a knife edge,
-  not the general case: moving the outage to (18, 26), (22, 30), (24, 32) or
-  (40, 48) gives TC peak errors of 0.36, 0.12, 0.79 and 0.05 m against LC's
-  7.19, 7.25, 1.82 and 5.98 m, and TC RMSE around 0.17 m against LC's 1.1 to
-  1.9 m. The window has deliberately not been moved to a flattering one.
-- **TC needs usable geometry.** Repeating the outage with a *single* visible
-  anchor leaves TC updating from a degenerate configuration and its overall
-  RMSE degrades to 1.8 m, worse than LC's 1.3 m. One range constrains a circle,
-  not a point.
+  not the general case -- and now a weaker one than this page used to claim:
+  moving the outage to (18, 26), (22, 30), (24, 32) or (40, 48) gives TC peak
+  errors of 0.36, 0.12, 0.79 and 0.05 m against LC's 8.29, 0.61, 0.71 and
+  0.09 m. TC's peak stays small everywhere it was checked; LC's does not, but
+  it is no longer reliably the larger of the two -- at three of these four
+  windows LC's *whole-run* RMSE (1.640, 0.191, 0.155, 0.145 m) is now close to
+  or below TC's (0.173, 0.171, 0.170, 0.155 m), where before the fix LC was
+  worse at every one of them. The window has deliberately not been moved to a
+  flattering one.
+- **TC needs usable geometry.** Repeating the (40 s, 48 s) outage with a
+  *single* visible anchor instead of two leaves TC updating from a more
+  degenerate configuration and pushes its RMSE to 0.172 m against LC's
+  0.145 m -- a real effect, but a modest one now, not the 1.8-versus-1.3
+  contrast this page once claimed. LC's own RMSE is unchanged by the drop from
+  two anchors to one, because both are already below the three it needs for a
+  fix; only TC's is sensitive to which of the two it loses. One range
+  constrains a circle, not a point.
 
 Run:
     python -m ch8_sensor_fusion.example_anchor_outage
@@ -346,7 +367,7 @@ def plot_outage_summary(scenario) -> plt.Figure:
     )
 
     # Log axis. The mirror-branch flip reaches 43.9 m while the claim this
-    # panel exists to make -- LC's dead-reckoning ramp -- tops out at 5.9 m, so
+    # panel exists to make -- LC's dead-reckoning ramp -- tops out at 3.25 m, so
     # a linear axis renders the ramp as a low squiggle beneath one narrow
     # spike. The error is positive and spans two decades, which is what a log
     # axis is for.

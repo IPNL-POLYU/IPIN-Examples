@@ -65,28 +65,34 @@ two of four anchors visible.
 Constructed outage: at most 2 of 4 anchors between t = 20 s and 28 s
 (the shipped dataset's own dropouts are single isolated epochs and do not stress the difference)
   LC position fixes that failed outright: 93
-  RMSE over the run:      LC 1.566 m   TC 2.338 m
-  Peak error in outage:   LC 5.86 m   TC 43.92 m (0x)
+  RMSE over the run:      LC 0.707 m   TC 2.338 m
+  Peak error in outage:   LC 3.25 m   TC 43.92 m (0x)
 ```
 
 **Read that table before assuming tight coupling wins.** Two ranges do not
 determine a 2-D position, so LC's front end returns nothing at all — 93 fixes
-fail outright and LC dead-reckons, its error ramping linearly and snapping back
-the instant a third anchor returns. TC keeps updating on the two ranges it
-still has, which is the advantage it is usually sold on.
+fail outright and LC dead-reckons, its error ramping and snapping back the
+instant a third anchor returns. TC keeps updating on the two ranges it still
+has, which is the advantage it is usually sold on. LC's ramp is smaller than it
+once looked here (3.25 m, not the 5.86 m an earlier version of this page
+reported) because LC now enters the outage from much better tracking -- see the
+"LC vs TC Comparison" section below for why -- so it drifts less before anchors
+return; the structural point is unchanged, only its magnitude is more modest.
 
 But two ranges leave a **two-fold ambiguity**: the true position and its
 reflection across the baseline joining the surviving anchors. TC takes the
 wrong branch at t = 25.8 s, estimating (30.1, -35.5) against a truth of
 (20.0, 7.2) — a 43.92 m peak. It lasts under a second, and it is enough to put
-TC's whole-run RMSE (2.338 m) *above* LC's (1.566 m).
+TC's whole-run RMSE (2.338 m) *above* LC's (0.707 m) *at this particular
+window* -- by a wider margin than before, again because LC's own baseline
+tracking improved.
 
 So the honest summary is that tight coupling degrades more gracefully right up
 until the geometry becomes ambiguous, at which point it can fail in a way loose
 coupling structurally cannot: LC's front end refuses to answer, while TC
 answers confidently and wrongly. Which you prefer is an engineering judgement,
-not a ranking. Other outage windows do not trigger the flip — see the module
-docstring.
+not a ranking. Other outage windows do not trigger the flip, and away from it
+the two are no longer reliably far apart -- see the module docstring.
 
 ## Usage Examples
 
@@ -128,13 +134,23 @@ python -m ch8_sensor_fusion.example_tc_fusion --confidence 0.99  # More conserva
 ### Loosely Coupled Fusion
 
 The LC fusion uses an improved WLS solver (`solve_uwb_position_wls`) with realistic covariance handling:
-- Proper weighting: `W = R^{-1}` where `R = diag(σ_i²)`
-- Covariance floor (default 0.5m std) prevents overconfidence
+- Proper weighting: `W = R^{-1}` where `R = diag(σ_i²)`, with `σ` read from the
+  dataset's own `range_noise_std_m` -- the same value `run_tc_fusion` reads for
+  the same sensor
+- No covariance floor by default (`cov_floor_std=0.0`): the returned
+  `(H^T W H)^{-1}` is already the honest Cramer-Rao covariance for real anchor
+  geometry and real noise, and flooring it needs a justified reason, not a habit
 - Anchor-dependent noise support for NLOS/quality weighting
 
 **Tuning for Chi-Square Gating**: LC gating performance depends on:
 1. **Process noise `Q`**: Increase if gating rejects too many measurements (EKF too confident)
-2. **WLS covariance floor**: Increase if WLS position fixes are overconfident
+2. **WLS covariance floor** (`cov_floor_std`, default `0.0`): only set this above
+   zero if you have independent evidence the WLS fixes are overconfident
+   (unmodeled multipath, anchor survey error) -- measure it before picking a
+   number. An unjustified floor manufactures overconfidence in the opposite
+   direction: see "LC vs TC Comparison" below, where a hardcoded 0.5 m floor
+   against a true ~0.03 m std cost LC a 6x RMSE penalty that had nothing to do
+   with the architecture.
 3. **NIS monitoring**: Should show ~95% of measurements within χ² threshold for confidence=0.95
 
 ```bash
@@ -192,8 +208,9 @@ Evaluation Metrics
 </details>
 
 TC takes one update per anchor per epoch, so it accepts 2023 range updates
-where LC accepts 565 position fixes below — that ratio is most of why the two
-differ.
+where LC accepts 519 position fixes below — four times fewer. That gap does
+not translate into an accuracy gap here: see the comparison further down,
+where the two report almost the same RMSE.
 
 **Visual Output:**
 
@@ -210,7 +227,7 @@ differ.
 Running `python -m ch8_sensor_fusion.example_lc_fusion` produces:
 
 <details>
-<summary>Full console output — 29 lines</summary>
+<summary>Full console output — 31 lines</summary>
 
 <!-- example-output: ch8_sensor_fusion.example_lc_fusion -->
 ```
@@ -227,22 +244,22 @@ Measurements:
 ...
 Fusion complete:
   UWB position fixes solved: 587
-  UWB fixes accepted: 565
-  UWB fixes rejected: 22
+  UWB fixes accepted: 519
+  UWB fixes rejected: 68
   UWB solver failures: 13
-  Acceptance rate: 96.3%
+  Acceptance rate: 88.4%
 Adaptive Gating Stats:
-  Mean NIS: 2.82 (expected: 2)
-  Final R scale: 5.00x
-  Covariance inflations: 10
+  Mean NIS: 1.49 (expected: 2)
+  Final R scale: 2.22x
+  Covariance inflations: 19
 ...
 Evaluation Metrics
 ======================================================================
-  RMSE (2D)    : 1.013 m
-  RMSE (X)     : 0.708 m
-  RMSE (Y)     : 0.724 m
-  Max Error    : 3.562 m
-  Final Error  : 1.963 m
+  RMSE (2D)    : 0.143 m
+  RMSE (X)     : 0.099 m
+  RMSE (Y)     : 0.104 m
+  Max Error    : 0.781 m
+  Final Error  : 0.023 m
 ```
 
 </details>
@@ -262,23 +279,36 @@ LC vs TC Performance Comparison
 ======================================================================
 Metric                          LC Fusion       TC Fusion   Difference
 ----------------------------------------------------------------------
-RMSE 2D (m)                         1.013           0.167      +0.846
-RMSE X (m)                          0.708           0.096      +0.612
-RMSE Y (m)                          0.724           0.136      +0.588
-Max Error (m)                       3.562           1.021      +2.541
-Mean Error (m)                      0.621           0.083      +0.538
-Final Error (m)                     1.963           0.064      +1.899
+RMSE 2D (m)                         0.143           0.167      -0.023
+RMSE X (m)                          0.099           0.096      +0.003
+RMSE Y (m)                          0.104           0.136      -0.032
+Max Error (m)                       0.781           1.021      -0.240
+Mean Error (m)                      0.076           0.083      -0.007
+Final Error (m)                     0.023           0.064      -0.041
 ----------------------------------------------------------------------
-UWB Updates Accepted                  565            2023       -1458
-UWB Updates Rejected                   22             248        -226
+UWB Updates Accepted                  519            2023       -1504
+UWB Updates Rejected                   68             248        -180
 LC Solver Failures                     13             N/A
-Acceptance Rate (%)                  96.3            89.1        +7.2
+Acceptance Rate (%)                  88.4            89.1        -0.7
 ```
 
-TC is 6x better on this dataset, not the narrow margin this section used to
-claim. LC's higher acceptance rate is not a point in its favour: it accepts a
-larger share of far fewer updates, and separately fails to produce a fix at
-all on 13 epochs.
+LC and TC are close on this dataset -- LC's RMSE is fractionally *lower*,
+0.143 m against TC's 0.167 m. That is what theory predicts here: all four
+anchors are visible with good geometry, so the WLS position fix LC pre-solves
+is a sufficient statistic, and pre-solving costs it nothing. The 6x gap this
+section used to report was a tuning bug, not an architectural one:
+`run_lc_fusion` hardcoded `range_noise_std=0.1` and floored the WLS covariance
+at `cov_floor_std=0.5` regardless of the dataset's real 0.05 m noise -- a ~25x
+variance inflation that made the EKF distrust good UWB fixes and lean on IMU
+dead-reckoning between them instead. Both are fixed now: LC reads the
+dataset's noise exactly as TC does, and passes no floor.
+
+TC still takes far more updates (2023 range updates against 519 position
+fixes) and has no equivalent to LC's 13 solver failures, but neither shows up
+as an accuracy difference here. TC's real advantage is when there are too few
+anchors for LC to solve a fix at all, or when per-range gating matters -- see
+the anchor-outage demonstration near the top of this README, which is where
+the architectural difference actually shows up.
 
 **Visual Output:**
 
