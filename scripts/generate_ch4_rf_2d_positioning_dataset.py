@@ -35,6 +35,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.rf import (
+    build_tdoa_covariance,
     solve_batch,
     toa_range,
     tdoa_range_difference,
@@ -175,7 +176,10 @@ def generate_measurements(
         beacons: Beacon positions [N_beacons, 2] m.
         positions: Agent positions [N_positions, 2] m.
         toa_noise: TOA range noise std dev (m).
-        tdoa_noise: TDOA range difference noise std dev (m).
+        tdoa_noise: TDOA *arrival-time* noise std dev (m), per beacon -- not
+            per difference. Each difference carries two of these errors and
+            so has std `sqrt(2) * tdoa_noise`, and any two of them correlate
+            at rho = 0.5 through the shared reference beacon (Eq. 4.42).
         aoa_noise_deg: AOA angle noise std dev (degrees).
         nlos_beacons: List of beacon indices with NLOS bias.
         nlos_bias: NLOS positive bias (m).
@@ -191,6 +195,23 @@ def generate_measurements(
     N_pos = len(positions)
     N_beacons = len(beacons)
 
+    # A TOA range and a TDOA difference are two views of one arrival-time
+    # measurement, so there is one error process per beacon and `--tdoa-noise`
+    # can only rescale it. Every preset sets the two equal, where the scale is
+    # exactly 1 and `tdoa_diffs.txt` is `toa_ranges.txt` differenced against
+    # its own first column.
+    if toa_noise > 0:
+        tdoa_error_scale = tdoa_noise / toa_noise
+    elif tdoa_noise > 0:
+        raise ValueError(
+            "tdoa_noise > 0 needs toa_noise > 0: the range differences are "
+            "built from the same per-beacon arrival-time errors the TOA "
+            "ranges carry, so a noiseless TOA chain cannot produce noisy "
+            "differences. Raise --toa-noise, or pass --tdoa-noise 0."
+        )
+    else:
+        tdoa_error_scale = 0.0
+
     # Initialize arrays
     toa_ranges = np.zeros((N_pos, N_beacons))
     tdoa_diffs = np.zeros((N_pos, N_beacons - 1))
@@ -198,15 +219,21 @@ def generate_measurements(
 
     # Generate measurements for each position
     for i, pos in enumerate(positions):
+        # One arrival-time error and one NLOS bias per beacon, kept rather
+        # than folded straight into `toa_ranges[i]` because the TDOA block
+        # below is formed from the same numbers.
+        range_errors = np.zeros(N_beacons)
+        biases = np.zeros(N_beacons)
+
         # TOA ranges
         for j, beacon in enumerate(beacons):
             true_range = toa_range(beacon, pos)
-            noise = rng.normal(0, toa_noise)
+            range_errors[j] = rng.normal(0, toa_noise)
 
             # Add NLOS bias if applicable
-            bias = nlos_bias if (nlos_beacons and j in nlos_beacons) else 0.0
+            biases[j] = nlos_bias if (nlos_beacons and j in nlos_beacons) else 0.0
 
-            toa_ranges[i, j] = true_range + noise + bias
+            toa_ranges[i, j] = true_range + range_errors[j] + biases[j]
 
         # TDOA range differences, d_j - d_ref, with beacon 0 as reference.
         # The argument order matters and used to be the other way round:
@@ -217,10 +244,40 @@ def generate_measurements(
         # the hyperbola on the far side of the array: it cost a factor of 158
         # on the square geometry (13.753 m against the 0.087 m its GDOP
         # predicts) until it was corrected.
+        #
+        # The *error* on each difference is `e_j - e_0`, taken from the same
+        # per-beacon draws the TOA ranges above carry. Every difference is
+        # formed against the same reference beacon, so `e_0` is common mode:
+        # it does not average away, and the differences are correlated with
+        # one another (Eq. 4.42, and `build_tdoa_covariance`):
+        #
+        #     Var(z_j) = 2 sigma^2   Cov(z_j, z_k) = sigma^2   rho = 0.5
+        #
+        # This block used to draw an independent `rng.normal(0, tdoa_noise)`
+        # per difference, which deletes the common term and hands TDOA
+        # information it cannot physically have. It made TDOA's mean GDOP on
+        # the square array read 0.8730 against a true 1.0665, and its median
+        # error 0.0746 m against 0.0923 m -- beating TOA's 0.0881 m, which no
+        # geometry can do. Differencing is a projection: it throws the
+        # receiver clock away and cannot add information. TDOA and
+        # TOA-with-an-estimated-clock are worth the same, and TDOA's real
+        # trade is that it needs no synchronised clock at all.
         for j in range(1, N_beacons):
             true_diff = tdoa_range_difference(beacons[j], beacons[0], pos)
-            noise = rng.normal(0, tdoa_noise)
-            tdoa_diffs[i, j - 1] = true_diff + noise
+            tdoa_diffs[i, j - 1] = (
+                true_diff
+                + tdoa_error_scale * (range_errors[j] - range_errors[0])
+                + (biases[j] - biases[0])
+            )
+
+        # Reproducibility, not physics. The model above consumes no random
+        # numbers of its own, where the independent-noise model it replaces
+        # consumed one per difference. Drawing and discarding them leaves the
+        # AOA block below at the stream position it has always been at, so
+        # `toa_ranges.txt` and `aoa_angles.txt` stay byte-identical across
+        # this correction -- which is the evidence that it is confined to
+        # TDOA. Delete this line and only the AOA files move.
+        rng.normal(0, tdoa_noise, size=N_beacons - 1)
 
         # AOA angles
         for j, beacon in enumerate(beacons):
@@ -247,11 +304,25 @@ def compute_dop_metrics(
     Returns:
         GDOP values [N_positions].
     """
+    # TOA and AOA measurements are independent, so W = I. TDOA differences are
+    # not: they share a reference beacon, so W = C^-1 with C = I + 1 1^T --
+    # Eq. (4.42), built by `build_tdoa_covariance`, which is where the
+    # correlation was already written down. Unit sigmas, because DOP factors
+    # the noise magnitude out by definition (Eq. 4.107).
+    #
+    # `compute_dop(H)` with no weights was used for all three here, and for
+    # TDOA that is the same defect as drawing its noise independently, one
+    # level up: it reports the DOP of a measurement set that does not exist.
+    # On the square array it read 0.8730 against 1.0665.
+    weights = None
+    if measurement_type.lower() == "tdoa":
+        weights = np.linalg.inv(build_tdoa_covariance(np.ones(len(beacons))))
+
     gdop_values = np.zeros(len(positions))
 
     for i, pos in enumerate(positions):
         H = compute_geometry_matrix(beacons, pos, measurement_type)
-        dop_dict = compute_dop(H)
+        dop_dict = compute_dop(H, weights=weights)
         gdop_values[i] = dop_dict["GDOP"]
 
     return gdop_values
@@ -441,7 +512,8 @@ def generate_dataset(
         area_size: Area size (m).
         num_points: Number of evaluation points.
         toa_noise: TOA noise (m).
-        tdoa_noise: TDOA noise (m).
+        tdoa_noise: TDOA arrival-time noise (m), per beacon. See
+            `generate_measurements`.
         aoa_noise_deg: AOA noise (degrees).
         add_nlos: Add NLOS bias.
         nlos_bias: NLOS bias magnitude (m).
@@ -761,7 +833,11 @@ Book Reference: Chapter 4, Sections 4.1-4.5
         "--tdoa-noise",
         type=float,
         default=0.1,
-        help="TDOA noise std dev in meters (default: 0.1)",
+        help=(
+            "TDOA arrival-time noise std dev in meters, per beacon "
+            "(default: 0.1). Each range difference carries two of these, so "
+            "its own std is sqrt(2) times this."
+        ),
     )
     noise_group.add_argument(
         "--aoa-noise",

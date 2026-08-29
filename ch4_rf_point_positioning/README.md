@@ -116,7 +116,7 @@ questions catch both defects, and they are worth asking of any residual: *is it 
 |----------------|---------|-------------|
 | `example_comparison.py` | `data/sim/ch4_rf_2d_square/` | Square geometry (4 corners) - good baseline |
 | `example_comparison.py` | `data/sim/ch4_rf_2d_optimal/` | Circular geometry - best AOA GDOP of the two enclosing layouts (11.54 against 15.04) |
-| `example_comparison.py` | `data/sim/ch4_rf_2d_linear/` | Collinear array - worst for TDOA (GDOP 10.36), *best* for AOA (9.25) |
+| `example_comparison.py` | `data/sim/ch4_rf_2d_linear/` | Collinear array - worst for TDOA (GDOP 11.95), *best* for AOA (9.25) |
 | `example_comparison.py` | `data/sim/ch4_rf_2d_nlos/` | Square + NLOS bias - robustness testing |
 
 **Load dataset manually:**
@@ -334,10 +334,10 @@ Results Summary (median error in metres)
 Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       TDOA      AOA       AOA unw   RSS       AOA fail
 ----------------------------------------------------------------------------------------------------------
 1      0.00      0.00      0.0       0.0       0.000     0.000     0.000     0.000     1.131     0
-2      0.05      0.05      1.0       2.0       0.044     0.033     0.126     0.495     1.627     0
-3      0.10      0.10      3.0       4.0       0.078     0.065     0.340     1.389     3.912     0
-4      0.20      0.20      5.0       6.0       0.152     0.136     0.630     1.026     5.611     0
-5      0.50      0.50      10.0      8.0       0.408     0.279     1.506     1.525     5.853     0
+2      0.05      0.05      1.0       2.0       0.044     0.047     0.121     0.455     1.956     0
+3      0.10      0.10      3.0       4.0       0.086     0.095     0.357     1.026     3.790     0
+4      0.20      0.20      5.0       6.0       0.169     0.164     0.797     1.660     5.480     0
+5      0.50      0.50      10.0      8.0       0.457     0.468     1.371     2.485     6.376     0
 ```
 
 **TOA reads 0.000 m at level 1 because it now estimates the clock.** The
@@ -390,8 +390,8 @@ generator writes into each `config.json`.
 
 | Geometry | TOA | TDOA | AOA |
 |---|---|---|---|
-| Square (4 corners) | 0.088 m [0] | 0.075 m [0] | 0.397 m [0] |
-| Optimal (circular) | 0.079 m [0] | 0.085 m [0] | 0.273 m [0] |
+| Square (4 corners) | 0.088 m [0] | 0.092 m [0] | 0.397 m [0] |
+| Optimal (circular) | 0.079 m [0] | 0.121 m [0] | 0.273 m [0] |
 | Collinear (4 in a row) | 6.770 m [100] | 6.770 m [100] | **0.262 m** [8] |
 
 The collinear array is not simply the bad one, which is why the label no longer
@@ -416,11 +416,11 @@ same lesson from the other end. Mean GDOP by dataset:
 
 | Geometry | TOA | TDOA | AOA |
 |---|---|---|---|
-| Square (4 corners) | 1.02 | **0.87** | 15.04 |
-| Optimal (circular) | 1.02 | 1.09 | 11.54 |
-| Collinear (4 in a row) | 1.43 | 10.36 | **9.25** |
+| Square (4 corners) | 1.02 | 1.07 | 15.04 |
+| Optimal (circular) | 1.02 | 1.34 | 11.54 |
+| Collinear (4 in a row) | **1.43** | 11.95 | **9.25** |
 
-It ties the square for TOA, is slightly *worse* than it for TDOA, and loses
+It ties the square for TOA, is clearly *worse* than it for TDOA, and loses
 AOA to the collinear array. The name describes a layout, not a ranking.
 
 And DOP sees none of it. TOA GDOP on the collinear array averages 1.43 against
@@ -430,10 +430,26 @@ necessary, not sufficient.**
 
 Where DOP *does* work, it works well: on the square and circular arrays all
 three methods land on `sigma_position = GDOP x sigma_range` to within the
-difference between a median and an RMS, and TDOA edges out TOA on the square
-purely because its GDOP is lower (0.87 against 1.02). The first two rows of
-the table are a DOP prediction being confirmed; only the third row is DOP
-being wrong.
+difference between a median and an RMS. The first two rows of the table are a
+DOP prediction being confirmed; only the third row is DOP being wrong.
+
+**The TDOA column used to read 0.87 on the square, and that was a defect, not
+a result.** A DOP below TOA's says TDOA extracts more from the same beacons
+than TOA does, which differencing cannot do — it is a projection, and a
+projection throws information away. Two things produced it, and both are
+fixed: the generator drew an independent error for each range *difference*,
+deleting the reference beacon's error that all of them share (Eq. 4.42), and
+`compute_dop` was then called with `W = I`, which is the right weighting only
+for uncorrelated measurements. With `W = C^-1` the number is 1.07, and the
+identity underneath it is the one worth remembering:
+
+> **TDOA and TOA-with-an-unknown-clock carry the same information.** The
+> clock is exactly the common mode that differencing removes, so the two
+> position DOPs are equal to machine precision at every one of the 100 grid
+> points — 1.0665 on the square array, against 1.0219 for TOA with a *known*
+> clock. TDOA's advantage is not accuracy. It is that the transmitters need
+> no synchronised clock with the receiver, which is why it is what real
+> broadcast systems use.
 
 ## Equation Reference
 

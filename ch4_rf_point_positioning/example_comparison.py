@@ -385,20 +385,38 @@ def toa_positioning_test(
     return np.array(errors)
 
 
-def tdoa_positioning_test(anchors, true_positions, noise_std=0.0):
-    """Test TDOA positioning (inline mode)."""
+def tdoa_positioning_test(anchors, true_positions, noise_std=0.0, clock_bias_m=0.0):
+    """Test TDOA positioning (inline mode).
+
+    **The noise is drawn per anchor and then differenced, not per difference.**
+    A TDOA measurement is `(d_j + e_j) - (d_0 + e_0)`: every difference is
+    formed against the same reference anchor, so `e_0` is common mode and the
+    differences are correlated (Eq. 4.42, `build_tdoa_covariance`) --
+    `Var = 2 sigma^2`, `Cov = sigma^2`, `rho = 0.5`.
+
+    This used to add `np.random.randn(len(tdoa)) * noise_std` to the *true*
+    differences, which deletes the shared term and hands TDOA information it
+    cannot physically have. Differencing is a projection: it throws the
+    receiver clock away and cannot add anything. So TDOA below TOA at every
+    noise level, as this table used to print, was an artefact of the
+    simulation and not a result -- the honest outcome is that TDOA *ties*
+    TOA-with-an-estimated-clock, because they carry the same information.
+
+    The clock bias is injected here for the same reason it is injected into
+    the TOA pseudo-ranges: it is common to every anchor, so it cancels
+    exactly in the differences. That is now demonstrated rather than asserted
+    -- and it is what TDOA actually buys, since the transmitters need no
+    synchronised clock with the receiver.
+    """
     errors = []
 
     for true_pos in tqdm(true_positions, desc="  TDOA", leave=False, unit="pt"):
-        dist_ref = np.linalg.norm(true_pos - anchors[0])
-        tdoa = []
-        for i in range(1, len(anchors)):
-            dist_i = np.linalg.norm(true_pos - anchors[i])
-            tdoa.append(dist_i - dist_ref)
-        tdoa = np.array(tdoa)
-
+        ranges = np.array([np.linalg.norm(true_pos - anchor) for anchor in anchors])
+        ranges = ranges + clock_bias_m
         if noise_std > 0:
-            tdoa += np.random.randn(len(tdoa)) * noise_std
+            ranges = ranges + np.random.randn(len(ranges)) * noise_std
+
+        tdoa = ranges[1:] - ranges[0]
 
         try:
             positioner = TDOAPositioner(anchors, reference_idx=0)
@@ -601,7 +619,12 @@ def run_inline_comparison():
             )
         )
         results["TDOA"].append(
-            tdoa_positioning_test(anchors, true_positions, tdoa_noise)
+            tdoa_positioning_test(
+                anchors,
+                true_positions,
+                tdoa_noise,
+                clock_bias_m=clock_bias_m,
+            )
         )
         results["AOA"].append(
             aoa_positioning_test(anchors, true_positions, aoa_noise_rad)
@@ -687,12 +710,16 @@ def run_inline_comparison():
     print("  'AOA' passes the per-anchor sigma to the solver so it can")
     print("  down-weight the degraded anchor (W_a in Eq. 4.77); 'AOA unw'")
     print("  solves the identical bearings with uniform weights. The gain is")
-    print("  about 4x at 1-3 deg and tapers to nothing by 10 deg, which is the")
-    print("  honest shape of it: weighting recovers what a bad sensor costs you")
-    print("  only while the remaining sensors are still good. By level 5 the")
-    print("  degraded anchor is at 100 deg sigma -- near-uniform on the circle,")
-    print("  so there is little left to down-weight -- and the other three are")
-    print("  themselves at 10 deg.")
+    print("  largest where the other anchors are still good -- 3-5x at 1 deg")
+    print("  across five seeds -- and shrinks to 1.2-1.8x by 10 deg: weighting")
+    print("  recovers what a bad sensor costs you only while the rest are")
+    print("  worth trusting. By level 5 the degraded anchor is at 100 deg")
+    print("  sigma -- near-uniform on the circle, so there is little left to")
+    print("  down-weight -- and the other three are themselves at 10 deg.")
+    print("  The middle levels are noisy at 50 test points and should be read")
+    print("  as a trend, not a curve: this note used to say '4x at 1-3 deg,")
+    print("  tapering to nothing by 10 deg', which was one realisation. On")
+    print("  five seeds 10 deg gives 1.20-1.84x, and 3 deg spans 1.73-3.87x.")
     print()
     print("  A *scalar* sigma would change nothing at all. In angle space the")
     print("  weight matrix is diag(1/sigma^2), so a uniform sigma makes W a")
@@ -931,15 +958,28 @@ def plot_inline_comparison(noise_levels, results):
 
     methods = ["TOA", "TDOA", "AOA", "RSS"]
     colors = ["blue", "red", "green", "orange"]
+    # One dash pattern per method, used by every line panel below. TOA and
+    # TDOA now trace each other almost exactly -- they carry the same
+    # information once TOA estimates its clock, which is the point of this
+    # figure -- so with four solid lines only the last one drawn is visible
+    # and the panel reads as "TOA is missing". The success-rate panel already
+    # had this problem for the same reason and solved it this way.
+    dashes = ["-", "--", "-.", ":"]
 
     # 1. RMSE vs Noise
     ax1 = axes[0, 0]
-    for method, color in zip(methods, colors, strict=True):
+    for method, color, dash in zip(methods, colors, dashes, strict=True):
         rmse_values = [
             np.sqrt(np.mean(e**2)) if len(e) > 0 else np.nan for e in results[method]
         ]
         ax1.plot(
-            noise_levels, rmse_values, "o-", label=method, color=color, linewidth=2
+            noise_levels,
+            rmse_values,
+            dash,
+            marker="o",
+            label=method,
+            color=color,
+            linewidth=2,
         )
     ax1.set_xlabel("Measurement Noise (m)")
     ax1.set_ylabel("RMSE (m)")
@@ -950,12 +990,12 @@ def plot_inline_comparison(noise_levels, results):
     # 2. Error CDF
     ax2 = axes[0, 1]
     noise_idx = 2
-    for method, color in zip(methods, colors, strict=True):
+    for method, color, dash in zip(methods, colors, dashes, strict=True):
         errors = results[method][noise_idx]
         if len(errors) > 0:
             sorted_errors = np.sort(errors)
             cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-            ax2.plot(sorted_errors, cdf, label=method, color=color, linewidth=2)
+            ax2.plot(sorted_errors, cdf, dash, label=method, color=color, linewidth=2)
     ax2.set_xlabel("Position Error (m)")
     ax2.set_ylabel("CDF")
     ax2.set_title(f"Error CDF (Noise = {noise_levels[noise_idx]:.2f}m)")
@@ -985,7 +1025,6 @@ def plot_inline_comparison(noise_levels, results):
     # position.
     ax4 = axes[1, 1]
     total_points = 50
-    dashes = ["-", "--", "-.", ":"]
     for method, color, dash in zip(methods, colors, dashes, strict=True):
         rates = [len(e) / total_points * 100 for e in results[method]]
         ax4.plot(

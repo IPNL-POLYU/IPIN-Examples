@@ -118,6 +118,12 @@ def compute_geometry_matrix(
     elif measurement_type == "tdoa":
         # TDOA geometry: difference of LOS vectors (Eq. 4.38)
         # h_a^(i,j) = h_a^i - h_a^j (reference anchor j=0)
+        #
+        # Differencing the geometry also correlates the *noise*, and this
+        # function returns only the geometry half. A DOP computed from this
+        # H with W = I is too good by about 20%; weight it with
+        # `np.linalg.inv(build_tdoa_covariance(np.ones(N)))`, which is
+        # Eq. (4.42) and lives in `core.rf.positioning`.
         reference = anchors[0]
         dist_ref = np.linalg.norm(position - reference)
 
@@ -182,6 +188,14 @@ def compute_dop(
         weights: Optional weight matrix W, shape (N, N).
                  If None, identity is used (uniform weights).
                  For WLS with covariance Σ, use W = Σ^{-1}.
+                 **TDOA needs one.** Differences formed against a common
+                 reference anchor are correlated (ρ = 0.5, Eq. 4.42), so
+                 the identity is the wrong W and reports a DOP that is too
+                 good -- 0.8730 against 1.0665 on the shipped square
+                 array, which is enough to put TDOA ahead of TOA, where
+                 the information it carries cannot. Build Σ with
+                 ``build_tdoa_covariance`` (unit sigmas: DOP factors the
+                 noise magnitude out) and pass its inverse.
 
     Returns:
         Dictionary containing DOP values:

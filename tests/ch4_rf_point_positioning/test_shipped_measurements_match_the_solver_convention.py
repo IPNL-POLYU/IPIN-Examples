@@ -119,15 +119,32 @@ def _predicted_toa(beacons, positions, config):
     return ranges
 
 
-def _predicted_tdoa(beacons, positions):
+def _predicted_tdoa(beacons, positions, config):
     """d_j - d_ref for j = 1..K-1: what `TDOAPositioner` predicts, Eq. (4.34).
 
     Spelled with `tdoa_range_difference` rather than inline norms so that all
     three helpers here use the same forward models the generator does, and so
     that the argument order this file exists to pin is written down once, in
     the order it belongs: anchor first, reference second.
+
+    **An NLOS bias survives the differencing and so belongs here.** It used to
+    take no config at all, because the generator applied the bias only inside
+    its TOA loop -- the differences were built from *true* ranges and could
+    not carry it. They are now formed from the same noisy, biased ranges the
+    TOA file carries, so a +0.8 m bias on beacons 1 and 2 shows up as +0.8 m
+    on the two differences taken against them. This test failed at 8.06 sigma
+    on `ch4_rf_2d_nlos` the moment that landed, which is exactly the reading
+    an undeclared per-beacon bias should produce: the fix is to model the
+    bias the config *does* declare, never to widen the gate.
+
+    The bias is not subtracted from the reference term, and that is not an
+    omission: beacon 0 is line-of-sight in every shipped dataset, so `b_0` is
+    0. `_predicted_toa` owns the one place the bias is applied, and this
+    differences its output, so the two cannot disagree about which beacons
+    carry it.
     """
-    return np.array(
+    biased = _predicted_toa(beacons, positions, config)
+    geometric = np.array(
         [
             [
                 tdoa_range_difference(beacons[j], beacons[0], p)
@@ -136,6 +153,12 @@ def _predicted_tdoa(beacons, positions):
             for p in positions
         ]
     )
+    # Take the *bias* from the differenced ranges and the geometry from
+    # `tdoa_range_difference`, so the sign convention stays pinned to the
+    # function whose argument order this file exists to guard.
+    true_ranges = _predicted_toa(beacons, positions, {})
+    bias = (biased - true_ranges)[:, 1:] - (biased - true_ranges)[:, [0]]
+    return geometric + bias
 
 
 def _predicted_aoa(beacons, positions):
@@ -170,7 +193,7 @@ def test_tdoa_differences_carry_the_sign_the_positioner_predicts(dataset):
     """
     data = _load(dataset)
     sigma = data["config"]["measurements"]["tdoa_noise_std_m"]
-    predicted = _predicted_tdoa(data["beacons"], data["positions"])
+    predicted = _predicted_tdoa(data["beacons"], data["positions"], data["config"])
 
     as_shipped = _worst_column(data["tdoa"] - predicted)
     negated = _worst_column(data["tdoa"] + predicted)
@@ -294,10 +317,21 @@ def _bump_column(array, column, amount):
 
 
 def _sigma_for(config, arm):
-    """Declared noise for one arm, in the units that arm's residual is in."""
+    """Declared noise for one arm, in the units that arm's residual is in.
+
+    **The TDOA arm carries sqrt(2) times its declared sigma**, and the factor
+    is the whole subject of this dataset's last correction. `tdoa_noise_std_m`
+    is the per-*arrival-time* noise; a difference of two such measurements has
+    variance 2 sigma^2 (Eq. 4.42). Leaving it out would not make this file
+    fail -- 1.13 sigma still clears a 3.0 gate -- it would silently halve the
+    TDOA arm's sensitivity while the docstring above still claimed all three
+    arms sit at sqrt(2/pi) = 0.798. They do, with this factor.
+    """
     measurements = config["measurements"]
     if arm == "aoa":
         return np.deg2rad(measurements["aoa_noise_std_deg"])
+    if arm == "tdoa":
+        return np.sqrt(2.0) * measurements["tdoa_noise_std_m"]
     return measurements[f"{arm}_noise_std_m"]
 
 
@@ -307,7 +341,7 @@ def _residual(data, arm, observed):
         predicted = _predicted_toa(data["beacons"], data["positions"], data["config"])
         return _worst_column(observed - predicted)
     if arm == "tdoa":
-        predicted = _predicted_tdoa(data["beacons"], data["positions"])
+        predicted = _predicted_tdoa(data["beacons"], data["positions"], data["config"])
         return _worst_column(observed - predicted)
     predicted = _predicted_aoa(data["beacons"], data["positions"])
     return _worst_column(angle_diff(observed, predicted))
