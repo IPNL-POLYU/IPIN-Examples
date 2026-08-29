@@ -21,7 +21,8 @@
       1,
       2
     ],
-    "bias_m": 0.8
+    "bias_m": 0.8,
+    "bias_deg": 18.0
   },
   "dop": {
     "toa": {
@@ -34,10 +35,15 @@
       "min": 1.0009987240215807,
       "max": 1.1354519538145642
     },
-    "aoa": {
+    "aoa_sensitivity_m_per_rad": {
       "mean": 15.041446611915411,
       "min": 13.836623684400164,
       "max": 16.73654084730976
+    },
+    "aoa_dimensionless_ref_mean_range": {
+      "mean": 0.9985485173880747,
+      "min": 0.9392542656685485,
+      "max": 1.0865956633131586
     }
   },
   "performance": {
@@ -57,10 +63,10 @@
       "n_positions": 100
     },
     "aoa": {
-      "median_m": 0.39708020765533236,
-      "mean_solved_m": 0.45723327078430215,
-      "max_solved_m": 1.2962390565683743,
-      "failed_count": 0,
+      "median_m": 3.2529670324588498,
+      "mean_solved_m": 3.4948678087489813,
+      "max_solved_m": 6.904189614092197,
+      "failed_count": 10,
       "n_positions": 100
     }
   },

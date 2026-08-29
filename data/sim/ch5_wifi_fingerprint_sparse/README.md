@@ -86,7 +86,7 @@ Expected output:
 ```
 reference points: 108
 APs:              8
-RSS range:        -113.6 to -23.7 dBm
+RSS range:        -119.3 to -27.2 dBm
 grid spacing:     10.0 m
 RPs per floor:    [36, 36, 36]
 distinct (x, y):  36
@@ -105,7 +105,8 @@ for key, value in sparse_meta["path_loss_model"].items():
 | Parameter | Value | Effect |
 |---|---|---|
 | `grid_spacing` | 10.0 m | The only difference from the siblings. Sets the NN floor at 3.83 m |
-| `path_loss_model.shadow_fading_std_dBm` | 4.0 | Small relative to the RSS change between adjacent RPs at this spacing, so matching is easy |
+| `path_loss_model.shadow_fading_std_dBm` | 4.0 | Small relative to the RSS change between adjacent RPs at this spacing, so matching is easy. Correlated over 8 m, which is *below* this grid — the one variant that undersamples its own shadowing field |
+| `path_loss_model.fast_fading_std_dBm` | 1.5 | Per-sample. Negligible here: at 10 m spacing the grid, not the noise, is what limits you |
 | `path_loss_model.path_loss_exponent` | 2.5 | Indoor typical |
 | `path_loss_model.floor_attenuation_dB` | 15.0 | Makes floor classification easy from RSS |
 | `n_floors` | 3 | RPs stacked at identical `(x, y)`; floor comes from `floor_ids` |

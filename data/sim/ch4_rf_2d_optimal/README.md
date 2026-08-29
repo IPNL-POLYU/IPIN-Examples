@@ -10,7 +10,7 @@ arrangement for the same 20 × 20 m floor used by
 points, this geometry is indistinguishable from the square for TOA and slightly
 *worse* for TDOA — by 25%, not the 25 basis points the TOA column shows:
 
-| Preset | Mean GDOP (TOA) | Mean GDOP (TDOA) | Mean GDOP (AOA) |
+| Preset | Mean GDOP (TOA) | Mean GDOP (TDOA) | Mean AOA sensitivity (m/rad) |
 |---|---|---|---|
 | `ch4_rf_2d_square` | 1.022 | 1.067 | 15.041 |
 | **`ch4_rf_2d_optimal`** | **1.019** | **1.338** | **11.535** |
@@ -52,16 +52,26 @@ Against the square, whose beacons are at the corners, this arrangement moves
 every beacon closer to the floor's interior. For TOA that changes the geometry
 matrix very little. For AOA it helps a lot, and the mechanism is measurable:
 
-| | mean beacon range | mean AOA GDOP |
-|---|---|---|
-| `ch4_rf_2d_square` | 15.049 m | 15.041 |
-| `ch4_rf_2d_optimal` | 11.438 m | 11.535 |
+| | mean beacon range | mean AOA sensitivity | ratio (dimensionless AOA DOP) |
+|---|---|---|---|
+| `ch4_rf_2d_square` | 15.049 m | 15.041 m/rad | 0.999 |
+| `ch4_rf_2d_optimal` | 11.438 m | 11.535 m/rad | 1.011 |
 
-Those columns are almost the same number, which is not a coincidence: an
-angular error `dpsi` at range `r` displaces the fix by `r x dpsi`, so AOA dilution
-scales with range while TOA dilution does not. Per query point the correlation
-between mean beacon range and AOA GDOP is +0.87 on the square. **A circular
-layout wins for AOA because it is closer, not because it is rounder.**
+The first two columns are almost the same number, which is not a coincidence:
+an angular error `dpsi` at range `r` displaces the fix by `r x dpsi`, so the AOA
+quantity **scales with range while a TOA GDOP does not**. Per query point the
+correlation between mean beacon range and AOA sensitivity is +0.87 on the
+square. **A circular layout wins for AOA because it is closer, not because it
+is rounder.**
+
+That is also why this quantity is not a GDOP and is no longer called one. Its
+units are metres per radian — the AOA geometry rows are `[-dy/d^2, dx/d^2]`,
+in 1/m — so it is a sensitivity, and `config.json` records it as
+`dop.aoa_sensitivity_m_per_rad`. Dividing by the mean beacon range removes the
+lever arm and leaves the third column, `dop.aoa_dimensionless_ref_mean_range`,
+which is comparable to the TOA and TDOA GDOPs and shows these two layouts to be
+within 1% of each other and of unity. The apparent 23% AOA advantage in the
+middle column is entirely the shorter arm.
 
 ## Files and Data Structure
 
@@ -74,7 +84,7 @@ layout wins for AOA because it is closer, not because it is rounder.**
 | `aoa_angles.txt` | (100, 4) | Noisy azimuth to each beacon, radians |
 | `gdop_toa.txt` | (100,) | GDOP at each query point for TOA |
 | `gdop_tdoa.txt` | (100,) | GDOP for TDOA |
-| `gdop_aoa.txt` | (100,) | GDOP for AOA |
+| `gdop_aoa.txt` | (100,) | AOA sensitivity, metres per radian (not a dimensionless GDOP) |
 | `config.json` | — | Generation parameters and seed |
 
 The GDOP files are precomputed from the geometry alone — they contain no noise,

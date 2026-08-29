@@ -86,7 +86,7 @@ Expected output:
 ```
 reference points: 2028
 APs:              8
-RSS range:        -117.1 to -25.8 dBm
+RSS range:        -118.0 to -22.2 dBm
 grid spacing:     2.0 m
 floors:           [0, 1, 2]
 RPs per floor:    [676, 676, 676]
@@ -106,28 +106,46 @@ for key, value in dense_meta["path_loss_model"].items():
 | Parameter | Value | Effect |
 |---|---|---|
 | `grid_spacing` | 2.0 m | The only difference from the siblings. Sets the NN quantisation floor at ~0.8 m |
-| `path_loss_model.shadow_fading_std_dBm` | 4.0 | The dominant error source once the grid is this dense — see below |
+| `path_loss_model.shadow_fading_std_dBm` | 4.0 | A property of the *location*, correlated over 8 m, so a denser grid samples it better rather than fighting it — see below |
+| `path_loss_model.fast_fading_std_dBm` | 1.5 | Per-sample, uncorrelated, and therefore the term that actually stops density paying |
 | `path_loss_model.path_loss_exponent` | 2.5 | Indoor typical. Higher means RSS falls faster, which helps discrimination |
 | `path_loss_model.floor_attenuation_dB` | 15.0 | Large enough that floor classification is easy from RSS, and misleadingly so |
 | `n_floors` | 3 | RPs are stacked at identical `(x, y)`, so floor must come from `floor_ids` |
 
-**Shadow fading is why density stops paying**, and its cost is not a single
-number. Inverting the log-distance model, `dd = dRSS x d x ln(10) / (10 n)`, so
-4 dB of fading at `n = 2.5` is worth:
+**Density stops paying, but shadow fading is not the reason — and this README
+used to say it was.** The claim rested on shadowing being a per-measurement
+error term, which is what the generator used to make it. It is not: shadowing is
+a property of the location, correlated over 8 m here, and a *denser grid samples
+that field better*. What a denser survey cannot escape is the part of the
+variability that is uncorrelated between visits — fast fading, at 1.5 dB.
 
-| Distance from the AP | Equivalent range error |
-|---|---|
-| 2 m | 0.74 m |
-| 5 m | 1.84 m |
-| 10 m | 3.68 m |
-| 20 m | 7.37 m |
-| 35 m | 12.89 m |
+Measured with nearest-neighbour matching, 300 queries on floor 0:
 
-It scales *with range*. So a 2 m grid is finer than the fading uncertainty only
-close to an AP; out in the middle of a 50 × 50 m floor, 4 dB of fading swamps
-the grid entirely and the nearest *fingerprint* stops being the nearest *point*.
-Finding where that crossover falls, and whether the extra reference points earn
-anything beyond it, is the experiment this dataset is for.
+| Survey | Quantisation floor | Noiseless query | Realistic query |
+|---|---|---|---|
+| sparse, 10 m | 4.11 m | 4.99 m | 5.28 m |
+| baseline, 5 m | 2.04 m | 3.07 m | 3.97 m |
+| **dense, 2 m** | **0.82 m** | **2.51 m** | **3.42 m** |
+
+Read the first and last columns against each other. Going from 5 m to 2 m cuts
+the quantisation floor by a factor of 2.5 and the achieved error by 14%. The
+grid is no longer what limits you.
+
+**What does?** At 2 m the survey's own fast fading dominates: each reference
+point was visited once, so its stored fingerprint is off by 1.5 dB in a
+direction no denser grid can correct. The fix is a better survey rather than a
+finer one — `ch5_wifi_fingerprint_multisamples` visits each point ten times, and
+on the *baseline* 5 m grid that alone takes nearest neighbour from 3.07 m to
+2.57 m against a 2.04 m floor. Ten visits at 5 m beats one visit at 2 m, for a
+fifth of the reference points.
+
+The old range-equivalence argument is still worth knowing, because it is correct
+about *ranging* even though it was the wrong explanation here. Inverting the
+log-distance model, `dd = dRSS x d x ln(10) / (10 n)`, so 4 dB at `n = 2.5` is
+worth 0.74 m at 2 m from the AP, 3.68 m at 10 m, and 12.89 m at 35 m. That is
+what shadowing costs a method that converts RSS to a *distance*. Fingerprinting
+does not: it matches a pattern against a map that contains the same shadowing,
+which is precisely why the field has to be in the map and in the query alike.
 
 ## Parameter Effects and Learning Experiments
 

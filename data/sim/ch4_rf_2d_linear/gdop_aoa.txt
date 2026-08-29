@@ -1,4 +1,4 @@
-# GDOP for AOA
+# AOA position sensitivity, sqrt(trace (H^T H)^-1), metres per radian
 19.098663
 15.460987
 13.349344

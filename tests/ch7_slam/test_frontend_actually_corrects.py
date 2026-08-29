@@ -31,7 +31,14 @@ the 0.85 m odometry baseline it started from. The two populations separate
 cleanly -- correct closures top out at 0.054 m RMS, wrong ones start at
 0.150 m -- so 0.10 takes all 147 correct closures and no wrong ones.
 
-  odometry 0.8488 m -> front-end 0.5344 m (+37.0%) -> optimised 0.3045 m (+64.1%)
+Every one of those 147 closures used to be weighted identically, a hardcoded
+`diag([0.05, 0.05, 0.01])` in `core/slam/loop_closure_2d.py` regardless of how
+well any individual pair actually matched. Wiring in the existing
+`compute_icp_covariance` (already exported, already tested, never called)
+lets a tight match outweigh a marginal one; the backend RMSE below moved by
+half a percent, not the multi-x swing a dominating single closure would cause.
+
+  odometry 0.8488 m -> front-end 0.5344 m (+37.0%) -> optimised 0.3016 m (+64.5%)
 
 Author: Li-Ta Hsu
 References: Chapter 7, Section 7.3 (scan matching), Section 7.5 (pose graph)

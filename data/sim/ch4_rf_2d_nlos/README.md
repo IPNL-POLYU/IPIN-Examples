@@ -2,23 +2,32 @@
 
 ## Overview
 
-[`ch4_rf_2d_square`](../ch4_rf_2d_square/README.md) with a non-line-of-sight bias
-added to two of the four beacons. The geometry, the query points, the noise and
-the seed are all identical — **the only difference is +0.8 m of bias on beacons
-1 and 2.**
+[`ch4_rf_2d_square`](../ch4_rf_2d_square/README.md) with a non-line-of-sight
+path on two of the four beacons. The geometry, the query points, the noise and
+the seed are all identical — **the only difference is the NLOS corruption on
+beacons 1 and 2: +0.8 m of range and +18 deg of bearing.**
 
 That makes it the dataset for one specific lesson: geometry is not the problem
-here, and DOP cannot see the problem at all. GDOP is byte-identical to the
-baseline:
+here, and DOP cannot see the problem at all. Every GDOP file is byte-identical
+to the baseline:
 
 | | `ch4_rf_2d_square` | `ch4_rf_2d_nlos` |
 |---|---|---|
 | Mean GDOP (TOA) | 1.022 | 1.022 |
 | Mean GDOP (TDOA) | 1.067 | 1.067 |
+| Mean AOA sensitivity | 15.041 m/rad | 15.041 m/rad |
 | Beacon 0 range residual | +0.0026 ± 0.0851 m | +0.0026 ± 0.0851 m |
 | Beacon 1 range residual | +0.0089 ± 0.1060 m | **+0.8089 ± 0.1060 m** |
 | Beacon 2 range residual | +0.0062 ± 0.0965 m | **+0.8062 ± 0.0965 m** |
 | Beacon 3 range residual | +0.0019 ± 0.1066 m | +0.0019 ± 0.1066 m |
+| Beacon 1 bearing residual | 1.40 deg (noise) | **17.85 deg** |
+| Beacon 2 bearing residual | 1.58 deg (noise) | **17.70 deg** |
+
+`gdop_toa.txt`, `gdop_tdoa.txt` and `gdop_aoa.txt` are identical to the
+baseline's byte for byte, and that is the point rather than an oversight: DOP
+is a function of `beacons.txt` and `ground_truth_positions.txt`, which this
+dataset shares with its baseline exactly. **A bias is not noise, and no
+geometry factor can see one.**
 
 Look at the biased rows against their clean counterparts: the mean is up by
 exactly 0.8000 and the standard deviation is **identical to four decimal
@@ -35,9 +44,9 @@ Four beacons at the corners of a 20 × 20 m floor:
 
 ```
 (0,20) ---------- (20,20)
-   |      biased      |     beacons 1 and 2: +0.8 m
+   |      blocked     |     beacons 1 and 2: +0.8 m, +18 deg
    |                  |
-   |     clean        |     beacons 0 and 3: unbiased
+   |     clean        |     beacons 0 and 3: line of sight
 (0,0) ----------- (20,0)
 ```
 
@@ -68,6 +77,74 @@ degraded by NLOS about as much as TOA is (0.614 m), instead of being immune to
 a bias the dataset exists to demonstrate. A document that predicts your data is
 worth checking against it.
 
+### The bearing carries it too, and for a while it did not
+
+The same audit one layer along: the bias was applied as an additive *range*
+error only, so `aoa_angles.txt` was **byte-identical** between this dataset and
+`ch4_rf_2d_square` while `toa_ranges.txt` and `tdoa_diffs.txt` both differed.
+Experiment 3 therefore taught that AOA is immune to NLOS — in the dataset whose
+README calls NLOS the primary error source in indoor RF positioning.
+
+A blocked direct path does not lengthen a bearing. The signal arrives from the
+direction of the reflection, so the azimuth is wrong by an **angle**: beacons 1
+and 2 now carry +18 deg as well as +0.8 m.
+
+**Where 18 deg comes from.** Take the textbook single-bounce geometry — a wall
+parallel to the direct path at perpendicular offset `w`, putting the image
+beacon `2w` to the side. At true range `d`:
+
+```
+excess path    dd   = sqrt(d^2 + 4 w^2) - d
+bearing shift  dpsi = atan(2 w / d)
+```
+
+Invert the first for `w` at the declared `dd = 0.8 m` and read the second. The
+agent-to-blocked-beacon range on this grid has median 15.54 m, giving
+`w = 2.53 m` — an ordinary indoor wall offset — and `dpsi = 18.0 deg`. Across
+the full range spread (2.83 to 25.46 m) the relation gives 38.8 down to
+14.2 deg, so 18 deg is the median-range representative of a band.
+
+The number is large, and that is the physics rather than a mistake: **path
+length is second-order in the reflector offset while bearing is first-order.**
+A bounce that barely lengthens the path can throw the bearing badly, which is
+precisely why NLOS is harder for AOA than for TOA. A second, independent
+calibration agrees — the 0.8 m bias degrades TOA's median by 7.0x, and matching
+that factor on AOA needs 15.1 deg.
+
+**This is a phenomenological model, not a derived one, and the distinction
+matters.** A real image-source model fixes the range excess and the bearing
+offset *together* from the reflector's position. This dataset has no walls in
+it — only beacons and an area size — and the range bias it has always shipped
+is a *constant* 0.8 m, which no fixed reflector produces, since a fixed wall
+gives an excess that varies with where the agent stands. So the angular term
+mirrors the range term exactly: one constant per blocked beacon, which is what
+keeps the pair usable as the controlled experiment described above. Only the
+*magnitude* is derived. `docs/equation_index.yml` maps no NLOS equation at all,
+for range or for bearing, so nothing in the book is being contradicted here —
+but nothing in the book prescribes this either, and that is worth knowing
+before quoting it.
+
+What it costs, from `config.json`:
+
+| | before | after |
+|---|---|---|
+| AOA median error | 0.397 m | **3.253 m** |
+| AOA mean (solved) | 0.457 m | 3.495 m |
+| AOA failures | 0 / 100 | **10 / 100** |
+
+The failures are reported rather than hidden. An error averaged over only the
+solves that survived would say 3.495 m and omit that a tenth of the grid no
+longer converges at all — with two of four bearings 18 deg out, the biased pair
+and the clean pair intersect in different places and least squares has no
+consistent fix to find. That is the honest picture of unmitigated NLOS on
+bearings, and it is the argument for the gating in Section 8.3.
+
+Note what did **not** move: `toa_ranges.txt`, `tdoa_diffs.txt` and all three
+`gdop_*.txt` files are byte-identical across this change, as are the TOA and
+TDOA rows of `performance`. The angular term is applied after the AOA noise
+draw and consumes no random numbers, so the three datasets with
+`nlos.enabled = false` are untouched.
+
 ## Files and Data Structure
 
 | File | Shape | Contents |
@@ -79,7 +156,7 @@ worth checking against it.
 | `aoa_angles.txt` | (100, 4) | Noisy azimuth to each beacon, radians |
 | `gdop_toa.txt` | (100,) | GDOP for TOA — identical to the baseline |
 | `gdop_tdoa.txt` | (100,) | GDOP for TDOA |
-| `gdop_aoa.txt` | (100,) | GDOP for AOA |
+| `gdop_aoa.txt` | (100,) | AOA sensitivity, metres per radian (not a dimensionless GDOP) |
 | `config.json` | — | Generation parameters, including which beacons are biased |
 
 ## Loading Example

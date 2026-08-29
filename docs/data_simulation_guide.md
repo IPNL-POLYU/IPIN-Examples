@@ -145,6 +145,13 @@ Where:
 - Signal travels longer path (reflects/diffracts)
 - Measured range > true range (always positive bias)
 - Bias magnitude: 0-several meters depending on environment
+- **A bearing is corrupted too, and by an angle rather than a length.** The
+  signal arrives from the direction of the reflection, so an AOA azimuth to a
+  blocked beacon is wrong by `dpsi`, not by `dd`. Chapter 4's generator models
+  this with `--nlos-bias-deg` (its `nlos` preset uses 18 deg alongside 0.8 m);
+  see `data/sim/ch4_rf_2d_nlos/README.md` for where that magnitude comes from
+  and why the model is phenomenological. The Chapter 8 fusion generators
+  below are range-only, because their measurement is a UWB range.
 
 **Simulation Parameters**:
 - `nlos_anchors`: list of affected beacon/anchor indices

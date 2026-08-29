@@ -167,6 +167,7 @@ def generate_measurements(
     aoa_noise_deg: float = 2.0,
     nlos_beacons: Optional[List[int]] = None,
     nlos_bias: float = 0.5,
+    nlos_bias_deg: float = 0.0,
     seed: int = 42,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
@@ -182,7 +183,10 @@ def generate_measurements(
             at rho = 0.5 through the shared reference beacon (Eq. 4.42).
         aoa_noise_deg: AOA angle noise std dev (degrees).
         nlos_beacons: List of beacon indices with NLOS bias.
-        nlos_bias: NLOS positive bias (m).
+        nlos_bias: NLOS positive *range* bias (m).
+        nlos_bias_deg: NLOS *bearing* bias (degrees) on the same beacons. See
+            the block comment in the AOA loop below for where its size comes
+            from and why the model is phenomenological.
         seed: Random seed.
 
     Returns:
@@ -224,6 +228,11 @@ def generate_measurements(
         # below is formed from the same numbers.
         range_errors = np.zeros(N_beacons)
         biases = np.zeros(N_beacons)
+        # The same NLOS event seen by a bearing rather than by a clock. Set
+        # here, beside the range bias, so that "which beacons are blocked" is
+        # written down once and the two corruptions cannot name different
+        # beacons.
+        angle_biases_deg = np.zeros(N_beacons)
 
         # TOA ranges
         for j, beacon in enumerate(beacons):
@@ -231,7 +240,9 @@ def generate_measurements(
             range_errors[j] = rng.normal(0, toa_noise)
 
             # Add NLOS bias if applicable
-            biases[j] = nlos_bias if (nlos_beacons and j in nlos_beacons) else 0.0
+            blocked = bool(nlos_beacons) and j in nlos_beacons
+            biases[j] = nlos_bias if blocked else 0.0
+            angle_biases_deg[j] = nlos_bias_deg if blocked else 0.0
 
             toa_ranges[i, j] = true_range + range_errors[j] + biases[j]
 
@@ -279,11 +290,73 @@ def generate_measurements(
         # TDOA. Delete this line and only the AOA files move.
         rng.normal(0, tdoa_noise, size=N_beacons - 1)
 
-        # AOA angles
+        # AOA angles.
+        #
+        # NLOS reaches the bearing too, and until recently it did not: the
+        # bias was applied only as an additive *range* error, so
+        # `aoa_angles.txt` was byte-identical between `ch4_rf_2d_square` and
+        # `ch4_rf_2d_nlos` while `toa_ranges.txt` and `tdoa_diffs.txt` both
+        # differed. Experiment 3 therefore taught that AOA is immune to NLOS,
+        # which is false and is the opposite of the point the dataset exists
+        # to make. A blocked direct path does not lengthen a bearing; the
+        # signal arrives from the direction of the reflection, so the azimuth
+        # is wrong by an *angle*.
+        #
+        # (The three `gdop_*.txt` files stay identical across that pair, and
+        # that is correct rather than a second instance of this bug: DOP is a
+        # function of the beacon geometry and the query point, both of which
+        # this dataset shares with its baseline byte for byte. "DOP cannot see
+        # a bias" is the lesson the NLOS README is built on.)
+        #
+        # **This is a phenomenological model, not a derived one**, and the
+        # reason is worth stating rather than hiding. A real image-source
+        # model determines the range excess and the bearing offset *together*
+        # from the reflector's position -- but this dataset has no walls, only
+        # beacons and an area size, and the range bias it already ships is a
+        # *constant* 0.8 m, which no fixed reflector produces (a fixed wall
+        # gives an excess that varies with where the agent stands). So the
+        # angular term mirrors the range term exactly: one constant per
+        # blocked beacon, which keeps the pair usable as the controlled
+        # experiment its README describes.
+        #
+        # **The magnitude is derived even though the model is not.** Take the
+        # textbook single-bounce geometry: a wall parallel to the direct path
+        # at perpendicular offset w, so the image beacon sits 2w to the side.
+        # At true range d,
+        #
+        #     excess path   dd    = sqrt(d^2 + 4w^2) - d
+        #     bearing shift dpsi  = atan(2w / d)
+        #
+        # Invert the first for w at the declared dd = 0.8 m and read the
+        # second. The agent-to-blocked-beacon range on this grid has median
+        # 15.54 m, giving w = 2.53 m and **dpsi = 18.0 deg**, which is what
+        # the `nlos` preset sets. Across the full range spread (2.83 to
+        # 25.46 m) the relation gives 38.8 down to 14.2 deg, so 18 deg is the
+        # median-range representative of a band, not a sharp value.
+        #
+        # The number is large, and that is the physics rather than a mistake:
+        # **path length is second-order in the reflector offset while bearing
+        # is first-order.** A bounce that barely lengthens the path can throw
+        # the bearing badly, which is exactly why NLOS is harder for AOA than
+        # for TOA. A second, independent calibration agrees: the 0.8 m bias
+        # degrades the TOA median by 7.0x (0.088 -> 0.614 m), and matching
+        # that factor on AOA (0.397 -> 2.77 m) needs 15.1 deg. Two arguments,
+        # one physical and one pedagogical, landing within 20% of each other.
+        #
+        # Measured effect on `ch4_rf_2d_nlos`: AOA median error 0.3971 m ->
+        # 3.2530 m, with 10 of 100 fixes no longer converging. Both are
+        # reported rather than hidden -- `solve_batch` counts the failures and
+        # `config.json` records them, because an error averaged over only the
+        # solves that survived is the defect CLAUDE.md names.
+        #
+        # Consumes no random numbers, which is what keeps the three
+        # non-NLOS datasets byte-identical: `nlos_bias_deg` is only ever
+        # nonzero on beacons the caller named, and adding a constant after
+        # the draw cannot move the stream.
         for j, beacon in enumerate(beacons):
             true_angle = aoa_azimuth(beacon, pos)
             noise_rad = np.deg2rad(rng.normal(0, aoa_noise_deg))
-            aoa_angles[i, j] = true_angle + noise_rad
+            aoa_angles[i, j] = true_angle + noise_rad + np.deg2rad(angle_biases_deg[j])
 
     return toa_ranges, tdoa_diffs, aoa_angles
 
@@ -415,10 +488,14 @@ def save_dataset(
     aoa_angles: np.ndarray,
     gdop_toa: np.ndarray,
     gdop_tdoa: np.ndarray,
-    gdop_aoa: np.ndarray,
+    aoa_sensitivity: np.ndarray,
     config: Dict,
 ) -> None:
-    """Save dataset to disk."""
+    """Save dataset to disk.
+
+    `aoa_sensitivity` is in metres per radian, not a dimensionless DOP; it is
+    written to `gdop_aoa.txt` under the name that file has always had.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     # Save beacon positions
@@ -470,11 +547,17 @@ def save_dataset(
         fmt="%.6f",
         header="GDOP for TDOA",
     )
+    # The values are unchanged; only the header is. It used to read "GDOP for
+    # AOA", and this quantity is not a GDOP -- see `aoa_sensitivity` in
+    # `generate_dataset` and the AOA branch of `core.rf.compute_geometry_matrix`.
+    # The filename stays `gdop_aoa.txt` because it is cited by the dataset
+    # READMEs and the file-structure guard; the units now travel with the
+    # numbers for anyone who opens it.
     np.savetxt(
         output_dir / "gdop_aoa.txt",
-        gdop_aoa,
+        aoa_sensitivity,
         fmt="%.6f",
-        header="GDOP for AOA",
+        header="AOA position sensitivity, sqrt(trace (H^T H)^-1), metres per radian",
     )
 
     # Save config
@@ -499,6 +582,7 @@ def generate_dataset(
     aoa_noise_deg: float = 2.0,
     add_nlos: bool = False,
     nlos_bias: float = 0.5,
+    nlos_bias_deg: float = 0.0,
     seed: int = 42,
 ) -> None:
     """
@@ -516,7 +600,9 @@ def generate_dataset(
             `generate_measurements`.
         aoa_noise_deg: AOA noise (degrees).
         add_nlos: Add NLOS bias.
-        nlos_bias: NLOS bias magnitude (m).
+        nlos_bias: NLOS range bias magnitude (m).
+        nlos_bias_deg: NLOS bearing bias magnitude (degrees), on the same
+            beacons. Zero leaves `aoa_angles.txt` untouched.
         seed: Random seed.
     """
     # Apply preset if specified
@@ -552,6 +638,12 @@ def generate_dataset(
         aoa_noise_deg = 2.0
         add_nlos = True
         nlos_bias = 0.8
+        # 18.0 deg is the bearing offset that accompanies 0.8 m of excess path
+        # in a single-bounce image-source geometry at this grid's median
+        # agent-to-beacon range of 15.54 m. Derived in the AOA block of
+        # `generate_measurements`, which also records the two independent
+        # calibrations that agree on it.
+        nlos_bias_deg = 18.0
         output_dir = output_dir or "data/sim/ch4_rf_2d_nlos"
 
     # No preset and no --output: the module's own dataset.
@@ -585,17 +677,22 @@ def generate_dataset(
     print(f"  NLOS: {'YES' if add_nlos else 'NO'}")
     if add_nlos:
         print(f"  NLOS bias: {nlos_bias:.2f} m on beacons {nlos_beacons}")
+        print(f"  NLOS bearing bias: {nlos_bias_deg:.1f} deg on the same beacons")
 
     start = time.time()
+    # Keyword arguments from `nlos_beacons` on, because `nlos_bias_deg` was
+    # inserted ahead of `seed`: positionally, the seed would have slid into
+    # the bearing bias and silently regenerated everything from a new stream.
     toa_ranges, tdoa_diffs, aoa_angles = generate_measurements(
         beacons,
         positions,
         toa_noise,
         tdoa_noise,
         aoa_noise_deg,
-        nlos_beacons,
-        nlos_bias,
-        seed,
+        nlos_beacons=nlos_beacons,
+        nlos_bias=nlos_bias,
+        nlos_bias_deg=nlos_bias_deg,
+        seed=seed,
     )
     elapsed = time.time() - start
     print(f"  Generation time: {elapsed:.3f} s")
@@ -605,7 +702,32 @@ def generate_dataset(
     start = time.time()
     gdop_toa = compute_dop_metrics(beacons, positions, "toa")
     gdop_tdoa = compute_dop_metrics(beacons, positions, "tdoa")
-    gdop_aoa = compute_dop_metrics(beacons, positions, "aoa")
+    # Not a GDOP. The AOA geometry rows are [-dy/d^2, dx/d^2], units 1/m, so
+    # Q = (H^T H)^-1 is in m^2 and sqrt(trace Q) is **metres per radian** -- a
+    # sensitivity, not a dilution factor. The number is correct and its name
+    # was not: `config.json` used to list it under `dop.aoa` beside a
+    # dimensionless `dop.toa`, inviting "this array is 15x worse for AOA",
+    # which compares m/rad against a pure ratio and means nothing. It is
+    # `aoa_sensitivity_m_per_rad` now, and the units are in the key.
+    aoa_sensitivity = compute_dop_metrics(beacons, positions, "aoa")
+
+    # The dimensionless companion, reported in `config.json` only -- the
+    # shipped `gdop_aoa.txt` keeps carrying the sensitivity, so no committed
+    # measurement byte moves for the sake of a naming fix.
+    #
+    # Each AOA row is (1/d) times a unit vector perpendicular to the line of
+    # sight, so for beacons all at range d the sensitivity is exactly d times
+    # a pure geometry factor. Dividing by the mean range at each position
+    # recovers that factor, and it *is* comparable to the TOA and TDOA GDOPs
+    # -- on the square array it lands near 1.07 against TOA's 1.02, which says
+    # the corner layout is about as good for bearings as for ranges once the
+    # lever arm is accounted for. The reference distance has to be stated for
+    # the number to mean anything; here it is the per-position mean beacon
+    # range.
+    mean_range = np.linalg.norm(
+        positions[:, None, :] - beacons[None, :, :], axis=2
+    ).mean(axis=1)
+    aoa_dop_dimensionless = aoa_sensitivity / mean_range
     elapsed = time.time() - start
 
     print(f"  Computation time: {elapsed:.3f} s")
@@ -616,7 +738,14 @@ def generate_dataset(
         f"  TDOA GDOP: mean={gdop_tdoa.mean():.2f}, min={gdop_tdoa.min():.2f}, max={gdop_tdoa.max():.2f}"
     )
     print(
-        f"  AOA GDOP: mean={gdop_aoa.mean():.2f}, min={gdop_aoa.min():.2f}, max={gdop_aoa.max():.2f}"
+        f"  AOA sensitivity: mean={aoa_sensitivity.mean():.2f}, "
+        f"min={aoa_sensitivity.min():.2f}, max={aoa_sensitivity.max():.2f} m/rad"
+    )
+    print(
+        f"  AOA GDOP (sensitivity / mean range): "
+        f"mean={aoa_dop_dimensionless.mean():.2f}, "
+        f"min={aoa_dop_dimensionless.min():.2f}, "
+        f"max={aoa_dop_dimensionless.max():.2f}"
     )
 
     # Run positioning
@@ -689,6 +818,12 @@ def generate_dataset(
             "enabled": add_nlos,
             "beacon_indices": nlos_beacons if add_nlos else [],
             "bias_m": nlos_bias if add_nlos else 0.0,
+            # The bearing half of the same NLOS event. Declared separately
+            # from `bias_m` because it is a different physical quantity with
+            # different units, and because
+            # `tests/ch4_rf_point_positioning/test_shipped_measurements_match_the_solver_convention.py`
+            # reads both keys to predict the shipped files.
+            "bias_deg": nlos_bias_deg if add_nlos else 0.0,
         },
         "dop": {
             "toa": {
@@ -701,10 +836,25 @@ def generate_dataset(
                 "min": float(gdop_tdoa.min()),
                 "max": float(gdop_tdoa.max()),
             },
-            "aoa": {
-                "mean": float(gdop_aoa.mean()),
-                "min": float(gdop_aoa.min()),
-                "max": float(gdop_aoa.max()),
+            # NOT `aoa`, and not dimensionless. The AOA geometry rows carry
+            # units of 1/m, so this is metres of position error per radian of
+            # bearing error. Listing it as `aoa` beside a dimensionless `toa`
+            # invited "15x worse for AOA", which compares two different
+            # quantities. 15.04 m/rad x 2 deg = 0.525 m is the statement it
+            # actually supports.
+            "aoa_sensitivity_m_per_rad": {
+                "mean": float(aoa_sensitivity.mean()),
+                "min": float(aoa_sensitivity.min()),
+                "max": float(aoa_sensitivity.max()),
+            },
+            # The dimensionless form, comparable to `toa` and `tdoa` above.
+            # Sensitivity divided by the mean beacon range at each position;
+            # the reference distance is named in the key's own description
+            # because a ratio with an unstated denominator is not a fix.
+            "aoa_dimensionless_ref_mean_range": {
+                "mean": float(aoa_dop_dimensionless.mean()),
+                "min": float(aoa_dop_dimensionless.min()),
+                "max": float(aoa_dop_dimensionless.max()),
             },
         },
         "performance": {
@@ -728,7 +878,7 @@ def generate_dataset(
         aoa_angles,
         gdop_toa,
         gdop_tdoa,
-        gdop_aoa,
+        aoa_sensitivity,
         config,
     )
 
@@ -855,7 +1005,16 @@ Book Reference: Chapter 4, Sections 4.1-4.5
         "--nlos-bias",
         type=float,
         default=0.5,
-        help="NLOS bias in meters (default: 0.5)",
+        help="NLOS range bias in meters (default: 0.5)",
+    )
+    nlos_group.add_argument(
+        "--nlos-bias-deg",
+        type=float,
+        default=0.0,
+        help=(
+            "NLOS bearing bias in degrees on the same beacons (default: 0.0, "
+            "which leaves AOA untouched; the 'nlos' preset uses 18.0)"
+        ),
     )
 
     # Other
@@ -878,6 +1037,7 @@ Book Reference: Chapter 4, Sections 4.1-4.5
         aoa_noise_deg=args.aoa_noise,
         add_nlos=args.add_nlos,
         nlos_bias=args.nlos_bias,
+        nlos_bias_deg=args.nlos_bias_deg,
         seed=args.seed,
     )
 

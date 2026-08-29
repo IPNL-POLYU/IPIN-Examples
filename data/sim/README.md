@@ -103,6 +103,7 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 | `ch5_wifi_fingerprint_grid/` | `ch5_fingerprinting/example_*.py` | CH5 |
 | `ch5_wifi_fingerprint_dense/` | `ch5_fingerprinting/example_*.py` | CH5 |
 | `ch5_wifi_fingerprint_sparse/` | `ch5_fingerprinting/example_*.py` | CH5 |
+| `ch5_wifi_fingerprint_multisamples/` | `ch5_fingerprinting/example_comparison.py` | CH5 |
 | `ch6_pdr_corridor_walk/` | `ch6_dead_reckoning/example_pdr.py` | CH6 |
 | `ch6_strapdown_basic/` | *(manual loading)* | CH6 |
 | `ch6_wheel_odom_square/` | *(manual loading)* | CH6 |
@@ -173,12 +174,12 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 
 ### Chapter 4: RF Point Positioning
 
-| Dataset | Geometry | GDOP TOA | GDOP TDOA | GDOP AOA | Key Learning | Documentation |
+| Dataset | Geometry | GDOP TOA | GDOP TDOA | AOA sens. (m/rad) | Key Learning | Documentation |
 |---------|----------|----------|-----------|----------|--------------|---------------|
-| `ch4_rf_2d_square/` | Square, 4 corners | 1.022 | 0.873 | 15.041 | Good geometry fundamentals | [README](ch4_rf_2d_square/README.md) |
-| `ch4_rf_2d_optimal/` | Circle, radius 10 m | 1.019 | 1.089 | 11.535 | **Barely differs from the square for TOA, and is worse for TDOA** | [README](ch4_rf_2d_optimal/README.md) |
-| `ch4_rf_2d_linear/` | Collinear array | 1.426 | 10.355 | 9.253 | **TDOA degrades 12x; TOA barely moves** | [README](ch4_rf_2d_linear/README.md) |
-| `ch4_rf_2d_nlos/` | Square + 0.8 m bias on 2 of 4 | 1.022 | 0.873 | 15.041 | GDOP is blind to bias | [README](ch4_rf_2d_nlos/README.md) |
+| `ch4_rf_2d_square/` | Square, 4 corners | 1.022 | 1.067 | 15.041 | Good geometry fundamentals | [README](ch4_rf_2d_square/README.md) |
+| `ch4_rf_2d_optimal/` | Circle, radius 10 m | 1.019 | 1.338 | 11.535 | **Barely differs from the square for TOA, and is worse for TDOA** | [README](ch4_rf_2d_optimal/README.md) |
+| `ch4_rf_2d_linear/` | Collinear array | 1.426 | 11.948 | 9.253 | **TDOA degrades 12x; TOA barely moves** | [README](ch4_rf_2d_linear/README.md) |
+| `ch4_rf_2d_nlos/` | Square + 0.8 m / 18 deg NLOS on 2 of 4 | 1.022 | 1.067 | 15.041 | GDOP is blind to bias | [README](ch4_rf_2d_nlos/README.md) |
 
 Mean over the 100 shipped query points, measured from the `gdop_*.txt` files.
 A single "mean GDOP" column used to sit here, which cannot be right: the three
@@ -203,6 +204,7 @@ TDOA.
 | `ch5_wifi_fingerprint_grid/` | Baseline Wi-Fi fingerprinting | 5m | 121 (11×11) | NN, k-NN, MAP, Posterior Mean | [README](ch5_wifi_fingerprint_grid/README.md) |
 | `ch5_wifi_fingerprint_dense/` | High-accuracy variant | 2m | 676 (26×26) | Dense grids = better accuracy | [README](ch5_wifi_fingerprint_dense/README.md) |
 | `ch5_wifi_fingerprint_sparse/` | Quick deployment variant | 10m | 36 (6×6) | Accuracy vs. effort trade-off | [README](ch5_wifi_fingerprint_sparse/README.md) |
+| `ch5_wifi_fingerprint_multisamples/` | Repeat-survey variant, 10 visits per RP | 5m | 121 (11×11) | Eq. (5.6) with an estimated sigma; MAP stops being 1-NN | [README](ch5_wifi_fingerprint_multisamples/README.md) |
 
 **Key Equations**:
 - Eq. (5.1): Nearest-Neighbor (NN)

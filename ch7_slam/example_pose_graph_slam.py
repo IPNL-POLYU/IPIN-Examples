@@ -276,9 +276,12 @@ def run_with_dataset(data_dir: str, use_loop_oracle: bool = False) -> None:
     # Odometry information (moderate uncertainty)
     odom_info = np.linalg.inv(np.diag([0.1, 0.1, 0.02]))
 
-    # Loop closure information (use first one as representative, or average)
+    # Loop closure information: one matrix per closure (create_pose_graph
+    # pairs loop_info_matrices[k] with loop_closures[k]), so a confident
+    # scan match outweighs a marginal one instead of every closure being
+    # judged by whichever one happened to be first.
     if len(loop_info_matrices) > 0:
-        loop_info = loop_info_matrices[0]
+        loop_info = loop_info_matrices
     else:
         loop_info = np.linalg.inv(np.diag([0.05, 0.05, 0.01]))
 
@@ -938,10 +941,15 @@ def detect_loop_closures(
         loop_closures = []
         for lc in loop_closures_obj:
             loop_closures.append((lc.j, lc.i, lc.rel_pose, lc.covariance))
+            # sigma_xy: per-closure covariance now reflects match quality
+            # (core/slam/loop_closure_2d.py) rather than a constant, so it is
+            # worth printing -- previously every closure had the same value.
+            sigma_xy = float(np.sqrt(lc.covariance[0, 0]))
             print(
                 f"  Verified: {lc.j} <-> {lc.i}, "
                 f"desc_sim={lc.descriptor_similarity:.3f}, "
-                f"icp_residual={lc.icp_residual:.4f}, iters={lc.icp_iterations}"
+                f"icp_residual={lc.icp_residual:.4f}, iters={lc.icp_iterations}, "
+                f"sigma_xy={sigma_xy:.6f}"
             )
 
         return loop_closures
@@ -1944,13 +1952,13 @@ def run_with_inline_data(
     loop_info_matrices = []
     for i, j, rel_pose, cov in loop_closures:
         loop_measurements.append((i, j, rel_pose))
+        # Per-edge information from the verified ICP covariance, so a
+        # confident scan match outweighs a marginal one in the backend
+        # instead of every closure being weighted like an odometry step.
         loop_info_matrices.append(np.linalg.inv(cov))
 
     # Odometry information (moderate uncertainty)
     odom_info = np.linalg.inv(np.diag([0.1, 0.1, 0.02]))
-
-    # Loop closure information - balanced weight with odometry
-    loop_info = np.linalg.inv(np.diag([0.1, 0.1, 0.02]))  # Same weight as odometry
 
     # Create pose graph with front-end estimates as initial values
     # CRITICAL: Set prior to actual first pose (trajectory may not start at origin)
@@ -1961,7 +1969,7 @@ def run_with_inline_data(
         loop_closures=loop_measurements if loop_measurements else None,
         prior_pose=first_pose,  # Use actual starting pose as prior
         odometry_information=odom_info,
-        loop_information=loop_info,
+        loop_information=loop_info_matrices if loop_info_matrices else None,
     )
 
     print(
