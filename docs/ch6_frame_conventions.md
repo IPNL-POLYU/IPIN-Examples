@@ -92,14 +92,15 @@ from core.coords.rotations import euler_to_quat
 q_init = euler_to_quat(pitch, roll, yaw)
 ```
 
-Read through `core.sensors.strapdown.quat_to_rotmat`, `q_init` then equals the
+Passed through `core.sensors.strapdown.quat_to_rotmat`, `q_init` gives the
 standard aerospace active matrix `Rz(yaw) @ Ry(pitch) @ Rx(roll)` built
-independently -- verified numerically to within 6.7e-16 (machine precision)
-across four Euler triples covering both signs and a near-90-degree angle.
-Skipping the swap (passing `(roll, pitch, yaw)` unswapped into `euler_to_quat`)
-mismatches by up to 1.79 in a matrix element on three of the four triples; it
-matches by coincidence only where `roll == pitch`, which is why checking a
-single symmetric case would have hidden this.
+independently -- verified numerically to within 5.0e-16 (machine precision)
+across 500 random Euler triples (roll, pitch, yaw each drawn uniformly from
+-1.2 to 1.2 rad). Skipping the swap (passing `(roll, pitch, yaw)` unswapped
+into `euler_to_quat`) mismatches by up to 1.93 in a matrix element over the
+same 500 triples; it matches by coincidence only where `roll == pitch`
+(swapping two equal values changes nothing), which is why checking a single
+symmetric case would have hidden this.
 
 ### Quaternion Convention
 
