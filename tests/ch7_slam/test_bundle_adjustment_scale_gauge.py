@@ -213,9 +213,7 @@ class TestASinglePosePriorLeavesScaleFree(unittest.TestCase):
         base_vars = {k: v.copy() for k, v in graph.variables.items()}
 
         scaled = _scale_about_camera0(base_vars, 1.5)
-        landmark_positions = np.array(
-            [scaled[N_POSES + i] for i in range(N_LANDMARKS)]
-        )
+        landmark_positions = np.array([scaled[N_POSES + i] for i in range(N_LANDMARKS)])
         landmark_rmse = np.sqrt(
             np.mean(np.sum((landmark_positions - landmarks_true) ** 2, axis=1))
         )
@@ -249,9 +247,7 @@ class TestASecondPosePriorFixesTheScaleGauge(unittest.TestCase):
         for s in (1.1, 1.5, 2.0):
             graph.variables = _scale_about_camera0(base_vars, s)
             cost = graph.compute_error()
-            self.assertGreater(
-                cost, previous, f"cost did not rise moving out to s={s}"
-            )
+            self.assertGreater(cost, previous, f"cost did not rise moving out to s={s}")
             previous = cost
 
         # base_cost here is ~4.94e6 (dominated by the noisy initial guess's

@@ -941,10 +941,15 @@ def detect_loop_closures(
         loop_closures = []
         for lc in loop_closures_obj:
             loop_closures.append((lc.j, lc.i, lc.rel_pose, lc.covariance))
+            # sigma_xy: per-closure covariance now reflects match quality
+            # (core/slam/loop_closure_2d.py) rather than a constant, so it is
+            # worth printing -- previously every closure had the same value.
+            sigma_xy = float(np.sqrt(lc.covariance[0, 0]))
             print(
                 f"  Verified: {lc.j} <-> {lc.i}, "
                 f"desc_sim={lc.descriptor_similarity:.3f}, "
-                f"icp_residual={lc.icp_residual:.4f}, iters={lc.icp_iterations}"
+                f"icp_residual={lc.icp_residual:.4f}, iters={lc.icp_iterations}, "
+                f"sigma_xy={sigma_xy:.6f}"
             )
 
         return loop_closures

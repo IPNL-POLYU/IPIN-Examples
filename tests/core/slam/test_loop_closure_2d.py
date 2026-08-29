@@ -289,6 +289,74 @@ class TestLoopClosureVerification(unittest.TestCase):
         self.assertIsInstance(loop_closures, list)
 
 
+class TestLoopClosureCovarianceReflectsMatchQuality(unittest.TestCase):
+    """The audited defect: every accepted closure got the same covariance
+    regardless of how well it actually matched.
+    core/slam/loop_closure_2d.py used to return np.diag([0.05, 0.05, 0.01])
+    unconditionally from _verify_candidate, so a scan pair that aligned
+    almost perfectly and one that barely scraped under max_icp_residual were
+    weighted identically in the backend. See CLAUDE.md's account of this
+    audit for the measured before/after on the shipped ch7 example (147
+    closures, all bit-identical sigma before; ICP residual varying 0.024 to
+    0.054 m the whole time).
+    """
+
+    def _covariance_for(self, noise_std: float) -> np.ndarray:
+        """Covariance _verify_candidate returns for two noisy scans of the
+        same layout -- a clean stand-in for "two revisits of one place,"
+        without needing the full detect() candidate-selection pipeline.
+        """
+        rng = np.random.default_rng(0)
+        base = np.array(
+            [[x, y] for x in np.linspace(-2.0, 2.0, 20) for y in (-1.0, 1.0)]
+        )
+        scan_i = base + rng.normal(0, noise_std, base.shape)
+        scan_j = base + rng.normal(0, noise_std, base.shape)
+
+        detector = LoopClosureDetector2D(max_icp_residual=1.0)
+        verified = detector._verify_candidate(scan_i, scan_j, None, None)
+        self.assertIsNotNone(
+            verified, "fixture should produce a converged, accepted closure"
+        )
+        _rel_pose, covariance, _residual, _iters = verified
+        return covariance
+
+    def test_a_noisier_match_gets_a_larger_covariance(self):
+        """Two closures with materially different scan agreement must get
+        materially different covariances -- the point of wiring
+        compute_icp_covariance into the detector at all.
+
+        Mutation check: reverting _verify_candidate's covariance line to the
+        old `np.diag([0.05, 0.05, 0.01])` makes cov_tight and cov_loose
+        bit-identical, and this assertion fails (sigma_loose > 2*sigma_tight
+        cannot hold when they are equal and positive). Confirmed by running
+        this test against that reverted line before restoring the fix.
+        """
+        cov_tight = self._covariance_for(noise_std=0.005)
+        cov_loose = self._covariance_for(noise_std=0.08)
+
+        sigma_tight = np.sqrt(cov_tight[0, 0])
+        sigma_loose = np.sqrt(cov_loose[0, 0])
+
+        self.assertGreater(
+            sigma_loose,
+            2 * sigma_tight,
+            f"expected the noisier match's covariance to be visibly larger: "
+            f"sigma_tight={sigma_tight!r}, sigma_loose={sigma_loose!r}",
+        )
+
+    def test_covariance_is_never_singular(self):
+        """_MIN_LOOP_CLOSURE_VARIANCE must keep the result invertible even
+        for a near-perfect match, since callers build an information matrix
+        with np.linalg.inv (e.g. ch7_slam/example_pose_graph_slam.py).
+        """
+        cov = self._covariance_for(noise_std=1e-9)
+
+        # Must not raise LinAlgError, and the inverse must be finite.
+        information = np.linalg.inv(cov)
+        self.assertTrue(np.all(np.isfinite(information)))
+
+
 class TestLoopClosureDataStructures(unittest.TestCase):
     """Test loop closure data structures."""
 
