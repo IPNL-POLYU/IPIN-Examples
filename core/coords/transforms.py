@@ -458,10 +458,13 @@ def enu_to_body(
     yaw: float,
     body_origin_enu: NDArray[np.float64] | None = None,
 ) -> NDArray[np.float64]:
-    """Transform a point from the ENU frame to the local body frame.
+    """Transform a point from the ENU frame to the Chapter 2 local body frame.
 
     ``x_body = C^BODY_ENU @ (x_enu - x_enu_B)``, where the rotation matrix is
     built from the body attitude via :func:`euler_to_rotation_matrix`.
+    The body axes follow the Chapter 2/book convention:
+    x=right, y=forward, z=up; roll about Y, pitch about X, yaw about Z. This
+    is not the aerospace FRD body frame (x=forward, y=right, z=down).
 
     Args:
         x_enu: Point in the ENU frame, array [east, north, up] (meters).
@@ -472,7 +475,8 @@ def enu_to_body(
             Defaults to the origin (coincident frames).
 
     Returns:
-        Point expressed in the local body frame, array [x, y, z] (meters).
+        Point expressed in the Chapter 2 body frame, array [right, forward, up]
+        in meters.
 
     Notes:
         - CONVENTION WARNING: ``body_origin_enu`` is the body origin expressed
@@ -502,13 +506,17 @@ def body_to_enu(
     yaw: float,
     enu_origin_body: NDArray[np.float64] | None = None,
 ) -> NDArray[np.float64]:
-    """Transform a point from the local body frame to the ENU frame.
+    """Transform a point from the Chapter 2 local body frame to the ENU frame.
 
     ``x_enu = C^ENU_BODY @ (x_body - x_body_R)``, where
     ``C^ENU_BODY = (C^BODY_ENU)^T`` is the transpose of the ENU->body matrix.
+    The body axes follow the Chapter 2/book convention:
+    x=right, y=forward, z=up; roll about Y, pitch about X, yaw about Z. This
+    is not the aerospace FRD body frame (x=forward, y=right, z=down).
 
     Args:
-        x_body: Point in the local body frame, array [x, y, z] (meters).
+        x_body: Point in the Chapter 2 body frame, array [right, forward, up]
+            in meters.
         roll: Body roll angle phi in radians (about the Y-axis).
         pitch: Body pitch angle theta in radians (about the X-axis).
         yaw: Body yaw angle psi in radians (about the Z-axis).

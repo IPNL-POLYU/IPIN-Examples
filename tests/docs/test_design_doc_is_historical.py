@@ -63,7 +63,6 @@ SUPERSEDED = {
     "solve_fgo": "core.estimators.factor_graph.FactorGraph.optimize",
     "gradient_descent_step": None,
     # Factor's interface was named differently in the end.
-    "residual": "core.estimators.factor_graph.Factor.compute_error",
     "jacobian": "core.estimators.factor_graph.Factor.linearize",
     "evaluate": "core.estimators.factor_graph.FactorGraph.compute_error",
     # --- core/rf ------------------------------------------------------------

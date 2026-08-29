@@ -42,11 +42,11 @@ from core.rf import (
     aoa_angle_vector,
     aoa_azimuth,
     aoa_elevation,
-    aoa_measurement_vector,
     aoa_ove_solve,
     aoa_ple_solve_2d,
     aoa_ple_solve_3d,
     aoa_sin_elevation,
+    aoa_sin_tan_vector,
     aoa_tan_azimuth,
 )
 
@@ -90,7 +90,7 @@ def demo_aoa_basic():
 
     # Solve unweighted: no sigma given, so W is a multiple of the identity
     positioner = AOAPositioner(anchors)
-    estimated_position, info = positioner.solve(
+    estimated_position, info = positioner.solve_angles_rad(
         aoa_measurements, initial_guess=np.array([5.0, 5.0])
     )
 
@@ -144,7 +144,7 @@ def demo_aoa_with_noise():
         for _ in range(trials if noise_deg > 0 else 1):
             aoa_noisy = aoa_true + rng.standard_normal(len(aoa_true)) * noise_rad
             positioner = AOAPositioner(anchors)
-            est_pos, info = positioner.solve(
+            est_pos, info = positioner.solve_angles_rad(
                 aoa_noisy, initial_guess=np.array([7.5, 7.5])
             )
             if info["converged"]:
@@ -238,7 +238,7 @@ def demo_measurement_vector():
         print(f"  Anchor {i}: {anchor}")
 
     # Generate measurement vector per Eq. 4.65: [sin(theta_i), tan(psi_i), ...]
-    z = aoa_measurement_vector(anchors_3d, true_position_3d, include_elevation=True)
+    z = aoa_sin_tan_vector(anchors_3d, true_position_3d, include_elevation=True)
 
     print("\nMeasurement vector z (Eq. 4.65):")
     print(f"  Shape: {z.shape}")
@@ -263,7 +263,7 @@ def demo_measurement_vector():
     anchors_2d = anchors_3d[:, :2]
     true_position_2d = true_position_3d[:2]
 
-    z_2d = aoa_measurement_vector(anchors_2d, true_position_2d, include_elevation=False)
+    z_2d = aoa_sin_tan_vector(anchors_2d, true_position_2d, include_elevation=False)
     print(f"2D measurement vector (tan(psi) only): {z_2d}")
 
     return anchors_3d, true_position_3d, z
@@ -295,7 +295,9 @@ def demo_minimum_anchors():
         # Try to solve
         try:
             positioner = AOAPositioner(anchors)
-            est_pos, info = positioner.solve(aoa, initial_guess=np.array([5.0, 5.0]))
+            est_pos, info = positioner.solve_angles_rad(
+                aoa, initial_guess=np.array([5.0, 5.0])
+            )
 
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_position)
@@ -331,7 +333,9 @@ def visualize_aoa_geometry():
 
     # Solve
     positioner = AOAPositioner(anchors)
-    est_pos, info = positioner.solve(aoa_noisy, initial_guess=np.array([6.0, 6.0]))
+    est_pos, info = positioner.solve_angles_rad(
+        aoa_noisy, initial_guess=np.array([6.0, 6.0])
+    )
 
     # Plot
     fig, ax = plt.subplots(figsize=(10, 10))
@@ -386,7 +390,7 @@ def visualize_aoa_geometry():
     #
     # Negating gives the anchor-to-agent direction, so the rays now meet at
     # the target the way an AOA geometry figure is meant to show.
-    for i, (anchor, psi) in enumerate(zip(anchors, aoa_noisy, strict=True)):
+    for anchor, psi in zip(anchors, aoa_noisy, strict=True):
         # In ENU: psi is from North (+y), so the agent lies from the anchor at
         # E-component = -sin(psi), N-component = -cos(psi)
         line_length = 15
@@ -459,7 +463,9 @@ def demo_closed_form_algorithms():
     # Iterative LS (unweighted)
     aoa_meas = aoa_angle_vector(anchors_2d, true_pos_2d, include_elevation=False)
     positioner = AOAPositioner(anchors_2d)
-    pos_ils, info_ils = positioner.solve(aoa_meas, initial_guess=np.array([5.0, 5.0]))
+    pos_ils, info_ils = positioner.solve_angles_rad(
+        aoa_meas, initial_guess=np.array([5.0, 5.0])
+    )
     err_ils = np.linalg.norm(pos_ils - true_pos_2d)
 
     # PLE 2D
@@ -607,7 +613,7 @@ def demo_geometry_sensitivity():
         aoa_noisy = aoa_meas + np.random.randn(len(aoa_meas)) * np.deg2rad(noise_deg)
         positioner = AOAPositioner(anchors)
         try:
-            pos_ils, info_ils = positioner.solve(
+            pos_ils, info_ils = positioner.solve_angles_rad(
                 aoa_noisy, initial_guess=np.array([5.0, 5.0])
             )
             if info_ils["converged"]:

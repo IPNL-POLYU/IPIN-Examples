@@ -28,17 +28,23 @@ from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
     FingerprintDatabase,
     fit_classifier,
-    hierarchical_localize,
-    knn_localize,
+    hierarchical_fingerprint_localize,
+    k_nearest_neighbor_localize,
     load_fingerprint_database,
 )
 
 # Seed for this example's synthetic database and query draws. Fixed so the
 # committed figures and reported accuracies can be regenerated exactly.
 DEFAULT_SEED = 42
+DEFAULT_DATA = "data/sim/ch5_wifi_fingerprint_grid"
 
 
-def load_multifloor_database() -> FingerprintDatabase:
+def rmse(errors):
+    """Return root-mean-square error for a sequence of scalar errors."""
+    return float(np.sqrt(np.mean(np.square(errors))))
+
+
+def load_multifloor_database(data_dir: str = DEFAULT_DATA) -> FingerprintDatabase:
     """Load the shipped three-floor Wi-Fi database, as the other ch5 examples do.
 
     This example used to build its own database inline, and that database
@@ -59,7 +65,7 @@ def load_multifloor_database() -> FingerprintDatabase:
     floor means 15.25 dB apart against a 7.38 dB within-floor std (ratio
     2.07), and fingerprints that vary smoothly with position.
     """
-    db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
+    db_path = Path(data_dir)
     print("\n--- Loading multi-floor fingerprint database ---")
     db = load_fingerprint_database(db_path)
 
@@ -204,12 +210,11 @@ def evaluate_noisy_queries(
             # pass the query's *true* floor, so the baseline was handed a fact
             # the classifiers had to infer. Searching all three floors is the
             # comparison the header claims to be making.
-            pred_knn = knn_localize(query, db, k=5, floor_id=None)
+            pred_knn = k_nearest_neighbor_localize(query, db, k=5, floor_id=None)
             knn_errs.append(np.linalg.norm(pred_knn - true_loc))
 
         # RMSE, as printed. These three lines used to take np.mean of the
         # errors and label the result RMSE, which understates every entry.
-        rmse = lambda e: float(np.sqrt(np.mean(np.square(e))))
         rf_errors.append(rmse(rf_errs))
         svm_errors.append(rmse(svm_errs))
         knn_errors.append(rmse(knn_errs))
@@ -276,7 +281,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     print("\n--- Method 1: Direct k-NN (no floor constraint) ---")
     direct_errors = []
     for i, query in enumerate(queries):
-        pred = knn_localize(query, db, k=5, floor_id=None)
+        pred = k_nearest_neighbor_localize(query, db, k=5, floor_id=None)
         direct_errors.append(np.linalg.norm(pred - true_locs[i]))
     direct_rmse = np.sqrt(np.mean(np.array(direct_errors) ** 2))
     print(f"  RMSE: {direct_rmse:.2f} m")
@@ -286,7 +291,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     hier_errors = []
     floor_hit = []
     for i, query in enumerate(queries):
-        pred, info = hierarchical_localize(
+        pred, info = hierarchical_fingerprint_localize(
             query, db, coarse_method="floor", fine_method="knn", k=5
         )
         hier_errors.append(np.linalg.norm(pred - true_locs[i]))
@@ -324,7 +329,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     print("\n--- Method 3: Hierarchical (RF -> MAP) ---")
     hier_rf_errors = []
     for i, query in enumerate(queries):
-        pred, info = hierarchical_localize(
+        pred, info = hierarchical_fingerprint_localize(
             query, db, coarse_method="random_forest", fine_method="map"
         )
         hier_rf_errors.append(np.linalg.norm(pred - true_locs[i]))
@@ -335,7 +340,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     print("\n--- Method 4: Hierarchical (Floor -> Posterior Mean) ---")
     hier_pm_errors = []
     for i, query in enumerate(queries):
-        pred, info = hierarchical_localize(
+        pred, info = hierarchical_fingerprint_localize(
             query, db, coarse_method="floor", fine_method="posterior_mean", top_k=10
         )
         hier_pm_errors.append(np.linalg.norm(pred - true_locs[i]))
@@ -362,7 +367,7 @@ def evaluate_hierarchical_localization(db: FingerprintDatabase, rng=None):
     for name, errs in runs.items():
         e = np.asarray(errs)
         print(
-            f"  {name:<24}{np.sqrt(np.mean(e ** 2)):>7.2f}m{np.median(e):>8.2f}m"
+            f"  {name:<24}{np.sqrt(np.mean(e**2)):>7.2f}m{np.median(e):>8.2f}m"
             f"{100 * np.mean(e < 1e-9):>11.1f}%"
         )
 
@@ -491,10 +496,16 @@ def main():
     """Run all classification-based fingerprinting demonstrations."""
     # Parse arguments before doing any work, so --help answers instead of
     # running the whole demonstration.
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    ).parse_args()
+    )
+    parser.add_argument(
+        "--data",
+        default=DEFAULT_DATA,
+        help=f"Fingerprint database directory (default: {DEFAULT_DATA})",
+    )
+    args = parser.parse_args()
 
     print("=" * 70)
     print("Chapter 5: Classification-Based Fingerprinting")
@@ -507,7 +518,7 @@ def main():
     # One generator for the whole run, so every query set below is a
     # consecutive draw from a single seeded stream.
     rng = np.random.default_rng(DEFAULT_SEED)
-    db = load_multifloor_database()
+    db = load_multifloor_database(args.data)
 
     # Test 1: Classification accuracy
     rf_classifier, svm_classifier = evaluate_classification_accuracy(db, rng=rng)

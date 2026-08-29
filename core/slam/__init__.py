@@ -68,6 +68,8 @@ from .factors import (
     create_prior_factor,
     create_reprojection_factor,
 )
+from .frontend_2d import FrontendStepResult, MatchQuality, SlamFrontend2D
+from .loop_closure_2d import LoopClosure, LoopClosureCandidate, LoopClosureDetector2D
 from .ndt import (
     build_ndt_map,
     ndt_align,
@@ -75,17 +77,23 @@ from .ndt import (
     ndt_gradient,
     ndt_score,
 )
+from .scan_descriptor_2d import (
+    batch_compute_descriptors,
+    compute_descriptor_similarity,
+    compute_scan_descriptor,
+)
+from .scan_generation import (
+    generate_dense_wall_scan,
+    generate_scan_with_occlusion,
+    ray_segment_intersection,
+)
 from .scan_matching import (
+    AlignmentResult,
     align_svd,
     compute_icp_covariance,
     compute_icp_residual,
     find_correspondences,
     icp_point_to_point,
-)
-from .scan_generation import (
-    generate_scan_with_occlusion,
-    generate_dense_wall_scan,
-    ray_segment_intersection,
 )
 from .se2 import (
     se2_apply,
@@ -95,13 +103,6 @@ from .se2 import (
     se2_relative,
     se2_to_matrix,
     wrap_angle,
-)
-from .frontend_2d import SlamFrontend2D, MatchQuality
-from .loop_closure_2d import LoopClosureDetector2D, LoopClosure, LoopClosureCandidate
-from .scan_descriptor_2d import (
-    compute_scan_descriptor,
-    compute_descriptor_similarity,
-    batch_compute_descriptors,
 )
 from .submap_2d import Submap2D
 from .types import CameraIntrinsics, PointCloud2D, PointCloud3D, Pose2, VoxelGrid
@@ -116,6 +117,8 @@ __all__ = [
     "Submap2D",
     "SlamFrontend2D",
     "MatchQuality",
+    "FrontendStepResult",
+    "AlignmentResult",
     "LoopClosureDetector2D",
     "LoopClosure",
     "LoopClosureCandidate",

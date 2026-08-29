@@ -14,7 +14,6 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,11 +37,11 @@ from core.fusion import load_fusion_dataset, run_lc_fusion, run_tc_fusion
 
 
 def run_both_fusions(
-    dataset: Dict,
+    dataset: dict,
     use_gating: bool = True,
     gate_confidence: float = 0.95,
     verbose: bool = True,
-) -> Tuple[Dict, Dict]:
+) -> tuple[dict, dict]:
     """Run both LC and TC fusion on the same dataset.
 
     Args:
@@ -77,8 +76,8 @@ def run_both_fusions(
 
 
 def compute_comparative_metrics(
-    dataset: Dict, lc_results: Dict, tc_results: Dict
-) -> Dict:
+    dataset: dict, lc_results: dict, tc_results: dict
+) -> dict:
     """Compute comparison metrics for LC and TC.
 
     Args:
@@ -153,7 +152,7 @@ def compute_comparative_metrics(
     return metrics
 
 
-def print_comparison_table(metrics: Dict) -> None:
+def print_comparison_table(metrics: dict) -> None:
     """Print comparison metrics table.
 
     Args:
@@ -256,10 +255,10 @@ def print_comparison_table(metrics: Dict) -> None:
 
 
 def plot_comparison(
-    dataset: Dict,
-    lc_results: Dict,
-    tc_results: Dict,
-    metrics: Dict,
+    dataset: dict,
+    lc_results: dict,
+    tc_results: dict,
+    metrics: dict,
     save_path: str = None,
 ) -> None:
     """Generate comprehensive LC vs TC comparison plots.
@@ -520,7 +519,9 @@ def plot_comparison(
     ax7 = fig.add_subplot(gs[2, 0])
     if len(lc_results["nis"]) > 0:
         nis_lc = np.array(lc_results["nis"])
-        accepted_lc = np.array(lc_results["gated"])
+        accepted_lc = np.array(
+            lc_results.get("measurement_accepted", lc_results.get("gated", []))
+        )
         ax7.plot(
             np.arange(len(nis_lc))[accepted_lc],
             nis_lc[accepted_lc],
@@ -555,7 +556,9 @@ def plot_comparison(
     ax8 = fig.add_subplot(gs[2, 1])
     if len(tc_results["nis"]) > 0:
         nis_tc = np.array(tc_results["nis"])
-        accepted_tc = np.array(tc_results["gated"])
+        accepted_tc = np.array(
+            tc_results.get("measurement_accepted", tc_results.get("gated", []))
+        )
         ax8.plot(
             np.arange(len(nis_tc))[accepted_tc],
             nis_tc[accepted_tc],
@@ -643,7 +646,7 @@ def plot_comparison(
 
 
 def save_comparison_report(
-    dataset: Dict, lc_results: Dict, tc_results: Dict, metrics: Dict, output_path: str
+    dataset: dict, lc_results: dict, tc_results: dict, metrics: dict, output_path: str
 ) -> None:
     """Save comparison report to JSON.
 

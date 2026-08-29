@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from core.slam import (
+    AlignmentResult,
     build_ndt_map,
     ndt_align,
     ndt_covariance,
@@ -293,6 +294,22 @@ class TestNDTGradient:
 
 class TestNDTAlign:
     """Test suite for ndt_align function."""
+
+    def test_returns_named_result_with_tuple_compatibility(self):
+        """Typed result keeps legacy tuple unpacking and index access."""
+        source = np.array([[0, 0], [1, 0], [0, 1]])
+        target = source + np.array([2, 3])
+
+        result = ndt_align(source, target, voxel_size=2.0)
+        pose, iters, score, converged = result
+
+        assert isinstance(result, AlignmentResult)
+        np.testing.assert_allclose(result.pose_source_to_target, pose)
+        np.testing.assert_allclose(result[0], pose)
+        assert result.iterations == iters
+        assert result.metric_name == "ndt_score"
+        assert result.final_score == score
+        assert result.converged is converged
 
     def test_identical_scans(self):
         """Test NDT with identical scans."""

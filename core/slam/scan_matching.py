@@ -24,7 +24,8 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import Optional, Tuple
+from collections.abc import Iterator
+from dataclasses import dataclass
 
 import numpy as np
 from scipy.spatial import KDTree
@@ -32,11 +33,94 @@ from scipy.spatial import KDTree
 from .se2 import se2_apply, se2_compose
 
 
+@dataclass(frozen=True)
+class AlignmentResult:
+    """Named scan-alignment result with tuple-unpacking compatibility.
+
+    Attributes:
+        pose_source_to_target: SE(2) pose [x, y, yaw] that transforms source
+            points into the target frame.
+        iterations: Number of optimizer/ICP iterations executed.
+        metric_value: Final quality metric. For ICP this is RMS residual in
+            meters; for NDT this is the final negative-log-likelihood score.
+        converged: Whether the optimizer met its convergence criterion.
+        metric_name: Human-readable name for ``metric_value``.
+
+    Existing callers can still use ``pose, iters, metric, ok = result`` or
+    ``result[0]``. New reader-facing code should prefer the named attributes.
+    """
+
+    pose_source_to_target: np.ndarray
+    iterations: int
+    metric_value: float
+    converged: bool
+    metric_name: str
+
+    def __iter__(self) -> Iterator[np.ndarray | int | float | bool]:
+        yield self.pose_source_to_target
+        yield self.iterations
+        yield self.metric_value
+        yield self.converged
+
+    def __getitem__(self, index: int) -> np.ndarray | int | float | bool:
+        return self.as_tuple()[index]
+
+    def __len__(self) -> int:
+        return 4
+
+    def as_tuple(self) -> tuple[np.ndarray, int, float, bool]:
+        """Return the legacy ``(pose, iterations, metric, converged)`` tuple."""
+        return (
+            self.pose_source_to_target,
+            self.iterations,
+            self.metric_value,
+            self.converged,
+        )
+
+    @property
+    def final_pose(self) -> np.ndarray:
+        """Backward-compatible alias for ``pose_source_to_target``."""
+        return self.pose_source_to_target
+
+    @property
+    def final_residual(self) -> float:
+        """Backward-compatible alias for the third legacy tuple item."""
+        return self.metric_value
+
+    @property
+    def final_score(self) -> float:
+        """Backward-compatible NDT name for the third legacy tuple item."""
+        return self.metric_value
+
+    @property
+    def rmse_m(self) -> float | None:
+        """ICP RMS residual in meters, or None when the metric is not RMSE."""
+        if self.metric_name == "rmse_m":
+            return self.metric_value
+        return None
+
+
+def _alignment_result(
+    pose_source_to_target: np.ndarray,
+    iterations: int,
+    metric_value: float,
+    converged: bool,
+    metric_name: str,
+) -> AlignmentResult:
+    return AlignmentResult(
+        pose_source_to_target=pose_source_to_target,
+        iterations=int(iterations),
+        metric_value=float(metric_value),
+        converged=bool(converged),
+        metric_name=metric_name,
+    )
+
+
 def find_correspondences(
     source_points: np.ndarray,
     target_points: np.ndarray,
-    max_distance: Optional[float] = None,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    max_distance: float | None = None,
+) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Find nearest-neighbor correspondences with distance-based gating (Eq. 7.11).
 
@@ -287,12 +371,12 @@ def align_svd(
 def icp_point_to_point(
     source_scan: np.ndarray,
     target_scan: np.ndarray,
-    initial_pose: Optional[np.ndarray] = None,
+    initial_pose: np.ndarray | None = None,
     max_iterations: int = 50,
     tolerance: float = 1e-6,
-    max_correspondence_distance: Optional[float] = None,
+    max_correspondence_distance: float | None = None,
     min_correspondences: int = 3,
-) -> Tuple[np.ndarray, int, float, bool]:
+) -> AlignmentResult:
     """
     Point-to-point ICP algorithm for 2D scan matching (Section 7.3.1).
 
@@ -316,7 +400,8 @@ def icp_point_to_point(
                              alignment (default: 3). If fewer, ICP fails.
 
     Returns:
-        Tuple of (final_pose, num_iterations, final_residual, converged):
+        AlignmentResult, which can still be tuple-unpacked as
+        (final_pose, num_iterations, final_residual, converged):
             - final_pose: Estimated pose [x, y, yaw], shape (3,).
             - num_iterations: Number of iterations executed.
             - final_residual: Final alignment error as RMS distance per
@@ -390,7 +475,9 @@ def icp_point_to_point(
         # Check if we have enough correspondences
         if matched_source.shape[0] < min_correspondences:
             # Not enough correspondences → return current pose as failure
-            return current_pose, iteration + 1, final_residual, False
+            return _alignment_result(
+                current_pose, iteration + 1, final_residual, False, "rmse_m"
+            )
 
         # Step 3: Compute residual, reported as RMS per correspondence in
         # metres. compute_icp_residual returns the book's Eq. (7.10) objective,
@@ -417,21 +504,25 @@ def icp_point_to_point(
             # Converged! Apply final delta and return. The success flag
             # is the literal below; there is no separate state to track.
             current_pose = se2_compose(current_pose, delta_pose)
-            return current_pose, iteration + 1, final_residual, True
+            return _alignment_result(
+                current_pose, iteration + 1, final_residual, True, "rmse_m"
+            )
 
         # Step 6: Update current pose for next iteration
         # new_pose = current_pose ⊕ delta_pose
         current_pose = se2_compose(current_pose, delta_pose)
 
     # Max iterations reached without convergence
-    return current_pose, max_iterations, final_residual, False
+    return _alignment_result(
+        current_pose, max_iterations, final_residual, False, "rmse_m"
+    )
 
 
 def compute_icp_covariance(
     source_scan: np.ndarray,
     target_scan: np.ndarray,
     final_pose: np.ndarray,
-    max_correspondence_distance: Optional[float] = None,
+    max_correspondence_distance: float | None = None,
 ) -> np.ndarray:
     """
     Estimate covariance of ICP-estimated pose (simplified approach).

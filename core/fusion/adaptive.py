@@ -13,8 +13,6 @@ Date: December 2025
 References: Chapter 8, Section 8.3 (Innovation Monitoring and Tuning)
 """
 
-from typing import Optional
-
 import numpy as np
 
 
@@ -89,9 +87,7 @@ class AdaptiveGatingManager:
         self.total_rejects = 0
         self.total_adaptations = 0
 
-    def update(
-        self, nis_value: float, gated_accept: bool
-    ) -> tuple[bool, Optional[str]]:
+    def update(self, nis_value: float, gated_accept: bool) -> tuple[bool, str | None]:
         """Update adaptive gating state and determine if action needed.
 
         Args:

@@ -63,6 +63,9 @@ Follow PEP 8 and Google Python Style Guide: https://google.github.io/styleguide/
 - Constants: `UPPER_SNAKE_CASE` (e.g., `MAX_ITERATIONS`)
 - Private attributes/methods: leading underscore `_private_method`
 - Type variables: `PascalCase` (e.g., `TypeVar('T')`)
+- Public APIs and reader-facing examples: follow
+  `docs/api_naming_conventions.md` for units, frames, data roles, domain nouns,
+  method verbs, result types, and compatibility aliases.
 
 **Imports:**
 - Use absolute imports

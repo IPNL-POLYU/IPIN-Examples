@@ -393,6 +393,7 @@ Running `python -m ch6_dead_reckoning.example_pdr` demonstrates step-and-heading
 | ![PDR Trajectory](figs/pdr_trajectory.svg) | **PDR trajectory** comparing gyro-based heading (green) vs. magnetometer-based heading (blue) against ground truth (black). |
 | ![PDR Heading](figs/pdr_heading.svg) | **Heading comparison over time** showing gyro-integrated heading (drifts) vs. magnetometer heading (noisy but bounded) vs. ground truth. |
 | ![PDR Error](figs/pdr_error.svg) | **Position error over time** for both PDR methods. Magnetometer-based PDR typically has bounded error; gyro-based drifts over long walks. |
+| ![PDR Dataset Results](figs/pdr_dataset_results.svg) | **Pre-generated dataset replay** from `--data ch6_pdr_corridor_walk`: trajectory, error, heading, and cumulative step count using the same files a reader can inspect under `data/sim/`. |
 
 **Key Insight:** PDR is **bounded and heading-limited**. On this 117 m walk it closes to 1.2 m with magnetometer heading (1.0% of distance) and 2.2 m with gyro heading (1.9%). Step length, not heading, is the dominant residual — see below.
 
@@ -453,6 +454,23 @@ from truth over 120 s, which is its realised bias and nothing else.
 - For higher accuracy the Weinberg model uses per-step acceleration windows and
   a calibrated gain `G_w`; see "Step-Length Models" below.
 
+#### Replay the shipped PDR dataset
+
+Run `python -m ch6_dead_reckoning.example_pdr --data ch6_pdr_corridor_walk` to
+use the committed IMU, magnetometer, and ground-truth files instead of inline
+synthetic generation. The `pdr_dataset_results` figure is useful for beginners
+because it lets you separate three questions:
+
+- Does the detected step count match the visible cumulative-step curve?
+- Does heading error grow gradually (gyro bias) or jump/noise around magnetic
+  disturbances?
+- Does position error follow heading mistakes, step-length mismatch, or both?
+
+Do not conclude that magnetometer heading is always better from this one replay:
+the answer depends on local magnetic disturbance. Use the figure as a debugging
+view of one dataset, then vary `--height` and `--step-model` to see which error
+term moves.
+
 
 ---
 
@@ -470,27 +488,30 @@ Magnetometer Heading:
   (Note: Large errors during disturbances at 30-50s, 100-120s)
 Barometric Altitude:
   RMSE:             3.03 m
-  Floor Accuracy:   44.4%
+  Floor Accuracy:   75.0%
 ```
 
 The 20.6° heading RMSE is dominated by the two injected disturbance windows,
 not by the clean segments — the max error of 179° is a near-reversal inside
-one of them. Floor accuracy of 44.4% is the barometer's, on 3.5 m floors with
-3.03 m of altitude RMSE: the error is comparable to the floor spacing, so the
-classifier is barely better than a coin toss. Both numbers are the point of
-the example rather than a defect in it.
+one of them. Floor accuracy of 75.0% comes from classifying the smoothed
+absolute altitude to the nearest 3.5 m floor. The remaining errors happen mostly
+near floor transitions and during pressure noise; altitude RMSE is still 3.03 m,
+close to one floor spacing, so this is a teaching baseline rather than a
+production floor detector.
 
 #### Environmental Sensor Figures
 
 | Figure | Description |
 |--------|-------------|
-| ![Magnetometer Heading](figs/environment_mag_heading.svg) | **Magnetometer heading over time** showing true heading (blue) vs. magnetometer estimate (red). Shaded regions indicate magnetic disturbances. |
-| ![Barometric Altitude](figs/environment_baro_altitude.svg) | **Barometric altitude over time** showing true altitude (blue) vs. barometer estimate (red). Floor transitions are visible as step changes. |
+| ![Magnetometer Heading](figs/environment_mag_heading.svg) | **Magnetometer heading over time** showing wrapped true heading (black) vs. magnetometer estimate (blue). Red shaded regions indicate injected magnetic disturbances; the lower panel plots red heading error. |
+| ![Barometric Altitude](figs/environment_baro_altitude.svg) | **Barometric altitude and floor detection** showing true floor altitude (black), smoothed barometer altitude (blue), true floor (black steps), and detected floor (blue dashed markers). |
 
 **Notes:**
-- High heading RMSE (103°) reflects **severe magnetic disturbances** in the test scenario
+- Heading RMSE is 20.6° overall and is dominated by **severe magnetic disturbances** in the test scenario
 - In clean environments, magnetometer RMSE is typically 5-10°
-- Barometer provides ~3m accuracy (suitable for floor detection with multi-sensor fusion)
+- This simple barometer-only detector reaches 75.0% floor accuracy; use
+  hysteresis, map constraints, and sensor fusion before treating it as a
+  reliable floor label.
 
 ---
 
@@ -561,10 +582,15 @@ The Allan deviation curve reveals three distinct noise processes, each dominatin
 **Why the V-shape?**  
 The minimum occurs where pink noise (BI) dominates. At shorter τ, white noise increases as 1/√τ. At longer τ, random walk increases as √τ. The optimal averaging time is near the minimum (~30-100s for consumer IMUs).
 
-**Converting ARW to per-sample noise (Eq. 6.58):**
+**Converting ARW/VRW to sample noise:**
 ```python
-from core.sensors.calibration import arw_to_noise_std
-sigma_gyro = arw_to_noise_std(arw=0.0088, dt=0.01)  # 100 Hz → rad/s per sample
+from core.sensors.calibration import (
+    random_walk_to_increment_sample_std,
+    random_walk_to_rate_sample_std,
+)
+
+sigma_rate = random_walk_to_rate_sample_std(0.0088, dt=0.01)      # rad/s samples
+sigma_angle = random_walk_to_increment_sample_std(0.0088, dt=0.01)  # rad increments
 ```
 
 ---
@@ -668,7 +694,7 @@ consumer-grade IMU, seed 42):
 |----------|----------|----------|-------------|
 | `detect_zupt_windowed()` | `core/sensors/constraints.py` | Eq. (6.44) | ZUPT windowed test statistic |
 | `ZuptMeasurementModel` | `core/sensors/constraints.py` | Eq. (6.45) | ZUPT pseudo-measurement |
-| `ZaruMeasurementModelPlaceholder` | `core/sensors/constraints.py` | ⚠️ INCOMPLETE | ZARU placeholder (see class docs) |
+| `ZaruMeasurementModelPlaceholder` | `core/sensors/constraints.py` | ⚠️ LEGACY / INCOMPLETE | Import from `core.sensors.constraints`; intentionally omitted from default `core.sensors` exports |
 | `NhcMeasurementModel` | `core/sensors/constraints.py` | Eq. (6.61) | NHC pseudo-measurement |
 
 ### Pedestrian Dead Reckoning (PDR)
@@ -697,7 +723,9 @@ consumer-grade IMU, seed 42):
 |----------|----------|----------|-------------|
 | `allan_variance()` | `core/sensors/calibration.py` | IEEE Std 952-1997 | Standard Allan variance computation |
 | `identify_random_walk()` | `core/sensors/calibration.py` | Eq. (6.56) | ARW/VRW extraction from slope=-0.5 region |
-| `arw_to_noise_std()` | `core/sensors/calibration.py` | Eq. (6.58) | Convert ARW to per-sample noise: σ = ARW × √Δt |
+| `random_walk_to_rate_sample_std()` | `core/sensors/calibration.py` | — | Convert ARW/VRW density to direct gyro/accel sample noise: σ = RW / √Δt |
+| `random_walk_to_increment_sample_std()` | `core/sensors/calibration.py` | Eq. (6.58) | Convert ARW/VRW density to integrated angle/velocity increment noise: σ = RW × √Δt |
+| `arw_to_noise_std()` | `core/sensors/calibration.py` | legacy | Backward-compatible alias for integrated increment noise |
 
 ---
 

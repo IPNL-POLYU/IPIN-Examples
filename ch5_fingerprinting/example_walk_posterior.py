@@ -55,8 +55,9 @@ from core.eval import (
 from core.fingerprinting import (
     fit_gaussian_naive_bayes,
     load_fingerprint_database,
+    maximum_a_posteriori_localize,
 )
-from core.fingerprinting.probabilistic import log_posterior, map_localize
+from core.fingerprinting.probabilistic import log_posterior
 
 FIGS_DIR = Path(__file__).parent / "figs"
 DEFAULT_DATA = "data/sim/ch5_wifi_fingerprint_grid"
@@ -119,7 +120,7 @@ def run_walk(data_dir=DEFAULT_DATA, noise_std=NOISE_STD, seed=SEED):
         posterior = np.exp(log_post - log_post.max())
         posterior /= posterior.sum()
 
-        estimate = map_localize(query, model, floor_id=FLOOR_ID)
+        estimate = maximum_a_posteriori_localize(query, model, floor_id=FLOOR_ID)
         truth = locations[rp_index]
 
         posteriors.append(posterior)
@@ -365,7 +366,7 @@ def main() -> None:
     errors = walk["errors"]
     aliased = int(np.sum(errors > ALIASING_THRESHOLD))
 
-    print(f"  L-walk of {len(errors)} reference points, " f"noise {args.noise:.0f} dB")
+    print(f"  L-walk of {len(errors)} reference points, noise {args.noise:.0f} dB")
     print(
         f"  posterior peaks on a median of "
         f"{int(np.median(walk['hot_counts']))} cell(s) -- it stays sharp"
@@ -382,8 +383,7 @@ def main() -> None:
 
     paths = save_figure(plot_walk_summary(walk), args.out_dir, "ch5_walk_posterior")
     print(
-        f"  saved ch5_walk_posterior: "
-        f"{', '.join(p.suffix.lstrip('.') for p in paths)}"
+        f"  saved ch5_walk_posterior: {', '.join(p.suffix.lstrip('.') for p in paths)}"
     )
 
     if args.animate:

@@ -12,6 +12,7 @@ References: Chapter 8, Section 8.3 (Tuning and Robustness), Equations 8.8-8.9
 """
 
 import warnings
+
 import numpy as np
 from scipy import stats
 
@@ -124,13 +125,14 @@ def chi_square_gate(
         >>> chi_square_gate(y, S, confidence=0.95)
         False
 
-        >>> # More conservative gating (higher confidence) → easier to reject
+        >>> # Higher confidence uses a higher threshold, so this borderline
+        >>> # innovation is rejected at 90% but accepted at 99%.
         >>> y = np.array([2.5, 0.0])
         >>> S = np.diag([1.0, 1.0])
         >>> chi_square_gate(y, S, confidence=0.90)  # 90% confidence
-        True
-        >>> chi_square_gate(y, S, confidence=0.99)  # 99% confidence
         False
+        >>> chi_square_gate(y, S, confidence=0.99)  # 99% confidence
+        True
 
     Notes:
         The chi-square critical values for common cases (95% confidence):
@@ -266,17 +268,18 @@ def chi_square_bounds(
 
     Example:
         >>> lower, upper = chi_square_bounds(dof=2, confidence=0.95)
-        >>> # For 2 DOF, 95% interval is approximately [0.05, 5.99]
+        >>> # For 2 DOF, the central 95% interval is approximately [0.05, 7.38].
+        >>> # This upper bound is larger than the one-sided 95% gate (5.99).
         >>> 0.0 < lower < 0.2
         True
-        >>> 5.5 < upper < 6.5
+        >>> 7.0 < upper < 7.8
         True
 
         >>> # For 1 DOF, 95% interval
         >>> lower, upper = chi_square_bounds(dof=1, confidence=0.95)
         >>> 0.0 < lower < 0.01
         True
-        >>> 3.5 < upper < 4.0
+        >>> 4.8 < upper < 5.3
         True
 
     Notes:

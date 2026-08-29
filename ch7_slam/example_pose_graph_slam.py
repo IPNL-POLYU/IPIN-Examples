@@ -57,7 +57,7 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 from matplotlib.transforms import blended_transform_factory
@@ -866,7 +866,7 @@ def detect_loop_closures(
     poses: List[np.ndarray],
     scans: List[np.ndarray],
     use_observation_based: bool = True,
-    distance_threshold: Optional[float] = None,
+    distance_threshold: float | None = None,
     min_time_separation: int = 10,
 ) -> List[Tuple[int, int, np.ndarray, np.ndarray]]:
     """
@@ -1393,7 +1393,7 @@ def plot_slam_results(
     optimized_poses: List[np.ndarray],
     landmarks: np.ndarray,
     loop_closures: List[Tuple[int, int, np.ndarray, np.ndarray]],
-    scans: Optional[List[np.ndarray]] = None,
+    scans: List[np.ndarray] | None = None,
 ):
     """
     Visualize SLAM results: trajectories, maps, and errors.

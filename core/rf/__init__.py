@@ -18,11 +18,13 @@ from core.rf.dop import (
 )
 from core.rf.measurement_models import (
     SPEED_OF_LIGHT,
+    aoa_angle_measurements_rad,
     aoa_angle_vector,
     aoa_azimuth,
     aoa_elevation,
     aoa_measurement_vector,
     aoa_sin_elevation,
+    aoa_sin_tan_vector,
     aoa_tan_azimuth,
     clock_bias_meters_to_seconds,
     clock_bias_seconds_to_meters,
@@ -42,6 +44,7 @@ from core.rf.positioning import (
     DIVERGENCE_M,
     STALL_M,
     AOAPositioner,
+    PositionSolveResult,
     SolveOutcome,
     TDOAPositioner,
     TOAPositioner,
@@ -78,11 +81,14 @@ __all__ = [
     "aoa_sin_elevation",
     "aoa_tan_azimuth",
     "aoa_measurement_vector",
+    "aoa_sin_tan_vector",
     "aoa_angle_vector",
+    "aoa_angle_measurements_rad",
     # Positioning
     "TOAPositioner",
     "TDOAPositioner",
     "AOAPositioner",
+    "PositionSolveResult",
     "toa_solve_with_clock_bias",
     # Batch solving, with the failures kept
     "solve_batch",

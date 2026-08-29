@@ -3,11 +3,11 @@
 This module implements pattern recognition classifiers as described in Section 5.2
 of the book. Unlike deterministic (NN, k-NN) or probabilistic (Bayesian) methods,
 classification-based fingerprinting treats positioning as a classification problem:
-assign query fingerprints to discrete location classes or zones.
+assign query fingerprints to discrete reference-point classes.
 
 Key approaches:
     - Direct classification: Each reference point (RP) is a class
-    - Zone-based classification: Group RPs into zones/regions
+    - Zone-based classification: Not implemented; callers should use RP classes
     - Hierarchical classification: Coarse (floor/region) → Fine (RP-level)
 
 Classifiers mentioned in the book:
@@ -20,14 +20,14 @@ Date: December 2024
 """
 
 from dataclasses import dataclass
-from typing import Literal, Optional, Tuple
+from typing import Literal, NamedTuple
 
 import numpy as np
 
 try:
     from sklearn.ensemble import RandomForestClassifier
-    from sklearn.svm import SVC
     from sklearn.preprocessing import LabelEncoder
+    from sklearn.svm import SVC
 
     SKLEARN_AVAILABLE = True
 except ImportError:
@@ -39,6 +39,35 @@ except ImportError:
 from .types import Fingerprint, FingerprintDatabase, Location
 
 
+class HierarchicalLocalizationResult(NamedTuple):
+    """Tuple-compatible result from hierarchical fingerprint localization.
+
+    Attributes:
+        estimated_position_m: Estimated location, shape ``(d,)``. Units and
+            coordinate frame match ``FingerprintDatabase.locations``; the
+            database may use local x-y meters, ENU meters, or another documented
+            survey frame.
+        diagnostics: Diagnostic dictionary with coarse and fine localization
+            details.
+
+    Existing callers can still unpack this as ``position, info`` or access the
+    compatibility properties ``.position`` and ``.info``.
+    """
+
+    estimated_position_m: Location
+    diagnostics: dict
+
+    @property
+    def position(self) -> Location:
+        """Compatibility alias for ``estimated_position_m``."""
+        return self.estimated_position_m
+
+    @property
+    def info(self) -> dict:
+        """Compatibility alias for ``diagnostics``."""
+        return self.diagnostics
+
+
 @dataclass
 class ClassificationLocalizer:
     """
@@ -46,7 +75,7 @@ class ClassificationLocalizer:
 
     This localizer treats positioning as a classification problem, as discussed
     in Chapter 5, Section 5.2. The classifier predicts a discrete location class
-    (RP index, zone ID, or grid cell) from the fingerprint features.
+    (currently one class per RP) from the fingerprint features.
 
     Attributes:
         classifier: Trained scikit-learn classifier (RandomForest, SVM, etc.)
@@ -70,9 +99,9 @@ class ClassificationLocalizer:
     def predict(
         self,
         z: Fingerprint,
-        floor_id: Optional[int] = None,
+        floor_id: int | None = None,
         return_proba: bool = False,
-    ) -> Tuple[Location, dict]:
+    ) -> tuple[Location, dict]:
         """
         Predict location using classification.
 
@@ -109,8 +138,8 @@ class ClassificationLocalizer:
 def fit_classifier(
     db: FingerprintDatabase,
     classifier_type: Literal["random_forest", "svm"] = "random_forest",
-    zone_type: Literal["rp", "grid", "cluster"] = "rp",
-    floor_id: Optional[int] = None,
+    zone_type: Literal["rp"] = "rp",
+    floor_id: int | None = None,
     **classifier_kwargs,
 ) -> ClassificationLocalizer:
     """
@@ -125,9 +154,7 @@ def fit_classifier(
                         - "random_forest": Random Forest (book default)
                         - "svm": Support Vector Machine
         zone_type: How to define location classes:
-                  - "rp": Each RP is a separate class (fine-grained)
-                  - "grid": Grid-based zones (coarse-grained)
-                  - "cluster": Cluster-based zones (adaptive)
+                  - "rp": Each RP is a separate class (implemented)
         floor_id: Optional floor to train on (None = all floors)
         **classifier_kwargs: Additional arguments for the classifier
                             (e.g., n_estimators for RandomForest)
@@ -138,6 +165,9 @@ def fit_classifier(
     Raises:
         ImportError: If scikit-learn is not installed
         ValueError: If zone_type is invalid or insufficient data
+        NotImplementedError: If an old experimental zone_type such as "grid"
+            or "cluster" is requested. Those modes are not part of the
+            supported public API yet.
 
     Examples:
         >>> # Direct classification (each RP is a class)
@@ -147,15 +177,6 @@ def fit_classifier(
         ...     zone_type="rp",
         ...     n_estimators=100
         ... )
-
-        >>> # Zone-based classification
-        >>> classifier = fit_classifier(
-        ...     db,
-        ...     classifier_type="svm",
-        ...     zone_type="grid",
-        ...     floor_id=0
-        ... )
-
     References:
         Chapter 5, Section 5.2: Pattern Recognition for fingerprinting
         mentions Random Forests, Decision Trees, and SVM classifiers.
@@ -184,20 +205,20 @@ def fit_classifier(
         class_to_location = {i: locations[i] for i in range(len(locations))}
 
     elif zone_type == "grid":
-        # Grid-based zones (not implemented yet, would require grid parameters)
         raise NotImplementedError(
-            "Grid-based zone classification not yet implemented. Use 'rp' for now."
+            "zone_type='grid' is an experimental mode that is not implemented. "
+            "Use zone_type='rp', the only supported public option."
         )
 
     elif zone_type == "cluster":
-        # Cluster-based zones (not implemented yet, would require clustering)
         raise NotImplementedError(
-            "Cluster-based zone classification not yet implemented. Use 'rp' for now."
+            "zone_type='cluster' is an experimental mode that is not implemented. "
+            "Use zone_type='rp', the only supported public option."
         )
 
     else:
         raise ValueError(
-            f"Unknown zone_type '{zone_type}'. Use 'rp', 'grid', or 'cluster'."
+            f"Unknown zone_type '{zone_type}'. Use 'rp', the only supported option."
         )
 
     # Create and fit classifier
@@ -299,9 +320,9 @@ def hierarchical_localize(
     db: FingerprintDatabase,
     coarse_method: Literal["floor", "random_forest"] = "floor",
     fine_method: Literal["nn", "knn", "map", "posterior_mean"] = "knn",
-    coarse_model: Optional[object] = None,
+    coarse_model: object | None = None,
     **fine_method_kwargs,
-) -> Tuple[Location, dict]:
+) -> HierarchicalLocalizationResult:
     """Hierarchical coarse-to-fine localization.
 
     Implements the two-step approach from Chapter 5: first classify into a
@@ -323,7 +344,11 @@ def hierarchical_localize(
         **fine_method_kwargs: Forwarded to the fine localization function.
 
     Returns:
-        Tuple of ``(predicted_location, info_dict)``.
+        HierarchicalLocalizationResult with named ``estimated_position_m`` and
+        ``diagnostics`` fields. Existing callers can still unpack it as
+        ``predicted_location, info_dict`` or use compatibility properties
+        ``.position`` and ``.info``. Position units and frame match
+        ``db.locations``.
 
     Examples:
         >>> # Offline: train once
@@ -348,7 +373,7 @@ def hierarchical_localize(
             info["coarse_floor"] = int(floor_id)
         else:
             # Match in *fingerprint* space and read the floor off the winning
-            # RP. This used to call nn_localize, which returns an (x, y)
+            # RP. This used to call nearest_neighbor_localize, which returns an (x, y)
             # location with the floor already discarded, then pick the RP
             # nearest that location in x-y. A multi-floor grid stacks its RPs
             # at the same coordinates -- the shipped ch5 database has 363 RPs
@@ -383,25 +408,30 @@ def hierarchical_localize(
 
     # Step 2: Fine localization within coarse region
     if fine_method == "nn":
-        from .deterministic import nn_localize
+        from .deterministic import nearest_neighbor_localize
 
-        pos = nn_localize(z, db, floor_id=floor_id, **fine_method_kwargs)
+        pos = nearest_neighbor_localize(z, db, floor_id=floor_id, **fine_method_kwargs)
 
     elif fine_method == "knn":
-        from .deterministic import knn_localize
+        from .deterministic import k_nearest_neighbor_localize
 
         # Default k=5 if not provided
         if "k" not in fine_method_kwargs:
             fine_method_kwargs["k"] = 5
 
-        pos = knn_localize(z, db, floor_id=floor_id, **fine_method_kwargs)
+        pos = k_nearest_neighbor_localize(
+            z, db, floor_id=floor_id, **fine_method_kwargs
+        )
 
     elif fine_method == "map":
-        from .probabilistic import fit_gaussian_naive_bayes, map_localize
+        from .probabilistic import (
+            fit_gaussian_naive_bayes,
+            maximum_a_posteriori_localize,
+        )
 
         # Fit model on the coarse floor
         model = fit_gaussian_naive_bayes(db)
-        pos = map_localize(z, model, floor_id=floor_id)
+        pos = maximum_a_posteriori_localize(z, model, floor_id=floor_id)
 
     elif fine_method == "posterior_mean":
         from .probabilistic import fit_gaussian_naive_bayes, posterior_mean_localize
@@ -418,4 +448,23 @@ def hierarchical_localize(
 
     info["fine_position"] = pos
 
-    return pos, info
+    return HierarchicalLocalizationResult(estimated_position_m=pos, diagnostics=info)
+
+
+def hierarchical_fingerprint_localize(
+    z: Fingerprint,
+    db: FingerprintDatabase,
+    coarse_method: Literal["floor", "random_forest"] = "floor",
+    fine_method: Literal["nn", "knn", "map", "posterior_mean"] = "knn",
+    coarse_model: object | None = None,
+    **fine_method_kwargs,
+) -> HierarchicalLocalizationResult:
+    """Descriptive alias for :func:`hierarchical_localize`."""
+    return hierarchical_localize(
+        z,
+        db,
+        coarse_method=coarse_method,
+        fine_method=fine_method,
+        coarse_model=coarse_model,
+        **fine_method_kwargs,
+    )

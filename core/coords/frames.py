@@ -5,7 +5,8 @@ This module defines the coordinate frames used in indoor positioning:
 - NED (North-East-Down): Local tangent plane (aerospace convention)
 - ECEF (Earth-Centered Earth-Fixed): Global Cartesian frame
 - LLH (Latitude-Longitude-Height): Geodetic coordinates
-- Body: Vehicle/sensor frame (forward-right-down)
+- Body: Vehicle/sensor-local frames. Prefer the explicit BODY_CH2 or BODY_FRD
+  names below; BODY is retained as a legacy generic label.
 - Map: World frame for indoor environments
 
 Reference: Chapter 2, Section 2.2 - Coordinate Frames
@@ -23,7 +24,10 @@ class FrameType(Enum):
         NED: North-East-Down local tangent plane frame.
         ECEF: Earth-Centered Earth-Fixed Cartesian frame.
         LLH: Latitude-Longitude-Height geodetic frame.
-        BODY: Vehicle/sensor body frame (forward-right-down).
+        BODY: Legacy generic body-frame label. Ambiguous on purpose for
+            backward compatibility; prefer BODY_CH2 or BODY_FRD.
+        BODY_CH2: Chapter 2 book body frame (x=right, y=forward, z=up).
+        BODY_FRD: Aerospace/vehicle body frame (x=forward, y=right, z=down).
         MAP: World frame for indoor positioning.
     """
 
@@ -32,6 +36,8 @@ class FrameType(Enum):
     ECEF = "ecef"
     LLH = "llh"
     BODY = "body"
+    BODY_CH2 = "body_ch2"
+    BODY_FRD = "body_frd"
     MAP = "map"
 
 
@@ -74,7 +80,17 @@ FRAME_LLH = Frame(
 
 FRAME_BODY = Frame(
     FrameType.BODY,
-    "Body frame (x=forward, y=right, z=down)",
+    "Legacy generic body frame label; prefer FRAME_BODY_CH2 or FRAME_BODY_FRD",
+)
+
+FRAME_BODY_CH2 = Frame(
+    FrameType.BODY_CH2,
+    "Chapter 2 body frame (x=right, y=forward, z=up; roll about Y, pitch about X)",
+)
+
+FRAME_BODY_FRD = Frame(
+    FrameType.BODY_FRD,
+    "Aerospace/vehicle body frame (x=forward, y=right, z=down)",
 )
 
 FRAME_MAP = Frame(

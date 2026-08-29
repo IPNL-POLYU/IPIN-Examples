@@ -47,7 +47,8 @@ Wheel odometry functions (from wheel_odometry module):
 Drift correction constraints (from constraints module):
     detect_zupt: Stationary detector (Eq. 6.44)
     ZuptMeasurementModel: Zero velocity update (Eq. 6.45)
-    ZaruMeasurementModelPlaceholder: Zero angular rate update (INCOMPLETE PLACEHOLDER)
+    ZaruMeasurementModelPlaceholder: Legacy incomplete placeholder, retained
+        only for compatibility. Import from core.sensors.constraints explicitly.
     NhcMeasurementModel: Nonholonomic constraint (Eq. 6.61)
 
 Pedestrian Dead Reckoning functions (from pdr module):
@@ -77,6 +78,8 @@ Calibration functions (from calibration module):
     identify_bias_instability: Extract bias instability from Allan curve
     identify_random_walk: Extract angle/velocity random walk coefficient
     identify_rate_random_walk: Extract rate random walk coefficient
+    random_walk_to_rate_sample_std: ARW/VRW -> direct gyro/accel sample std
+    random_walk_to_increment_sample_std: ARW/VRW -> integrated increment std
     characterize_imu_noise: Complete IMU noise characterization
 
 Design principles:
@@ -115,92 +118,94 @@ Example:
     >>> q1, v1, p1 = strapdown_update(state.q, state.v, state.p, omega, f_b, dt)
 """
 
-from core.sensors.types import (
-    FrameConvention,
-    IMUNoiseParams,
-    ImuSeries,
-    WheelSpeedSeries,
-    MagnetometerSeries,
-    BarometerSeries,
-    NavStateQPVP,
-    NavStateQPVPBias,
+# Import units module (provides explicit unit conversions)
+from core.sensors import units
+from core.sensors.calibration import (
+    allan_variance,
+    arw_to_noise_std,
+    characterize_imu_noise,
+    identify_bias_instability,
+    identify_random_walk,
+    identify_rate_random_walk,
+    increment_sample_std_to_random_walk,
+    noise_std_to_arw,
+    random_walk_to_increment_sample_std,
+    random_walk_to_rate_sample_std,
+    rate_sample_std_to_random_walk,
 )
-
+from core.sensors.constraints import (
+    NhcMeasurementModel,
+    ZuptMeasurementModel,
+    detect_zupt,  # Deprecated, use detect_zupt_windowed instead
+    detect_zupt_windowed,
+    zupt_test_statistic,
+)
+from core.sensors.constraints import (
+    ZaruMeasurementModelPlaceholder as _ZaruMeasurementModelPlaceholder,
+)
+from core.sensors.environment import (
+    compensate_hard_iron,
+    detect_floor_change,
+    mag_heading,
+    mag_tilt_compensate,
+    pressure_to_altitude,
+    smooth_measurement_simple,
+    wrap_angle_diff,
+)
 from core.sensors.gravity import (
-    gravity_magnitude_eq6_8,
     gravity_magnitude,
+    gravity_magnitude_eq6_8,
     gravity_magnitude_from_lat_deg,
 )
-
 from core.sensors.imu_models import (
-    correct_gyro,
-    correct_accel,
     apply_imu_scale_misalignment,
+    correct_accel,
+    correct_gyro,
     remove_gravity_component,
 )
-
-from core.sensors.strapdown import (
-    omega_matrix,
-    quat_integrate,
-    quat_to_rotmat,
-    gravity_vector,
-    vel_update,
-    pos_update,
-    strapdown_update,
-)
-
-from core.sensors.wheel_odometry import (
-    skew,
-    wheel_speed_to_attitude_velocity,
-    attitude_to_map_velocity,
-    odom_pos_update,
-    wheel_odom_update,
-)
-
-from core.sensors.constraints import (
-    zupt_test_statistic,
-    detect_zupt_windowed,
-    detect_zupt,  # Deprecated, use detect_zupt_windowed instead
-    ZuptMeasurementModel,
-    ZaruMeasurementModelPlaceholder,
-    NhcMeasurementModel,
-)
-
 from core.sensors.pdr import (
-    total_accel_magnitude,
-    remove_gravity_from_magnitude,
+    calibrate_weinberg_gain,
+    detect_step_simple,
     detect_steps_peak_detector,
+    integrate_gyro_heading,
+    pdr_step_update,
+    remove_gravity_from_magnitude,
     step_frequency,
     step_length,
     step_length_book_eq6_49,
     step_length_weinberg,
-    calibrate_weinberg_gain,
-    pdr_step_update,
-    detect_step_simple,
-    integrate_gyro_heading,
+    total_accel_magnitude,
     wrap_heading,
 )
-
-from core.sensors.environment import (
-    mag_tilt_compensate,
-    mag_heading,
-    wrap_angle_diff,
-    pressure_to_altitude,
-    detect_floor_change,
-    smooth_measurement_simple,
-    compensate_hard_iron,
+from core.sensors.strapdown import (
+    gravity_vector,
+    omega_matrix,
+    pos_update,
+    quat_integrate,
+    quat_to_rotmat,
+    strapdown_update,
+    vel_update,
+)
+from core.sensors.types import (
+    BarometerSeries,
+    FrameConvention,
+    IMUNoiseParams,
+    ImuSeries,
+    MagnetometerSeries,
+    NavStateQPVP,
+    NavStateQPVPBias,
+    WheelSpeedSeries,
+)
+from core.sensors.wheel_odometry import (
+    attitude_to_map_velocity,
+    odom_pos_update,
+    skew,
+    wheel_odom_update,
+    wheel_speed_to_attitude_velocity,
 )
 
-from core.sensors.calibration import (
-    allan_variance,
-    identify_bias_instability,
-    identify_random_walk,
-    identify_rate_random_walk,
-    characterize_imu_noise,
-)
-
-# Import units module (provides explicit unit conversions)
-from core.sensors import units
+# Compatibility-only direct attribute; intentionally omitted from ``__all__``.
+ZaruMeasurementModelPlaceholder = _ZaruMeasurementModelPlaceholder
 
 __all__ = [
     # Frame convention
@@ -242,7 +247,6 @@ __all__ = [
     "detect_zupt_windowed",
     "detect_zupt",  # Deprecated
     "ZuptMeasurementModel",
-    "ZaruMeasurementModelPlaceholder",
     "NhcMeasurementModel",
     # Pedestrian Dead Reckoning (PDR)
     "total_accel_magnitude",
@@ -270,6 +274,12 @@ __all__ = [
     "identify_bias_instability",
     "identify_random_walk",
     "identify_rate_random_walk",
+    "random_walk_to_rate_sample_std",
+    "rate_sample_std_to_random_walk",
+    "random_walk_to_increment_sample_std",
+    "increment_sample_std_to_random_walk",
+    "arw_to_noise_std",
+    "noise_std_to_arw",
     "characterize_imu_noise",
     # Unit conversions
     "units",

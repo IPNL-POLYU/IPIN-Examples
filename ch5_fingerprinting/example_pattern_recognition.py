@@ -3,10 +3,10 @@ Example: Pattern Recognition Fingerprinting (Linear Regression)
 
 Demonstrates linear regression-based fingerprinting from Chapter 5.
 
-Treats positioning as supervised learning: learns mapping f: z → x
+Treats positioning as supervised learning: learns mapping f: z -> x
 where z is RSS fingerprint and x is location.
 
-Model: x̂ = Wz + b (linear transformation with ridge regression)
+Model: x_hat = Wz + b (linear transformation with ridge regression)
 
 Author: Li-Ta Hsu
 Date: December 2024
@@ -32,6 +32,8 @@ from core.fingerprinting import (
     LinearRegressionLocalizer,
     load_fingerprint_database,
 )
+
+DEFAULT_DATA = "data/sim/ch5_wifi_fingerprint_grid"
 
 
 def split_train_test(db, test_ratio=0.3, floor_id=None, seed=42):
@@ -128,10 +130,16 @@ def main():
     """Run pattern recognition fingerprinting examples."""
     # Parse arguments before doing any work, so --help answers instead of
     # running the whole demonstration.
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    ).parse_args()
+    )
+    parser.add_argument(
+        "--data",
+        default=DEFAULT_DATA,
+        help=f"Fingerprint database directory (default: {DEFAULT_DATA})",
+    )
+    args = parser.parse_args()
 
     print("=" * 70)
     print("Chapter 5: Pattern Recognition (Linear Regression)")
@@ -139,7 +147,7 @@ def main():
 
     # Load database
     print("\n1. Loading fingerprint database...")
-    db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
+    db_path = Path(args.data)
     db = load_fingerprint_database(db_path)
     print(f"   Database: {db}")
 
@@ -170,15 +178,14 @@ def main():
         t_end = time.time()
 
         models[reg_val] = model
-        print(f"   Training time: {(t_end - t_start)*1000:.2f}ms")
+        print(f"   Training time: {(t_end - t_start) * 1000:.2f}ms")
         print(f"   Model: {model}")
 
         # Evaluate on train set
         train_result = evaluate_model(model, train_db, floor_id=floor_id)
         train_results[reg_val] = train_result
         print(
-            f"   Train RMSE: {train_result['rmse']:.2f}m, "
-            f"R^2={train_result['r2']:.3f}"
+            f"   Train RMSE: {train_result['rmse']:.2f}m, R^2={train_result['r2']:.3f}"
         )
 
     # Evaluate on test set

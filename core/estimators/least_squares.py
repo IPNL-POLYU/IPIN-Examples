@@ -7,6 +7,7 @@ as described in Chapter 3, Section 3.1 of the IPIN book.
 Functions:
     - linear_least_squares: Standard LS (Eq. 3.2-3.3)
     - weighted_least_squares: Weighted LS with measurement weights (Section 3.1.1)
+    - solve_weighted_least_squares: Typed WLS API with explicit weight semantics
     - iterative_least_squares: Iterative LS for nonlinear problems (Eq. 3.4)
     - robust_least_squares: Robust LS with outlier rejection (Table 3.1)
 
@@ -16,14 +17,30 @@ Book Reference:
     - Table 3.1: Robust estimator error functions (L2, Cauchy, Huber, G-M)
 """
 
-from typing import Callable, Literal, Optional, Tuple
+from dataclasses import dataclass
+from typing import Callable, Literal, Tuple
 
 import numpy as np
 
 
+@dataclass(frozen=True)
+class WeightedLeastSquaresResult:
+    """Typed result from :func:`solve_weighted_least_squares`.
+
+    Attributes:
+        estimated_state: Estimated state vector, shape ``(n,)``. Units and
+            ordering follow the design matrix columns.
+        state_covariance: State covariance matrix, shape ``(n, n)``, or
+            ``None`` when covariance computation was disabled.
+    """
+
+    estimated_state: np.ndarray
+    state_covariance: np.ndarray | None
+
+
 def linear_least_squares(
     A: np.ndarray, b: np.ndarray, return_covariance: bool = True
-) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+) -> Tuple[np.ndarray, np.ndarray | None]:
     """
     Standard linear least squares estimation.
 
@@ -109,7 +126,7 @@ def weighted_least_squares(
     W_or_sigma: np.ndarray,
     is_sigma: bool = False,
     return_covariance: bool = True,
-) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+) -> Tuple[np.ndarray, np.ndarray | None]:
     """
     Weighted least squares estimation with measurement weights or covariance.
 
@@ -233,6 +250,93 @@ def weighted_least_squares(
     return x_hat, P
 
 
+def solve_weighted_least_squares(
+    design_matrix: np.ndarray,
+    observations: np.ndarray,
+    *,
+    weights: np.ndarray | None = None,
+    measurement_std: np.ndarray | None = None,
+    measurement_covariance: np.ndarray | None = None,
+    weight_matrix: np.ndarray | None = None,
+    return_covariance: bool = True,
+) -> WeightedLeastSquaresResult:
+    """Solve weighted least squares with an explicit weight representation.
+
+    This descriptive API avoids the historical ``W_or_sigma`` positional
+    parameter and ``is_sigma`` mode switch. Exactly one weight representation
+    must be supplied. :func:`weighted_least_squares` remains available for
+    compatibility and performs the numerical solve.
+
+    Args:
+        design_matrix: Linear design matrix, shape ``(m, n)``.
+        observations: Observation vector, shape ``(m,)``.
+        weights: Optional diagonal weights, shape ``(m,)``.
+        measurement_std: Optional measurement standard deviations, shape
+            ``(m,)``. Every value must be positive.
+        measurement_covariance: Optional measurement covariance matrix, shape
+            ``(m, m)``. It is inverted to form the WLS weight matrix.
+        weight_matrix: Optional full weight matrix, shape ``(m, m)``.
+        return_covariance: Whether to compute the state covariance.
+
+    Returns:
+        Typed estimated state and optional state covariance.
+
+    Raises:
+        ValueError: If zero or multiple weight representations are supplied,
+            or if an input has an incompatible shape/value.
+    """
+    provided = [
+        weights is not None,
+        measurement_std is not None,
+        measurement_covariance is not None,
+        weight_matrix is not None,
+    ]
+    if sum(provided) != 1:
+        raise ValueError(
+            "Provide exactly one of weights, measurement_std, "
+            "measurement_covariance, or weight_matrix"
+        )
+
+    if weights is not None:
+        weight_specification = np.asarray(weights)
+        if weight_specification.ndim != 1:
+            raise ValueError("weights must be a 1D array")
+        is_standard_deviation = False
+    elif measurement_std is not None:
+        weight_specification = np.asarray(measurement_std)
+        if weight_specification.ndim != 1:
+            raise ValueError("measurement_std must be a 1D array")
+        is_standard_deviation = True
+    elif measurement_covariance is not None:
+        measurement_covariance = np.asarray(measurement_covariance)
+        if measurement_covariance.ndim != 2:
+            raise ValueError("measurement_covariance must be a 2D array")
+        if measurement_covariance.shape[0] != measurement_covariance.shape[1]:
+            raise ValueError("measurement_covariance must be square")
+        try:
+            weight_specification = np.linalg.inv(measurement_covariance)
+        except np.linalg.LinAlgError as exc:
+            raise ValueError("measurement_covariance must be invertible") from exc
+        is_standard_deviation = False
+    else:
+        weight_specification = np.asarray(weight_matrix)
+        if weight_specification.ndim != 2:
+            raise ValueError("weight_matrix must be a 2D array")
+        is_standard_deviation = False
+
+    estimated_state, state_covariance = weighted_least_squares(
+        design_matrix,
+        observations,
+        weight_specification,
+        is_sigma=is_standard_deviation,
+        return_covariance=return_covariance,
+    )
+    return WeightedLeastSquaresResult(
+        estimated_state=estimated_state,
+        state_covariance=state_covariance,
+    )
+
+
 def iterative_least_squares(
     f: Callable[[np.ndarray], np.ndarray],
     jacobian: Callable[[np.ndarray], np.ndarray],
@@ -241,7 +345,7 @@ def iterative_least_squares(
     max_iter: int = 10,
     tol: float = 1e-6,
     return_covariance: bool = True,
-) -> Tuple[np.ndarray, Optional[np.ndarray], int]:
+) -> Tuple[np.ndarray, np.ndarray | None, int]:
     """
     Iterative least squares for nonlinear measurement models (Gauss-Newton).
 
@@ -365,7 +469,7 @@ def robust_least_squares(
     max_iter: int = 10,
     tol: float = 1e-4,
     return_covariance: bool = True,
-) -> Tuple[np.ndarray, Optional[np.ndarray], np.ndarray]:
+) -> Tuple[np.ndarray, np.ndarray | None, np.ndarray]:
     """
     Robust least squares with outlier rejection using IRLS.
 

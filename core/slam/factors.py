@@ -22,7 +22,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import Optional, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 import numpy as np
 
@@ -37,7 +37,7 @@ def create_odometry_factor(
     pose_id_from: int,
     pose_id_to: int,
     relative_pose: np.ndarray,
-    information: Optional[np.ndarray] = None,
+    information: np.ndarray | None = None,
 ) -> Factor:
     """
     Create odometry factor connecting two consecutive poses.
@@ -159,7 +159,7 @@ def create_loop_closure_factor(
     pose_id_from: int,
     pose_id_to: int,
     relative_pose: np.ndarray,
-    information: Optional[np.ndarray] = None,
+    information: np.ndarray | None = None,
 ) -> Factor:
     """
     Create loop closure factor connecting non-consecutive poses (Section 7.3.5).
@@ -221,7 +221,7 @@ def create_loop_closure_factor(
 def create_prior_factor(
     pose_id: int,
     prior_pose: np.ndarray,
-    information: Optional[np.ndarray] = None,
+    information: np.ndarray | None = None,
 ) -> Factor:
     """
     Create prior factor anchoring a pose to a known value.
@@ -291,7 +291,7 @@ def create_landmark_factor(
     pose_id: int,
     landmark_id: int,
     observation: np.ndarray,
-    information: Optional[np.ndarray] = None,
+    information: np.ndarray | None = None,
 ) -> Factor:
     """
     Create landmark observation factor (for feature-based SLAM).
@@ -441,11 +441,11 @@ def _resolve_loop_information(
 def create_pose_graph(
     poses: list[np.ndarray],
     odometry_measurements: list[tuple[int, int, np.ndarray]],
-    loop_closures: Optional[list[tuple[int, int, np.ndarray]]] = None,
-    prior_pose: Optional[np.ndarray] = None,
-    odometry_information: Optional[np.ndarray] = None,
-    loop_information: Optional[np.ndarray] = None,
-    prior_information: Optional[np.ndarray] = None,
+    loop_closures: list[tuple[int, int, np.ndarray]] | None = None,
+    prior_pose: np.ndarray | None = None,
+    odometry_information: np.ndarray | None = None,
+    loop_information: np.ndarray | None = None,
+    prior_information: np.ndarray | None = None,
 ):
     """
     Create a complete pose graph from trajectory data.
@@ -550,7 +550,7 @@ def create_reprojection_factor(
     landmark_id: int,
     observed_pixel: np.ndarray,
     camera_intrinsics: "CameraIntrinsics",
-    information: Optional[np.ndarray] = None,
+    information: np.ndarray | None = None,
 ) -> Factor:
     """
     Create a reprojection factor for visual bundle adjustment.

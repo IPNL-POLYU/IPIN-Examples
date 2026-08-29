@@ -12,13 +12,14 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-import numpy as np
-from typing import Dict, Optional, Tuple
+from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
 
-from .submap_2d import Submap2D
-from .se2 import se2_compose
+import numpy as np
+
 from .scan_matching import icp_point_to_point
+from .se2 import se2_compose
+from .submap_2d import Submap2D
 
 
 @dataclass
@@ -26,16 +27,84 @@ class MatchQuality:
     """Quality metrics for scan-to-map alignment.
 
     Attributes:
-        residual: ICP alignment residual (lower is better).
+        residual_rmse_m: ICP alignment RMS residual in metres (lower is better).
         converged: Whether ICP converged.
         n_correspondences: Number of point correspondences found.
-        iters: Number of ICP iterations performed.
+        iterations: Number of ICP iterations performed.
     """
 
-    residual: float
+    residual_rmse_m: float
     converged: bool
     n_correspondences: int
-    iters: int
+    iterations: int
+
+    @property
+    def residual(self) -> float:
+        """Backward-compatible alias for ``residual_rmse_m``."""
+        return self.residual_rmse_m
+
+    @property
+    def iters(self) -> int:
+        """Backward-compatible alias for ``iterations``."""
+        return self.iterations
+
+
+@dataclass(frozen=True)
+class FrontendStepResult(Mapping[str, object]):
+    """Named result for one front-end update with dict-style compatibility.
+
+    Attributes:
+        predicted_pose_body_to_map_se2: Odometry-predicted pose ``[x_m, y_m,
+            yaw_rad]`` that transforms body-frame points into the map frame.
+        estimated_pose_body_to_map_se2: Scan-matched pose with the same shape,
+            units, and transform direction.
+        match_quality: ICP convergence and residual details.
+        correction_magnitude_m: Translation distance between predicted and
+            estimated poses, in metres.
+    """
+
+    predicted_pose_body_to_map_se2: np.ndarray
+    estimated_pose_body_to_map_se2: np.ndarray
+    match_quality: MatchQuality
+    correction_magnitude_m: float
+
+    _KEYS = ("pose_pred", "pose_est", "match_quality", "correction_magnitude")
+    _KEY_TO_ATTRIBUTE = {
+        "pose_pred": "predicted_pose_body_to_map_se2",
+        "pose_est": "estimated_pose_body_to_map_se2",
+        "match_quality": "match_quality",
+        "correction_magnitude": "correction_magnitude_m",
+    }
+
+    def __getitem__(self, key: str) -> object:
+        if key not in self._KEYS:
+            raise KeyError(key)
+        return getattr(self, self._KEY_TO_ATTRIBUTE[key])
+
+    def __iter__(self) -> Iterator[str]:
+        return iter(self._KEYS)
+
+    def __len__(self) -> int:
+        return len(self._KEYS)
+
+    def as_dict(self) -> dict[str, object]:
+        """Return a plain dict for callers that need concrete dict semantics."""
+        return {key: self[key] for key in self._KEYS}
+
+    @property
+    def pose_pred(self) -> np.ndarray:
+        """Backward-compatible alias for the predicted body-to-map pose."""
+        return self.predicted_pose_body_to_map_se2
+
+    @property
+    def pose_est(self) -> np.ndarray:
+        """Backward-compatible alias for the estimated body-to-map pose."""
+        return self.estimated_pose_body_to_map_se2
+
+    @property
+    def correction_magnitude(self) -> float:
+        """Backward-compatible alias for ``correction_magnitude_m``."""
+        return self.correction_magnitude_m
 
 
 class SlamFrontend2D:
@@ -83,8 +152,8 @@ class SlamFrontend2D:
         submap_voxel_size: float = 0.1,
         min_map_points: int = 10,
         max_icp_residual: float = 1.0,
-        initial_pose: Optional[np.ndarray] = None,
-        max_correspondence_distance: Optional[float] = 1.0,
+        initial_pose: np.ndarray | None = None,
+        max_correspondence_distance: float | None = 1.0,
     ):
         """Initialize SLAM front-end.
 
@@ -111,7 +180,7 @@ class SlamFrontend2D:
                              to correct, or true correspondences get cut.
         """
         self.submap = Submap2D()
-        self.pose_est: Optional[np.ndarray] = None
+        self.pose_est: np.ndarray | None = None
         self.initialized: bool = False
 
         # Parameters
@@ -126,7 +195,7 @@ class SlamFrontend2D:
         step_index: int,
         odom_delta: np.ndarray,
         scan: np.ndarray,
-    ) -> Dict:
+    ) -> FrontendStepResult:
         """Execute one step of SLAM front-end.
 
         This is the core SLAM loop:
@@ -142,7 +211,7 @@ class SlamFrontend2D:
             scan: LiDAR scan points in robot frame, shape (N, 2).
 
         Returns:
-            Dictionary with:
+            FrontendStepResult, which also supports old dict-style keys:
                 - 'pose_pred': Predicted pose (odometry only) [x, y, yaw]
                 - 'pose_est': Estimated pose (after scan matching) [x, y, yaw]
                 - 'match_quality': MatchQuality dataclass with ICP metrics
@@ -183,18 +252,18 @@ class SlamFrontend2D:
         # Compute correction magnitude
         correction_magnitude = np.linalg.norm(pose_est[:2] - pose_pred[:2])
 
-        return {
-            "pose_pred": pose_pred,
-            "pose_est": pose_est,
-            "match_quality": match_quality,
-            "correction_magnitude": correction_magnitude,
-        }
+        return FrontendStepResult(
+            predicted_pose_body_to_map_se2=pose_pred,
+            estimated_pose_body_to_map_se2=pose_est,
+            match_quality=match_quality,
+            correction_magnitude_m=float(correction_magnitude),
+        )
 
     def _initialize_first_step(
         self,
         step_index: int,
         scan: np.ndarray,
-    ) -> Dict:
+    ) -> FrontendStepResult:
         """Initialize front-end with first scan.
 
         Args:
@@ -202,7 +271,7 @@ class SlamFrontend2D:
             scan: First scan in robot frame.
 
         Returns:
-            Result dictionary with initialization values.
+            FrontendStepResult with initialization values.
         """
         # Initialize at specified pose or origin
         if self._initial_pose is not None:
@@ -217,24 +286,24 @@ class SlamFrontend2D:
 
         # Return initialization result
         match_quality = MatchQuality(
-            residual=0.0,
+            residual_rmse_m=0.0,
             converged=True,
             n_correspondences=len(scan),
-            iters=0,
+            iterations=0,
         )
 
-        return {
-            "pose_pred": self.pose_est.copy(),
-            "pose_est": self.pose_est.copy(),
-            "match_quality": match_quality,
-            "correction_magnitude": 0.0,
-        }
+        return FrontendStepResult(
+            predicted_pose_body_to_map_se2=self.pose_est.copy(),
+            estimated_pose_body_to_map_se2=self.pose_est.copy(),
+            match_quality=match_quality,
+            correction_magnitude_m=0.0,
+        )
 
     def _scan_to_map_alignment(
         self,
         scan: np.ndarray,
         pose_pred: np.ndarray,
-    ) -> Tuple[np.ndarray, MatchQuality]:
+    ) -> tuple[np.ndarray, MatchQuality]:
         """Align current scan to submap via ICP.
 
         Args:
@@ -258,10 +327,10 @@ class SlamFrontend2D:
         if len(submap_points) < self.min_map_points:
             # Not enough map points, use prediction
             match_quality = MatchQuality(
-                residual=0.0,
+                residual_rmse_m=0.0,
                 converged=False,
                 n_correspondences=0,
-                iters=0,
+                iterations=0,
             )
             return pose_pred, match_quality
 
@@ -269,10 +338,10 @@ class SlamFrontend2D:
         if len(scan) < 5:
             # Too few scan points, use prediction
             match_quality = MatchQuality(
-                residual=0.0,
+                residual_rmse_m=0.0,
                 converged=False,
                 n_correspondences=len(scan),
-                iters=0,
+                iterations=0,
             )
             return pose_pred, match_quality
 
@@ -290,10 +359,10 @@ class SlamFrontend2D:
         except Exception:
             # ICP failed (e.g., numerical issues)
             match_quality = MatchQuality(
-                residual=float("inf"),
+                residual_rmse_m=float("inf"),
                 converged=False,
                 n_correspondences=0,
-                iters=0,
+                iterations=0,
             )
             return pose_pred, match_quality
 
@@ -301,23 +370,23 @@ class SlamFrontend2D:
         if converged and residual < self.max_icp_residual:
             # Good match: use ICP result
             match_quality = MatchQuality(
-                residual=residual,
+                residual_rmse_m=residual,
                 converged=True,
                 n_correspondences=len(scan),  # Approximate
-                iters=iters,
+                iterations=iters,
             )
             return pose_est, match_quality
         else:
             # Poor match or didn't converge: fallback to prediction
             match_quality = MatchQuality(
-                residual=residual,
+                residual_rmse_m=residual,
                 converged=converged,
                 n_correspondences=len(scan),
-                iters=iters,
+                iterations=iters,
             )
             return pose_pred, match_quality
 
-    def get_current_pose(self) -> Optional[np.ndarray]:
+    def get_current_pose(self) -> np.ndarray | None:
         """Get current pose estimate.
 
         Returns:
@@ -325,7 +394,7 @@ class SlamFrontend2D:
         """
         return self.pose_est.copy() if self.initialized else None
 
-    def get_submap_points(self, voxel_size: Optional[float] = None) -> np.ndarray:
+    def get_submap_points(self, voxel_size: float | None = None) -> np.ndarray:
         """Get current submap points.
 
         Args:

@@ -10,8 +10,6 @@ import is not an example.
 References: Chapter 8, Section 8.1.1 (Loosely Coupled)
 """
 
-from typing import Dict, List
-
 import numpy as np
 
 from core.fusion.adaptive import create_adaptive_manager_for_lc
@@ -22,7 +20,12 @@ from core.fusion.lc_models import (
     solve_uwb_position_wls,
 )
 from core.fusion.tuning import innovation, innovation_covariance
-from core.fusion.types import StampedMeasurement
+from core.fusion.types import (
+    SENSOR_IMU,
+    SENSOR_UWB_RANGES_EPOCH,
+    FusionHistory,
+    StampedMeasurement,
+)
 
 __all__ = ["run_lc_fusion"]
 
@@ -37,11 +40,11 @@ _FALLBACK_RANGE_NOISE_STD_M = 0.05
 
 
 def run_lc_fusion(
-    dataset: Dict,
+    dataset: dict,
     use_gating: bool = True,
     gate_confidence: float = 0.95,
     verbose: bool = True,
-) -> Dict:
+) -> FusionHistory:
     """Run loosely coupled IMU + UWB fusion.
 
     Args:
@@ -51,13 +54,15 @@ def run_lc_fusion(
         verbose: Print progress
 
     Returns:
-        Results dictionary with:
+        FusionHistory dictionary subclass with:
             - 't': timestamps (N,)
             - 'x_est': estimated states (N, 5)
             - 'P_trace': trace of covariance (N,)
             - 'innovations': list of innovations
             - 'nis': list of NIS values
-            - 'gated': list of booleans
+            - 'measurement_accepted': list of booleans, True when the UWB
+              position fix was accepted by the gate/update logic
+            - 'gated': deprecated alias for 'measurement_accepted'
             - 'n_uwb_accepted': number of UWB position fixes accepted
             - 'n_uwb_rejected': number of UWB position fixes rejected
             - 'n_uwb_failed': number of UWB position solves that failed
@@ -118,14 +123,14 @@ def run_lc_fusion(
     h, H_func, R_func = create_lc_position_measurement_model()
 
     # Prepare timestamped measurements
-    measurements: List[StampedMeasurement] = []
+    measurements: list[StampedMeasurement] = []
 
     # Add IMU measurements
     for i in range(len(imu["t"])):
         measurements.append(
             StampedMeasurement(
                 t=imu["t"][i],
-                sensor="imu",
+                sensor=SENSOR_IMU,
                 z=np.hstack([imu["accel_xy"][i], imu["gyro_z"][i]]),  # [ax, ay, gz]
                 R=np.eye(3),  # Not used
                 meta={},
@@ -137,7 +142,7 @@ def run_lc_fusion(
         measurements.append(
             StampedMeasurement(
                 t=uwb["t"][i],
-                sensor="uwb",
+                sensor=SENSOR_UWB_RANGES_EPOCH,
                 z=uwb["ranges"][i, :],  # All ranges at this timestamp
                 R=np.eye(anchors.shape[0]),  # Not used (WLS computes own cov)
                 meta={"epoch_idx": i},
@@ -150,7 +155,10 @@ def run_lc_fusion(
     if verbose:
         print("\nMeasurements:")
         print(f"  IMU samples: {len(imu['t'])}")
-        print(f"  UWB epochs: {len([m for m in measurements if m.sensor == 'uwb'])}")
+        print(
+            "  UWB epochs: "
+            f"{len([m for m in measurements if m.sensor in {SENSOR_UWB_RANGES_EPOCH, 'uwb'}])}"
+        )
         print(f"  Total: {len(measurements)}")
 
     # Create adaptive gating manager (if gating enabled)
@@ -165,31 +173,35 @@ def run_lc_fusion(
         )
 
     # Run fusion
-    history = {
-        "t": [],
-        "x_est": [],
-        "P_trace": [],
-        "innovations": [],
-        "nis": [],
-        "gated": [],
-        "uwb_positions": [],  # Store solved UWB positions for analysis
-        "R_scales": [],
-    }
+    accepted_history = []
+    history = FusionHistory(
+        {
+            "t": [],
+            "x_est": [],
+            "P_trace": [],
+            "innovations": [],
+            "nis": [],
+            "measurement_accepted": accepted_history,
+            "gated": accepted_history,  # Backward-compatible alias.
+            "uwb_positions": [],  # Store solved UWB positions for analysis
+            "R_scales": [],
+        }
+    )
 
     n_uwb_accepted = 0
     n_uwb_rejected = 0
     n_uwb_failed = 0
     t_prev = measurements[0].t
 
-    for idx, meas in enumerate(measurements):
+    for meas in measurements:
         dt = meas.t - t_prev
 
-        if meas.sensor == "imu":
+        if meas.sensor == SENSOR_IMU:
             # Propagate with IMU
             u = meas.z  # [ax, ay, gyro_z]
             ekf.predict(u=u, dt=dt)
 
-        elif meas.sensor == "uwb":
+        elif meas.sensor in {SENSOR_UWB_RANGES_EPOCH, "uwb"}:
             # Solve for UWB position fix
             ranges = meas.z  # All ranges at this epoch
 
@@ -264,7 +276,7 @@ def run_lc_fusion(
             # Log
             history["innovations"].append(np.linalg.norm(y))  # 2D innovation norm
             history["nis"].append(nis_value)
-            history["gated"].append(accept)
+            history["measurement_accepted"].append(accept)
             history["R_scales"].append(R_scale)
 
         # Record state

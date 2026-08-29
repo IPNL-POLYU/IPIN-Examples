@@ -37,7 +37,6 @@ References: Chapter 8, Section 8.5 (Temporal Calibration)
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,7 +56,12 @@ from core.eval import (
     save_figure,
     show_figures_if_requested,
 )
-from core.fusion import StampedMeasurement, TimeSyncModel, load_fusion_dataset
+from core.fusion import (
+    SENSOR_UWB_RANGE,
+    StampedMeasurement,
+    TimeSyncModel,
+    load_fusion_dataset,
+)
 from core.fusion.tc_models import (
     interpolate_imu_measurements,
     tc_process_jacobian,
@@ -69,12 +73,12 @@ from core.fusion.tc_models import (
 
 
 def run_fusion_with_time_sync(
-    dataset: Dict,
+    dataset: dict,
     apply_correction: bool = False,
     use_gating: bool = False,
     gate_confidence: float = 0.95,
     verbose: bool = False,
-) -> Dict:
+) -> dict:
     """Run TC fusion with or without temporal calibration.
 
     Args:
@@ -161,7 +165,7 @@ def run_fusion_with_time_sync(
     gyro_z_all = imu["gyro_z"]
 
     # Prepare UWB measurements with corrected timestamps
-    uwb_measurements: List[StampedMeasurement] = []
+    uwb_measurements: list[StampedMeasurement] = []
 
     # Add UWB (apply time sync correction if requested)
     for i in range(len(uwb["t"])):
@@ -176,7 +180,7 @@ def run_fusion_with_time_sync(
                 uwb_measurements.append(
                     StampedMeasurement(
                         t=t_fusion,
-                        sensor="uwb",
+                        sensor=SENSOR_UWB_RANGE,
                         z=np.array([uwb["ranges"][i, j]]),
                         R=np.array([[uwb_range_noise_std**2]]),
                         meta={"anchor_id": j, "anchor_pos": anchors[j]},
@@ -189,13 +193,15 @@ def run_fusion_with_time_sync(
     # Run fusion with asynchronous measurement handling (Section 8.5.2)
     from core.fusion import chi_square_gate, innovation, innovation_covariance
 
+    accepted_history = []
     history = {
         "t": [],
         "x_est": [],
         "P_trace": [],
         "innovations": [],
         "nis": [],
-        "gated": [],
+        "measurement_accepted": accepted_history,
+        "gated": accepted_history,  # Backward-compatible alias.
     }
 
     n_uwb_accepted = 0
@@ -274,7 +280,7 @@ def run_fusion_with_time_sync(
         # Log
         history["innovations"].append(float(np.abs(y[0])))
         history["nis"].append(float(y @ np.linalg.inv(S) @ y))
-        history["gated"].append(accept)
+        history["measurement_accepted"].append(accept)
 
         # Record state at UWB measurement time
         history["t"].append(t_uwb)
@@ -314,7 +320,7 @@ def run_fusion_with_time_sync(
 
 
 def plot_temporal_calibration(
-    dataset: Dict, no_correction: Dict, with_correction: Dict, save_path: str = None
+    dataset: dict, no_correction: dict, with_correction: dict, save_path: str = None
 ) -> None:
     """Generate temporal calibration comparison plots.
 

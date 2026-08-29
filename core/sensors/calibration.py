@@ -4,7 +4,8 @@ IMU calibration utilities: Allan variance and noise characterization (Chapter 6)
 This module implements calibration and characterization tools for IMU sensors:
     - Allan variance analysis (IEEE Std 952-1997)
     - Noise parameter extraction from Allan deviation plots (Eqs. 6.56-6.58)
-    - Conversion between ARW and per-sample noise (Eq. 6.58)
+    - Explicit conversion between ARW/VRW noise density and either
+      rate/acceleration sample noise or integrated angle/velocity increment noise
     - IMU scale/misalignment correction (Eq. (6.59) - implemented in imu_models.py)
 
 Allan variance is the gold standard for characterizing IMU noise sources:
@@ -21,21 +22,21 @@ References:
     Chapter 6, Section 6.5: IMU calibration
     Eq. (6.56): ARW extraction from Allan deviation: σ(τ) = ARW/√τ
     Eq. (6.57): Log-linear form: log(σ(τ)) = log(ARW) - (1/2)log(τ)
-    Eq. (6.58): ARW to per-sample noise: σ_ω = ARW × √Δt
+    Eq. (6.58): ARW/VRW to integrated increment noise: σ_increment = RW × √Δt
     IEEE Std 952-1997: Allan variance computational algorithm
 """
 
-from typing import Tuple, Optional
-import numpy as np
 import warnings
+
+import numpy as np
 
 
 def allan_variance(
     x: np.ndarray,
     fs: float,
-    taus: Optional[np.ndarray] = None,
+    taus: np.ndarray | None = None,
     overlapping: bool = True,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Compute Allan variance (and Allan deviation) for IMU data.
 
@@ -113,8 +114,10 @@ def allan_variance(
         - This function computes Allan deviation σ(τ) following IEEE Std 952-1997
         - To extract ARW from the result, use identify_random_walk() which implements
           the book's Eq. (6.56): σ(τ) = ARW/√τ
-        - To convert ARW to per-sample noise, use arw_to_noise_std() which implements
-          the book's Eq. (6.58): σ_ω = ARW × √Δt
+        - To convert ARW/VRW to direct gyro/accelerometer sample noise, use
+          random_walk_to_rate_sample_std().
+        - To convert ARW/VRW to one-sample integrated angle/velocity increment
+          noise, use random_walk_to_increment_sample_std() (Eq. 6.58).
     """
     if x.ndim != 1:
         raise ValueError(f"x must be 1D array, got shape {x.shape}")
@@ -196,7 +199,7 @@ def allan_variance(
 def identify_bias_instability(
     taus: np.ndarray,
     adev: np.ndarray,
-) -> Tuple[float, float]:
+) -> tuple[float, float]:
     """
     Identify bias instability from Allan deviation curve.
 
@@ -282,16 +285,19 @@ def identify_random_walk(
         - For accel: velocity random walk (VRW) in m/s/√s or m/s^(3/2).
         - Conversion: 1 rad/√s = 3437.75 deg/√hr.
         - Smaller random walk = better short-term accuracy.
-        - To convert ARW to per-sample noise σ_ω, use arw_to_noise_std() (Eq. 6.58).
+        - To convert ARW to direct gyro-rate sample noise, use
+          random_walk_to_rate_sample_std().
+        - To convert ARW to one-sample integrated angle increment noise, use
+          random_walk_to_increment_sample_std() (Eq. 6.58).
 
     Example:
         >>> taus, adev = allan_variance(gyro_data, fs=100.0)
         >>> arw = identify_random_walk(taus, adev, tau_target=1.0)
         >>> print(f"Angle random walk: {np.rad2deg(arw):.4f} deg/√s")
         >>> print(f"                   {np.rad2deg(arw)*60:.2f} deg/√hr")
-        >>> # Convert to per-sample noise (Eq. 6.58)
+        >>> # Convert to direct gyro-rate sample noise
         >>> dt = 1.0 / 100.0  # 100 Hz
-        >>> sigma_omega = arw_to_noise_std(arw, dt)
+        >>> sigma_omega = random_walk_to_rate_sample_std(arw, dt)
         >>> print(f"Per-sample noise:  {np.rad2deg(sigma_omega):.4f} deg/s")
     """
     if len(taus) != len(adev):
@@ -332,6 +338,7 @@ def identify_random_walk(
                 f"Slope {slope:.2f} is not typical for random walk (-0.5 expected). "
                 "Result may be inaccurate.",
                 UserWarning,
+                stacklevel=2,
             )
     else:
         # Not enough points, use nearest neighbor
@@ -339,6 +346,7 @@ def identify_random_walk(
         warnings.warn(
             f"Insufficient data near τ={tau_target}s. Using nearest value.",
             UserWarning,
+            stacklevel=2,
         )
 
     # Random walk coefficient (units: rad/√s or m/s^(3/2))
@@ -417,12 +425,14 @@ def identify_rate_random_walk(
                 f"Slope {slope:.2f} is not typical for rate random walk (+0.5 expected). "
                 "Result may be inaccurate.",
                 UserWarning,
+                stacklevel=2,
             )
     else:
         adev_at_target = adev[idx]
         warnings.warn(
             f"Insufficient data near τ={tau_target}s. Using nearest value.",
             UserWarning,
+            stacklevel=2,
         )
 
     # Rate random walk coefficient: K = σ(τ) * √(3/τ)
@@ -431,16 +441,117 @@ def identify_rate_random_walk(
     return K
 
 
+def random_walk_to_rate_sample_std(random_walk: float, dt: float) -> float:
+    """
+    Convert ARW/VRW noise density to per-sample rate/acceleration noise std.
+
+    This is the quantity to add directly to gyro-rate or accelerometer samples:
+
+        sigma_sample = random_walk / sqrt(dt)
+
+    For a gyro, ``random_walk`` has units rad/√s and the returned sample
+    standard deviation has units rad/s. For an accelerometer, ``random_walk``
+    has units m/s/√s and the returned sample standard deviation has units
+    m/s².
+
+    Args:
+        random_walk: ARW or VRW noise-density coefficient.
+        dt: Sampling interval in seconds.
+
+    Returns:
+        Per-sample standard deviation for rate/acceleration measurements.
+    """
+    if dt <= 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    if random_walk < 0:
+        raise ValueError(f"random_walk must be non-negative, got {random_walk}")
+
+    return random_walk / np.sqrt(dt)
+
+
+def rate_sample_std_to_random_walk(sample_std: float, dt: float) -> float:
+    """
+    Convert per-sample rate/acceleration noise std back to ARW/VRW density.
+
+    This is the inverse of :func:`random_walk_to_rate_sample_std`.
+
+    Args:
+        sample_std: Standard deviation of gyro-rate or accelerometer samples.
+        dt: Sampling interval in seconds.
+
+    Returns:
+        ARW/VRW noise-density coefficient.
+    """
+    if dt <= 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    if sample_std < 0:
+        raise ValueError(f"sample_std must be non-negative, got {sample_std}")
+
+    return sample_std * np.sqrt(dt)
+
+
+def random_walk_to_increment_sample_std(random_walk: float, dt: float) -> float:
+    """
+    Convert ARW/VRW noise density to integrated increment noise std.
+
+    This is the standard deviation after integrating one noisy sample over
+    ``dt``:
+
+        sigma_increment = random_walk * sqrt(dt)
+
+    For a gyro, the returned increment has units radians. For an
+    accelerometer, the returned increment has units m/s.
+
+    Args:
+        random_walk: ARW or VRW noise-density coefficient.
+        dt: Sampling interval in seconds.
+
+    Returns:
+        Per-sample integrated angle/velocity increment standard deviation.
+    """
+    if dt <= 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    if random_walk < 0:
+        raise ValueError(f"random_walk must be non-negative, got {random_walk}")
+
+    return random_walk * np.sqrt(dt)
+
+
+def increment_sample_std_to_random_walk(increment_std: float, dt: float) -> float:
+    """
+    Convert integrated increment noise std back to ARW/VRW density.
+
+    This is the inverse of :func:`random_walk_to_increment_sample_std`.
+
+    Args:
+        increment_std: Standard deviation of one integrated angle/velocity
+            increment.
+        dt: Sampling interval in seconds.
+
+    Returns:
+        ARW/VRW noise-density coefficient.
+    """
+    if dt <= 0:
+        raise ValueError(f"dt must be positive, got {dt}")
+    if increment_std < 0:
+        raise ValueError(f"increment_std must be non-negative, got {increment_std}")
+
+    return increment_std / np.sqrt(dt)
+
+
 def arw_to_noise_std(arw: float, dt: float) -> float:
     """
-    Convert angle/velocity random walk to per-sample noise standard deviation.
+    Backward-compatible alias for integrated increment noise standard deviation.
 
-    Implements the book's Eq. (6.58):
-        σ_ω = ARW × √Δt
+    Historically this helper returned ``arw * sqrt(dt)`` while its name and
+    examples called that value "per-sample noise".  That value is dimensionally
+    the one-sample integrated increment standard deviation (radians for gyro,
+    m/s for accelerometer), not the rate/acceleration noise to add directly to
+    measurements.
 
-    This converts the angle random walk (ARW) coefficient (typically extracted
-    from Allan deviation analysis) to the per-sample noise standard deviation
-    needed for IMU simulation and filtering.
+    New code should prefer one of the explicit helpers:
+        - random_walk_to_rate_sample_std(): add to gyro/accel samples.
+        - random_walk_to_increment_sample_std(): integrated angle/velocity increment.
 
     Args:
         arw: Angle random walk coefficient (ARW for gyro, VRW for accel).
@@ -451,16 +562,13 @@ def arw_to_noise_std(arw: float, dt: float) -> float:
             Example: dt = 1/100 = 0.01 s for 100 Hz data.
 
     Returns:
-        Per-sample noise standard deviation σ_ω.
-        Units: rad/s (gyro) or m/s² (accel).
-        This is the standard deviation of the white noise in each sensor sample.
+        Integrated increment standard deviation.
+        Units: radians (gyro) or m/s (accel velocity increment).
 
     Notes:
-        - This is the book's Eq. (6.58) from Section 6.5.1.1.
-        - ARW is a measure of noise power per square root of time.
-        - σ_ω is the discrete-time noise standard deviation.
-        - For simulation: add N(0, σ_ω²) noise to each IMU sample.
-        - For filtering: use σ_ω² as the measurement noise variance.
+        - Preserves the historical numeric behavior exactly.
+        - Do not use this value as direct gyro-rate or accelerometer sample
+          noise; use random_walk_to_rate_sample_std() for that.
 
     Example:
         >>> # Extract ARW from Allan variance analysis
@@ -468,43 +576,41 @@ def arw_to_noise_std(arw: float, dt: float) -> float:
         >>> arw = identify_random_walk(taus, adev, tau_target=1.0)
         >>> print(f"ARW: {np.rad2deg(arw):.4f} deg/√s")
         >>>
-        >>> # Convert to per-sample noise (Eq. 6.58)
+        >>> # Convert to one-sample integrated increment noise (Eq. 6.58)
         >>> dt = 1.0 / 100.0  # 100 Hz sampling
-        >>> sigma_omega = arw_to_noise_std(arw, dt)
-        >>> print(f"Per-sample noise: {np.rad2deg(sigma_omega):.4f} deg/s")
+        >>> sigma_angle = arw_to_noise_std(arw, dt)
+        >>> print(f"Angle increment noise: {np.rad2deg(sigma_angle):.4f} deg")
         >>>
-        >>> # Use in simulation
-        >>> gyro_noise = np.random.randn(N) * sigma_omega
+        >>> # To add noise to gyro-rate samples, use the explicit rate helper.
+        >>> sigma_rate = random_walk_to_rate_sample_std(arw, dt)
+        >>> gyro_rate_noise = np.random.randn(N) * sigma_rate
 
     Related Functions:
         - identify_random_walk(): Extract ARW from Allan deviation (Eq. 6.56)
-        - noise_std_to_arw(): Inverse conversion (σ_ω → ARW)
+        - noise_std_to_arw(): Backward-compatible inverse conversion
     """
     if dt <= 0:
         raise ValueError(f"dt must be positive, got {dt}")
     if arw < 0:
         raise ValueError(f"arw must be non-negative, got {arw}")
 
-    # Eq. (6.58): σ_ω = ARW × √Δt
-    sigma_omega = arw * np.sqrt(dt)
-
-    return sigma_omega
+    return random_walk_to_increment_sample_std(arw, dt)
 
 
 def noise_std_to_arw(sigma: float, dt: float) -> float:
     """
-    Convert per-sample noise standard deviation to angle/velocity random walk.
+    Backward-compatible inverse of :func:`arw_to_noise_std`.
 
     Inverse of the book's Eq. (6.58):
-        ARW = σ_ω / √Δt
+        ARW = σ_increment / √Δt
 
-    This converts the per-sample noise standard deviation to the angle random
-    walk (ARW) coefficient, useful when you know the sensor noise level and
-    want to predict Allan deviation behavior.
+    The ``sigma`` argument is interpreted as an integrated angle/velocity
+    increment standard deviation.  For direct gyro-rate or accelerometer
+    sample noise, use :func:`rate_sample_std_to_random_walk`.
 
     Args:
-        sigma: Per-sample noise standard deviation σ_ω.
-               Units: rad/s (gyro) or m/s² (accel).
+        sigma: Integrated increment standard deviation.
+               Units: radians (gyro) or m/s (accel velocity increment).
                Example: measured from stationary sensor data.
         dt: Sampling interval.
             Units: seconds.
@@ -515,22 +621,22 @@ def noise_std_to_arw(sigma: float, dt: float) -> float:
         Units: rad/√s (gyro) or m/s^(3/2) (accel).
 
     Notes:
-        - Inverse of arw_to_noise_std() (Eq. 6.58).
-        - Useful for predicting Allan deviation from known noise levels.
+        - Preserves the historical numeric behavior exactly.
+        - Use rate_sample_std_to_random_walk() for direct measurement samples.
         - Can verify consistency: allan → ARW → σ_ω → ARW should match.
 
     Example:
-        >>> # Known noise level from sensor datasheet
-        >>> sigma_omega = np.deg2rad(0.1)  # 0.1 deg/s per sample
+        >>> # Known one-sample angle increment noise
+        >>> sigma_angle = np.deg2rad(0.001)  # 0.001 deg per sample
         >>> dt = 1.0 / 100.0  # 100 Hz
         >>>
         >>> # Compute equivalent ARW
-        >>> arw = noise_std_to_arw(sigma_omega, dt)
+        >>> arw = noise_std_to_arw(sigma_angle, dt)
         >>> print(f"ARW: {np.rad2deg(arw):.4f} deg/√s")
         >>> print(f"     {np.rad2deg(arw)*60:.2f} deg/√hr")
 
     Related Functions:
-        - arw_to_noise_std(): Forward conversion (ARW → σ_ω) per Eq. 6.58
+        - arw_to_noise_std(): Forward compatibility conversion
         - identify_random_walk(): Extract ARW from Allan deviation
     """
     if dt <= 0:
@@ -538,10 +644,7 @@ def noise_std_to_arw(sigma: float, dt: float) -> float:
     if sigma < 0:
         raise ValueError(f"sigma must be non-negative, got {sigma}")
 
-    # Inverse of Eq. (6.58): ARW = σ_ω / √Δt
-    arw = sigma / np.sqrt(dt)
-
-    return arw
+    return increment_sample_std_to_random_walk(sigma, dt)
 
 
 def characterize_imu_noise(

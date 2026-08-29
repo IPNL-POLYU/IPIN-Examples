@@ -19,7 +19,6 @@ from typing import Dict, Tuple
 
 import numpy as np
 
-
 # Type aliases for clarity and documentation
 PointCloud2D = np.ndarray  # Shape (N, 2), points in 2D space (meters)
 PointCloud3D = np.ndarray  # Shape (N, 3), points in 3D space (meters)

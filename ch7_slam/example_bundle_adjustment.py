@@ -27,7 +27,6 @@ Date: December 2025
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -92,7 +91,7 @@ def reprojection_residuals_px(graph: FactorGraph, n_reprojection: int) -> np.nda
 def generate_camera_trajectory(
     n_poses: int = 10,
     radius: float = 5.0,
-) -> List[np.ndarray]:
+) -> list[np.ndarray]:
     """
     Generate circular camera trajectory for bundle adjustment demo.
 
@@ -146,13 +145,13 @@ def generate_landmarks(
 
 
 def generate_observations(
-    poses: List[np.ndarray],
+    poses: list[np.ndarray],
     landmarks: np.ndarray,
     intrinsics: CameraIntrinsics,
     observation_noise: float = 1.0,
     min_depth: float = 1.0,
     max_depth: float = 15.0,
-) -> Dict[int, List[Tuple[int, np.ndarray]]]:
+) -> dict[int, list[tuple[int, np.ndarray]]]:
     """
     Generate synthetic camera observations (pixel coordinates).
 
@@ -173,7 +172,7 @@ def generate_observations(
     for pose_id, pose_2d in enumerate(poses):
         pose_observations = []
 
-        # Assume camera at fixed height (simplified 2D→3D)
+        # Assume camera at fixed height (simplified 2D-to-3D)
         camera_height = 0.0
         x_cam, y_cam, yaw_cam = pose_2d
 
@@ -186,18 +185,18 @@ def generate_observations(
             dy_map = ly - y_cam
             dz_map = lz - camera_height
 
-            # Rotate to camera frame (X-right, Y-down, Z-forward)
+            # Rotate planar map deltas into camera-aligned axes. The core
+            # projection API expects camera coordinates as X-right, Y-down,
+            # Z-forward, so name the intermediate axes by what they mean
+            # instead of calling the forward axis "x".
             cos_yaw = np.cos(yaw_cam)
             sin_yaw = np.sin(yaw_cam)
 
-            # Transform: camera X points forward (along yaw)
-            x_in_cam = cos_yaw * dx_map + sin_yaw * dy_map
-            y_in_cam = -sin_yaw * dx_map + cos_yaw * dy_map
-            z_in_cam = dz_map
+            forward_cam = cos_yaw * dx_map + sin_yaw * dy_map
+            right_cam = -sin_yaw * dx_map + cos_yaw * dy_map
+            down_cam = dz_map
 
-            # Camera coordinate convention: [Y-right, Z-down, X-forward]
-            # Adjust for projection (Z-forward convention)
-            point_camera = np.array([y_in_cam, z_in_cam, x_in_cam])
+            point_camera = np.array([right_cam, down_cam, forward_cam])
 
             # Check if landmark is visible (in front of camera, within range)
             depth = point_camera[2]
@@ -221,11 +220,11 @@ def generate_observations(
 
 
 def add_noise_to_estimates(
-    poses: List[np.ndarray],
+    poses: list[np.ndarray],
     landmarks: np.ndarray,
     pose_noise: float = 0.3,
     landmark_noise: float = 0.5,
-) -> Tuple[List[np.ndarray], np.ndarray]:
+) -> tuple[list[np.ndarray], np.ndarray]:
     """
     Add noise to ground truth to create initial estimates for BA.
 
@@ -246,12 +245,12 @@ def add_noise_to_estimates(
 
 
 def create_ba_animation(
-    poses_true: List[np.ndarray],
+    poses_true: list[np.ndarray],
     landmarks_true: np.ndarray,
-    poses_history: List[List[np.ndarray]],
-    landmarks_history: List[np.ndarray],
-    error_history: List[float],
-    observations: Dict[int, List[Tuple[int, np.ndarray]]],
+    poses_history: list[list[np.ndarray]],
+    landmarks_history: list[np.ndarray],
+    error_history: list[float],
+    observations: dict[int, list[tuple[int, np.ndarray]]],
     n_poses: int,
     output_path: str = "ch7_slam/figs/bundle_adjustment.gif",
     fps: int = 3,
@@ -406,13 +405,13 @@ def create_ba_animation(
 
 
 def plot_bundle_adjustment_results(
-    poses_true: List[np.ndarray],
-    poses_init: List[np.ndarray],
-    poses_opt: List[np.ndarray],
+    poses_true: list[np.ndarray],
+    poses_init: list[np.ndarray],
+    poses_opt: list[np.ndarray],
     landmarks_true: np.ndarray,
     landmarks_init: np.ndarray,
     landmarks_opt: np.ndarray,
-    error_history: List[float],
+    error_history: list[float],
 ):
     """
     Visualize bundle adjustment results.
@@ -720,9 +719,7 @@ def main(animate: bool = False):
 
     print(f"   Factor graph: {len(graph.variables)} variables")
     print(f"   Variables: {n_poses} poses + {n_landmarks} landmarks")
-    print(
-        f"   Factors: {n_factors} ({n_reprojection_factors} reprojection + 2 prior)"
-    )
+    print(f"   Factors: {n_factors} ({n_reprojection_factors} reprojection + 2 prior)")
 
     # ------------------------------------------------------------------------
     # 6. Optimize Bundle Adjustment (with state tracking for animation)

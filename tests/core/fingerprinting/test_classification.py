@@ -8,22 +8,26 @@ Date: December 2024
 """
 
 import importlib.util
+import inspect
+from typing import get_args
 
 import numpy as np
 import pytest
 
-# Check if sklearn is available. find_spec rather than a try/except around a
-# bare `import sklearn`: the module is never used here, only gated on, and an
-# import bound to nothing reads as dead to every linter. A `# noqa` would not
-# help -- pyflakes has no such directive.
-SKLEARN_AVAILABLE = importlib.util.find_spec("sklearn") is not None
-
 from core.fingerprinting import (
     FingerprintDatabase,
+    HierarchicalLocalizationResult,
     fit_classifier,
     fit_floor_classifier,
+    hierarchical_fingerprint_localize,
     hierarchical_localize,
 )
+
+# Check if sklearn is available. find_spec rather than a try/except around a
+# bare `import sklearn`: the module is never used here, only gated on, and an
+# import bound to nothing reads as dead to every linter. A noqa-style comment
+# would not help -- pyflakes has no such directive.
+SKLEARN_AVAILABLE = importlib.util.find_spec("sklearn") is not None
 
 # Skip all tests if sklearn not available
 pytestmark = pytest.mark.skipif(
@@ -136,6 +140,26 @@ class TestFitClassifier:
 
         with pytest.raises((ValueError, NotImplementedError)):
             fit_classifier(db, zone_type="invalid")
+
+    def test_fit_classifier_signature_advertises_only_supported_zone_type(self):
+        """The typed public signature should match implemented zone choices."""
+        zone_type = inspect.signature(fit_classifier).parameters["zone_type"]
+
+        assert get_args(zone_type.annotation) == ("rp",)
+
+    def test_legacy_experimental_zone_types_raise_clear_errors(self):
+        """Old advertised-but-unimplemented zone strings fail explicitly."""
+        locations = np.array([[0, 0], [10, 0]], dtype=float)
+        features = np.array([[-50, -60], [-60, -50]], dtype=float)
+        floor_ids = np.array([0, 0])
+
+        db = FingerprintDatabase(
+            locations=locations, features=features, floor_ids=floor_ids, meta={}
+        )
+
+        for zone_type in ("grid", "cluster"):
+            with pytest.raises(NotImplementedError, match="only supported"):
+                fit_classifier(db, zone_type=zone_type)
 
     def test_fit_invalid_classifier_type(self):
         """Test that invalid classifier_type raises ValueError."""
@@ -328,6 +352,56 @@ class TestHierarchicalLocalize:
         assert pos.shape == (2,)
         assert "coarse_floor" in info
         assert "fine_method" in info
+        assert info["fine_method"] == "knn"
+
+    def test_hierarchical_result_has_named_fields_and_unpacking(self):
+        """Hierarchical result exposes names while preserving old unpacking."""
+        locations = np.array(
+            [
+                [0, 0],
+                [10, 0],
+                [10, 10],
+                [0, 10],
+                [0, 0],
+                [10, 0],
+                [10, 10],
+                [0, 10],
+            ],
+            dtype=float,
+        )
+        features = np.array(
+            [
+                [-50, -60, -70],
+                [-60, -50, -80],
+                [-70, -80, -50],
+                [-80, -70, -60],
+                [-55, -65, -75],
+                [-65, -55, -85],
+                [-75, -85, -55],
+                [-85, -75, -65],
+            ],
+            dtype=float,
+        )
+        floor_ids = np.array([0, 0, 0, 0, 1, 1, 1, 1])
+        db = FingerprintDatabase(
+            locations=locations,
+            features=features,
+            floor_ids=floor_ids,
+            meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
+        )
+        query = np.array([-60, -70, -80])
+
+        result = hierarchical_fingerprint_localize(
+            query, db, coarse_method="floor", fine_method="knn", k=3
+        )
+        pos, info = result
+
+        assert isinstance(result, HierarchicalLocalizationResult)
+        assert result.estimated_position_m is pos
+        assert result.diagnostics is info
+        assert result.position is pos
+        assert result.info is info
+        assert pos.shape == (2,)
         assert info["fine_method"] == "knn"
 
     def test_hierarchical_single_floor(self):

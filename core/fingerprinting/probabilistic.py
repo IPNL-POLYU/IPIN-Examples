@@ -14,7 +14,6 @@ Date: 2024
 """
 
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 
@@ -275,7 +274,7 @@ def fit_gaussian_naive_bayes(
 def log_likelihood(
     z: Fingerprint,
     model: NaiveBayesFingerprintModel,
-    floor_id: Optional[int] = None,
+    floor_id: int | None = None,
 ) -> np.ndarray:
     """
     Compute log-likelihood log P(z | x_i) for all reference points.
@@ -379,7 +378,7 @@ def log_likelihood(
 def log_posterior(
     z: Fingerprint,
     model: NaiveBayesFingerprintModel,
-    floor_id: Optional[int] = None,
+    floor_id: int | None = None,
 ) -> np.ndarray:
     """
     Compute log-posterior log P(x_i | z) for all reference points.
@@ -474,7 +473,7 @@ def _log_sum_exp(log_values: np.ndarray) -> float:
 def map_localize(
     z: Fingerprint,
     model: NaiveBayesFingerprintModel,
-    floor_id: Optional[int] = None,
+    floor_id: int | None = None,
 ) -> Location:
     """
     Maximum A Posteriori (MAP) probabilistic fingerprinting.
@@ -520,11 +519,24 @@ def map_localize(
     return model.locations[i_star]
 
 
+def maximum_a_posteriori_localize(
+    query_fingerprint: Fingerprint,
+    model: NaiveBayesFingerprintModel,
+    floor_id: int | None = None,
+) -> Location:
+    """Descriptive alias for :func:`map_localize`.
+
+    ``map_localize`` is kept for compatibility with the book's MAP notation.
+    This alias avoids confusing MAP (maximum a posteriori) with a building map.
+    """
+    return map_localize(query_fingerprint, model, floor_id=floor_id)
+
+
 def posterior_mean_localize(
     z: Fingerprint,
     model: NaiveBayesFingerprintModel,
-    floor_id: Optional[int] = None,
-    top_k: Optional[int] = None,
+    floor_id: int | None = None,
+    top_k: int | None = None,
 ) -> Location:
     """
     Posterior mean (Bayesian) probabilistic fingerprinting.

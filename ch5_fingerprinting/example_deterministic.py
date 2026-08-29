@@ -6,7 +6,7 @@ fingerprinting methods from Chapter 5.
 
 Implements:
     - NN positioning (Eq. 5.1): i* = argmin_i D(z, f_i)
-    - k-NN positioning (Eq. 5.2): x̂ = Σ w_i x_i / Σ w_i
+    - k-NN positioning (Eq. 5.2): x_hat = sum(w_i x_i) / sum(w_i)
 
 Author: Li-Ta Hsu
 Date: December 2024
@@ -29,10 +29,12 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.eval import plot_error_cdf, save_figure, show_figures_if_requested
 from core.fingerprinting import (
-    knn_localize,
+    k_nearest_neighbor_localize,
     load_fingerprint_database,
-    nn_localize,
+    nearest_neighbor_localize,
 )
+
+DEFAULT_DATA = "data/sim/ch5_wifi_fingerprint_grid"
 
 
 def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=42):
@@ -77,7 +79,7 @@ def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=
     # Generate fingerprints by interpolating from nearby RPs
     query_fingerprints = []
 
-    for i, (true_loc, fid) in enumerate(zip(true_locs, floor_ids_out, strict=True)):
+    for true_loc, fid in zip(true_locs, floor_ids_out, strict=True):
         # Find k nearest RPs for interpolation
         if floor_id is not None:
             dists = np.linalg.norm(rp_locs - true_loc, axis=1)
@@ -122,10 +124,10 @@ def per_query_operations(db, floor_id=None, k=None, **_unused):
     weighted average of the k chosen locations.
 
     The headline this produces is that every variant here costs essentially the
-    same. `nn_localize` and `knn_localize` both slice the database by floor and
-    then scan it in full, so the choice of metric, of weighting, and of k are
-    all free -- what you pay for is the scan. Only the database size moves this
-    number.
+    same. `nearest_neighbor_localize` and `k_nearest_neighbor_localize` both
+    slice the database by floor and then scan it in full, so the choice of
+    metric, of weighting, and of k are all free -- what you pay for is the scan.
+    Only the database size moves this number.
 
     Args:
         db: Fingerprint database being queried.
@@ -183,6 +185,10 @@ def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kw
     errors = np.array(errors)
     times = np.array(times)
 
+    op_kwargs = dict(kwargs)
+    if "database" in op_kwargs and "db" not in op_kwargs:
+        op_kwargs["db"] = op_kwargs.pop("database")
+
     results = {
         "method": method_name,
         "errors": errors,
@@ -194,7 +200,7 @@ def evaluate_positioning_method(method_name, method_fn, queries, true_locs, **kw
         "p90": np.percentile(errors, 90),
         "p95": np.percentile(errors, 95),
         "mean_time_ms": np.mean(times),
-        "ops_per_query": per_query_operations(**kwargs),
+        "ops_per_query": per_query_operations(**op_kwargs),
     }
 
     print(f"    RMSE: {results['rmse']:.2f}m")
@@ -209,10 +215,16 @@ def main():
     """Run deterministic fingerprinting examples."""
     # Parse arguments before doing any work, so --help answers instead of
     # running the whole demonstration.
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    ).parse_args()
+    )
+    parser.add_argument(
+        "--data",
+        default=DEFAULT_DATA,
+        help=f"Fingerprint database directory (default: {DEFAULT_DATA})",
+    )
+    args = parser.parse_args()
 
     print("=" * 70)
     print("Chapter 5: Deterministic Fingerprinting (NN and k-NN)")
@@ -220,7 +232,7 @@ def main():
 
     # Load database
     print("\n1. Loading fingerprint database...")
-    db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
+    db_path = Path(args.data)
     db = load_fingerprint_database(db_path)
 
     print(f"   Database: {db}")
@@ -252,10 +264,10 @@ def main():
     results.append(
         evaluate_positioning_method(
             "NN (Euclidean)",
-            nn_localize,
+            nearest_neighbor_localize,
             queries,
             true_locs,
-            db=db,
+            database=db,
             metric="euclidean",
             floor_id=floor_id,
         )
@@ -265,10 +277,10 @@ def main():
     results.append(
         evaluate_positioning_method(
             "NN (Manhattan)",
-            nn_localize,
+            nearest_neighbor_localize,
             queries,
             true_locs,
-            db=db,
+            database=db,
             metric="manhattan",
             floor_id=floor_id,
         )
@@ -279,10 +291,10 @@ def main():
         results.append(
             evaluate_positioning_method(
                 f"k-NN (k={k}, inv-dist)",
-                knn_localize,
+                k_nearest_neighbor_localize,
                 queries,
                 true_locs,
-                db=db,
+                database=db,
                 k=k,
                 metric="euclidean",
                 weighting="inverse_distance",
@@ -294,10 +306,10 @@ def main():
     results.append(
         evaluate_positioning_method(
             "k-NN (k=5, uniform)",
-            knn_localize,
+            k_nearest_neighbor_localize,
             queries,
             true_locs,
-            db=db,
+            database=db,
             k=5,
             metric="euclidean",
             weighting="uniform",
@@ -367,7 +379,7 @@ def main():
 
     # Plot 3: Error histogram
     ax3 = plt.subplot(2, 3, 3)
-    for i, r in enumerate(results[:3]):  # Show first 3 methods
+    for r in results[:3]:  # Show first 3 methods
         ax3.hist(r["errors"], bins=30, alpha=0.5, label=r["method"])
     ax3.set_xlabel("Positioning Error (m)")
     ax3.set_ylabel("Count")

@@ -35,13 +35,37 @@ from core.fingerprinting import (
     LinearRegressionLocalizer,
     ShadowingField,
     fit_gaussian_naive_bayes,
-    knn_localize,
+    k_nearest_neighbor_localize,
     load_fingerprint_database,
-    map_localize,
-    nn_localize,
+    maximum_a_posteriori_localize,
+    nearest_neighbor_localize,
     posterior_mean_localize,
 )
 from core.fingerprinting.probabilistic import log_posterior
+
+DEFAULT_DATA = "data/sim/ch5_wifi_fingerprint_grid"
+DEFAULT_MULTI_DATA = "data/sim/ch5_wifi_fingerprint_multisamples"
+PANEL_LABELS = "ABCDEFGHI"
+
+
+def label_panel(ax, label):
+    """Add a compact panel label so dense README-scale grids remain navigable."""
+    ax.text(
+        0.02,
+        0.98,
+        label,
+        transform=ax.transAxes,
+        ha="left",
+        va="top",
+        fontsize=12,
+        fontweight="bold",
+        bbox={
+            "boxstyle": "round,pad=0.2",
+            "facecolor": "white",
+            "alpha": 0.85,
+            "edgecolor": "none",
+        },
+    )
 
 
 def generate_test_queries(
@@ -333,8 +357,8 @@ def report_what_a_repeat_survey_buys(db_single, db_multi, queries, true_locs):
         differ = 0
         max_weight, effective, err_map, err_nn = [], [], [], []
         for query, true_loc in zip(queries, true_locs, strict=True):
-            x_map = map_localize(query, model, floor_id=0)
-            x_nn = nn_localize(query, db, metric="euclidean", floor_id=0)
+            x_map = maximum_a_posteriori_localize(query, model, floor_id=0)
+            x_nn = nearest_neighbor_localize(query, db, metric="euclidean", floor_id=0)
             if not np.allclose(x_map, x_nn):
                 differ += 1
             weights = np.exp(log_posterior(query, model, floor_id=0))
@@ -417,11 +441,12 @@ def per_query_operation_counts(db, floor_id=None):
     Two implementation details dominate the result and are worth reading off the
     figure:
 
-        - The floor constraint is applied at different points. `nn_localize` and
-          `knn_localize` slice the database by floor *before* computing
-          distances, so they only touch that floor's RPs. `log_likelihood`
-          evaluates every RP in the database and masks the other floors to -inf
-          afterwards. Here that is one floor's RPs against all three.
+        - The floor constraint is applied at different points.
+          `nearest_neighbor_localize` and `k_nearest_neighbor_localize` slice
+          the database by floor *before* computing distances, so they only touch
+          that floor's RPs. `log_likelihood` evaluates every RP in the database
+          and masks the other floors to -inf afterwards. Here that is one
+          floor's RPs against all three.
         - `top_k` does not avoid the dominant term. `posterior_mean_localize`
           computes the full posterior over every RP first and only then
           truncates the weighted sum, so top-k trims an O(M*d) step while the
@@ -472,9 +497,9 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     """
     ops_per_query = per_query_operation_counts(db, floor_id=floor_id)
 
-    print(f"\n{'='*70}")
+    print(f"\n{'=' * 70}")
     print(f"Scenario: {scenario_name}")
-    print(f"{'='*70}")
+    print(f"{'=' * 70}")
 
     results = []
 
@@ -487,7 +512,9 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     errors, times = [], []
     for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
-        est_loc = nn_localize(query, db, metric="euclidean", floor_id=floor_id)
+        est_loc = nearest_neighbor_localize(
+            query, db, metric="euclidean", floor_id=floor_id
+        )
         t_end = time.perf_counter()
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
@@ -513,7 +540,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     errors, times = [], []
     for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
-        est_loc = knn_localize(
+        est_loc = k_nearest_neighbor_localize(
             query,
             db,
             k=3,
@@ -562,7 +589,7 @@ def evaluate_scenario(scenario_name, db, queries, true_locs, floor_id=None):
     errors, times = [], []
     for query, true_loc in zip(queries, true_locs, strict=True):
         t_start = time.perf_counter()
-        est_loc = map_localize(query, model_bayes, floor_id=floor_id)
+        est_loc = maximum_a_posteriori_localize(query, model_bayes, floor_id=floor_id)
         t_end = time.perf_counter()
         errors.append(np.linalg.norm(est_loc - true_loc))
         times.append((t_end - t_start) * 1000)
@@ -676,10 +703,24 @@ def main():
     """Run comprehensive comparison of fingerprinting methods."""
     # Parse arguments before doing any work, so --help answers instead of
     # running the whole demonstration.
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    ).parse_args()
+    )
+    parser.add_argument(
+        "--data",
+        default=DEFAULT_DATA,
+        help=f"Fingerprint database directory (default: {DEFAULT_DATA})",
+    )
+    parser.add_argument(
+        "--multi-data",
+        default=DEFAULT_MULTI_DATA,
+        help=(
+            "Multi-sample fingerprint database for the repeat-survey comparison "
+            f"(default: {DEFAULT_MULTI_DATA})"
+        ),
+    )
+    args = parser.parse_args()
 
     print("=" * 70)
     print("Chapter 5: Fingerprinting Methods Comparison")
@@ -687,7 +728,7 @@ def main():
 
     # Load database
     print("\nLoading fingerprint database...")
-    db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
+    db_path = Path(args.data)
     db = load_fingerprint_database(db_path)
     print(f"Database: {db}")
 
@@ -742,9 +783,7 @@ def main():
     )
 
     # Why MAP and NN agree above: it is the survey, not the method.
-    db_multi = load_fingerprint_database(
-        Path("data/sim/ch5_wifi_fingerprint_multisamples")
-    )
+    db_multi = load_fingerprint_database(Path(args.multi_data))
     report_what_a_repeat_survey_buys(db, db_multi, queries1, true_locs1)
 
     # Print summary table
@@ -769,7 +808,7 @@ def main():
     print("Generating comparison visualizations...")
     print("=" * 70)
 
-    fig = plt.figure(figsize=(18, 12))
+    fig = plt.figure(figsize=(18, 13))
 
     # Plot 1: RMSE comparison across scenarios
     ax1 = plt.subplot(3, 3, 1)
@@ -787,6 +826,7 @@ def main():
     ax1.set_xticklabels(methods, rotation=45, ha="right", fontsize=8)
     ax1.legend(fontsize=8)
     ax1.grid(True, alpha=0.3, axis="y")
+    label_panel(ax1, PANEL_LABELS[0])
 
     # Plot 2: Error CDF (Baseline scenario)
     ax2 = plt.subplot(3, 3, 2)
@@ -798,6 +838,7 @@ def main():
     )
     ax2.legend(fontsize=8)
     ax2.set_xlim(0, 15)
+    label_panel(ax2, PANEL_LABELS[1])
 
     # Plot 3: Computation time comparison
     ax3 = plt.subplot(3, 3, 3)
@@ -809,6 +850,7 @@ def main():
     ax3.set_xlabel("Operations per query")
     ax3.set_title("Per-Query Cost (Baseline)")
     ax3.grid(True, alpha=0.3, axis="x")
+    label_panel(ax3, PANEL_LABELS[2])
 
     # Plot 4: Box plot comparison (Baseline)
     ax4 = plt.subplot(3, 3, 4)
@@ -832,6 +874,7 @@ def main():
     ax4.set_title("Error Distribution (Baseline)")
     plt.setp(ax4.xaxis.get_majorticklabels(), rotation=45, ha="right", fontsize=8)
     ax4.grid(True, alpha=0.3, axis="y")
+    label_panel(ax4, PANEL_LABELS[3])
 
     # Plot 5: Robustness to noise (RMSE vs noise std)
     ax5 = plt.subplot(3, 3, 5)
@@ -870,6 +913,7 @@ def main():
     ax5.set_title("Robustness to Measurement Noise")
     ax5.legend(fontsize=7)
     ax5.grid(True, alpha=0.3)
+    label_panel(ax5, PANEL_LABELS[4])
 
     # Plot 6: Cost vs Accuracy (Baseline)
     #
@@ -895,6 +939,7 @@ def main():
     ax6.set_ylabel("RMSE (m)")
     ax6.set_title("Cost vs Accuracy Trade-off")
     ax6.grid(True, alpha=0.3)
+    label_panel(ax6, PANEL_LABELS[5])
 
     # Plot 7: Category comparison
     ax7 = plt.subplot(3, 3, 7)
@@ -917,6 +962,7 @@ def main():
     ax7.set_title("Performance by Category")
     plt.setp(ax7.xaxis.get_majorticklabels(), rotation=15, ha="right")
     ax7.grid(True, alpha=0.3, axis="y")
+    label_panel(ax7, PANEL_LABELS[6])
 
     # Plot 8: Percentile comparison
     ax8 = plt.subplot(3, 3, 8)
@@ -932,6 +978,7 @@ def main():
     ax8.set_xticklabels(methods, rotation=45, ha="right", fontsize=8)
     ax8.legend()
     ax8.grid(True, alpha=0.3, axis="y")
+    label_panel(ax8, PANEL_LABELS[7])
 
     # Plot 9: Summary radar chart
     ax9 = plt.subplot(3, 3, 9, projection="polar")
@@ -962,6 +1009,7 @@ def main():
     ax9.set_title("Performance Profile\n(Normalized)", pad=20)
     ax9.legend(loc="upper right", bbox_to_anchor=(1.3, 1.0), fontsize=8)
     ax9.grid(True)
+    label_panel(ax9, PANEL_LABELS[8])
 
     plt.tight_layout()
 

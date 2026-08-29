@@ -9,7 +9,7 @@ Date: December 2025
 """
 
 import numpy as np
-from typing import Optional
+
 from .se2 import se2_apply
 
 
@@ -83,7 +83,7 @@ class Submap2D:
 
         self.n_scans += 1
 
-    def get_points(self, voxel_size: Optional[float] = None) -> np.ndarray:
+    def get_points(self, voxel_size: float | None = None) -> np.ndarray:
         """Get all map points, optionally downsampled.
 
         Args:

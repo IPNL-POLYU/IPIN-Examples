@@ -19,6 +19,7 @@ from core.estimators.least_squares import (
     iterative_least_squares,
     linear_least_squares,
     robust_least_squares,
+    solve_weighted_least_squares,
     weighted_least_squares,
 )
 
@@ -100,6 +101,69 @@ class TestLinearLeastSquares(unittest.TestCase):
 
 class TestWeightedLeastSquares(unittest.TestCase):
     """Test cases for weighted least squares."""
+
+    def test_descriptive_api_matches_legacy_weight_modes(self):
+        """Explicit weight keywords must preserve every historical result."""
+        design_matrix = np.array([[1.0, 0.0], [0.0, 1.0], [1.0, 1.0]])
+        observations = np.array([1.0, 2.0, 3.2])
+        measurement_std = np.array([0.1, 0.2, 0.5])
+        weights = 1.0 / measurement_std**2
+        weight_matrix = np.diag(weights)
+        measurement_covariance = np.diag(measurement_std**2)
+
+        from_std = solve_weighted_least_squares(
+            design_matrix,
+            observations,
+            measurement_std=measurement_std,
+        )
+        from_weights = solve_weighted_least_squares(
+            design_matrix,
+            observations,
+            weights=weights,
+        )
+        from_matrix = solve_weighted_least_squares(
+            design_matrix,
+            observations,
+            weight_matrix=weight_matrix,
+        )
+        from_covariance = solve_weighted_least_squares(
+            design_matrix,
+            observations,
+            measurement_covariance=measurement_covariance,
+        )
+        legacy_state, legacy_covariance = weighted_least_squares(
+            design_matrix,
+            observations,
+            measurement_std,
+            is_sigma=True,
+        )
+
+        for result in (from_std, from_weights, from_matrix, from_covariance):
+            assert_allclose(result.estimated_state, legacy_state)
+            assert_allclose(result.state_covariance, legacy_covariance)
+
+    def test_descriptive_api_requires_exactly_one_weight_representation(self):
+        """Callers must not use a boolean to reinterpret an ambiguous value."""
+        design_matrix = np.eye(2)
+        observations = np.array([1.0, 2.0])
+
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            solve_weighted_least_squares(design_matrix, observations)
+
+        with self.assertRaisesRegex(ValueError, "exactly one"):
+            solve_weighted_least_squares(
+                design_matrix,
+                observations,
+                weights=np.ones(2),
+                measurement_std=np.ones(2),
+            )
+
+        with self.assertRaisesRegex(ValueError, "invertible"):
+            solve_weighted_least_squares(
+                design_matrix,
+                observations,
+                measurement_covariance=np.zeros((2, 2)),
+            )
 
     def test_equal_weights(self):
         """Test WLS with equal weights matches LS."""

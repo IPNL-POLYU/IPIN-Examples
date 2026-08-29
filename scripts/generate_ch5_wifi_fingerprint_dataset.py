@@ -201,9 +201,7 @@ def generate_wifi_fingerprint_database(
         rp_3d = np.column_stack([rp_xy, np.full(len(rp_xy), floor_z)])
 
         # (n_rp, n_aps) distances, then the deterministic part of the model.
-        distances = np.linalg.norm(
-            rp_3d[:, None, :] - ap_positions[None, :, :], axis=2
-        )
+        distances = np.linalg.norm(rp_3d[:, None, :] - ap_positions[None, :, :], axis=2)
         mean_rss = log_distance_path_loss(distances, P0=-30.0, n=2.5)
 
         # Floor attenuation: 15 dB per floor between the device and the AP.

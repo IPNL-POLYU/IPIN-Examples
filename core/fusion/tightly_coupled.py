@@ -10,8 +10,6 @@ its shared implementation in ``core/`` and its examples as leaves.
 References: Chapter 8, Section 8.1.2 (Tightly Coupled)
 """
 
-from typing import Dict, List
-
 import numpy as np
 
 from core.fusion.adaptive import create_adaptive_manager_for_tc
@@ -21,18 +19,24 @@ from core.fusion.tc_models import (
     create_uwb_range_measurement_model,
 )
 from core.fusion.tuning import innovation, innovation_covariance
-from core.fusion.types import StampedMeasurement
+from core.fusion.types import (
+    SENSOR_IMU,
+    SENSOR_UWB_RANGE,
+    SENSOR_UWB_RANGES_BATCH,
+    FusionHistory,
+    StampedMeasurement,
+)
 
 __all__ = ["run_tc_fusion"]
 
 
 def run_tc_fusion(
-    dataset: Dict,
+    dataset: dict,
     use_gating: bool = True,
     gate_confidence: float = 0.95,
     batch_update: bool = False,
     verbose: bool = True,
-) -> Dict:
+) -> FusionHistory:
     """Run tightly coupled IMU + UWB fusion.
 
     Args:
@@ -44,13 +48,15 @@ def run_tc_fusion(
         verbose: Print progress
 
     Returns:
-        Results dictionary with:
+        FusionHistory dictionary subclass with:
             - 't': timestamps (N,)
             - 'x_est': estimated states (N, 5)
             - 'P_trace': trace of covariance (N,)
             - 'innovations': list of innovations
             - 'nis': list of NIS values
-            - 'gated': list of booleans (accepted/rejected)
+            - 'measurement_accepted': list of booleans, True when the UWB
+              update was accepted by the gate/update logic
+            - 'gated': deprecated alias for 'measurement_accepted'
             - 'n_uwb_accepted': number of UWB updates accepted
             - 'n_uwb_rejected': number of UWB updates rejected
     """
@@ -102,14 +108,14 @@ def run_tc_fusion(
     ]
 
     # Prepare timestamped measurements
-    measurements: List[StampedMeasurement] = []
+    measurements: list[StampedMeasurement] = []
 
     # Add IMU measurements
     for i in range(len(imu["t"])):
         measurements.append(
             StampedMeasurement(
                 t=imu["t"][i],
-                sensor="imu",
+                sensor=SENSOR_IMU,
                 z=np.hstack([imu["accel_xy"][i], imu["gyro_z"][i]]),  # [ax, ay, gz]
                 R=np.eye(3),  # Not used for propagation
                 meta={},
@@ -127,7 +133,7 @@ def run_tc_fusion(
                 measurements.append(
                     StampedMeasurement(
                         t=uwb["t"][i],
-                        sensor="uwb_batch",
+                        sensor=SENSOR_UWB_RANGES_BATCH,
                         z=ranges_at_epoch[valid_mask],  # Only valid ranges
                         R=np.eye(np.sum(valid_mask))
                         * config["uwb"]["range_noise_std_m"] ** 2,
@@ -145,7 +151,7 @@ def run_tc_fusion(
                     measurements.append(
                         StampedMeasurement(
                             t=uwb["t"][i],
-                            sensor="uwb",
+                            sensor=SENSOR_UWB_RANGE,
                             z=np.array([range_meas]),
                             R=np.array([[config["uwb"]["range_noise_std_m"] ** 2]]),
                             meta={"anchor_idx": anchor_idx},
@@ -160,12 +166,14 @@ def run_tc_fusion(
         print(f"  IMU samples: {len(imu['t'])}")
         if batch_update:
             print(
-                f"  UWB epochs: {len([m for m in measurements if m.sensor == 'uwb_batch'])}"
+                "  UWB epochs: "
+                f"{len([m for m in measurements if m.sensor in {SENSOR_UWB_RANGES_BATCH, 'uwb_batch'}])}"
             )
             print("  Update mode: Batch (all ranges at once)")
         else:
             print(
-                f"  UWB samples: {len([m for m in measurements if m.sensor == 'uwb'])}"
+                "  UWB samples: "
+                f"{len([m for m in measurements if m.sensor in {SENSOR_UWB_RANGE, 'uwb'}])}"
             )
             print("  Update mode: Sequential (per-anchor)")
         print(f"  Total: {len(measurements)}")
@@ -183,29 +191,33 @@ def run_tc_fusion(
         )
 
     # Run fusion
-    history = {
-        "t": [],
-        "x_est": [],
-        "P_trace": [],
-        "innovations": [],
-        "nis": [],
-        "gated": [],
-        "R_scales": [],
-    }
+    accepted_history = []
+    history = FusionHistory(
+        {
+            "t": [],
+            "x_est": [],
+            "P_trace": [],
+            "innovations": [],
+            "nis": [],
+            "measurement_accepted": accepted_history,
+            "gated": accepted_history,  # Backward-compatible alias.
+            "R_scales": [],
+        }
+    )
 
     n_uwb_accepted = 0
     n_uwb_rejected = 0
     t_prev = measurements[0].t
 
-    for idx, meas in enumerate(measurements):
+    for meas in measurements:
         dt = meas.t - t_prev
 
-        if meas.sensor == "imu":
+        if meas.sensor == SENSOR_IMU:
             # Propagate with IMU
             u = meas.z  # [ax, ay, gyro_z]
             ekf.predict(u=u, dt=dt)
 
-        elif meas.sensor == "uwb":
+        elif meas.sensor in {SENSOR_UWB_RANGE, "uwb"}:
             # UWB range update
             anchor_idx = meas.meta["anchor_idx"]
             h, H_func, R_func = meas_models[anchor_idx]
@@ -258,10 +270,10 @@ def run_tc_fusion(
             # Log
             history["innovations"].append(y[0])
             history["nis"].append(nis_value)
-            history["gated"].append(accept)
+            history["measurement_accepted"].append(accept)
             history["R_scales"].append(R_scale)
 
-        elif meas.sensor == "uwb_batch":
+        elif meas.sensor in {SENSOR_UWB_RANGES_BATCH, "uwb_batch"}:
             # Batch UWB range update (all ranges at this timestamp)
             valid_anchor_indices = meas.meta["valid_anchors"]
             n_ranges = len(valid_anchor_indices)
@@ -331,7 +343,7 @@ def run_tc_fusion(
             # Log (use norm of innovation vector for history)
             history["innovations"].append(np.linalg.norm(y_batch))
             history["nis"].append(nis_value)
-            history["gated"].append(accept)
+            history["measurement_accepted"].append(accept)
             history["R_scales"].append(R_scale)
 
         # Record state

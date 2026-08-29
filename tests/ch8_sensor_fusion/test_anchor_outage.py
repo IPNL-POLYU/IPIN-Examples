@@ -25,10 +25,11 @@ from ch8_sensor_fusion.example_anchor_outage import (
     OUTAGE_WINDOW,
     animate_anchor_outage,
     apply_anchor_outage,
+    format_peak_ratio,
     run_outage_scenario,
 )
-from core.fusion import load_fusion_dataset
 from core.eval import save_animation
+from core.fusion import load_fusion_dataset
 
 
 class TestAnchorOutageConstruction(unittest.TestCase):
@@ -56,6 +57,11 @@ class TestAnchorOutageConstruction(unittest.TestCase):
 
         after = np.isnan(np.asarray(base["uwb"]["ranges"])).sum()
         self.assertEqual(before, after)
+
+    def test_peak_ratio_names_the_larger_error(self):
+        """The console summary should not round LC/TC down to a misleading 0x."""
+        self.assertEqual(format_peak_ratio(3.25, 43.92), "TC peak is 13.5x LC")
+        self.assertEqual(format_peak_ratio(2.0, 0.5), "LC peak is 4.0x TC")
 
 
 class TestOutageClaims(unittest.TestCase):

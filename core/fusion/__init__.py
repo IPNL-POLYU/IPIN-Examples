@@ -16,20 +16,20 @@ Author: Li-Ta Hsu
 References: Chapter 8 - Sensor Fusion
 """
 
-from core.fusion.dataset import load_fusion_dataset
-from core.fusion.loosely_coupled import run_lc_fusion
-from core.fusion.tightly_coupled import run_tc_fusion
 from core.fusion.adaptive import (
     AdaptiveGatingManager,
     create_adaptive_manager_for_lc,
     create_adaptive_manager_for_tc,
 )
+from core.fusion.dataset import FusionDataset, load_fusion_dataset
 from core.fusion.gating import (
     chi_square_bounds,
     chi_square_gate,
     chi_square_threshold,
     mahalanobis_distance_squared,
 )
+from core.fusion.loosely_coupled import run_lc_fusion
+from core.fusion.tightly_coupled import run_tc_fusion
 from core.fusion.tuning import (
     cauchy_R_scale,
     cauchy_weight,
@@ -40,14 +40,28 @@ from core.fusion.tuning import (
     innovation_covariance,
     scale_measurement_covariance,
 )
-from core.fusion.types import StampedMeasurement, TimeSyncModel
+from core.fusion.types import (
+    SENSOR_IMU,
+    SENSOR_UWB_RANGE,
+    SENSOR_UWB_RANGES_BATCH,
+    SENSOR_UWB_RANGES_EPOCH,
+    FusionHistory,
+    StampedMeasurement,
+    TimeSyncModel,
+)
 
 __all__ = [
     # Datasets and the two fusion architectures (Sec. 8.1)
     "load_fusion_dataset",
+    "FusionDataset",
     "run_lc_fusion",
     "run_tc_fusion",
     # Types
+    "SENSOR_IMU",
+    "SENSOR_UWB_RANGE",
+    "SENSOR_UWB_RANGES_EPOCH",
+    "SENSOR_UWB_RANGES_BATCH",
+    "FusionHistory",
     "StampedMeasurement",
     "TimeSyncModel",
     # Tuning (Eqs. 8.5-8.7)

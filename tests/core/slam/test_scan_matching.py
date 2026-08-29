@@ -11,6 +11,7 @@ import numpy as np
 import pytest
 
 from core.slam import (
+    AlignmentResult,
     align_svd,
     compute_icp_covariance,
     compute_icp_residual,
@@ -236,6 +237,21 @@ class TestAlignSVD:
 
 class TestICPPointToPoint:
     """Test suite for icp_point_to_point function."""
+
+    def test_returns_named_result_with_tuple_compatibility(self):
+        """Typed result keeps legacy tuple unpacking and index access."""
+        scan = np.array([[0.0, 0.0], [1.0, 0.0], [0.0, 1.0]])
+
+        result = icp_point_to_point(scan, scan)
+        pose, iters, residual, converged = result
+
+        assert isinstance(result, AlignmentResult)
+        np.testing.assert_allclose(result.pose_source_to_target, pose)
+        np.testing.assert_allclose(result[0], pose)
+        assert result.iterations == iters
+        assert result.metric_name == "rmse_m"
+        assert result.rmse_m == residual
+        assert result.converged is converged
 
     def test_identical_scans(self):
         """Test ICP with identical scans."""

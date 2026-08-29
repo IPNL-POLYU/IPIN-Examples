@@ -195,7 +195,9 @@ IPIN_SHOW_FIGURES=1 python -m ch6_dead_reckoning.example_zupt
 
 New code follows **PEP 8** and the **Google Python Style Guide**: type hints on
 every function, Google-style docstrings, PascalCase classes, snake_case
-functions, 88-character lines.
+functions, 88-character lines. Public APIs and reader-facing examples also
+follow the repository's [semantic naming conventions](docs/api_naming_conventions.md)
+for units, coordinate frames, data roles, method verbs, and typed results.
 
 ### What is actually enforced
 
@@ -221,8 +223,8 @@ them and a reader who ran them got thousands of complaints. Measured over
 
 | Tool | Today | Was |
 |---|---|---|
-| `black --check` | **passes** — 299 files unchanged | 237 of 288 reformatted |
-| `ruff check` | **951 findings.** 727 are annotation modernisations (`List[int]` → `list[int]`) that only became available when the floor moved to 3.10; the ~140 after that are the ones with content, `zip()` without `strict=` first | 5836 |
+| `black --check` | **passes** — 317 files unchanged | 237 of 288 reformatted |
+| `ruff check` | **680 findings.** 545 are annotation modernisations (`List[int]` → `list[int]`) that only became available when the floor moved to 3.10; the 135 after that are the ones with content | 5836 |
 | `mypy` | 406 errors in `core/` alone — **the remaining gap** | 404 |
 
 `tests/test_lint_debt_only_shrinks.py` records the ruff count per rule and fails
@@ -231,14 +233,32 @@ can only go down. It is not pass/fail on the linters themselves; mypy would be
 red on arrival and stay red.
 
 ```bash
-ruff check core ch*_* tests
-black --check core ch*_* tests
+ruff check core scripts tools ch*_* tests
+black --check core scripts tools ch*_* tests
 mypy core
 ```
 
 ## Testing
 
-Run tests:
+For a first checkout, start with the quick learner smoke test. It checks every
+example's help path plus documented paths and flags without regenerating the
+full figure gallery (normally about 1–2 minutes on a laptop):
+
+```bash
+pytest tests/test_examples_answer_help.py tests/test_example_console_encoding.py tests/docs/test_documented_paths_exist.py tests/docs/test_documented_flags_exist.py -q
+```
+
+Then execute all seven tutorial notebooks top-to-bottom in real Jupyter kernels
+(normally a few minutes):
+
+```bash
+pytest tests/docs/test_notebooks_run.py -q
+```
+
+Run the complete maintainer suite, including every chapter's figure provenance
+check, before submitting a change. The figure portion alone can take around
+20–25 minutes on a typical Windows laptop:
+
 ```bash
 pytest
 ```

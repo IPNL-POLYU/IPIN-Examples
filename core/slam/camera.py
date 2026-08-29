@@ -14,7 +14,7 @@ Date: December 2025
 """
 
 import numpy as np
-from typing import Optional
+
 from core.slam.types import CameraIntrinsics
 
 
@@ -245,7 +245,7 @@ def project_point(
 def unproject_pixel(
     intrinsics: CameraIntrinsics,
     pixel: np.ndarray,
-    depth: Optional[float] = None,
+    depth: float | None = None,
 ) -> np.ndarray:
     """
     Unproject pixel coordinates to a 3D ray or point in camera frame.
