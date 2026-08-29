@@ -194,7 +194,7 @@ The script generates a comprehensive figure showing:
 4. **Right:** Position error over time
 
 **Key Visual Features:**
-- Map "tightening" is clearly visible: 537 → 481 points (~10% reduction)
+- Map "tightening" is clearly visible: 537 → 482 points (~10% reduction)
 - Red map shows odometry drift and misalignment
 - Blue map shows optimized alignment and consistency
 - Loop closure connections shown in magenta
