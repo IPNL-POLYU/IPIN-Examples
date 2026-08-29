@@ -164,17 +164,161 @@ for key, value in multi_meta["shadow_field"].items():
 Run `python -m ch5_fingerprinting.example_comparison` for the worked version of
 the first two rows; its "What a repeat survey buys" section prints the sweep.
 
-## Regenerating
+## Visualization Example
 
-```bash
-python -m scripts.generate_ch5_wifi_fingerprint_dataset --preset multisamples
+```python
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(12, 5))
+
+# Left: sigma estimated for AP1 at each reference point on floor 0. If the
+# per-(RP, AP) sigma carried spatial structure -- if some corners of the
+# building were genuinely noisier -- this map would show it. It does not.
+f0 = multi_floors == 0
+sc = ax1.scatter(multi_locations[f0, 0], multi_locations[f0, 1],
+                 c=within[f0, 0], cmap="viridis", s=90, marker="s")
+fig.colorbar(sc, ax=ax1, label="estimated sigma, AP1 [dB]")
+ax1.set_xlabel("East [m]")
+ax1.set_ylabel("North [m]")
+ax1.set_title("Floor 0: sigma estimated from 10 visits")
+ax1.axis("equal")
+
+# Right: all 2904 estimates against the single value they are all estimating.
+declared = multi_meta["path_loss_model"]["fast_fading_std_dBm"]
+ax2.hist(within.ravel(), bins=40, color="steelblue", edgecolor="white")
+ax2.axvline(declared, color="crimson", linestyle="--",
+            label=f"true sigma = {declared} dB, everywhere")
+ax2.set_xlabel("Estimated sigma [dB]")
+ax2.set_ylabel("(RP, AP) pairs")
+ax2.set_title("The spread is the estimator, not the building")
+ax2.legend()
+
+fig.tight_layout()
+print(f"sigma estimates: {within.size} values, "
+      f"{within.min():.2f} to {within.max():.2f} dB, "
+      f"mean {within.mean():.2f}")
 ```
+
+The right panel is the one to read carefully. The estimates run from about 0.5
+to 3.0 dB, which looks like structure and is not: with `S = 10` the sample
+standard deviation of a 1.5 dB process has a spread of `1.5 / sqrt(2 (S - 1))`
+= 0.35 dB, and that alone accounts for the histogram's width. The left panel is
+the check -- a genuinely noisier corner would appear there as a patch, and none
+does.
 
 ## Connection to Book Equations
 
 | Equations | What this dataset exercises |
 |---|---|
 | Eq. (5.1) | Nearest neighbour, on the ten-visit mean map |
-| Eq. (5.4) | MAP — the one database here where it is not identical to Eq. (5.1) |
+| Eq. (5.4) | MAP -- the one database here where it is not identical to Eq. (5.1) |
 | Eq. (5.5) | Posterior mean, over a posterior that spreads across more than one RP |
-| Eq. (5.6) | Gaussian likelihood with μ **and σ** estimated from the survey, as the book assumes |
+| Eq. (5.6) | Gaussian likelihood with mu **and sigma** estimated from the survey, as the book assumes |
+
+## Recommended Experiments
+
+1. **Confirm that MAP is no longer 1-NN, and that this is a property of the
+   survey rather than of the method.** Fit `fit_gaussian_naive_bayes` on this
+   database and on `ch5_wifi_fingerprint_grid`, and for each query compare
+   `map_localize` against `nn_localize`. On the single-sample grid they agree on
+   **every** query -- `model.sigma_is_constant` is `True` and the Gaussian
+   log-likelihood is monotone in Euclidean distance, so Eq. (5.4) reduces to
+   Eq. (5.1) exactly. Here they disagree on about 22%. Nothing about the
+   estimator changed; only the survey did.
+
+2. **Sweep `min_std` and watch the two properties you want trade against each
+   other.** Below the 1.5 dB fast fading the estimated sigma survives and MAP
+   diverges from 1-NN; above it the floor erases sigma and MAP collapses back
+   onto 1-NN, while the posterior width becomes honest. The reason is that the
+   sigma a repeat survey measures is the spread of repeat visits *at a reference
+   point*, 1.5 dB, while the spread the likelihood needs is the disagreement
+   between a query and the nearest reference point, 2.09 dB -- a query stands
+   *between* reference points. No amount of resampling at the RP can see the
+   difference. `python -m ch5_fingerprinting.example_comparison` prints the
+   sweep.
+
+3. **Then ask whether MAP is actually better, and be ready for the answer to be
+   no.** It is not, on this grid, and the reason is worth more than the result.
+   Weight the match by the noise this survey can measure and you systematically
+   up-weight the wrong access points: the error that decides the match is the
+   radio map changing over the gap between the query and the nearest RP
+   (1.43 dB rms, comparable to the whole fast-fading budget), and it is
+   **anti-correlated** with fast fading -- `corr = -0.34` over all (query, AP)
+   pairs -- because the path-loss gradient `d(pathloss)/dd = -10 n / (d ln 10)`
+   is steepest exactly where the signal is strongest and the fast fading is
+   quietest. Measure that correlation yourself before believing it.
+
+   The prediction that follows is testable and holds: the penalty tracks the
+   spatial term across the three survey grids -- +0.04 m on the 2 m grid where
+   it is 0.52 dB, +0.38 m at 5 m and 1.48 dB, +1.46 m at 10 m and 2.74 dB. So
+   **Eq. (5.6) pays only when the variability it models dominates the
+   variability it does not.**
+
+4. **Price the repeat survey against a denser one.** Ten visits per point costs
+   10x the survey effort and takes nearest neighbour from 3.07 m to 2.57 m
+   against a 2.04 m quantisation floor, because averaging cuts the map's own
+   fast fading by `sqrt(10)`. Compare that against spending the effort on
+   `ch5_wifi_fingerprint_dense` instead: 5.6x the reference points, visited
+   once, for 2.51 m. Which is the better buy depends on whether your error
+   budget is dominated by the grid or by the survey, and this pair of datasets
+   is how you find out.
+
+5. **Regenerate at `--n-samples` 3, 10 and 30** and watch the sigma estimate's
+   own scatter fall as `1 / sqrt(2 (S - 1))`. This is the experiment that shows
+   experiment 1's 22% for what it is: disagreement driven by estimation noise,
+   which shrinks with S, rather than by structure, which would not.
+
+## Dataset Variants
+
+- [`ch5_wifi_fingerprint_grid`](../ch5_wifi_fingerprint_grid/README.md) -- the
+  same 5 m grid and the same building, visited **once** per point. The direct
+  comparison for everything above.
+- [`ch5_wifi_fingerprint_dense`](../ch5_wifi_fingerprint_dense/README.md) --
+  2 m grid, 2,028 RPs, single visit
+- [`ch5_wifi_fingerprint_sparse`](../ch5_wifi_fingerprint_sparse/README.md) --
+  10 m grid, 108 RPs, single visit
+
+## Troubleshooting / Common Student Questions
+
+### "The estimated sigma varies a lot -- is part of the building noisier?"
+
+No, and this is the trap the Visualization Example is drawn to spring. Every
+location in this model has the same true fast-fading std. The estimates vary
+because a standard deviation from ten samples is itself a random variable, with
+a spread of `1.5 / sqrt(2 (S - 1))` = 0.35 dB. Plot sigma against position
+before reading anything into its range: real structure would show as a patch,
+and there is none.
+
+### "MAP disagrees with NN but scores worse. Have I made a mistake?"
+
+Probably not -- that is the documented behaviour on this grid, and experiment 3
+above explains why. Check the sign of your comparison, then read that entry
+rather than tuning `min_std` until the table agrees.
+
+### "Why is `features.npy` three-dimensional?"
+
+`(M, S, N)` is the multi-sample format: reference point, visit, access point.
+`db.get_mean_features()` gives the `(M, N)` mean map every deterministic method
+uses, and `db.get_std_features()` the per-(RP, AP) standard deviations. Code
+written against the single-sample databases keeps working, because
+`nn_localize` and `knn_localize` already go through `get_mean_features()`.
+
+## Generation
+
+```bash
+python -m scripts.generate_ch5_wifi_fingerprint_dataset --preset multisamples
+```
+
+`metadata.json` records the seed and every parameter the generator needs,
+including the shadowing field, so this reproduces the shipped arrays --
+`tests/test_datasets_reproduce_from_their_recipe.py` checks it along with the
+other twenty datasets.
+
+## References
+
+- Chapter 5, *Principles of Indoor Positioning and Indoor Navigation*
+- `ch5_fingerprinting/README.md` -- the chapter examples and their measured results
+- `core/fingerprinting/probabilistic.py` -- `fit_gaussian_naive_bayes`, whose
+  docstring carries the `min_std` discussion in full
