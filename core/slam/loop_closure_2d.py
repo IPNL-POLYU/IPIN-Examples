@@ -353,4 +353,60 @@ class LoopClosureDetector2D:
         # what it does and does not guard against.
         covariance = np.maximum(covariance, _MIN_LOOP_CLOSURE_VARIANCE * np.eye(3))
 
+        # This covariance is optimistic, not merely small. Measured against
+        # ground truth over the 147 closures of the shipped inline run
+        # (python -m ch7_slam.example_pose_graph_slam; true relative poses
+        # come from true_poses, which the pipeline never fits to):
+        #
+        #   actual closure error, RMS      x=0.0045 m  y=0.0028 m  yaw=0.00625 rad
+        #   reported sigma, median         x=0.0014 m  y=0.0014 m  yaw=0.00140 rad
+        #   overconfidence (error / sigma)     3.2x        2.0x        4.5x
+        #   per-closure error/sigma, RMS       2.15        1.31        2.49
+        #
+        # A consistent covariance would put that last row at ~1.0. It does
+        # not, and not by a small margin -- so the sigma this function
+        # returns understates the true uncertainty by a factor of 2-4,
+        # consistently enough across 147 closures that it is not a few
+        # outliers. This is expected, not a bug in compute_icp_covariance:
+        # its own docstring calls it "not a rigorous uncertainty estimate,"
+        # because it derives sigma from the residual and correspondence
+        # count alone. That sees only the noise it can model -- sensor
+        # noise averaged over N matched points -- and is structurally blind
+        # to the error sources that actually dominate a real scan match:
+        # wrong correspondences, scene change between visits, and the
+        # scan's own discretisation. A *formal* ICP covariance is optimistic
+        # for this reason in general, not because of anything specific to
+        # this dataset.
+        #
+        # Still a large net improvement over what this replaced: the same
+        # 147 closures against the old constant diag([0.05, 0.05, 0.01])
+        # (sigma 0.2236/0.2236/0.1000) were underconfident by 50x/79x/16x --
+        # wrong in the opposite direction, and by an order of magnitude
+        # more. Going from "wrong by fifty, and identical for every
+        # closure" to "wrong by three, and tracking match quality" is the
+        # improvement this function makes. "Wrong by three" is not
+        # "correct," which is what this comment is for.
+        #
+        # No inflation factor is applied to correct the remaining 2-4x. A
+        # single scalar cannot: the three axes are optimistic by different
+        # amounts (2.15x/1.31x/2.49x in sigma), while compute_icp_covariance
+        # ties sigma_x = sigma_y = sigma_yaw together by construction, so no
+        # single multiplier fits all three. Checked directly -- the scalar
+        # that brings the *pooled* normalised residual closest to 1.0 is
+        # about 2.0x in sigma, and at that value the per-axis residuals are
+        # 1.07 / 0.66 / 1.24: x lands close to consistent, y overshoots into
+        # underconfidence, yaw is still overconfident. That is with a factor
+        # fit to this exact trajectory, environment, and 0.02 m sensor noise
+        # -- there is no reason to expect it transfers to a different
+        # dataset, and baking in a number fit to one 147-closure sample from
+        # one trajectory is the kind of unjustified constant this repository
+        # has repeatedly found and removed elsewhere (see CLAUDE.md). Where
+        # ground truth is available, as it was for this measurement, the
+        # right move is to calibrate against it directly and check the
+        # normalised residual, not to assume a multiplier. Where it is not,
+        # a fixed conservative covariance -- which is what the constant this
+        # replaced was attempting, just calibrated badly -- is the honest
+        # fallback, not a precisely-fit scalar bolted onto a heuristic that
+        # cannot see its own dominant error sources.
+
         return rel_pose, covariance, residual, iters
