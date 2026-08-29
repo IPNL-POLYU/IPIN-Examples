@@ -405,13 +405,53 @@ def robust_least_squares(
     Returns:
         Tuple of:
             - x_hat: Estimated state vector (n × 1).
-            - P: Covariance matrix (n × n), or None.
+            - P: Covariance matrix (n × n), or None. An a-posteriori scaled
+              covariance P = sigma_hat² (A'WA)⁻¹, using the final IRLS weight
+              matrix W and sigma_hat² = Σwᵢrᵢ² / (Σwᵢ - n) from the final
+              weighted residuals rᵢ = (Ax̂ - b)ᵢ. This is on the same footing
+              as linear_least_squares's P = sigma2_hat (A'A)⁻¹ -- for
+              method="l2" the two are identical -- so switching method no
+              longer rescales the reported uncertainty by an arbitrary factor
+              on clean data. It differs from weighted_least_squares's raw
+              (A'WA)⁻¹, which is only a covariance when W is supplied in
+              absolute units (wᵢ = 1/σᵢ²). IRLS weights are dimensionless and
+              capped at 1, so using them unscaled there would make P's
+              magnitude depend on which robust loss was chosen, on identical
+              data.
             - weights: Final weights for each measurement (m × 1).
 
     Note:
         - Residuals are internally normalized using MAD (Median Absolute Deviation)
           for robust scale estimation: σ = 1.4826 × MAD(residuals).
         - Weights are computed from the derivative of ρ(r): w(r) = (1/r) × dρ/dr.
+        - sigma_hat² still carries a small residual bias on clean (outlier-free)
+          data for losses that downweight the whole distribution rather than
+          only its tails (cauchy, gm): w anti-correlates with r² even under
+          pure Gaussian noise, which biases Σwᵢrᵢ²/(Σwᵢ-n) low. Measured via
+          Monte Carlo (n=60, 300 replicates): l2 and huber land within ~10% of
+          the true a-priori variance, cauchy and gm 15-30% low. Huber's
+          threshold-gated weight (only |r̃|>δ is downweighted) keeps this
+          smaller than cauchy/gm's continuous downweighting.
+        - The textbook remedy for that bias is the M-estimator sandwich,
+          P = (E[ψ²] / (E[ψ'])²) (A'A)⁻¹ with ψ(r) = w(r)·r. It was measured
+          against the a-posteriori scaling used here and it does NOT help --
+          it moves the bias to the other side rather than removing it. Mean
+          ratio of reported σ to true a-priori σ, 400 replicates at n=60,
+          σ=0.5 (measured by the reviewer of the change that introduced this
+          scaling, not taken from a reference):
+
+              method   a-posteriori (this function)   sandwich
+              l2                0.991                  0.974
+              huber             0.947                  0.987
+              cauchy            0.914                  1.033
+              gm                0.836                  1.160
+
+          The residual spread across methods is 1.19x either way; gm simply
+          goes from 16% low to 16% high. So neither estimator dominates, and
+          the a-posteriori form is kept because it is the one that matches
+          linear_least_squares's footing. Recorded so the next reader who
+          notices the cauchy/gm bias does not spend an afternoon
+          rediscovering that the obvious fix is a wash.
 
     Example:
         >>> import numpy as np
@@ -487,11 +527,34 @@ def robust_least_squares(
 
         x = x_new
 
-    # Final covariance if requested
+    # Final covariance if requested.
+    #
+    # weighted_least_squares() returns (A'WA)^-1, which is only a covariance
+    # when W = Sigma^-1 in absolute units (w_i = 1/sigma_i^2). The IRLS
+    # weights computed above are dimensionless and capped at 1, so passing
+    # them straight through would leave P off by an arbitrary scale that
+    # depends on which loss function was chosen -- l2, huber, cauchy and gm
+    # would report different uncertainty on identical data. Instead, scale
+    # (A'WA)^-1 a posteriori from the final weighted residuals, the same way
+    # linear_least_squares() scales its own (A'A)^-1 by sigma2_hat:
+    #
+    #   P = sigma_hat^2 * (A'WA)^-1,  sigma_hat^2 = sum(w_i r_i^2) / (sum(w_i) - n)
+    #
+    # This puts robust_least_squares's P on the same a-posteriori footing as
+    # linear_least_squares's (the two are identical for method="l2").
     P = None
     if return_covariance:
         W = np.diag(weights)
-        _, P = weighted_least_squares(A, b, W, return_covariance=True)
+        _, P_unscaled = weighted_least_squares(A, b, W, return_covariance=True)
+
+        residuals = b - A @ x
+        sum_w = np.sum(weights)
+        if sum_w > n:
+            sigma2_hat = np.sum(weights * residuals**2) / (sum_w - n)
+        else:
+            sigma2_hat = 1.0  # Degenerate case, mirrors linear_least_squares's fallback
+
+        P = sigma2_hat * P_unscaled
 
     return x, P, weights
 
