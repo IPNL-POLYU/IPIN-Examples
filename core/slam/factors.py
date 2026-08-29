@@ -108,12 +108,29 @@ def create_odometry_factor(
         return se2_relative(relative_pose, relative_actual)
 
     def jacobian_func(x_vars):
-        """Compute Jacobians with respect to both poses."""
+        """Compute Jacobians with respect to both poses.
+
+        Residual component 2 is a yaw wrapped to (-pi, pi] by se2_relative
+        (via se2_compose). A raw (r_plus - r_base) finite difference does not
+        know that: if perturbing pose_from or pose_to nudges the yaw residual
+        across the +-pi branch cut, the unwrapped difference jumps by roughly
+        +-2*pi, so the derivative comes out wrong by ~2*pi/epsilon -- seven
+        orders of magnitude off, with the wrong sign -- instead of the true
+        O(1) slope. Only the yaw row can hit that cut; the two translation
+        rows are ordinary linear quantities and are differenced as-is. See
+        CLAUDE.md, "Wrapping an angle difference".
+        """
         pose_from = x_vars[0]
         pose_to = x_vars[1]
 
         # Numerical Jacobians (finite differences)
         epsilon = 1e-7
+
+        def _diff(r_plus, r_base):
+            """Residual difference with the yaw row wrapped to (-pi, pi]."""
+            diff = r_plus - r_base
+            diff[2] = wrap_angle(diff[2])
+            return diff
 
         # Jacobian w.r.t. pose_from
         J_from = np.zeros((3, 3))
@@ -122,7 +139,7 @@ def create_odometry_factor(
             pose_from_plus[i] += epsilon
             r_plus = residual_func([pose_from_plus, pose_to])
             r_base = residual_func([pose_from, pose_to])
-            J_from[:, i] = (r_plus - r_base) / epsilon
+            J_from[:, i] = _diff(r_plus, r_base) / epsilon
 
         # Jacobian w.r.t. pose_to
         J_to = np.zeros((3, 3))
@@ -131,7 +148,7 @@ def create_odometry_factor(
             pose_to_plus[i] += epsilon
             r_plus = residual_func([pose_from, pose_to_plus])
             r_base = residual_func([pose_from, pose_to])
-            J_to[:, i] = (r_plus - r_base) / epsilon
+            J_to[:, i] = _diff(r_plus, r_base) / epsilon
 
         return [J_from, J_to]
 

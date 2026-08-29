@@ -232,6 +232,59 @@ class TestEq722Conformance:
         np.testing.assert_allclose(residual, np.zeros(3), atol=1e-12)
 
 
+class TestJacobianAtYawBranchCut:
+    """Regression test: numerical Jacobian must not blow up across +-pi.
+
+    core.slam.se2.se2_relative wraps its yaw output to (-pi, pi] (via
+    se2_compose). At a configuration where the *residual* yaw sits exactly on
+    that seam, a perturbation that pushes it just past +-pi makes a raw,
+    unwrapped forward-difference numerator jump by ~+-2*pi. Before the fix
+    this measured dR_yaw/dtheta_j = -62831852.07 here -- seven orders of
+    magnitude off, and the wrong sign, where the true slope is +1. See
+    CLAUDE.md, "Wrapping an angle difference", for the repo's other four
+    instances of this exact bug shape.
+    """
+
+    POSE_I = np.array([0.0, 0.0, 0.0])
+    POSE_J = np.array([1.0, 0.0, np.pi])
+    MEAS = np.array([1.0, 0.0, 0.0])
+
+    # Analytic Jacobian at this configuration. theta_i = 0 and the measured
+    # yaw is 0, so both rotation matrices in the residual chain
+    # (r = meas^-1 (+) (pose_i^-1 (+) pose_j)) reduce to identity, and
+    # d(residual_yaw)/d(theta_j) = +1, d(residual_yaw)/d(theta_i) = -1.
+    J_FROM_ANALYTIC = np.array([[-1.0, 0.0, 0.0], [0.0, -1.0, -1.0], [0.0, 0.0, -1.0]])
+    J_TO_ANALYTIC = np.eye(3)
+
+    # Forward-difference truncation error at epsilon=1e-7 measures ~5e-8 at
+    # this point; 1e-5 leaves three orders of margin without masking the
+    # defect, which is wrong by ~6e7, not by a small multiple of this.
+    ATOL = 1e-5
+
+    def test_odometry_jacobian_matches_analytic_at_the_cut(self):
+        factor = create_odometry_factor(0, 1, self.MEAS)
+
+        # Sanity check: this configuration really does sit on the seam.
+        residual = factor.residual_func([self.POSE_I, self.POSE_J])
+        assert np.isclose(abs(residual[2]), np.pi, atol=1e-9)
+
+        J_from, J_to = factor.jacobian_func([self.POSE_I, self.POSE_J])
+
+        np.testing.assert_allclose(J_to, self.J_TO_ANALYTIC, atol=self.ATOL)
+        np.testing.assert_allclose(J_from, self.J_FROM_ANALYTIC, atol=self.ATOL)
+
+    def test_loop_closure_jacobian_matches_analytic_at_the_cut(self):
+        """create_loop_closure_factor delegates to create_odometry_factor, so
+        it must carry the same fix -- this is the case CLAUDE.md flags as
+        reachable via perceptual aliasing in a symmetric corridor."""
+        factor = create_loop_closure_factor(0, 1, self.MEAS)
+
+        J_from, J_to = factor.jacobian_func([self.POSE_I, self.POSE_J])
+
+        np.testing.assert_allclose(J_to, self.J_TO_ANALYTIC, atol=self.ATOL)
+        np.testing.assert_allclose(J_from, self.J_FROM_ANALYTIC, atol=self.ATOL)
+
+
 class TestPriorFactor:
     """Test suite for prior factors."""
 
