@@ -103,8 +103,11 @@ pose_sensor_to_map
 ```
 
 Generic `BODY` is insufficient when more than one axis convention is supported.
-Use an explicit convention such as `BODY_FRD`/`BODY_FLU` or a
-`FrameConvention` object whose axes are documented.
+Use an explicit convention from `core.coords.frames`: `BODY_CH2` (Chapter 2,
+`core/coords/rotations.py`), `BODY_FLU` (Chapter 6, `core/sensors/`,
+`FrameConvention`), or `BODY_FRD` (the standard aerospace/vehicle convention,
+used by no chapter in this repository but kept for readers arriving from
+other literature) -- or a `FrameConvention` object whose axes are documented.
 
 Public ndarray documentation must state:
 

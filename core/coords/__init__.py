@@ -14,6 +14,7 @@ Reference: Chapter 2 - Coordinate Systems
 from core.coords.frames import (
     FRAME_BODY,
     FRAME_BODY_CH2,
+    FRAME_BODY_FLU,
     FRAME_BODY_FRD,
     Frame,
     FrameType,
@@ -46,6 +47,7 @@ __all__ = [
     "FrameType",
     "FRAME_BODY",
     "FRAME_BODY_CH2",
+    "FRAME_BODY_FLU",
     "FRAME_BODY_FRD",
     # Transforms
     "llh_to_ecef",
