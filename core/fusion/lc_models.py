@@ -19,21 +19,27 @@ Author: Li-Ta Hsu
 References: Chapter 8, Section 8.1.1 (Loosely Coupled)
 """
 
-from typing import Callable, Optional, Tuple
+from __future__ import annotations
+
+from collections.abc import Callable
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from core.estimators import ExtendedKalmanFilter
 
 
 def solve_uwb_position_wls(
     ranges: np.ndarray,
     anchor_positions: np.ndarray,
     range_noise_std: float = 0.05,
-    anchor_noise_std: Optional[np.ndarray] = None,
-    initial_guess: Optional[np.ndarray] = None,
+    anchor_noise_std: np.ndarray | None = None,
+    initial_guess: np.ndarray | None = None,
     max_iterations: int = 10,
     tolerance: float = 0.01,
     cov_floor_std: float = 0.0,
-) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], bool]:
+) -> tuple[np.ndarray | None, np.ndarray | None, bool]:
     """Solve for 2D position from UWB ranges using Weighted Least Squares.
 
     This implements the iterative WLS position solver from Chapter 4,
@@ -123,7 +129,7 @@ def solve_uwb_position_wls(
 
     # Iterative WLS
     converged = False
-    for iteration in range(max_iterations):
+    for _iteration in range(max_iterations):
         # Compute predicted ranges and residuals
         ranges_pred = np.linalg.norm(anchors_valid - pos, axis=1)
         residuals = ranges_valid - ranges_pred
@@ -164,7 +170,7 @@ def solve_uwb_position_wls(
 
     # If we reached max iterations without diverging, consider it converged
     # (even if delta_pos was still above tolerance on the last iteration)
-    if not converged and iteration == max_iterations - 1:
+    if not converged:
         # Check that final position is reasonable
         anchor_min = np.min(anchors_valid, axis=0)
         anchor_max = np.max(anchors_valid, axis=0)
@@ -207,7 +213,7 @@ def solve_uwb_position_wls(
 
 def create_lc_process_model(
     process_noise_std: np.ndarray = None,
-) -> Tuple[Callable, Callable, Callable]:
+) -> tuple[Callable, Callable, Callable]:
     """Create process model for LC fusion (same as TC).
 
     Args:
@@ -224,7 +230,7 @@ def create_lc_process_model(
 
 def create_lc_position_measurement_model(
     position_noise_std: np.ndarray = None,
-) -> Tuple[Callable, Callable, Callable]:
+) -> tuple[Callable, Callable, Callable]:
     """Create position measurement model for LC fusion.
 
     In LC fusion, the UWB position fix is treated as a 2D position measurement.
@@ -268,7 +274,7 @@ def create_lc_fusion_ekf(
     initial_state: np.ndarray,
     initial_cov: np.ndarray,
     process_noise_std: np.ndarray = None,
-) -> any:
+) -> ExtendedKalmanFilter:
     """Create and initialize loosely coupled fusion EKF.
 
     Args:

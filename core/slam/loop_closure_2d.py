@@ -13,13 +13,14 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-import numpy as np
-from typing import List, Tuple, Optional
 from dataclasses import dataclass
+from typing import List, Tuple
+
+import numpy as np
 
 from .scan_descriptor_2d import (
-    compute_descriptor_similarity,
     batch_compute_descriptors,
+    compute_descriptor_similarity,
 )
 from .scan_matching import compute_icp_covariance, icp_point_to_point
 from .se2 import se2_relative
@@ -51,7 +52,7 @@ class LoopClosureCandidate:
     i: int
     j: int
     descriptor_similarity: float
-    distance: Optional[float] = None
+    distance: float | None = None
 
 
 @dataclass
@@ -115,7 +116,7 @@ class LoopClosureDetector2D:
         min_time_separation: int = 10,
         min_descriptor_similarity: float = 0.7,
         max_candidates: int = 5,
-        max_distance: Optional[float] = None,
+        max_distance: float | None = None,
         max_icp_residual: float = 0.1,
         icp_max_iterations: int = 50,
         icp_tolerance: float = 1e-4,
@@ -153,7 +154,7 @@ class LoopClosureDetector2D:
     def detect(
         self,
         scans: List[np.ndarray],
-        poses: Optional[List[np.ndarray]] = None,
+        poses: List[np.ndarray] | None = None,
     ) -> List[LoopClosure]:
         """Detect loop closures in a sequence of scans.
 
@@ -236,7 +237,7 @@ class LoopClosureDetector2D:
         self,
         query_idx: int,
         descriptors: np.ndarray,
-        poses: Optional[List[np.ndarray]],
+        poses: List[np.ndarray] | None,
     ) -> List[LoopClosureCandidate]:
         """Find loop closure candidates for a query scan.
 
@@ -293,9 +294,9 @@ class LoopClosureDetector2D:
         self,
         scan_i: np.ndarray,
         scan_j: np.ndarray,
-        pose_i: Optional[np.ndarray],
-        pose_j: Optional[np.ndarray],
-    ) -> Optional[Tuple[np.ndarray, np.ndarray, float, int]]:
+        pose_i: np.ndarray | None,
+        pose_j: np.ndarray | None,
+    ) -> Tuple[np.ndarray, np.ndarray, float, int] | None:
         """Verify loop closure candidate with ICP.
 
         Args:

@@ -211,11 +211,26 @@ at full weight and is dragged 1.29 m off; Geman-McClure drives it to zero.
 
 ![Least Squares Examples](figs/ch3_least_squares_examples.png)
 
+Read the two panels as the clean case on the left and the one-outlier case on
+the right. Color encodes the solver family, dashed circles encode the measured
+range constraints, and distance from the green star is the positioning error.
+The takeaway is not "robust loss is always best"; it is that plain L2 is
+appropriate for clean Gaussian ranges, while redundant anchors plus a robust
+weighting rule protect the estimate when one range is visibly inconsistent.
+
 ### Example 2: 1D Kalman Filter
 
 **Generated figure:** `figs/ch3_kalman_1d_tracking.png`
 
 ![1D Kalman Filter Tracking](figs/ch3_kalman_1d_tracking.png)
+
+Read the four panels as position tracking, velocity tracking, position error,
+and velocity error. The noisy measurements show what the sensor reports, the
+filter trace shows the state estimate, and the shaded/paired uncertainty cues
+show whether the assumed process and measurement noise are plausible. The main
+takeaway is that a Kalman filter is a tunable compromise: trusting the model too
+much lags real motion, while trusting measurements too much imports sensor
+jitter.
 
 ### Example 3: EKF Range-Bearing
 
@@ -223,17 +238,39 @@ at full weight and is dragged 1.29 m off; Geman-McClure drives it to zero.
 
 ![EKF Range-Bearing Tracking](figs/ch3_ekf_range_bearing.png)
 
+Read the 2×2 grid as trajectory, position-error magnitude, x/y position traces,
+and velocity-error magnitude. The trajectory panel explains the geometry; the
+time-series panels explain whether the filter remains consistent after
+linearizing nonlinear range/bearing measurements. The takeaway is that EKF
+accuracy depends on both measurement geometry and local linearization quality,
+so a low final error in one scenario does not prove the filter is globally
+reliable.
+
 ### Example 4: IEKF vs EKF
 
 **Generated figure:** `figs/ch3_iekf_vs_ekf_comparison.png`
 
 ![IEKF vs EKF Comparison](figs/ch3_iekf_vs_ekf_comparison.png)
 
+Read the panels as trajectory comparison, position-error comparison, IEKF
+iterations per update, and cumulative squared position error. Blue and magenta
+separate the EKF and IEKF estimates, while the bar panel makes the extra IEKF
+linearization work explicit. The takeaway is the trade-off: relinearizing inside
+an update can improve difficult nonlinear cases, but the improvement has a
+visible computational cost.
+
 ### Example 5: Estimator Comparison
 
 **Generated figure:** `figs/ch3_estimator_comparison.png`
 
 ![Estimator Comparison](figs/ch3_estimator_comparison.png)
+
+Read the 2×2 grid as trajectory comparison, error over time, error CDF, and
+computational cost. Color identifies the estimator, the CDF panel answers "how
+often is the error below this value?", and the cost panel uses model-evaluation
+counts rather than machine-dependent wall time. The takeaway is that no single
+method wins every axis: particle and factor-graph methods can handle richer
+uncertainty, but simple Gaussian filters are often cheaper and easier to tune.
 
 ---
 
@@ -251,7 +288,8 @@ Least squares minimizes the sum of squared residuals between observations and mo
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
 | `linear_least_squares()` | `core/estimators/least_squares.py` | Eq. (3.2)–(3.3) | Normal equations: H'Hx̂ = H'y → x̂ = (H'H)⁻¹H'y |
-| `weighted_least_squares()` | `core/estimators/least_squares.py` | Text (§3.1.1) | WLS with wᵢ = 1/σᵢ² weighting |
+| `solve_weighted_least_squares()` | `core/estimators/least_squares.py` | Text (§3.1.1) | Reader-facing WLS API with explicit `weights=`, `measurement_std=`, `measurement_covariance=`, or `weight_matrix=` and a typed result |
+| `weighted_least_squares()` | `core/estimators/least_squares.py` | Text (§3.1.1) | Compatibility API using the historical `W_or_sigma`/`is_sigma` interface |
 | `gauss_newton()` | `core/estimators/nonlinear_least_squares.py` | Eq. (3.51)–(3.52) | Gauss-Newton update: (J'J)dx = J'r |
 | `levenberg_marquardt()` | `core/estimators/nonlinear_least_squares.py` | Eq. (3.53)–(3.56) | LM with adaptive damping (Algorithm 3.2) |
 | `robust_gauss_newton()` | `core/estimators/nonlinear_least_squares.py` | Table 3.1 | IRLS with robust loss functions |

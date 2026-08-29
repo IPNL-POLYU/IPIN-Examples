@@ -4,7 +4,7 @@ Unit tests for core/sensors/calibration.py (Allan variance and IMU characterizat
 Tests cover:
     - Allan variance computation (IEEE Std 952-1997)
     - ARW extraction from Allan deviation (Eq. 6.56)
-    - ARW/VRW to per-sample noise conversion (Eq. 6.58)
+    - ARW/VRW to direct sample noise and integrated increment noise conversion
     - Bias instability identification
     - Random walk coefficient extraction
     - Rate random walk extraction
@@ -15,18 +15,23 @@ Run with: pytest tests/test_sensors_calibration.py -v
 """
 
 import unittest
+import warnings
+
 import numpy as np
 import pytest
-import warnings
 
 from core.sensors.calibration import (
     allan_variance,
+    arw_to_noise_std,
+    characterize_imu_noise,
     identify_bias_instability,
     identify_random_walk,
     identify_rate_random_walk,
-    characterize_imu_noise,
-    arw_to_noise_std,
+    increment_sample_std_to_random_walk,
     noise_std_to_arw,
+    random_walk_to_increment_sample_std,
+    random_walk_to_rate_sample_std,
+    rate_sample_std_to_random_walk,
 )
 
 
@@ -350,28 +355,68 @@ class TestCharacterizeImuNoise(unittest.TestCase):
 
 
 class TestArwNoiseConversion(unittest.TestCase):
-    """Test suite for ARW ↔ per-sample noise conversion (Eq. 6.58)."""
+    """Test suite for explicit ARW/VRW sample-vs-increment conversions."""
+
+    def test_random_walk_to_rate_sample_std_basic(self) -> None:
+        """Direct gyro/accel sample noise scales as random_walk / sqrt(dt)."""
+        arw = 0.01  # rad/√s
+        dt = 0.01  # 100 Hz
+
+        sigma = random_walk_to_rate_sample_std(arw, dt)
+
+        expected = arw / np.sqrt(dt)
+        assert np.isclose(sigma, expected)
+        assert np.isclose(sigma, 0.1)
+
+    def test_rate_sample_std_to_random_walk_basic(self) -> None:
+        """Rate sample std conversion is invertible."""
+        sigma = 0.1  # rad/s
+        dt = 0.01
+
+        arw = rate_sample_std_to_random_walk(sigma, dt)
+
+        assert np.isclose(arw, 0.01)
+
+    def test_random_walk_to_increment_sample_std_basic(self) -> None:
+        """Integrated angle/velocity increment noise scales as random_walk * sqrt(dt)."""
+        arw = 0.01  # rad/√s
+        dt = 0.01
+
+        sigma = random_walk_to_increment_sample_std(arw, dt)
+
+        expected = arw * np.sqrt(dt)
+        assert np.isclose(sigma, expected)
+        assert np.isclose(sigma, 0.001)
+
+    def test_increment_sample_std_to_random_walk_basic(self) -> None:
+        """Integrated increment conversion is invertible."""
+        sigma_increment = 0.001  # rad
+        dt = 0.01
+
+        arw = increment_sample_std_to_random_walk(sigma_increment, dt)
+
+        assert np.isclose(arw, 0.01)
 
     def test_arw_to_noise_std_basic(self) -> None:
-        """Test basic ARW to noise conversion (Eq. 6.58)."""
+        """Legacy arw_to_noise_std preserves integrated-increment behavior."""
         arw = 0.01  # rad/√s
         dt = 0.01  # 100 Hz
 
         sigma = arw_to_noise_std(arw, dt)
 
-        # σ_ω = ARW × √Δt = 0.01 × √0.01 = 0.01 × 0.1 = 0.001
+        # Backward-compatible behavior: σ_increment = ARW × √Δt
         expected = arw * np.sqrt(dt)
         assert np.isclose(sigma, expected)
         assert np.isclose(sigma, 0.001)
 
     def test_noise_std_to_arw_basic(self) -> None:
-        """Test basic noise to ARW conversion (inverse of Eq. 6.58)."""
-        sigma = 0.001  # rad/s
+        """Legacy noise_std_to_arw preserves integrated-increment behavior."""
+        sigma = 0.001  # rad
         dt = 0.01  # 100 Hz
 
         arw = noise_std_to_arw(sigma, dt)
 
-        # ARW = σ_ω / √Δt = 0.001 / √0.01 = 0.001 / 0.1 = 0.01
+        # Backward-compatible behavior: ARW = σ_increment / √Δt
         expected = sigma / np.sqrt(dt)
         assert np.isclose(arw, expected)
         assert np.isclose(arw, 0.01)
@@ -391,18 +436,18 @@ class TestArwNoiseConversion(unittest.TestCase):
         assert np.isclose(arw_recovered, arw_original)
 
     def test_arw_to_noise_different_sample_rates(self) -> None:
-        """Test ARW to noise at different sampling rates."""
+        """Legacy increment std gets smaller at faster sample rates."""
         arw = 0.01  # rad/√s
 
-        # Higher sampling rate → smaller per-sample noise
+        # Higher sampling rate → smaller per-sample integrated increment
         dt_fast = 0.001  # 1000 Hz
         sigma_fast = arw_to_noise_std(arw, dt_fast)
 
-        # Lower sampling rate → larger per-sample noise
+        # Lower sampling rate → larger per-sample integrated increment
         dt_slow = 0.1  # 10 Hz
         sigma_slow = arw_to_noise_std(arw, dt_slow)
 
-        # Slower rate should have larger per-sample noise
+        # Slower rate should have larger per-sample integrated increment
         assert sigma_slow > sigma_fast
 
         # Check specific values
@@ -421,8 +466,8 @@ class TestArwNoiseConversion(unittest.TestCase):
 
         sigma = arw_to_noise_std(arw_rad, dt)
 
-        # Check result is reasonable
-        assert 0.00001 < sigma < 0.001  # rad/s
+        # Check result is reasonable for a one-sample angle increment
+        assert 0.000001 < sigma < 0.0001  # rad
 
         # Check formula
         expected = arw_rad * np.sqrt(dt)
@@ -438,7 +483,7 @@ class TestArwNoiseConversion(unittest.TestCase):
 
         sigma = arw_to_noise_std(vrw, dt)
 
-        # σ = 0.1 × √0.01 = 0.1 × 0.1 = 0.01 m/s²
+        # σ = 0.1 × √0.01 = 0.1 × 0.1 = 0.01 m/s velocity increment
         assert np.isclose(sigma, 0.01)
 
     def test_arw_to_noise_invalid_inputs(self) -> None:
@@ -474,7 +519,7 @@ class TestArwNoiseConversion(unittest.TestCase):
             noise_std_to_arw(sigma=-0.001, dt=0.01)
 
     def test_arw_noise_consistency_with_allan(self) -> None:
-        """Test that Eq. (6.58) formula is applied correctly in conversion."""
+        """Test the legacy integrated increment conversion roundtrips."""
         np.random.seed(42)
         fs = 100.0
         dt = 1.0 / fs
@@ -489,7 +534,7 @@ class TestArwNoiseConversion(unittest.TestCase):
         taus, adev = allan_variance(gyro, fs)
         arw_extracted = identify_random_walk(taus, adev, tau_target=1.0)
 
-        # Convert ARW to per-sample noise using Eq. (6.58)
+        # Convert ARW to one-sample integrated increment noise using Eq. (6.58)
         sigma_recovered = arw_to_noise_std(arw_extracted, dt)
 
         # The key test: verify that the conversion formula is applied correctly
@@ -497,7 +542,7 @@ class TestArwNoiseConversion(unittest.TestCase):
         arw_roundtrip = noise_std_to_arw(sigma_recovered, dt)
         assert np.isclose(arw_roundtrip, arw_extracted, rtol=1e-10)
 
-        # Also verify the formula is correct: σ_ω = ARW × √Δt
+        # Also verify the compatibility formula: σ_increment = ARW × √Δt
         expected_sigma = arw_extracted * np.sqrt(dt)
         assert np.isclose(sigma_recovered, expected_sigma)
 

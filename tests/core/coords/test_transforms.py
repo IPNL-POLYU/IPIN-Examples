@@ -17,6 +17,7 @@ import unittest
 
 import numpy as np
 
+from core.coords import FRAME_BODY, FRAME_BODY_CH2, FRAME_BODY_FRD, FrameType
 from core.coords.rotations import euler_to_rotation_matrix
 from core.coords.transforms import (
     body_to_enu,
@@ -31,6 +32,24 @@ from core.coords.transforms import (
     map_to_body,
     ned_to_enu,
 )
+
+
+class TestBodyFrameNames(unittest.TestCase):
+    """Explicit body-frame names keep Ch2 and aerospace conventions separate."""
+
+    def test_body_conventions_are_named_explicitly(self) -> None:
+        self.assertEqual(FRAME_BODY_CH2.frame_type, FrameType.BODY_CH2)
+        self.assertIn("x=right", FRAME_BODY_CH2.description)
+        self.assertIn("y=forward", FRAME_BODY_CH2.description)
+        self.assertIn("z=up", FRAME_BODY_CH2.description)
+
+        self.assertEqual(FRAME_BODY_FRD.frame_type, FrameType.BODY_FRD)
+        self.assertIn("x=forward", FRAME_BODY_FRD.description)
+        self.assertIn("z=down", FRAME_BODY_FRD.description)
+
+    def test_legacy_body_label_points_to_explicit_names(self) -> None:
+        self.assertEqual(FRAME_BODY.frame_type, FrameType.BODY)
+        self.assertIn("prefer FRAME_BODY_CH2 or FRAME_BODY_FRD", FRAME_BODY.description)
 
 
 class TestLLHtoECEF(unittest.TestCase):

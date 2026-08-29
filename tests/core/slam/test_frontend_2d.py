@@ -12,9 +12,10 @@ Date: December 2025
 """
 
 import unittest
+
 import numpy as np
 
-from core.slam.frontend_2d import SlamFrontend2D
+from core.slam.frontend_2d import FrontendStepResult, SlamFrontend2D
 
 
 class TestSlamFrontend2DInitialization(unittest.TestCase):
@@ -36,14 +37,24 @@ class TestSlamFrontend2DInitialization(unittest.TestCase):
         scan = np.array([[1.0, 0.0], [2.0, 0.0]])
 
         result = frontend.step(0, odom_delta, scan)
+        self.assertIsInstance(result, FrontendStepResult)
 
         # Should initialize at origin
         np.testing.assert_allclose(result["pose_pred"], [0.0, 0.0, 0.0])
+        np.testing.assert_allclose(result.pose_pred, [0.0, 0.0, 0.0])
+        np.testing.assert_allclose(
+            result.predicted_pose_body_to_map_se2, [0.0, 0.0, 0.0]
+        )
+        np.testing.assert_allclose(
+            result.estimated_pose_body_to_map_se2, [0.0, 0.0, 0.0]
+        )
         np.testing.assert_allclose(result["pose_est"], [0.0, 0.0, 0.0])
 
         # Should mark as converged (initialization)
         self.assertTrue(result["match_quality"].converged)
         self.assertEqual(result["correction_magnitude"], 0.0)
+        self.assertEqual(result.correction_magnitude_m, 0.0)
+        self.assertEqual(result.as_dict()["correction_magnitude"], 0.0)
 
         # Submap should contain scan points
         self.assertEqual(len(frontend.submap), 2)

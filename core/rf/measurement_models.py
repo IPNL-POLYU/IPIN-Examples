@@ -10,12 +10,38 @@ This module implements measurement models for various RF positioning techniques:
 All functions implement equations from Chapter 4 of the IPIN book.
 """
 
-from typing import Tuple
+from typing import Optional, Tuple
 
 import numpy as np
 
 # Physical constants
 SPEED_OF_LIGHT = 299792458.0  # m/s
+
+
+def _resolve_reference_anchor_index(
+    *,
+    reference_anchor_index: Optional[int] = None,
+    reference_anchor_idx: Optional[int] = None,
+    reference_idx: Optional[int] = None,
+    ref_idx: Optional[int] = None,
+) -> int:
+    """Resolve compatible TDOA reference-anchor keyword aliases."""
+    provided = {
+        name: value
+        for name, value in {
+            "reference_anchor_index": reference_anchor_index,
+            "reference_anchor_idx": reference_anchor_idx,
+            "reference_idx": reference_idx,
+            "ref_idx": ref_idx,
+        }.items()
+        if value is not None
+    }
+    if len(set(provided.values())) > 1:
+        raise ValueError(
+            "Conflicting TDOA reference anchor aliases: "
+            + ", ".join(f"{name}={value}" for name, value in provided.items())
+        )
+    return int(next(iter(provided.values()), 0))
 
 
 # =============================================================================
@@ -802,7 +828,11 @@ def tdoa_range_difference(
 def tdoa_measurement_vector(
     anchors: np.ndarray,
     agent_pos: np.ndarray,
-    reference_anchor_idx: int = 0,
+    reference_anchor_idx: Optional[int] = None,
+    *,
+    reference_anchor_index: Optional[int] = None,
+    reference_idx: Optional[int] = None,
+    ref_idx: Optional[int] = None,
 ) -> np.ndarray:
     """
     Compute TDOA measurement vector for all anchor pairs.
@@ -813,7 +843,11 @@ def tdoa_measurement_vector(
     Args:
         anchors: Array of anchor positions, shape (N, 2) or (N, 3).
         agent_pos: Agent position [x, y] or [x, y, z].
-        reference_anchor_idx: Index of reference anchor. Defaults to 0.
+        reference_anchor_index: Index of reference anchor. Defaults to 0.
+            This explicit spelling is preferred for new code.
+        reference_anchor_idx: Backward-compatible alias.
+        reference_idx: Backward-compatible alias used by older positioners.
+        ref_idx: Backward-compatible short alias.
 
     Returns:
         TDOA measurement vector of shape (N-1,), containing range differences
@@ -822,26 +856,32 @@ def tdoa_measurement_vector(
     Example:
         >>> anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
         >>> agent = np.array([5, 5])
-        >>> tdoa = tdoa_measurement_vector(anchors, agent, reference_anchor_idx=0)
+        >>> tdoa = tdoa_measurement_vector(anchors, agent, reference_anchor_index=0)
         >>> print(tdoa.shape)
         (3,)
     """
     anchors = np.asarray(anchors, dtype=float)
     agent_pos = np.asarray(agent_pos, dtype=float)
+    reference_anchor_index = _resolve_reference_anchor_index(
+        reference_anchor_index=reference_anchor_index,
+        reference_anchor_idx=reference_anchor_idx,
+        reference_idx=reference_idx,
+        ref_idx=ref_idx,
+    )
 
     n_anchors = anchors.shape[0]
-    if reference_anchor_idx < 0 or reference_anchor_idx >= n_anchors:
+    if reference_anchor_index < 0 or reference_anchor_index >= n_anchors:
         raise ValueError(
-            f"reference_anchor_idx must be in [0, {n_anchors-1}], "
-            f"got {reference_anchor_idx}"
+            f"reference_anchor_index must be in [0, {n_anchors-1}], "
+            f"got {reference_anchor_index}"
         )
 
-    reference_anchor = anchors[reference_anchor_idx]
+    reference_anchor = anchors[reference_anchor_index]
 
     # Compute range differences relative to reference
     tdoa_measurements = []
     for i in range(n_anchors):
-        if i == reference_anchor_idx:
+        if i == reference_anchor_index:
             continue
         range_diff = tdoa_range_difference(anchors[i], reference_anchor, agent_pos)
         tdoa_measurements.append(range_diff)
@@ -1065,13 +1105,13 @@ def aoa_tan_azimuth(anchor_pos: np.ndarray, agent_pos: np.ndarray) -> float:
     return tan_psi
 
 
-def aoa_measurement_vector(
+def aoa_sin_tan_vector(
     anchors: np.ndarray,
     agent_pos: np.ndarray,
     include_elevation: bool = True,
 ) -> np.ndarray:
     """
-    Compute AOA measurement vector for all anchors (book Eq. 4.65 format).
+    Compute the book Eq. (4.65) AOA sin/tan vector for all anchors.
 
     Implements Eq. (4.65) from Chapter 4:
         z_a = [sin(θ_1), tan(ψ_1), sin(θ_2), tan(ψ_2), ..., sin(θ_I), tan(ψ_I)]^T
@@ -1081,8 +1121,9 @@ def aoa_measurement_vector(
         ψ_i: azimuth angle from North (Eq. 4.64)
         I: number of anchors
 
-    The measurement vector uses sin(θ) and tan(ψ) as required for I-WLS
-    linearization in the book's formulation.
+    This is **not** a raw angle vector. In 2D it returns tan(azimuth), not the
+    azimuth angle in radians. Use :func:`aoa_angle_vector` or the explicit
+    alias :func:`aoa_angle_measurements_rad` for solver inputs in angle space.
 
     Args:
         anchors: Array of anchor positions, shape (N, 2) or (N, 3) in ENU.
@@ -1102,14 +1143,14 @@ def aoa_measurement_vector(
         >>> # 3D case with elevation
         >>> anchors = np.array([[10, 0, 5], [0, 10, 5], [-10, 0, 5]])
         >>> agent = np.array([0.0, 0.0, 0.0])
-        >>> z = aoa_measurement_vector(anchors, agent, include_elevation=True)
+        >>> z = aoa_sin_tan_vector(anchors, agent, include_elevation=True)
         >>> print(f"Measurement vector shape: {z.shape}")
         Measurement vector shape: (6,)
 
         >>> # 2D case (azimuth only)
         >>> anchors_2d = np.array([[10, 0], [0, 10], [-10, 0]])
         >>> agent_2d = np.array([0.0, 0.0])
-        >>> z = aoa_measurement_vector(anchors_2d, agent_2d, include_elevation=False)
+        >>> z = aoa_sin_tan_vector(anchors_2d, agent_2d, include_elevation=False)
         >>> print(f"Measurement vector shape: {z.shape}")
         Measurement vector shape: (3,)
     """
@@ -1131,6 +1172,25 @@ def aoa_measurement_vector(
             measurements.append(tan_psi)
 
     return np.array(measurements)
+
+
+def aoa_measurement_vector(
+    anchors: np.ndarray,
+    agent_pos: np.ndarray,
+    include_elevation: bool = True,
+) -> np.ndarray:
+    """
+    Backward-compatible alias for :func:`aoa_sin_tan_vector`.
+
+    The old name is kept so existing examples and notebooks still run, but it
+    was easy to confuse with raw AOA angle measurements. New code should call:
+
+    - :func:`aoa_angle_measurements_rad` / :func:`aoa_angle_vector` when a
+      solver expects angles in radians.
+    - :func:`aoa_sin_tan_vector` when exercising the book's Eq. (4.65)
+      transformed vector directly.
+    """
+    return aoa_sin_tan_vector(anchors, agent_pos, include_elevation)
 
 
 def aoa_angle_vector(
@@ -1177,3 +1237,17 @@ def aoa_angle_vector(
             angles.append(azimuth)
 
     return np.array(angles)
+
+
+def aoa_angle_measurements_rad(
+    anchors: np.ndarray,
+    agent_pos: np.ndarray,
+    include_elevation: bool = False,
+) -> np.ndarray:
+    """
+    Explicit alias for :func:`aoa_angle_vector` returning raw radians.
+
+    The name carries the important contract in the identifier: values are
+    angles in radians, not the book's sin/tan transformed measurement vector.
+    """
+    return aoa_angle_vector(anchors, agent_pos, include_elevation)

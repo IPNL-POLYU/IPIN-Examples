@@ -20,6 +20,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -42,10 +43,51 @@ from core.sensors import (
     IMUNoiseParams,
     NavStateQPVP,
     detect_zupt_windowed,
+    random_walk_to_rate_sample_std,
     strapdown_update,
 )
 from core.sensors.ins_ekf import ZUPT_EKF
 from core.sim import generate_imu_from_trajectory
+
+
+class WalkingTrajectory(NamedTuple):
+    """Walking ground truth and ideal IMU signals with stance labels."""
+
+    timestamps_s: np.ndarray
+    true_positions_map_m: np.ndarray
+    true_velocities_map_mps: np.ndarray
+    true_attitudes_quat_wxyz: np.ndarray
+    specific_force_body_mps2: np.ndarray
+    angular_rates_body_rad_s: np.ndarray
+    stance_mask_stationary: np.ndarray
+
+    @property
+    def t(self) -> np.ndarray:
+        return self.timestamps_s
+
+    @property
+    def pos_true(self) -> np.ndarray:
+        return self.true_positions_map_m
+
+    @property
+    def vel_true(self) -> np.ndarray:
+        return self.true_velocities_map_mps
+
+    @property
+    def quat_true(self) -> np.ndarray:
+        return self.true_attitudes_quat_wxyz
+
+    @property
+    def accel_body(self) -> np.ndarray:
+        return self.specific_force_body_mps2
+
+    @property
+    def gyro_body(self) -> np.ndarray:
+        return self.angular_rates_body_rad_s
+
+    @property
+    def stance_mask(self) -> np.ndarray:
+        return self.stance_mask_stationary
 
 
 def generate_walking_trajectory(
@@ -63,7 +105,10 @@ def generate_walking_trajectory(
         frame: Frame convention (default: ENU).
 
     Returns:
-        Tuple of (t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask).
+        WalkingTrajectory with semantic fields and tuple-compatible order:
+        timestamps_s, true_positions_map_m, true_velocities_map_mps,
+        true_attitudes_quat_wxyz, specific_force_body_mps2,
+        angular_rates_body_rad_s, stance_mask_stationary.
     """
     if frame is None:
         frame = FrameConvention.create_enu()
@@ -142,7 +187,15 @@ def generate_walking_trajectory(
         g=9.81,
     )
 
-    return t, pos_true, vel_true, quat_true, accel_body, gyro_body, stance_mask
+    return WalkingTrajectory(
+        timestamps_s=t,
+        true_positions_map_m=pos_true,
+        true_velocities_map_mps=vel_true,
+        true_attitudes_quat_wxyz=quat_true,
+        specific_force_body_mps2=accel_body,
+        angular_rates_body_rad_s=gyro_body,
+        stance_mask_stationary=stance_mask,
+    )
 
 
 def add_imu_noise(accel_body, gyro_body, dt, imu_params: IMUNoiseParams):
@@ -154,8 +207,10 @@ def add_imu_noise(accel_body, gyro_body, dt, imu_params: IMUNoiseParams):
     accel_bias = np.random.randn(3) * imu_params.accel_bias_mps2
 
     # White noise
-    gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
-    accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    gyro_noise_std = random_walk_to_rate_sample_std(imu_params.gyro_arw_rad_sqrt_s, dt)
+    accel_noise_std = random_walk_to_rate_sample_std(
+        imu_params.accel_vrw_mps_sqrt_s, dt
+    )
 
     gyro_noise = np.random.randn(N, 3) * gyro_noise_std
     accel_noise = np.random.randn(N, 3) * accel_noise_std
@@ -226,8 +281,8 @@ def run_imu_with_zupt(
 
     # Compute noise std devs for ZUPT detector (scale by sample rate)
     # IMU noise parameters are in continuous time, need to scale for discrete time
-    sigma_a = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
-    sigma_g = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    sigma_a = random_walk_to_rate_sample_std(imu_params.accel_vrw_mps_sqrt_s, dt)
+    sigma_g = random_walk_to_rate_sample_std(imu_params.gyro_arw_rad_sqrt_s, dt)
 
     for k in range(1, N):
         # Propagate
@@ -323,8 +378,8 @@ def run_imu_with_zupt_ekf(
     pos_est[0], vel_est[0] = state.p, state.v
 
     # Compute noise std devs for ZUPT detector
-    sigma_a = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
-    sigma_g = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    sigma_a = random_walk_to_rate_sample_std(imu_params.accel_vrw_mps_sqrt_s, dt)
+    sigma_g = random_walk_to_rate_sample_std(imu_params.gyro_arw_rad_sqrt_s, dt)
 
     for k in range(1, N):
         # EKF Prediction Step
@@ -720,7 +775,7 @@ def main(animate: bool = False):
 
     print("Configuration:")
     print(f"  Duration:        {duration} s")
-    print(f"  IMU Rate:        {1/dt:.0f} Hz")
+    print(f"  IMU Rate:        {1 / dt:.0f} Hz")
     print("  Walking Pattern: 5s walk + 2s stop (repeated)")
     print(f"  Step Rate:       {step_freq} Hz")
     print(f"  Step Length:     {step_length} m")
@@ -809,13 +864,13 @@ def main(animate: bool = False):
     print("=" * 70)
     print("IMU-only (no ZUPT):")
     print(
-        f"  Final error:  {final_error_imu:.2f} m ({final_error_imu/total_distance*100:.1f}% of distance)"
+        f"  Final error:  {final_error_imu:.2f} m ({final_error_imu / total_distance * 100:.1f}% of distance)"
     )
     print(f"  RMSE:         {rmse_imu:.2f} m")
     print()
     print("IMU + ZUPT:")
     print(
-        f"  Final error:  {final_error_zupt:.2f} m ({final_error_zupt/total_distance*100:.1f}% of distance)"
+        f"  Final error:  {final_error_zupt:.2f} m ({final_error_zupt / total_distance * 100:.1f}% of distance)"
     )
     print(f"  RMSE:         {rmse_zupt:.2f} m")
     print()

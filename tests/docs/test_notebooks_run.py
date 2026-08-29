@@ -1,6 +1,6 @@
 """The notebooks must execute, in a real kernel, top to bottom.
 
-Seven notebooks, 59 code cells, and nothing had ever run them. They were the
+Seven notebooks, and nothing had ever run their code cells. They were the
 last body of executable documentation here without a guard: the dataset READMEs
 have had one for a while, the chapter READMEs got one recently, and the
 transcripts are checked against live output. The notebooks had only the check
@@ -11,9 +11,9 @@ can be verified about a notebook.
 going in was the opposite. Every previous time a guard was added over unexecuted
 documentation here it found real defects -- eight API drifts in the dataset
 READMEs, five in the chapter READMEs. On that base rate the notebooks looked
-certain to be broken. Measured, all 59 cells run clean in about 56 s.
+certain to be broken. Measured, every code cell ran clean.
 
-A first attempt with a bare ``exec`` reported 37 of 59 failing, which was
+A first attempt with a bare ``exec`` reported most cells failing, which was
 entirely the harness: every notebook opens with ``%matplotlib inline``, stored
 in source form as ``get_ipython().run_line_magic(...)``. Outside IPython that
 name does not exist, and because a notebook shares one namespace top to bottom,

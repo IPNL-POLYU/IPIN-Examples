@@ -112,7 +112,10 @@ def solve_every_method(data: dict, verbose: bool = True) -> dict[str, SolveOutco
 
     solvers = {
         "TOA": (TOAPositioner(beacons, method="iterative_ls"), data["toa_ranges"]),
-        "TDOA": (TDOAPositioner(beacons, reference_idx=0), data["tdoa_diffs"]),
+        "TDOA": (
+            TDOAPositioner(beacons, reference_anchor_index=0),
+            data["tdoa_diffs"],
+        ),
         "AOA": (AOAPositioner(beacons), data["aoa_angles"]),
     }
 
@@ -362,7 +365,7 @@ def generate_scenario(seed=42):
 def toa_positioning_test(
     anchors,
     true_positions,
-    noise_std=0.0,
+    range_noise_std_m=0.0,
     clock_bias_m=0.0,
 ):
     """Test TOA positioning (inline mode).
@@ -370,7 +373,7 @@ def toa_positioning_test(
     Args:
         anchors: Anchor positions, shape (K, 2).
         true_positions: Ground-truth agent positions, shape (N, 2).
-        noise_std: Gaussian range-noise std in metres.
+        range_noise_std_m: Gaussian range-noise std in metres.
         clock_bias_m: Shared receiver clock bias in metres, added to
             every pseudorange.  TDOA differencing cancels this term; TOA
             has to estimate it, which is what the state below is for.
@@ -398,8 +401,8 @@ def toa_positioning_test(
     for true_pos in tqdm(true_positions, desc="  TOA", leave=False, unit="pt"):
         ranges = np.array([toa_range(anchor, true_pos) for anchor in anchors])
         ranges += clock_bias_m
-        if noise_std > 0:
-            ranges += np.random.randn(len(ranges)) * noise_std
+        if range_noise_std_m > 0:
+            ranges += np.random.randn(len(ranges)) * range_noise_std_m
 
         try:
             # (x, y, c*dt): three unknowns from K >= 3 pseudoranges.
@@ -415,7 +418,9 @@ def toa_positioning_test(
     return np.array(errors)
 
 
-def tdoa_positioning_test(anchors, true_positions, noise_std=0.0, clock_bias_m=0.0):
+def tdoa_positioning_test(
+    anchors, true_positions, range_noise_std_m=0.0, clock_bias_m=0.0
+):
     """Test TDOA positioning (inline mode).
 
     **The noise is drawn per anchor and then differenced, not per difference.**
@@ -443,13 +448,13 @@ def tdoa_positioning_test(anchors, true_positions, noise_std=0.0, clock_bias_m=0
     for true_pos in tqdm(true_positions, desc="  TDOA", leave=False, unit="pt"):
         ranges = np.array([np.linalg.norm(true_pos - anchor) for anchor in anchors])
         ranges = ranges + clock_bias_m
-        if noise_std > 0:
-            ranges = ranges + np.random.randn(len(ranges)) * noise_std
+        if range_noise_std_m > 0:
+            ranges = ranges + np.random.randn(len(ranges)) * range_noise_std_m
 
         tdoa = ranges[1:] - ranges[0]
 
         try:
-            positioner = TDOAPositioner(anchors, reference_idx=0)
+            positioner = TDOAPositioner(anchors, reference_anchor_index=0)
             est_pos, info = positioner.solve(tdoa, initial_guess=np.array([5.0, 5.0]))
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_pos)
@@ -467,14 +472,14 @@ DEGRADED_ANCHOR = 3
 DEGRADED_ANCHOR_SCALE = 10.0
 
 
-def aoa_noise_per_anchor(n_anchors, noise_std):
+def aoa_noise_per_anchor(n_anchors, aoa_noise_std_rad):
     """Per-anchor azimuth sigma, with one anchor deliberately degraded."""
-    sigma = np.full(n_anchors, noise_std, dtype=float)
+    sigma = np.full(n_anchors, aoa_noise_std_rad, dtype=float)
     sigma[DEGRADED_ANCHOR % n_anchors] *= DEGRADED_ANCHOR_SCALE
     return sigma
 
 
-def aoa_positioning_test(anchors, true_positions, noise_std=0.0, weighted=True):
+def aoa_positioning_test(anchors, true_positions, aoa_noise_std_rad=0.0, weighted=True):
     """Test AOA positioning (inline mode).
 
     Args:
@@ -493,19 +498,19 @@ def aoa_positioning_test(anchors, true_positions, noise_std=0.0, weighted=True):
     that let near-singular anchors dominate, not a feature.)
     """
     errors = []
-    sigma = aoa_noise_per_anchor(len(anchors), noise_std)
+    sigma = aoa_noise_per_anchor(len(anchors), aoa_noise_std_rad)
 
     for true_pos in tqdm(true_positions, desc="  AOA", leave=False, unit="pt"):
         aoa = np.array([aoa_azimuth(anchor, true_pos) for anchor in anchors])
-        if noise_std > 0:
+        if aoa_noise_std_rad > 0:
             aoa += np.random.randn(len(aoa)) * sigma
 
         try:
             positioner = AOAPositioner(anchors)
             kwargs = {"initial_guess": np.array([5.0, 5.0])}
-            if weighted and noise_std > 0:
+            if weighted and aoa_noise_std_rad > 0:
                 kwargs["sigma_psi"] = sigma
-            est_pos, info = positioner.solve(aoa, **kwargs)
+            est_pos, info = positioner.solve_angles_rad(aoa, **kwargs)
             if info["converged"]:
                 error = np.linalg.norm(est_pos - true_pos)
                 errors.append(error)
@@ -601,25 +606,31 @@ def run_inline_comparison():
     print("  Area: 10m x 10m")
 
     # ---- Independent noise schedules per method ----
-    toa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]  # metres
-    tdoa_noise_levels = [0.0, 0.05, 0.1, 0.2, 0.5]  # metres
+    toa_range_noise_levels_m = [0.0, 0.05, 0.1, 0.2, 0.5]
+    tdoa_range_noise_levels_m = [0.0, 0.05, 0.1, 0.2, 0.5]
     aoa_noise_levels_deg = [0.0, 1.0, 3.0, 5.0, 10.0]  # degrees
-    rss_noise_levels = [0.0, 2.0, 4.0, 6.0, 8.0]  # dB
+    rss_fading_noise_levels_db = [0.0, 2.0, 4.0, 6.0, 8.0]
 
     # Shared clock bias (metres) added to TOA; cancels in TDOA diffs.
     clock_bias_m = 1.5
 
-    n_levels = len(toa_noise_levels)
+    n_levels = len(toa_range_noise_levels_m)
 
     # "AOA_unw" is the unweighted control, reported in the table but not
     # plotted -- the figure compares measurement types, not solver options.
     results = {"TOA": [], "TDOA": [], "AOA": [], "RSS": [], "AOA_unw": []}
 
     print("\nNoise configuration (independent per method):")
-    print(f"  TOA : range noise {toa_noise_levels} m  (+ clock bias {clock_bias_m} m)")
-    print(f"  TDOA: range noise {tdoa_noise_levels} m  (clock bias cancels)")
+    print(
+        f"  TOA : range noise {toa_range_noise_levels_m} m  "
+        f"(+ clock bias {clock_bias_m} m)"
+    )
+    print(f"  TDOA: range noise {tdoa_range_noise_levels_m} m  (clock bias cancels)")
     print(f"  AOA : angle noise {aoa_noise_levels_deg} deg")
-    print(f"  RSS : long-term fading {rss_noise_levels} dB + Rayleigh short-term")
+    print(
+        f"  RSS : long-term fading {rss_fading_noise_levels_db} dB "
+        "+ Rayleigh short-term"
+    )
 
     sigma_short_linear = 0.5
     n_samples_avg = 5
@@ -628,14 +639,15 @@ def run_inline_comparison():
     start_time = time.time()
 
     for i in tqdm(range(n_levels), desc="Overall progress", unit="level"):
-        toa_noise = toa_noise_levels[i]
-        tdoa_noise = tdoa_noise_levels[i]
+        toa_range_noise_m = toa_range_noise_levels_m[i]
+        tdoa_range_noise_m = tdoa_range_noise_levels_m[i]
         aoa_noise_rad = np.deg2rad(aoa_noise_levels_deg[i])
-        rss_fading_db = rss_noise_levels[i]
+        rss_fading_db = rss_fading_noise_levels_db[i]
 
         print(
-            f"\n[{i+1}/{n_levels}] TOA: {toa_noise:.2f}m (+bias {clock_bias_m}m), "
-            f"TDOA: {tdoa_noise:.2f}m, "
+            f"\n[{i+1}/{n_levels}] TOA: {toa_range_noise_m:.2f}m "
+            f"(+bias {clock_bias_m}m), "
+            f"TDOA: {tdoa_range_noise_m:.2f}m, "
             f"AOA: {aoa_noise_levels_deg[i]:.1f}deg, "
             f"RSS: {rss_fading_db:.1f}dB"
         )
@@ -644,7 +656,7 @@ def run_inline_comparison():
             toa_positioning_test(
                 anchors,
                 true_positions,
-                toa_noise,
+                toa_range_noise_m,
                 clock_bias_m=clock_bias_m,
             )
         )
@@ -652,7 +664,7 @@ def run_inline_comparison():
             tdoa_positioning_test(
                 anchors,
                 true_positions,
-                tdoa_noise,
+                tdoa_range_noise_m,
                 clock_bias_m=clock_bias_m,
             )
         )
@@ -712,8 +724,10 @@ def run_inline_comparison():
 
         print(
             f"{i+1:<6} "
-            f"{toa_noise_levels[i]:<9.2f} {tdoa_noise_levels[i]:<9.2f} "
-            f"{aoa_noise_levels_deg[i]:<9.1f} {rss_noise_levels[i]:<9.1f} "
+            f"{toa_range_noise_levels_m[i]:<9.2f} "
+            f"{tdoa_range_noise_levels_m[i]:<9.2f} "
+            f"{aoa_noise_levels_deg[i]:<9.1f} "
+            f"{rss_fading_noise_levels_db[i]:<9.1f} "
             f"{_median(results['TOA'][i]):<9.3f} "
             f"{_median(results['TDOA'][i]):<9.3f} "
             f"{_median(results['AOA'][i]):<9.3f} "
@@ -756,7 +770,7 @@ def run_inline_comparison():
     print("  multiple of the identity and it cancels out of (H'WH)^-1 H'W.")
     print("  Only the spread between anchors carries information.")
 
-    return toa_noise_levels, results
+    return toa_range_noise_levels_m, results
 
 
 def plot_dataset_results(results: Dict, output_file: str = None):
@@ -893,12 +907,12 @@ def plot_geometry_comparison(all_results: dict):
     bar; and the failure rate beside it, since a method can have a fine median
     and still not work -- which is exactly what the RMSE was hiding.
     """
-    fig, (ax_err, ax_fail) = plt.subplots(1, 2, figsize=(13, 5.5))
-    fig.suptitle("Beacon geometry is method-specific", fontsize=15, fontweight="bold")
+    fig, (ax_err, ax_fail) = plt.subplots(1, 2, figsize=(15, 6.2))
+    fig.suptitle("Beacon geometry is method-specific", fontsize=17, fontweight="bold")
 
     labels = list(all_results)
     x = np.arange(len(labels))
-    width = 0.26
+    width = 0.22
     colors = {"TOA": "tab:blue", "TDOA": "tab:red", "AOA": "tab:green"}
 
     for i, method in enumerate(METHODS):
@@ -927,7 +941,7 @@ def plot_geometry_comparison(all_results: dict):
                 textcoords="offset points",
                 xytext=(0, 3),
                 ha="center",
-                fontsize=8,
+                fontsize=9,
             )
             # Hatch the bars whose median is mostly failures, so a tall bar and
             # a broken method are distinguishable at a glance.
@@ -946,25 +960,28 @@ def plot_geometry_comparison(all_results: dict):
         )
 
     ax_err.set_yscale("log")
-    ax_err.set_ylabel("Median position error (m), log scale")
-    ax_err.set_title("Median error over all 100 fixes")
+    ax_err.set_ylabel("Median position error (m), log scale", fontsize=11)
+    ax_err.set_title("Median error over all 100 fixes", fontsize=12)
     ax_err.set_xticks(x)
-    ax_err.set_xticklabels(labels, fontsize=9)
+    ax_err.set_xticklabels(labels, fontsize=10)
     # Headroom for the legend, on a log axis, so it cannot sit over a bar. The
     # first draft put it at the default "best" location, which matplotlib chose
     # to be on top of the collinear group.
     top = max(all_results[g]["outcomes"][m].median_m for g in labels for m in METHODS)
     ax_err.set_ylim(top=top * 12)
-    ax_err.legend(title="Method", loc="upper center", ncols=3, fontsize=9)
+    ax_err.legend(title="Method", loc="upper center", ncols=3, fontsize=10)
     ax_err.grid(True, alpha=0.3, axis="y", which="both")
     ax_err.set_axisbelow(True)
 
-    ax_fail.set_ylabel("Fixes that failed (%)")
-    ax_fail.set_title("Failed = raised, refused, stalled, or landed >100 m away")
+    ax_fail.set_ylabel("Fixes that failed (%)", fontsize=11)
+    ax_fail.set_title(
+        "Failed = raised, refused, stalled,\nor landed >100 m away",
+        fontsize=12,
+    )
     ax_fail.set_xticks(x)
-    ax_fail.set_xticklabels(labels, fontsize=9)
+    ax_fail.set_xticklabels(labels, fontsize=10)
     ax_fail.set_ylim(0, 122)
-    ax_fail.legend(title="Method", loc="upper center", ncols=3, fontsize=9)
+    ax_fail.legend(title="Method", loc="upper center", ncols=3, fontsize=10)
     ax_fail.grid(True, alpha=0.3, axis="y")
     ax_fail.set_axisbelow(True)
 
@@ -976,10 +993,10 @@ def plot_geometry_comparison(all_results: dict):
         "TDOA never leave it, and their 6.77 m is the distance from the seed to "
         "the truth. AOA is the best of the three there.",
         ha="center",
-        fontsize=8.5,
+        fontsize=9.5,
         style="italic",
     )
-    fig.tight_layout(rect=(0, 0.085, 1, 1))
+    fig.tight_layout(rect=(0, 0.09, 1, 1))
     return fig
 
 

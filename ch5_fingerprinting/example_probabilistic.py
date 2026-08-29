@@ -8,7 +8,7 @@ Implements:
     - Gaussian Naive Bayes model fitting (Eq. 5.6)
     - Bayes posterior computation (Eq. 5.3): P(x_i|z) = P(z|x_i)P(x_i)/P(z)
     - MAP estimation (Eq. 5.4): i* = argmax_i P(x_i|z)
-    - Posterior mean estimation (Eq. 5.5): x̂ = Σ P(x_i|z) x_i
+    - Posterior mean estimation (Eq. 5.5): x_hat = sum_i P(x_i|z) x_i
 
 Author: Li-Ta Hsu
 Date: December 2024
@@ -34,9 +34,11 @@ from core.fingerprinting import (
     fit_gaussian_naive_bayes,
     load_fingerprint_database,
     log_posterior,
-    map_localize,
+    maximum_a_posteriori_localize,
     posterior_mean_localize,
 )
+
+DEFAULT_DATA = "data/sim/ch5_wifi_fingerprint_grid"
 
 
 def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=42):
@@ -154,7 +156,7 @@ def visualize_posterior(model, query, true_loc, floor_id, ax, title):
     )
 
     # Mark estimates
-    x_map = map_localize(query, model, floor_id=floor_id)
+    x_map = maximum_a_posteriori_localize(query, model, floor_id=floor_id)
     x_post_mean = posterior_mean_localize(query, model, floor_id=floor_id)
 
     ax.scatter(
@@ -202,10 +204,16 @@ def main():
     """Run probabilistic fingerprinting examples."""
     # Parse arguments before doing any work, so --help answers instead of
     # running the whole demonstration.
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    ).parse_args()
+    )
+    parser.add_argument(
+        "--data",
+        default=DEFAULT_DATA,
+        help=f"Fingerprint database directory (default: {DEFAULT_DATA})",
+    )
+    args = parser.parse_args()
 
     print("=" * 70)
     print("Chapter 5: Probabilistic Fingerprinting (Bayesian Methods)")
@@ -213,7 +221,7 @@ def main():
 
     # Load database
     print("\n1. Loading fingerprint database...")
-    db_path = Path("data/sim/ch5_wifi_fingerprint_grid")
+    db_path = Path(args.data)
     db = load_fingerprint_database(db_path)
     print(f"   Database: {db}")
 
@@ -230,7 +238,7 @@ def main():
         model = fit_gaussian_naive_bayes(db, min_std=std_val)
         t_end = time.time()
         models[std_val] = model
-        print(f"   Training time: {(t_end - t_start)*1000:.2f}ms")
+        print(f"   Training time: {(t_end - t_start) * 1000:.2f}ms")
         print(f"   Model: {model.n_reference_points} RPs, {model.n_features} features")
 
     # Generate test queries
@@ -258,7 +266,7 @@ def main():
         results.append(
             evaluate_method(
                 f"MAP (std={std_val}dBm)",
-                map_localize,
+                maximum_a_posteriori_localize,
                 queries,
                 true_locs,
                 model=model,

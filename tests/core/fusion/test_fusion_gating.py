@@ -177,8 +177,8 @@ class TestChiSquareGate(unittest.TestCase):
         y_reject = np.array([np.sqrt(3.5), np.sqrt(3.5)])  # d^2 = 7.0
         self.assertFalse(chi_square_gate(y_reject, S, confidence=0.95))
 
-    def test_conservative_gating(self) -> None:
-        """Test that higher confidence (more conservative) is more restrictive."""
+    def test_confidence_controls_borderline_acceptance(self) -> None:
+        """Test doc example: higher confidence raises the gate threshold."""
         y = np.array([2.5, 0.0])  # d^2 = 6.25
         S = np.eye(2)
 
@@ -395,6 +395,20 @@ class TestChiSquareBounds(unittest.TestCase):
 
         self.assertAlmostEqual(lower, 0.051, places=2)
         self.assertAlmostEqual(upper, 7.378, places=2)
+
+    def test_doc_example_distinguishes_bounds_from_gate_threshold(self) -> None:
+        """Lock the doc example: central bounds are not the one-sided gate."""
+        gate_threshold = chi_square_threshold(dof=2, confidence=0.95)
+        lower, upper = chi_square_bounds(dof=2, confidence=0.95)
+
+        self.assertAlmostEqual(gate_threshold, 5.991, places=3)
+        self.assertAlmostEqual(lower, 0.051, places=2)
+        self.assertAlmostEqual(upper, 7.378, places=2)
+        self.assertGreater(upper, gate_threshold)
+
+        lower_1d, upper_1d = chi_square_bounds(dof=1, confidence=0.95)
+        self.assertAlmostEqual(lower_1d, 0.001, places=3)
+        self.assertAlmostEqual(upper_1d, 5.024, places=3)
 
     def test_deprecated_alpha_parameter(self) -> None:
         """Test backward compatibility with deprecated alpha parameter."""

@@ -8,8 +8,9 @@ UnicodeEncodeError -- and if it fires before the figure is saved, the reader
 never sees the figure at all.
 
 This test parses each example and checks the string literals reaching `print()`
-against every code page a reader plausibly has. Checking one code page is not
-enough, because they disagree about which symbols they carry:
+or argparse's console-facing help against every code page a reader plausibly
+has. Checking one code page is not enough, because they disagree about which
+symbols they carry:
 
     - U+00B0 degree sign  -- present in all of them, safe to print
     - U+00B2 superscript two -- missing from cp932/cp950/cp936 (CJK Windows)
@@ -27,8 +28,8 @@ Run with: python -m pytest tests/test_example_console_encoding.py -v
 """
 
 import ast
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator, List, Tuple
 
 import pytest
 
@@ -49,7 +50,7 @@ CONSOLE_ENCODINGS = (
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
-def find_example_scripts() -> List[Path]:
+def find_example_scripts() -> list[Path]:
     """Collect every chapter example script in the repo.
 
     Returns:
@@ -58,7 +59,7 @@ def find_example_scripts() -> List[Path]:
     return sorted(REPO_ROOT.glob("ch*/example_*.py"))
 
 
-def iter_print_string_literals(source: str) -> Iterator[Tuple[int, str]]:
+def iter_print_string_literals(source: str) -> Iterator[tuple[int, str]]:
     """Yield string literals that are arguments to a `print()` call.
 
     Walks into f-strings, so the literal parts of an f-string are covered while
@@ -84,7 +85,53 @@ def iter_print_string_literals(source: str) -> Iterator[Tuple[int, str]]:
                 yield child.lineno, child.value
 
 
-def unencodable_chars(text: str) -> List[Tuple[str, List[str]]]:
+def iter_argparse_string_literals(source: str) -> Iterator[tuple[int, str]]:
+    """Yield literals that argparse can print to the console.
+
+    Module docstrings deserve special handling because the repository's normal
+    parser construction passes ``description=__doc__``. The old guard inspected
+    only explicit ``print()`` calls, so an unencodable arrow or combining accent
+    in that docstring made ``--help`` crash even though the guard stayed green.
+
+    Args:
+        source: Python source text.
+
+    Yields:
+        Tuples of (line number, console-facing string literal).
+    """
+    tree = ast.parse(source)
+    module_docstring = ast.get_docstring(tree, clean=False)
+    module_docstring_line = tree.body[0].lineno if module_docstring and tree.body else 1
+
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.Call):
+            continue
+
+        function_name = (
+            node.func.attr
+            if isinstance(node.func, ast.Attribute)
+            else getattr(node.func, "id", None)
+        )
+        if function_name == "ArgumentParser":
+            relevant_keywords = {"description", "epilog"}
+        elif function_name == "add_argument":
+            relevant_keywords = {"help"}
+        else:
+            continue
+
+        for keyword in node.keywords:
+            if keyword.arg not in relevant_keywords:
+                continue
+            if isinstance(keyword.value, ast.Name) and keyword.value.id == "__doc__":
+                if module_docstring is not None:
+                    yield module_docstring_line, module_docstring
+                continue
+            for child in ast.walk(keyword.value):
+                if isinstance(child, ast.Constant) and isinstance(child.value, str):
+                    yield child.lineno, child.value
+
+
+def unencodable_chars(text: str) -> list[tuple[str, list[str]]]:
     """Find characters of `text` that some console encoding cannot represent.
 
     Args:
@@ -137,4 +184,28 @@ def test_print_output_encodable_on_legacy_console(script: Path):
         + "\n".join(failures)
         + "\n\nUse an ASCII equivalent (lambda, x_hat, R^2, ->, x). "
         "Math symbols are fine in matplotlib labels, just not in print()."
+    )
+
+
+@pytest.mark.parametrize(
+    "script", EXAMPLE_SCRIPTS, ids=lambda p: f"{p.parent.name}/{p.name}"
+)
+def test_argparse_help_encodable_on_legacy_console(script: Path):
+    """Module descriptions and argument help must survive legacy consoles."""
+    source = script.read_text(encoding="utf-8")
+
+    failures = []
+    for lineno, literal in iter_argparse_string_literals(source):
+        for char, rejected_by in unencodable_chars(literal):
+            failures.append(
+                f"  {script.name}:{lineno}: {char!r} (U+{ord(char):04X}) "
+                f"breaks {', '.join(rejected_by)}"
+            )
+
+    assert not failures, (
+        "argparse help would raise UnicodeEncodeError on a default "
+        "(non-UTF-8) console:\n"
+        + "\n".join(failures)
+        + "\n\nUse an ASCII equivalent in module descriptions, epilog text, and "
+        "argument help. Math symbols remain fine in matplotlib labels."
     )

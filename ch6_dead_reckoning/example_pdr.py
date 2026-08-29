@@ -26,7 +26,7 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Optional
+from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,6 +46,7 @@ from core.sensors import (
     integrate_gyro_heading,
     mag_heading,
     pdr_step_update,
+    random_walk_to_rate_sample_std,
     step_length,
     step_length_book_eq6_49,
     step_length_weinberg,
@@ -71,12 +72,52 @@ CORNER_RADIUS_M = 2.0
 BRAKE_DISTANCE_M = 1.0
 
 
+class CorridorWalk(NamedTuple):
+    """Corridor-walk ground truth and ideal phone-sensor signals."""
+
+    timestamps_s: np.ndarray
+    true_positions_map_m: np.ndarray
+    true_headings_rad: np.ndarray
+    specific_force_body_mps2: np.ndarray
+    angular_rates_body_rad_s: np.ndarray
+    true_magnetic_field_body: np.ndarray
+    expected_step_count: int
+
+    @property
+    def t(self) -> np.ndarray:
+        return self.timestamps_s
+
+    @property
+    def pos_2d(self) -> np.ndarray:
+        return self.true_positions_map_m
+
+    @property
+    def heading_true(self) -> np.ndarray:
+        return self.true_headings_rad
+
+    @property
+    def accel_body(self) -> np.ndarray:
+        return self.specific_force_body_mps2
+
+    @property
+    def gyro_body(self) -> np.ndarray:
+        return self.angular_rates_body_rad_s
+
+    @property
+    def mag_body(self) -> np.ndarray:
+        return self.true_magnetic_field_body
+
+    @property
+    def expected_steps(self) -> int:
+        return self.expected_step_count
+
+
 def compute_step_length(
     height: float,
     f_step: float,
     model: str = "book",
-    G_w: Optional[float] = None,
-    f_step_window: Optional[np.ndarray] = None,
+    G_w: float | None = None,
+    f_step_window: np.ndarray | None = None,
 ) -> float:
     """
     Compute step length using selected model.
@@ -108,7 +149,7 @@ def compute_step_length(
         )
 
 
-def load_pdr_dataset(data_dir: str) -> Dict:
+def load_pdr_dataset(data_dir: str) -> dict:
     """Load PDR dataset from directory.
 
     Args:
@@ -139,8 +180,8 @@ def load_pdr_dataset(data_dir: str) -> Dict:
 
 
 def run_pdr_from_dataset(
-    data: Dict, height: float = 1.75, step_model: str = "book"
-) -> Dict:
+    data: dict, height: float = 1.75, step_model: str = "book"
+) -> dict:
     """Run PDR algorithm on loaded dataset.
 
     Uses the book's peak detection method (Eqs. 6.46-6.47) for step detection:
@@ -320,13 +361,13 @@ def run_with_dataset(
     print("=" * 70)
     print("PDR (Gyro Heading - drifts unbounded):")
     print(
-        f"  Final error:  {error_gyro[-1]:.1f} m ({error_gyro[-1]/total_dist*100:.1f}% of distance)"
+        f"  Final error:  {error_gyro[-1]:.1f} m ({error_gyro[-1] / total_dist * 100:.1f}% of distance)"
     )
     print(f"  RMSE:         {rmse_gyro:.1f} m")
     print()
     print("PDR (Magnetometer Heading - absolute but noisy):")
     print(
-        f"  Final error:  {error_mag[-1]:.1f} m ({error_mag[-1]/total_dist*100:.1f}% of distance)"
+        f"  Final error:  {error_mag[-1]:.1f} m ({error_mag[-1] / total_dist * 100:.1f}% of distance)"
     )
     print(f"  RMSE:         {rmse_mag:.1f} m")
 
@@ -431,7 +472,11 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     Generate rectangular corridor walk with turns and synthetic walking dynamics.
     Uses correct IMU forward model with added vertical oscillations for step detection.
 
-    Returns: t, pos_true, heading_true, accel_body, gyro_body, mag_body, expected_steps
+    Returns:
+        CorridorWalk with semantic fields and tuple-compatible order:
+        timestamps_s, true_positions_map_m, true_headings_rad,
+        specific_force_body_mps2, angular_rates_body_rad_s,
+        true_magnetic_field_body, expected_step_count.
     """
     if frame is None:
         frame = FrameConvention.create_enu()
@@ -594,7 +639,15 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
     walking_time = min(total_length / v_walk, duration)
     expected_steps = int(round(walking_time * step_freq))
 
-    return t, pos_2d, heading_true, accel_body, gyro_body, mag_body, expected_steps
+    return CorridorWalk(
+        timestamps_s=t,
+        true_positions_map_m=pos_2d,
+        true_headings_rad=heading_true,
+        specific_force_body_mps2=accel_body,
+        angular_rates_body_rad_s=gyro_body,
+        true_magnetic_field_body=mag_body,
+        expected_step_count=expected_steps,
+    )
 
 
 def add_sensor_noise(
@@ -626,10 +679,12 @@ def add_sensor_noise(
 
     # IMU noise and biases
     gyro_bias = rng.standard_normal(3) * imu_params.gyro_bias_rad_s
-    gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    gyro_noise_std = random_walk_to_rate_sample_std(imu_params.gyro_arw_rad_sqrt_s, dt)
     gyro_noise = rng.standard_normal((N, 3)) * gyro_noise_std
 
-    accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    accel_noise_std = random_walk_to_rate_sample_std(
+        imu_params.accel_vrw_mps_sqrt_s, dt
+    )
     accel_noise = rng.standard_normal((N, 3)) * accel_noise_std
 
     # Magnetometer noise + disturbances
@@ -928,14 +983,14 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     pos_gyro, heading_gyro, steps_gyro = run_pdr_gyro_heading(
         t, accel_meas, gyro_meas, height, step_model=step_model
     )
-    print(f"  Time: {time.time()-start:.3f} s, Steps detected: {steps_gyro}")
+    print(f"  Time: {time.time() - start:.3f} s, Steps detected: {steps_gyro}")
 
     print(f"\nRunning PDR with magnetometer heading (step model: {step_model})...")
     start = time.time()
     pos_mag, heading_mag, steps_mag = run_pdr_mag_heading(
         t, accel_meas, gyro_meas, mag_meas, height, step_model=step_model
     )
-    print(f"  Time: {time.time()-start:.3f} s, Steps detected: {steps_mag}")
+    print(f"  Time: {time.time() - start:.3f} s, Steps detected: {steps_mag}")
 
     figs_dir = Path(__file__).parent / "figs"
     figs_dir.mkdir(exist_ok=True)
@@ -961,13 +1016,13 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print("=" * 70)
     print("PDR (Gyro Heading - drifts unbounded):")
     print(
-        f"  Final error:  {error_gyro[-1]:.1f} m ({error_gyro[-1]/total_dist*100:.1f}% of distance)"
+        f"  Final error:  {error_gyro[-1]:.1f} m ({error_gyro[-1] / total_dist * 100:.1f}% of distance)"
     )
     print(f"  RMSE:         {rmse_gyro:.1f} m")
     print()
     print("PDR (Magnetometer Heading - absolute but noisy):")
     print(
-        f"  Final error:  {error_mag[-1]:.1f} m ({error_mag[-1]/total_dist*100:.1f}% of distance)"
+        f"  Final error:  {error_mag[-1]:.1f} m ({error_mag[-1] / total_dist * 100:.1f}% of distance)"
     )
     print(f"  RMSE:         {rmse_mag:.1f} m")
     print()
@@ -1091,10 +1146,10 @@ def main():
 Examples:
   # Run with inline generated data (default)
   python example_pdr.py
-  
+
   # Run with pre-generated dataset
   python example_pdr.py --data ch6_pdr_corridor_walk
-  
+
   # Specify pedestrian height
   python example_pdr.py --data ch6_pdr_corridor_walk --height 1.80
         """,

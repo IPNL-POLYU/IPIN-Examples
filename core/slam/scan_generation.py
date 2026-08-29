@@ -10,7 +10,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import List, Optional, Tuple
+from typing import List, Tuple
 
 import numpy as np
 
@@ -33,7 +33,7 @@ def ray_segment_intersection(
     ray_direction: np.ndarray,
     segment_start: np.ndarray,
     segment_end: np.ndarray,
-) -> Tuple[Optional[np.ndarray], float]:
+) -> Tuple[np.ndarray | None, float]:
     """Compute intersection between a ray and a line segment.
 
     Uses parametric line equations to find intersection:

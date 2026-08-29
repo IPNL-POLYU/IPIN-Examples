@@ -167,9 +167,7 @@ class ShadowingField:
         if sigma_dB < 0.0:
             raise ValueError(f"sigma_dB must be non-negative, got {sigma_dB}")
         if decorrelation_m <= 0.0:
-            raise ValueError(
-                f"decorrelation_m must be positive, got {decorrelation_m}"
-            )
+            raise ValueError(f"decorrelation_m must be positive, got {decorrelation_m}")
 
         frequencies = np.empty((n_floors, n_aps, n_modes, 2))
         phases = np.empty((n_floors, n_aps, n_modes))
@@ -293,9 +291,7 @@ class ShadowingField:
         for floor in np.unique(floors):
             rows = floors == floor
             # (n_f, 2) . (n_aps, K, 2) -> (n_f, n_aps, K)
-            projected = np.einsum(
-                "nd,akd->nak", points[rows], self.frequencies[floor]
-            )
+            projected = np.einsum("nd,akd->nak", points[rows], self.frequencies[floor])
             out[rows] = scale * np.cos(projected + self.phases[floor]).sum(axis=2)
 
         return out[0] if single else out

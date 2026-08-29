@@ -16,6 +16,7 @@ from core.fingerprinting import (
     log_likelihood,
     log_posterior,
     map_localize,
+    maximum_a_posteriori_localize,
     posterior_mean_localize,
 )
 
@@ -335,6 +336,16 @@ class TestMAPLocalize:
         x_hat = map_localize(z, model)
 
         np.testing.assert_array_almost_equal(x_hat, [0.0, 0.0])
+
+    def test_maximum_a_posteriori_alias_matches_legacy(self, simple_database):
+        """Descriptive MAP alias should preserve legacy map_localize behavior."""
+        model = fit_gaussian_naive_bayes(simple_database, min_std=2.0)
+        query_fingerprint = np.array([-50, -60, -70])
+
+        np.testing.assert_array_almost_equal(
+            maximum_a_posteriori_localize(query_fingerprint, model),
+            map_localize(query_fingerprint, model),
+        )
 
     def test_map_approximate_match(self, simple_database):
         """Test MAP with approximate match."""

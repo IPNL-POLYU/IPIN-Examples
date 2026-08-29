@@ -15,30 +15,37 @@ Available estimators:
     - Factor Graph Optimization (FGO)
 """
 
+from core.estimators.base import StateEstimate
+from core.estimators.extended_kalman_filter import ExtendedKalmanFilter
+from core.estimators.factor_graph import Factor, FactorGraph
+from core.estimators.iterated_extended_kalman_filter import IteratedExtendedKalmanFilter
+from core.estimators.kalman_filter import KalmanFilter
 from core.estimators.least_squares import (
-    linear_least_squares,
-    weighted_least_squares,
+    WeightedLeastSquaresResult,
     iterative_least_squares,
+    linear_least_squares,
     robust_least_squares,
+    solve_weighted_least_squares,
+    weighted_least_squares,
 )
 from core.estimators.nonlinear_least_squares import (
+    NonlinearLSResult,
     gauss_newton,
     levenberg_marquardt,
     robust_gauss_newton,
     solve_nonlinear_ls,
-    NonlinearLSResult,
 )
-from core.estimators.kalman_filter import KalmanFilter
-from core.estimators.extended_kalman_filter import ExtendedKalmanFilter
-from core.estimators.iterated_extended_kalman_filter import IteratedExtendedKalmanFilter
-from core.estimators.unscented_kalman_filter import UnscentedKalmanFilter
 from core.estimators.particle_filter import ParticleFilter
-from core.estimators.factor_graph import Factor, FactorGraph
+from core.estimators.unscented_kalman_filter import UnscentedKalmanFilter
 
 __all__ = [
+    # Shared typed results
+    "StateEstimate",
     # Linear LS
     "linear_least_squares",
     "weighted_least_squares",
+    "solve_weighted_least_squares",
+    "WeightedLeastSquaresResult",
     "iterative_least_squares",
     "robust_least_squares",
     # Nonlinear LS (Section 3.4.1)

@@ -106,6 +106,25 @@ by finite differences.
 Which starting points each method recovers from, and NDT's capture range
 against voxel size.
 
+### SLAM front-end, as a two-panel teaching example
+
+![SLAM front-end trajectories and error over pose index](figs/slam_frontend_demo.svg)
+
+Run it with `python -m ch7_slam.example_slam_frontend`. This is the smallest
+example to study before the full pose graph: every step predicts from odometry,
+aligns the new scan to the existing submap, then updates that submap. The left
+panel deliberately uses unequal visual aspect so the cross-track correction is
+visible; the walk is about 4.5 m long but only drifts by centimetres sideways,
+so an equal-aspect plot would hide the lesson in one thick line.
+
+Read the colors as: black ground truth, green start marker, red end marker,
+blue solid odometry, and red dashed front-end scan-to-map result from the
+shared plotting palette. The right panel uses **step index**, not seconds, and
+uses the same blue/red mapping for odometry error versus front-end error. The
+point is not that ICP magically knows truth -- it never sees it -- but that
+scan-to-map alignment can use repeated wall observations to pull a local
+trajectory back toward a consistent map.
+
 ### Animations
 
 | GIF | Built by | Size | Shows |
@@ -464,11 +483,23 @@ front-end number.
 
 ![SLAM with Maps](figs/slam_with_maps.png)
 
-*This figure shows four panels in a 1x3 grid:*
-- **Left:** Trajectories comparing ground truth (green), odometry with drift (red dashed), and optimized SLAM (blue solid), plus loop closure connections (magenta)
-- **Middle-top:** Map before optimization (red points from odometry poses) showing drift and misalignment
-- **Middle-bottom:** Map after optimization (blue points from optimized poses) showing improved alignment and consistency (8% point count reduction = tightening)
-- **Right:** Position error over time showing how loop closures correct accumulated drift
+*This figure has four axes arranged on a 2x3 layout: the trajectory and error
+plots span the full height, while the two map panels stack in the middle.*
+
+- **Left, trajectories:** ground truth is green, odometry is red dashed, the
+  front-end scan-to-map estimate is orange dash-dot, and the optimized backend
+  trajectory is blue. Static loop-closure edges are intentionally not drawn
+  here; they are easier to read in the animation.
+- **Middle-top, map before backend:** orange map points and orange trajectory
+  are reconstructed from the front-end poses, so this panel shows the map that
+  the backend receives.
+- **Middle-bottom, map after backend:** blue map points and blue trajectory are
+  reconstructed from optimized poses. In the transcript above, 537 points
+  tighten to 482 after voxel downsampling, about a 10% reduction.
+- **Right, position error:** red dashed odometry, orange front-end, and blue
+  optimized error over pose index. Use this with the map panels: a lower error
+  curve should correspond to a tighter reconstructed map, not just a nicer
+  number.
 
 ### Visual Bundle Adjustment
 

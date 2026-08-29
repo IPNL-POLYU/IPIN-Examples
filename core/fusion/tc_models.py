@@ -16,10 +16,16 @@ Author: Li-Ta Hsu
 References: Chapter 8, Section 8.1.2 (Tightly Coupled)
 """
 
-from typing import Callable, Tuple
+from __future__ import annotations
+
+from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 import numpy as np
+
+if TYPE_CHECKING:
+    from core.estimators import ExtendedKalmanFilter
 
 
 def interpolate_imu_measurements(
@@ -27,7 +33,7 @@ def interpolate_imu_measurements(
     t_imu: np.ndarray,
     accel_xy: np.ndarray,
     gyro_z: np.ndarray,
-) -> Tuple[np.ndarray, float]:
+) -> tuple[np.ndarray, float]:
     """Interpolate IMU measurements at a query time (Section 8.5.2 - Direct Interpolation).
 
     Implements direct linear interpolation method from Chapter 8, Section 8.5.2
@@ -130,7 +136,7 @@ class StateIndex:
 
 def create_process_model(
     process_noise_std: np.ndarray = None,
-) -> Tuple[Callable, Callable, Callable]:
+) -> tuple[Callable, Callable, Callable]:
     """Create process model functions for 2D IMU-based dead reckoning.
 
     State: x = [px, py, vx, vy, yaw]  (5D)
@@ -216,7 +222,7 @@ def create_process_model(
 
 def create_uwb_range_measurement_model(
     anchor_position: np.ndarray, range_noise_std: float = 0.05
-) -> Tuple[Callable, Callable, Callable]:
+) -> tuple[Callable, Callable, Callable]:
     """Create UWB range measurement model for a single anchor.
 
     Measurement: z = range to anchor
@@ -278,7 +284,7 @@ def create_tc_fusion_ekf(
     initial_state: np.ndarray,
     initial_cov: np.ndarray,
     process_noise_std: np.ndarray = None,
-) -> any:
+) -> ExtendedKalmanFilter:
     """Create and initialize tightly coupled fusion EKF.
 
     Args:

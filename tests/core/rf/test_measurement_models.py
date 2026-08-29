@@ -9,11 +9,13 @@ import pytest
 
 from core.rf.measurement_models import (
     SPEED_OF_LIGHT,
+    aoa_angle_measurements_rad,
     aoa_angle_vector,
     aoa_azimuth,
     aoa_elevation,
     aoa_measurement_vector,
     aoa_sin_elevation,
+    aoa_sin_tan_vector,
     aoa_tan_azimuth,
     clock_bias_meters_to_seconds,
     clock_bias_seconds_to_meters,
@@ -711,8 +713,30 @@ class TestTDOA:
         anchors = np.array([[0, 0], [10, 0], [10, 10]])
         agent = np.array([5, 5])
 
-        with pytest.raises(ValueError, match="reference_anchor_idx"):
+        with pytest.raises(ValueError, match="reference_anchor_index"):
             tdoa_measurement_vector(anchors, agent, reference_anchor_idx=5)
+
+    def test_tdoa_reference_anchor_aliases_are_equivalent(self):
+        """Preferred and legacy reference-anchor spellings compute the same vector."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
+        agent = np.array([3, 7])
+
+        preferred = tdoa_measurement_vector(anchors, agent, reference_anchor_index=1)
+        legacy_idx = tdoa_measurement_vector(anchors, agent, reference_anchor_idx=1)
+        legacy_reference = tdoa_measurement_vector(anchors, agent, reference_idx=1)
+        legacy_short = tdoa_measurement_vector(anchors, agent, ref_idx=1)
+
+        np.testing.assert_allclose(preferred, legacy_idx)
+        np.testing.assert_allclose(preferred, legacy_reference)
+        np.testing.assert_allclose(preferred, legacy_short)
+
+    def test_tdoa_reference_anchor_alias_conflict_is_rejected(self):
+        """Ambiguous reference anchor input should fail loudly."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]])
+        agent = np.array([3, 7])
+
+        with pytest.raises(ValueError, match="Conflicting TDOA reference"):
+            tdoa_measurement_vector(anchors, agent, reference_anchor_index=0, ref_idx=1)
 
 
 class TestAOA:
@@ -885,6 +909,16 @@ class TestAOA:
         assert z[1] == pytest.approx(0.0, abs=1e-6)  # North anchor
         assert z[3] == pytest.approx(0.0, abs=1e-6)  # South anchor
 
+    def test_aoa_sin_tan_vector_is_explicit_alias_for_old_measurement_name(self):
+        """The new explicit sin/tan name preserves the old vector values."""
+        anchors = np.array([[10, 0], [0, 10], [-10, 0], [0, -10]])
+        agent = np.array([0.0, 0.0])
+
+        old_name = aoa_measurement_vector(anchors, agent, include_elevation=False)
+        explicit = aoa_sin_tan_vector(anchors, agent, include_elevation=False)
+
+        np.testing.assert_allclose(old_name, explicit)
+
     def test_aoa_measurement_vector_3d(self):
         """Test AOA measurement vector with elevation per Eq. 4.65."""
         # Anchors at corners, 5m above agent
@@ -921,6 +955,16 @@ class TestAOA:
         assert angles.shape == (2,)
         assert np.isclose(angles[0], np.pi / 2, atol=1e-6)  # East -> ψ = 90°
         assert np.isclose(angles[1], 0.0, atol=1e-6)  # North -> ψ = 0°
+
+    def test_aoa_angle_measurements_rad_names_the_angle_domain(self):
+        """The explicit raw-radian helper is equivalent to aoa_angle_vector."""
+        anchors = np.array([[10, 0], [0, 10]])
+        agent = np.array([0.0, 0.0])
+
+        np.testing.assert_allclose(
+            aoa_angle_measurements_rad(anchors, agent),
+            aoa_angle_vector(anchors, agent),
+        )
 
     def test_aoa_handcheck_geometry(self):
         """Hand-check geometry verification from book equations.

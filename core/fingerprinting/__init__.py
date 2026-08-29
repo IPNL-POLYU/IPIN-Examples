@@ -8,27 +8,31 @@ Main components:
     - FingerprintDatabase: Core data structure for radio maps
     - load/save functions: I/O utilities for databases
     - validate_database: Data quality checks
-    - nn_localize, knn_localize: Deterministic fingerprinting (Eqs. 5.1-5.2)
-    - map_localize, posterior_mean_localize: Probabilistic (Eqs. 5.3-5.5)
+    - nearest_neighbor_localize, k_nearest_neighbor_localize: Deterministic
+      fingerprinting (Eqs. 5.1-5.2)
+    - maximum_a_posteriori_localize, posterior_mean_localize: Probabilistic
+      fingerprinting (Eqs. 5.3-5.5)
+    - hierarchical_fingerprint_localize: Coarse-to-fine classification result
+      with named fields and tuple-compatible unpacking
 
 Example usage:
     >>> from core.fingerprinting import (
     ...     FingerprintDatabase,
     ...     load_fingerprint_database,
-    ...     nn_localize,
-    ...     knn_localize,
+    ...     nearest_neighbor_localize,
+    ...     k_nearest_neighbor_localize,
     ...     fit_gaussian_naive_bayes,
-    ...     map_localize
+    ...     maximum_a_posteriori_localize
     ... )
     >>> db = load_fingerprint_database('data/sim/ch5_wifi_fingerprint_grid')
     >>> z_query = np.array([-50, -60, -70])
     >>>
     >>> # Deterministic
-    >>> x_hat_nn = nn_localize(z_query, db, floor_id=0)
+    >>> x_hat_nn = nearest_neighbor_localize(z_query, db, floor_id=0)
     >>>
     >>> # Probabilistic
     >>> model = fit_gaussian_naive_bayes(db)
-    >>> x_hat_map = map_localize(z_query, model, floor_id=0)
+    >>> x_hat_map = maximum_a_posteriori_localize(z_query, model, floor_id=0)
 
 Author: Li-Ta Hsu
 Date: 2024
@@ -36,8 +40,10 @@ Date: 2024
 
 from .classification import (
     ClassificationLocalizer,
+    HierarchicalLocalizationResult,
     fit_classifier,
     fit_floor_classifier,
+    hierarchical_fingerprint_localize,
     hierarchical_localize,
 )
 from .dataset import (
@@ -46,7 +52,16 @@ from .dataset import (
     save_fingerprint_database,
     validate_database,
 )
-from .deterministic import distance, knn_localize, nn_localize, pairwise_distances
+from .deterministic import (
+    distance,
+    fingerprint_distance,
+    fingerprint_pairwise_distances,
+    k_nearest_neighbor_localize,
+    knn_localize,
+    nearest_neighbor_localize,
+    nn_localize,
+    pairwise_distances,
+)
 from .pattern_recognition import LinearRegressionLocalizer
 from .preprocess import (
     average_scans,
@@ -60,6 +75,7 @@ from .probabilistic import (
     log_likelihood,
     log_posterior,
     map_localize,
+    maximum_a_posteriori_localize,
     posterior_mean_localize,
 )
 from .shadowing import (
@@ -81,15 +97,20 @@ __all__ = [
     "print_database_summary",
     # Deterministic methods
     "distance",
+    "fingerprint_distance",
     "pairwise_distances",
+    "fingerprint_pairwise_distances",
     "nn_localize",
+    "nearest_neighbor_localize",
     "knn_localize",
+    "k_nearest_neighbor_localize",
     # Probabilistic methods
     "NaiveBayesFingerprintModel",
     "fit_gaussian_naive_bayes",
     "log_likelihood",
     "log_posterior",
     "map_localize",
+    "maximum_a_posteriori_localize",
     "posterior_mean_localize",
     # Radio-map propagation model
     "ShadowingField",
@@ -99,9 +120,11 @@ __all__ = [
     "LinearRegressionLocalizer",
     # Pattern recognition methods (classification)
     "ClassificationLocalizer",
+    "HierarchicalLocalizationResult",
     "fit_classifier",
     "fit_floor_classifier",
     "hierarchical_localize",
+    "hierarchical_fingerprint_localize",
     # Preprocessing
     "average_scans",
     "normalize_fingerprint",

@@ -22,6 +22,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -57,11 +58,50 @@ C_SPEED_TO_BODY = np.array(
 )
 
 
+class VehicleTrajectory(NamedTuple):
+    """Vehicle ground truth and ideal wheel/gyro signals."""
+
+    timestamps_s: np.ndarray
+    true_positions_map_m: np.ndarray
+    true_velocities_map_mps: np.ndarray
+    true_attitudes_quat_wxyz: np.ndarray
+    true_wheel_speed_mps: np.ndarray
+    true_angular_rates_body_rad_s: np.ndarray
+
+    @property
+    def t(self) -> np.ndarray:
+        return self.timestamps_s
+
+    @property
+    def pos_true(self) -> np.ndarray:
+        return self.true_positions_map_m
+
+    @property
+    def vel_true(self) -> np.ndarray:
+        return self.true_velocities_map_mps
+
+    @property
+    def quat_true(self) -> np.ndarray:
+        return self.true_attitudes_quat_wxyz
+
+    @property
+    def wheel_speed_true(self) -> np.ndarray:
+        return self.true_wheel_speed_mps
+
+    @property
+    def gyro_true(self) -> np.ndarray:
+        return self.true_angular_rates_body_rad_s
+
+
 def generate_vehicle_trajectory(shape="square", duration=80.0, dt=0.01):
     """
     Generate vehicle trajectory (square or circle).
 
-    Returns: t, pos_true, vel_true, quat_true, wheel_speed_true, gyro_true
+    Returns:
+        VehicleTrajectory with semantic fields and tuple-compatible order:
+        timestamps_s, true_positions_map_m, true_velocities_map_mps,
+        true_attitudes_quat_wxyz, true_wheel_speed_mps,
+        true_angular_rates_body_rad_s.
     """
     t = np.arange(0, duration, dt)
     N = len(t)
@@ -134,7 +174,14 @@ def generate_vehicle_trajectory(shape="square", duration=80.0, dt=0.01):
             gyro_true[k, 2] = omega
             quat_true[k] = np.array([np.cos(angle / 2), 0, 0, np.sin(angle / 2)])
 
-    return t, pos_true, vel_true, quat_true, wheel_speed_true, gyro_true
+    return VehicleTrajectory(
+        timestamps_s=t,
+        true_positions_map_m=pos_true,
+        true_velocities_map_mps=vel_true,
+        true_attitudes_quat_wxyz=quat_true,
+        true_wheel_speed_mps=wheel_speed_true,
+        true_angular_rates_body_rad_s=gyro_true,
+    )
 
 
 def add_wheel_noise(
@@ -344,12 +391,12 @@ def main():
     print("\nRunning wheel odometry (no slip)...")
     start = time.time()
     pos_odom = run_wheel_odometry(t, wheel_meas, gyro_meas, initial, lever_arm)
-    print(f"  Time: {time.time()-start:.3f} s")
+    print(f"  Time: {time.time() - start:.3f} s")
 
     print("\nRunning wheel odometry (with slip)...")
     start = time.time()
     pos_odom_slip = run_wheel_odometry(t, wheel_slip, gyro_slip, initial, lever_arm)
-    print(f"  Time: {time.time()-start:.3f} s")
+    print(f"  Time: {time.time() - start:.3f} s")
 
     figs_dir = Path(__file__).parent / "figs"
     figs_dir.mkdir(exist_ok=True)
@@ -367,13 +414,13 @@ def main():
     print("=" * 70)
     print("Wheel Odometry (no slip):")
     print(
-        f"  Final error:  {error_odom[-1]:.2f} m ({error_odom[-1]/total_dist*100:.1f}% of distance)"
+        f"  Final error:  {error_odom[-1]:.2f} m ({error_odom[-1] / total_dist * 100:.1f}% of distance)"
     )
     print(f"  RMSE:         {rmse_odom:.2f} m")
     print()
     print("Wheel Odometry (with 30% slip on four 2 s straights):")
     print(
-        f"  Final error:  {error_slip[-1]:.2f} m ({error_slip[-1]/total_dist*100:.1f}% of distance)"
+        f"  Final error:  {error_slip[-1]:.2f} m ({error_slip[-1] / total_dist * 100:.1f}% of distance)"
     )
     print(f"  RMSE:         {rmse_slip:.2f} m")
     print()

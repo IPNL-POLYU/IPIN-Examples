@@ -1,4 +1,4 @@
-"""SLAM Front-End Demo: Prediction → Scan-to-Map Alignment → Map Update.
+"""SLAM Front-End Demo: Prediction -> Scan-to-Map Alignment -> Map Update.
 
 This example demonstrates the explicit SLAM front-end loop:
     1. PREDICTION: Integrate odometry delta to predict pose
@@ -18,7 +18,6 @@ Date: December 2025
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict, List
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -91,7 +90,7 @@ def generate_wall_scan(pose: np.ndarray, wall_x: float = 5.0) -> np.ndarray:
     return scan
 
 
-def run_frontend_demo(n_poses: int = 10, seed: int = DEFAULT_SEED) -> Dict[str, object]:
+def run_frontend_demo(n_poses: int = 10, seed: int = DEFAULT_SEED) -> dict[str, object]:
     """Run the front-end loop over a synthetic straight-line walk.
 
     Kept separate from ``main`` so the figure -- and the tests that pin what
@@ -129,8 +128,8 @@ def run_frontend_demo(n_poses: int = 10, seed: int = DEFAULT_SEED) -> Dict[str, 
     scans = [generate_wall_scan(pose, wall_x=5.0) for pose in true_poses]
 
     frontend = SlamFrontend2D(submap_voxel_size=0.1, max_icp_residual=0.5)
-    frontend_poses: List[np.ndarray] = []
-    steps: List[dict] = []
+    frontend_poses: list[np.ndarray] = []
+    steps: list[dict] = []
 
     for i in range(n_poses):
         if i == 0:
@@ -157,7 +156,7 @@ def run_frontend_demo(n_poses: int = 10, seed: int = DEFAULT_SEED) -> Dict[str, 
     }
 
 
-def build_figure(demo: Dict[str, object]) -> plt.Figure:
+def build_figure(demo: dict[str, object]) -> plt.Figure:
     """Build the demo figure: trajectories beside error over time.
 
     Args:

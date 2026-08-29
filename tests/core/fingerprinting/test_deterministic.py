@@ -12,7 +12,11 @@ import pytest
 from core.fingerprinting import (
     FingerprintDatabase,
     distance,
+    fingerprint_distance,
+    fingerprint_pairwise_distances,
+    k_nearest_neighbor_localize,
     knn_localize,
+    nearest_neighbor_localize,
     nn_localize,
     pairwise_distances,
 )
@@ -188,6 +192,53 @@ def multifloor_database():
         floor_ids=np.array([0, 0, 0, 1, 1, 1, 2, 2]),
         meta={"ap_ids": ["AP1", "AP2", "AP3"], "building_id": "test_building"},
     )
+
+
+class TestDescriptiveAliases:
+    """Descriptive aliases should preserve legacy deterministic behavior."""
+
+    def test_fingerprint_distance_matches_legacy_distance(self):
+        query_fingerprint = np.array([-50.0, -60.0, -70.0])
+        reference_fingerprint = np.array([-52.0, -58.0, -72.0])
+
+        assert fingerprint_distance(
+            query_fingerprint, reference_fingerprint, metric="manhattan"
+        ) == distance(query_fingerprint, reference_fingerprint, metric="manhattan")
+
+    def test_fingerprint_pairwise_distances_matches_legacy(self):
+        query_fingerprint = np.array([-50.0, -60.0])
+        reference_fingerprints = np.array([[-50.0, -60.0], [-55.0, -65.0]])
+
+        np.testing.assert_array_almost_equal(
+            fingerprint_pairwise_distances(query_fingerprint, reference_fingerprints),
+            pairwise_distances(query_fingerprint, reference_fingerprints),
+        )
+
+    def test_nearest_neighbor_alias_matches_legacy(self, simple_database):
+        query_fingerprint = np.array([-61, -51, -81])
+
+        np.testing.assert_array_almost_equal(
+            nearest_neighbor_localize(query_fingerprint, simple_database),
+            nn_localize(query_fingerprint, simple_database),
+        )
+
+    def test_k_nearest_neighbor_alias_matches_legacy(self, simple_database):
+        query_fingerprint = np.array([-55, -55, -65])
+
+        np.testing.assert_array_almost_equal(
+            k_nearest_neighbor_localize(
+                query_fingerprint,
+                simple_database,
+                k=3,
+                weighting="uniform",
+            ),
+            knn_localize(
+                query_fingerprint,
+                simple_database,
+                k=3,
+                weighting="uniform",
+            ),
+        )
 
 
 class TestNNLocalize:

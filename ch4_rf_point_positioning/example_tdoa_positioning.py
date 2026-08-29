@@ -72,7 +72,7 @@ def demo_tdoa_basic():
     print(f"\nTDOA measurements (m): {tdoa_measurements}")
 
     # Solve with W = I (Eqs. 4.34-4.41, unweighted)
-    positioner = TDOAPositioner(anchors, reference_idx=0)
+    positioner = TDOAPositioner(anchors, reference_anchor_index=0)
     estimated_position, info = positioner.solve(
         tdoa_measurements, initial_guess=np.array([7.5, 7.5])
     )
@@ -123,7 +123,7 @@ def demo_tdoa_with_noise():
         errors, n_failed = [], 0
         for _ in range(trials if noise_std > 0 else 1):
             tdoa_noisy = tdoa_true + rng.standard_normal(len(tdoa_true)) * noise_std
-            positioner = TDOAPositioner(anchors, reference_idx=0)
+            positioner = TDOAPositioner(anchors, reference_anchor_index=0)
             est_pos, info = positioner.solve(
                 tdoa_noisy, initial_guess=np.array([10.0, 10.0])
             )
@@ -220,7 +220,7 @@ def demo_correlated_covariance():
     print(f"\nTrue TDOA measurements: {tdoa_true}")
 
     # Build correlated covariance matrix (Eq. 4.42)
-    cov_correlated = build_tdoa_covariance(sigmas, ref_idx=0)
+    cov_correlated = build_tdoa_covariance(sigmas, reference_anchor_index=0)
     print("\nCorrelated covariance matrix (Eq. 4.42):")
     print(cov_correlated)
     print("\nDiagonal (var): sigma_k^2 + sigma_ref^2")
@@ -240,7 +240,7 @@ def demo_correlated_covariance():
 
     print(f"\nRunning {n_trials} Monte Carlo trials...")
 
-    for trial in range(n_trials):
+    for _trial in range(n_trials):
         # Generate noisy range measurements
         # Range noise for each anchor
         range_noise = np.random.randn(len(anchors)) * sigmas
@@ -259,7 +259,7 @@ def demo_correlated_covariance():
         )
 
         # Solve with identity weighting
-        positioner = TDOAPositioner(anchors, reference_idx=0)
+        positioner = TDOAPositioner(anchors, reference_anchor_index=0)
         try:
             est_identity, info_id = positioner.solve(
                 tdoa_noisy,
@@ -347,7 +347,7 @@ def demo_covariance_sensitivity():
         sigmas = np.array([ref_sigma, 0.1, 0.1, 0.1])
 
         # Build covariance matrices
-        cov_corr = build_tdoa_covariance(sigmas, ref_idx=0)
+        cov_corr = build_tdoa_covariance(sigmas, reference_anchor_index=0)
         cov_id = np.eye(len(anchors) - 1)
 
         errors_id = []
@@ -368,7 +368,7 @@ def demo_covariance_sensitivity():
                 [noisy_ranges[i] - noisy_ranges[0] for i in range(1, len(anchors))]
             )
 
-            positioner = TDOAPositioner(anchors, reference_idx=0)
+            positioner = TDOAPositioner(anchors, reference_anchor_index=0)
 
             # Identity weighting
             try:
@@ -437,13 +437,13 @@ def demo_visualize_covariance():
 
     # Example with 5 anchors
     sigmas = np.array([0.3, 0.1, 0.15, 0.2, 0.12])
-    ref_idx = 0
+    reference_anchor_index = 0
 
     print(f"\nPer-anchor sigmas: {sigmas}")
-    print(f"Reference anchor index: {ref_idx}")
-    print(f"Reference sigma: {sigmas[ref_idx]:.2f} m")
+    print(f"Reference anchor index: {reference_anchor_index}")
+    print(f"Reference sigma: {sigmas[reference_anchor_index]:.2f} m")
 
-    cov = build_tdoa_covariance(sigmas, ref_idx)
+    cov = build_tdoa_covariance(sigmas, reference_anchor_index=reference_anchor_index)
 
     print("\nCovariance Matrix (4x4 for 4 TDOA measurements):")
     print("-" * 50)
@@ -453,25 +453,31 @@ def demo_visualize_covariance():
     print("-" * 50)
 
     # Print matrix with labels
-    non_ref = [i for i in range(len(sigmas)) if i != ref_idx]
-    header = "        " + "".join([f"d^{i},{ref_idx}     " for i in non_ref])
+    non_ref = [i for i in range(len(sigmas)) if i != reference_anchor_index]
+    header = "        " + "".join(
+        [f"d^{i},{reference_anchor_index}     " for i in non_ref]
+    )
     print(header)
 
     for i, row_idx in enumerate(non_ref):
-        row_str = f"d^{row_idx},{ref_idx}  "
+        row_str = f"d^{row_idx},{reference_anchor_index}  "
         for j in range(len(cov)):
             row_str += f"{cov[i, j]:.4f}    "
         print(row_str)
 
-    print(f"\nOff-diagonal value (sigma_ref^2): {sigmas[ref_idx]**2:.4f}")
+    print(
+        "\nOff-diagonal value (sigma_ref^2): "
+        f"{sigmas[reference_anchor_index]**2:.4f}"
+    )
 
     # Show diagonal derivation
     print("\nDiagonal derivation:")
-    for i, anc_idx in enumerate(non_ref):
-        diag_val = sigmas[anc_idx] ** 2 + sigmas[ref_idx] ** 2
+    for anc_idx in non_ref:
+        diag_val = sigmas[anc_idx] ** 2 + sigmas[reference_anchor_index] ** 2
         print(
-            f"  var(d^{anc_idx},{ref_idx}) = "
-            f"{sigmas[anc_idx]:.2f}^2 + {sigmas[ref_idx]:.2f}^2 = {diag_val:.4f}"
+            f"  var(d^{anc_idx},{reference_anchor_index}) = "
+            f"{sigmas[anc_idx]:.2f}^2 + "
+            f"{sigmas[reference_anchor_index]:.2f}^2 = {diag_val:.4f}"
         )
 
     # Create figure
@@ -541,7 +547,7 @@ def demo_geometry_effect():
     )
     tdoa_good_noisy = tdoa_good + np.random.randn(len(tdoa_good)) * noise_std
 
-    positioner_good = TDOAPositioner(good_anchors, reference_idx=0)
+    positioner_good = TDOAPositioner(good_anchors, reference_anchor_index=0)
     est_good, info_good = positioner_good.solve(
         tdoa_good_noisy, initial_guess=np.array([5.0, 5.0])
     )
@@ -565,7 +571,7 @@ def demo_geometry_effect():
     )
     tdoa_poor_noisy = tdoa_poor + np.random.randn(len(tdoa_poor)) * noise_std
 
-    positioner_poor = TDOAPositioner(poor_anchors, reference_idx=0)
+    positioner_poor = TDOAPositioner(poor_anchors, reference_anchor_index=0)
     est_poor, info_poor = positioner_poor.solve(
         tdoa_poor_noisy, initial_guess=np.array([5.0, 5.0])
     )
@@ -719,17 +725,21 @@ def demo_chan_tdoa_solver():
     # Setup: 5 anchors for good geometry
     anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float)
     true_position = np.array([8.0, 12.0])
-    ref_idx = 0
+    reference_anchor_index = 0
 
     print(f"\nTrue position: {true_position}")
     print(f"Number of anchors: {len(anchors)}")
-    print(f"Reference anchor: {ref_idx}")
+    print(f"Reference anchor: {reference_anchor_index}")
 
     # Compute true ranges and TDOA
     ranges_true = np.linalg.norm(anchors - true_position, axis=1)
-    d_ref = ranges_true[ref_idx]
+    d_ref = ranges_true[reference_anchor_index]
     tdoa_true = np.array(
-        [ranges_true[i] - d_ref for i in range(len(anchors)) if i != ref_idx]
+        [
+            ranges_true[i] - d_ref
+            for i in range(len(anchors))
+            if i != reference_anchor_index
+        ]
     )
 
     print(f"True reference distance: {d_ref:.4f} m")
@@ -739,11 +749,13 @@ def demo_chan_tdoa_solver():
     print("\n--- Perfect Measurements ---")
 
     # Chan's closed-form
-    chan_pos, chan_info = tdoa_chan_solver(anchors, tdoa_true, ref_idx=ref_idx)
+    chan_pos, chan_info = tdoa_chan_solver(
+        anchors, tdoa_true, reference_anchor_index=reference_anchor_index
+    )
     chan_error = np.linalg.norm(chan_pos - true_position)
 
     # Iterative LS: no covariance here, so W = I
-    positioner = TDOAPositioner(anchors, reference_idx=ref_idx)
+    positioner = TDOAPositioner(anchors, reference_anchor_index=reference_anchor_index)
     ils_pos, ils_info = positioner.solve(
         tdoa_true, initial_guess=np.array([10.0, 10.0])
     )
@@ -766,7 +778,9 @@ def demo_chan_tdoa_solver():
     results = []
     for noise_std in noise_levels:
         sigmas = np.ones(len(anchors)) * noise_std
-        cov = build_tdoa_covariance(sigmas, ref_idx=ref_idx)
+        cov = build_tdoa_covariance(
+            sigmas, reference_anchor_index=reference_anchor_index
+        )
 
         chan_errors = []
         iwls_errors = []
@@ -778,16 +792,19 @@ def demo_chan_tdoa_solver():
             # Compute noisy TDOA
             tdoa_noisy = np.array(
                 [
-                    ranges_noisy[i] - ranges_noisy[ref_idx]
+                    ranges_noisy[i] - ranges_noisy[reference_anchor_index]
                     for i in range(len(anchors))
-                    if i != ref_idx
+                    if i != reference_anchor_index
                 ]
             )
 
             # Chan's method (with WLS using covariance)
             try:
                 c_pos, _ = tdoa_chan_solver(
-                    anchors, tdoa_noisy, ref_idx=ref_idx, covariance=cov
+                    anchors,
+                    tdoa_noisy,
+                    covariance=cov,
+                    reference_anchor_index=reference_anchor_index,
                 )
                 chan_errors.append(np.linalg.norm(c_pos - true_position))
             except Exception:
@@ -857,7 +874,7 @@ def demo_closed_form_comparison():
     # Setup
     anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20], [10, 10]], dtype=float)
     true_position = np.array([7.5, 11.0])
-    ref_idx = 0
+    reference_anchor_index = 0
 
     print(f"\nTrue position: {true_position}")
     print(f"Anchors: {len(anchors)} beacons")
@@ -877,9 +894,11 @@ def demo_closed_form_comparison():
     tdoa_iwls_err = []
 
     toa_positioner = TOAPositioner(anchors, method="range_weighted")
-    tdoa_positioner = TDOAPositioner(anchors, reference_idx=ref_idx)
+    tdoa_positioner = TDOAPositioner(
+        anchors, reference_anchor_index=reference_anchor_index
+    )
     sigmas = np.ones(len(anchors)) * noise_std
-    cov = build_tdoa_covariance(sigmas, ref_idx=ref_idx)
+    cov = build_tdoa_covariance(sigmas, reference_anchor_index=reference_anchor_index)
 
     print(f"\nRunning {n_trials} Monte Carlo trials (noise_std={noise_std} m)...")
 
@@ -888,9 +907,9 @@ def demo_closed_form_comparison():
         ranges_noisy = ranges_true + np.random.randn(len(anchors)) * noise_std
         tdoa_noisy = np.array(
             [
-                ranges_noisy[i] - ranges_noisy[ref_idx]
+                ranges_noisy[i] - ranges_noisy[reference_anchor_index]
                 for i in range(len(anchors))
-                if i != ref_idx
+                if i != reference_anchor_index
             ]
         )
 
@@ -914,7 +933,10 @@ def demo_closed_form_comparison():
         # TDOA: Chan
         try:
             pos, _ = tdoa_chan_solver(
-                anchors, tdoa_noisy, ref_idx=ref_idx, covariance=cov
+                anchors,
+                tdoa_noisy,
+                covariance=cov,
+                reference_anchor_index=reference_anchor_index,
             )
             tdoa_chan_err.append(np.linalg.norm(pos - true_position))
         except Exception:

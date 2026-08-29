@@ -126,6 +126,8 @@ from core.eval import (
     show_figures_if_requested,
 )
 from core.fusion import (
+    SENSOR_IMU,
+    SENSOR_UWB_RANGE,
     cauchy_R_scale,
     chi_square_gate,
     huber_R_scale,
@@ -286,7 +288,7 @@ def run_fusion_with_strategy(
         measurements.append(
             StampedMeasurement(
                 t=imu["t"][i],
-                sensor="imu",
+                sensor=SENSOR_IMU,
                 z=np.hstack([imu["accel_xy"][i], imu["gyro_z"][i]]),
                 R=np.eye(3),
                 meta={},
@@ -300,7 +302,7 @@ def run_fusion_with_strategy(
                 measurements.append(
                     StampedMeasurement(
                         t=uwb["t"][i],
-                        sensor="uwb",
+                        sensor=SENSOR_UWB_RANGE,
                         z=np.array([uwb["ranges"][i, j]]),
                         R=np.array([[uwb_range_noise_std**2]]),
                         meta={"anchor_id": j, "anchor_pos": anchors[j]},
@@ -311,6 +313,7 @@ def run_fusion_with_strategy(
     measurements.sort(key=lambda m: m.t)
 
     # Run fusion
+    accepted_history = []
     history = {
         "t": [],
         "x_est": [],
@@ -318,7 +321,8 @@ def run_fusion_with_strategy(
         "innovations": [],
         "normalized_residuals": [],  # innovation / sqrt(R), what the loss sees
         "nis": [],
-        "gated": [],
+        "measurement_accepted": accepted_history,
+        "gated": accepted_history,  # Backward-compatible alias.
         "robust_scales": [],  # Renamed from robust_weights for clarity
     }
 
@@ -329,12 +333,12 @@ def run_fusion_with_strategy(
     for meas in measurements:
         dt = meas.t - t_prev
 
-        if meas.sensor == "imu":
+        if meas.sensor == SENSOR_IMU:
             # Propagate
             u = meas.z
             ekf.predict(u=u, dt=dt)
 
-        elif meas.sensor == "uwb":
+        elif meas.sensor in {SENSOR_UWB_RANGE, "uwb"}:
             # UWB range update
             anchor_pos = meas.meta["anchor_pos"]
 
@@ -390,7 +394,7 @@ def run_fusion_with_strategy(
             history["innovations"].append(float(np.abs(y[0])))
             history["normalized_residuals"].append(float(np.abs(r_normalized)))
             history["nis"].append(mahalanobis_distance_squared(y, S))
-            history["gated"].append(accept)
+            history["measurement_accepted"].append(accept)
             history["robust_scales"].append(w_R)
 
         # Record state

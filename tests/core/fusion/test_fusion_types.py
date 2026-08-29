@@ -33,6 +33,11 @@ class TestStampedMeasurement(unittest.TestCase):
         np.testing.assert_array_equal(meas.z, [5.67])
         np.testing.assert_array_equal(meas.R, [[0.01]])
         self.assertEqual(meas.meta["anchor_id"], 3)
+        self.assertEqual(meas.timestamp_s, meas.t)
+        self.assertEqual(meas.sensor_type, meas.sensor)
+        np.testing.assert_array_equal(meas.measurement_vector, meas.z)
+        np.testing.assert_array_equal(meas.measurement_covariance, meas.R)
+        self.assertIs(meas.metadata, meas.meta)
 
     def test_valid_vector_measurement(self) -> None:
         """Test creation of valid vector measurement."""
@@ -47,6 +52,24 @@ class TestStampedMeasurement(unittest.TestCase):
         self.assertEqual(len(meas.z), 3)
         self.assertEqual(meas.R.shape, (3, 3))
         self.assertTrue(np.allclose(meas.R, meas.R.T))  # symmetric
+
+    def test_semantic_constructor_matches_legacy_fields(self) -> None:
+        """New callers need not remember the compact serialized field names."""
+        measurement_vector = np.array([5.67])
+        measurement_covariance = np.array([[0.01]])
+        measurement = StampedMeasurement.from_measurement(
+            timestamp_s=1.234,
+            sensor_type="uwb_range",
+            measurement_vector=measurement_vector,
+            measurement_covariance=measurement_covariance,
+            metadata={"anchor_id": 3},
+        )
+
+        self.assertEqual(measurement.t, 1.234)
+        self.assertEqual(measurement.sensor, "uwb_range")
+        np.testing.assert_array_equal(measurement.z, measurement_vector)
+        np.testing.assert_array_equal(measurement.R, measurement_covariance)
+        self.assertEqual(measurement.meta, {"anchor_id": 3})
 
     def test_empty_meta_default(self) -> None:
         """Test that meta defaults to empty dict."""
@@ -163,6 +186,7 @@ class TestTimeSyncModel(unittest.TestCase):
         self.assertEqual(sync.to_fusion_time(10.0), 10.5)
         self.assertEqual(sync.to_fusion_time(0.0), 0.5)
         self.assertEqual(sync.to_fusion_time(100.0), 100.5)
+        self.assertEqual(sync.offset_sensor_to_fusion_sec, 0.5)
 
     def test_drift_only(self) -> None:
         """Test time synchronization with drift only (no offset)."""
@@ -181,13 +205,42 @@ class TestTimeSyncModel(unittest.TestCase):
         self.assertAlmostEqual(sync.to_fusion_time(0.0), 0.2, places=10)
         self.assertAlmostEqual(sync.to_fusion_time(100.0), 100.3, places=10)
 
-    def test_negative_offset(self) -> None:
-        """Test that negative offset (sensor behind) works correctly."""
+    def test_negative_offset_sensor_clock_ahead(self) -> None:
+        """A negative sensor-to-fusion offset means sensor timestamps are ahead."""
         sync = TimeSyncModel(offset=-0.5, drift=0.0)
 
         # t_fusion = t_sensor - 0.5
         self.assertEqual(sync.to_fusion_time(10.0), 9.5)
         self.assertEqual(sync.to_fusion_time(1.0), 0.5)
+
+    def test_positive_offset_sensor_clock_behind(self) -> None:
+        """A positive sensor-to-fusion offset means sensor timestamps are behind."""
+        sync = TimeSyncModel.from_sensor_to_fusion_offset(
+            offset_sensor_to_fusion_sec=0.5, drift=0.0
+        )
+
+        self.assertEqual(sync.offset, 0.5)
+        self.assertEqual(sync.offset_sensor_to_fusion_sec, 0.5)
+        self.assertEqual(sync.to_fusion_time(10.0), 10.5)
+        self.assertEqual(sync.to_sensor_time(10.5), 10.0)
+
+    def test_descriptive_offset_constructor_matches_legacy_offset(self) -> None:
+        """The explicit alias is additive and preserves legacy behavior."""
+        explicit = TimeSyncModel.from_sensor_to_fusion_offset(
+            offset_sensor_to_fusion_sec=-0.2, drift=0.001
+        )
+        legacy = TimeSyncModel(offset=-0.2, drift=0.001)
+
+        self.assertEqual(explicit.offset, legacy.offset)
+        self.assertEqual(
+            explicit.offset_sensor_to_fusion_sec,
+            legacy.offset_sensor_to_fusion_sec,
+        )
+        self.assertAlmostEqual(
+            explicit.to_fusion_time(100.0),
+            legacy.to_fusion_time(100.0),
+            places=10,
+        )
 
     def test_inverse_transform(self) -> None:
         """Test that to_sensor_time inverts to_fusion_time."""

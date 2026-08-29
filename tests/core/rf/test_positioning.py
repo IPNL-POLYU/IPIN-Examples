@@ -11,9 +11,11 @@ from core.rf.measurement_models import (
     aoa_angle_vector,
     aoa_azimuth,
     aoa_elevation,
+    aoa_sin_tan_vector,
 )
 from core.rf.positioning import (
     AOAPositioner,
+    PositionSolveResult,
     TDOAPositioner,
     TOAPositioner,
     aoa_ove_solve,
@@ -49,6 +51,32 @@ class TestTOAPositioning:
         # Should converge to true position
         assert info["converged"]
         assert np.linalg.norm(estimated_pos - true_pos) < 1e-3
+
+    def test_toa_solve_result_matches_tuple_solve(self):
+        """TOA solve_result is additive and keeps solve() tuple behavior."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        true_pos = np.array([5.0, 5.0])
+        ranges = np.linalg.norm(anchors - true_pos, axis=1)
+        positioner = TOAPositioner(anchors)
+
+        tuple_pos, tuple_info = positioner.solve(
+            ranges, initial_guess=np.array([6.0, 6.0])
+        )
+        result = positioner.solve_result(ranges, initial_guess=np.array([6.0, 6.0]))
+        unpacked_pos, unpacked_info = result
+
+        assert isinstance(result, PositionSolveResult)
+        np.testing.assert_allclose(result.position, tuple_pos)
+        np.testing.assert_allclose(result.estimated_position_m, tuple_pos)
+        np.testing.assert_allclose(result.position_enu_m, tuple_pos)
+        np.testing.assert_allclose(result.estimated_position, tuple_pos)
+        assert result.converged == tuple_info["converged"]
+        assert result.iterations == tuple_info["iterations"]
+        assert result.residual_norm == pytest.approx(tuple_info["residual"])
+        assert result.method == tuple_info["method"]
+        np.testing.assert_allclose(unpacked_pos, tuple_pos)
+        assert unpacked_info["converged"] == tuple_info["converged"]
+        assert unpacked_info["iterations"] == tuple_info["iterations"]
 
     def test_toa_positioning_with_noise(self):
         """Test TOA positioning with measurement noise."""
@@ -272,6 +300,56 @@ class TestTDOAPositioning:
         assert info["converged"]
         assert np.linalg.norm(estimated_pos - true_pos) < 1e-3
 
+    def test_tdoa_reference_anchor_index_alias(self):
+        """Preferred reference_anchor_index matches the legacy reference_idx API."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        true_pos = np.array([3.0, 7.0])
+        reference_anchor_index = 1
+
+        ranges = np.linalg.norm(anchors - true_pos, axis=1)
+        d_ref = ranges[reference_anchor_index]
+        tdoa = np.array(
+            [
+                ranges[i] - d_ref
+                for i in range(len(anchors))
+                if i != reference_anchor_index
+            ]
+        )
+
+        preferred = TDOAPositioner(
+            anchors, reference_anchor_index=reference_anchor_index
+        )
+        legacy = TDOAPositioner(anchors, reference_idx=reference_anchor_index)
+
+        preferred_pos, preferred_info = preferred.solve(
+            tdoa, initial_guess=np.array([5.0, 5.0])
+        )
+        legacy_pos, legacy_info = legacy.solve(tdoa, initial_guess=np.array([5.0, 5.0]))
+
+        assert preferred.reference_anchor_index == reference_anchor_index
+        assert preferred.reference_idx == reference_anchor_index
+        assert preferred_info["converged"] == legacy_info["converged"]
+        np.testing.assert_allclose(preferred_pos, legacy_pos)
+
+    def test_tdoa_solve_result_matches_tuple_solve(self):
+        """TDOA solve_result exposes named fields without changing solve()."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        true_pos = np.array([3.0, 7.0])
+        ranges = np.linalg.norm(anchors - true_pos, axis=1)
+        tdoa = ranges[1:] - ranges[0]
+        positioner = TDOAPositioner(anchors, reference_anchor_index=0)
+
+        tuple_pos, tuple_info = positioner.solve(
+            tdoa, initial_guess=np.array([5.0, 5.0])
+        )
+        result = positioner.solve_result(tdoa, initial_guess=np.array([5.0, 5.0]))
+
+        np.testing.assert_allclose(result.position, tuple_pos)
+        assert result.converged == tuple_info["converged"]
+        assert result.iterations == tuple_info["iterations"]
+        assert result.residual_norm == pytest.approx(tuple_info["residual"])
+        assert result.history_enu_m is not None
+
 
 class TestAOAPositioning:
     """Test AOA positioning algorithms with ENU convention (book Eqs. 4.63-4.78)."""
@@ -445,6 +523,87 @@ class TestAOAPositioning:
 
         with pytest.raises(ValueError, match="residual='tan'"):
             positioner.solve(aoa, initial_guess=np.array([5.0, 5.0]), sigma_tan_psi=0.1)
+
+    def test_solve_angles_rad_names_default_measurement_domain(self):
+        """Explicit raw-radian wrapper matches the default measurement domain."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        true_pos = np.array([4.0, 6.0])
+        aoa_angles_rad = aoa_angle_vector(anchors, true_pos, include_elevation=False)
+        positioner = AOAPositioner(anchors)
+
+        wrapped_pos, wrapped_info = positioner.solve_angles_rad(
+            aoa_angles_rad, initial_guess=np.array([5.0, 5.0])
+        )
+        direct_pos, direct_info = positioner.solve(
+            aoa_angles_rad,
+            initial_guess=np.array([5.0, 5.0]),
+            measurement_domain="angle_rad",
+        )
+
+        assert wrapped_info["measurement_domain"] == "angle_rad"
+        assert wrapped_info["converged"] == direct_info["converged"]
+        np.testing.assert_allclose(wrapped_pos, direct_pos)
+
+    def test_aoa_solve_result_exposes_measurement_domain(self):
+        """AOA solve_result keeps tuple equivalence and names AOA-specific metadata."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        true_pos = np.array([4.0, 6.0])
+        aoa_angles_rad = aoa_angle_vector(anchors, true_pos, include_elevation=False)
+        positioner = AOAPositioner(anchors)
+
+        tuple_pos, tuple_info = positioner.solve_angles_rad(
+            aoa_angles_rad, initial_guess=np.array([5.0, 5.0])
+        )
+        result = positioner.solve_result(
+            aoa_angles_rad,
+            initial_guess=np.array([5.0, 5.0]),
+            measurement_domain="angle_rad",
+        )
+
+        np.testing.assert_allclose(result.position, tuple_pos)
+        assert result.converged == tuple_info["converged"]
+        assert result.iterations == tuple_info["iterations"]
+        assert result.residual_norm == pytest.approx(tuple_info["residual"])
+        assert result.measurement_domain == "angle_rad"
+        assert result.history_enu_m is not None
+
+    def test_solve_book_sin_tan_accepts_transformed_vector_directly(self):
+        """The book Eq. 4.65 vector no longer has to masquerade as radians."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        true_pos = np.array([4.0, 6.0])
+        aoa_angles_rad = aoa_angle_vector(anchors, true_pos, include_elevation=False)
+        aoa_sin_tan = aoa_sin_tan_vector(anchors, true_pos, include_elevation=False)
+        positioner = AOAPositioner(anchors)
+
+        direct_pos, direct_info = positioner.solve_book_sin_tan(
+            aoa_sin_tan,
+            initial_guess=true_pos + np.array([0.1, -0.1]),
+            max_iters=5,
+        )
+        legacy_pos, legacy_info = positioner.solve(
+            aoa_angles_rad,
+            initial_guess=true_pos + np.array([0.1, -0.1]),
+            residual="tan",
+            max_iters=5,
+        )
+
+        assert direct_info["measurement_domain"] == "book_sin_tan"
+        assert direct_info["converged"] == legacy_info["converged"]
+        np.testing.assert_allclose(direct_pos, legacy_pos)
+
+    def test_book_sin_tan_domain_is_rejected_for_angle_residual(self):
+        """A transformed vector cannot be silently interpreted as radians."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        aoa_sin_tan = aoa_sin_tan_vector(
+            anchors, np.array([4.0, 6.0]), include_elevation=False
+        )
+
+        with pytest.raises(ValueError, match="residual='angle' requires"):
+            AOAPositioner(anchors).solve(
+                aoa_sin_tan,
+                initial_guess=np.array([5.0, 5.0]),
+                measurement_domain="book_sin_tan",
+            )
 
     def test_aoa_weighting_3d_with_sigmas(self):
         """Test 3D AOA with sigma_theta and sigma_psi weighting."""
@@ -919,11 +1078,29 @@ class TestTDOACovariance:
         """Test invalid reference index raises error."""
         sigmas = np.array([0.1, 0.2, 0.15])
 
-        with pytest.raises(ValueError, match="ref_idx must be in"):
+        with pytest.raises(ValueError, match="reference_anchor_index must be in"):
             build_tdoa_covariance(sigmas, ref_idx=-1)
 
-        with pytest.raises(ValueError, match="ref_idx must be in"):
+        with pytest.raises(ValueError, match="reference_anchor_index must be in"):
             build_tdoa_covariance(sigmas, ref_idx=3)
+
+    def test_build_tdoa_covariance_reference_anchor_index_alias(self):
+        """Preferred explicit reference anchor name matches legacy ref_idx."""
+        sigmas = np.array([0.1, 0.3, 0.15, 0.2])
+
+        preferred = build_tdoa_covariance(sigmas, reference_anchor_index=1)
+        legacy = build_tdoa_covariance(sigmas, ref_idx=1)
+        positional = build_tdoa_covariance(sigmas, 1)
+
+        np.testing.assert_allclose(preferred, legacy)
+        np.testing.assert_allclose(preferred, positional)
+
+    def test_build_tdoa_covariance_conflicting_reference_aliases(self):
+        """Passing two different reference-anchor names should fail loudly."""
+        sigmas = np.array([0.1, 0.3, 0.15, 0.2])
+
+        with pytest.raises(ValueError, match="Conflicting reference anchor"):
+            build_tdoa_covariance(sigmas, ref_idx=0, reference_anchor_index=1)
 
     def test_tdoa_positioning_with_correlated_covariance(self):
         """Test TDOA positioning accuracy with correlated vs identity covariance."""
@@ -1042,6 +1219,17 @@ class TestFangTOASolver:
         pos, info = toa_fang_solver(anchors, ranges, ref_idx=2)
 
         assert np.linalg.norm(pos - true_pos) < 1e-6
+
+    def test_fang_reference_anchor_index_alias(self):
+        """Preferred reference_anchor_index matches legacy ref_idx."""
+        anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
+        true_pos = np.array([3.0, 7.0])
+        ranges = np.linalg.norm(anchors - true_pos, axis=1)
+
+        preferred_pos, _ = toa_fang_solver(anchors, ranges, reference_anchor_index=2)
+        legacy_pos, _ = toa_fang_solver(anchors, ranges, ref_idx=2)
+
+        np.testing.assert_allclose(preferred_pos, legacy_pos)
 
     def test_fang_minimum_anchors(self):
         """Test Fang's solver with minimum 3 anchors."""
@@ -1170,6 +1358,29 @@ class TestChanTDOASolver:
         pos, info = tdoa_chan_solver(anchors, tdoa, ref_idx=ref_idx)
 
         assert np.linalg.norm(pos - true_pos) < 1e-4
+
+    def test_chan_reference_anchor_index_alias(self):
+        """Preferred reference_anchor_index matches legacy ref_idx."""
+        anchors = np.array([[0, 0], [20, 0], [20, 20], [0, 20]], dtype=float)
+        true_pos = np.array([5.0, 5.0])
+        reference_anchor_index = 2
+
+        ranges = np.linalg.norm(anchors - true_pos, axis=1)
+        d_ref = ranges[reference_anchor_index]
+        tdoa = np.array(
+            [
+                ranges[i] - d_ref
+                for i in range(len(anchors))
+                if i != reference_anchor_index
+            ]
+        )
+
+        preferred_pos, _ = tdoa_chan_solver(
+            anchors, tdoa, reference_anchor_index=reference_anchor_index
+        )
+        legacy_pos, _ = tdoa_chan_solver(anchors, tdoa, ref_idx=reference_anchor_index)
+
+        np.testing.assert_allclose(preferred_pos, legacy_pos)
 
     def test_chan_insufficient_anchors(self):
         """Test Chan's solver raises error with < 4 anchors."""

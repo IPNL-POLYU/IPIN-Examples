@@ -31,10 +31,9 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import Dict, Optional, Tuple
-
 import numpy as np
 
+from .scan_matching import AlignmentResult, _alignment_result
 from .se2 import se2_apply
 from .types import VoxelGrid
 
@@ -98,7 +97,7 @@ def build_ndt_map(
     voxel_indices = np.floor(points / voxel_size).astype(int)
 
     # Group points by voxel
-    voxels: Dict[Tuple[int, int], list] = {}
+    voxels: dict[tuple[int, int], list] = {}
     for i, point in enumerate(points):
         voxel_key = tuple(voxel_indices[i])
         if voxel_key not in voxels:
@@ -244,7 +243,7 @@ def _ndt_derivatives(
     ndt_map: VoxelGrid,
     pose: np.ndarray,
     voxel_size: float = 1.0,
-) -> Tuple[np.ndarray, np.ndarray, int]:
+) -> tuple[np.ndarray, np.ndarray, int]:
     """
     Analytic gradient and Gauss-Newton Hessian of the Eq. (7.16) objective.
 
@@ -364,12 +363,12 @@ def ndt_gradient(
 def ndt_align(
     source_scan: np.ndarray,
     target_scan: np.ndarray,
-    initial_pose: Optional[np.ndarray] = None,
+    initial_pose: np.ndarray | None = None,
     voxel_size: float = 1.0,
     max_iterations: int = 50,
     tolerance: float = 1e-3,
     step_size: float = 1.0,
-) -> Tuple[np.ndarray, int, float, bool]:
+) -> AlignmentResult:
     """
     NDT-based scan alignment using Gauss-Newton (Section 7.3.2).
 
@@ -399,7 +398,8 @@ def ndt_align(
                    search already shortens the step whenever it overshoots.
 
     Returns:
-        Tuple of (final_pose, num_iterations, final_score, converged):
+        AlignmentResult, which can still be tuple-unpacked as
+        (final_pose, num_iterations, final_score, converged):
             - final_pose: Estimated pose [x, y, yaw], shape (3,).
             - num_iterations: Number of iterations executed.
             - final_score: Final NDT score (negative log-likelihood from Eq. 7.16).
@@ -443,11 +443,12 @@ def ndt_align(
 
     if len(ndt_map) == 0:
         # No valid voxels → cannot align
-        return (
+        return _alignment_result(
             initial_pose if initial_pose is not None else np.zeros(3),
             0,
             1e6,
             False,
+            "ndt_score",
         )
 
     # Initialize pose
@@ -494,11 +495,15 @@ def ndt_align(
 
         if n_matched == 0 or not np.isfinite(gradient_norm):
             # Nothing to fit: never call that a convergence.
-            return current_pose, iteration + 1, current_score, False
+            return _alignment_result(
+                current_pose, iteration + 1, current_score, False, "ndt_score"
+            )
 
         if gradient_norm < 1e-12:
             # Stationary point of Eq. (7.16).
-            return current_pose, iteration + 1, current_score, True
+            return _alignment_result(
+                current_pose, iteration + 1, current_score, True, "ndt_score"
+            )
 
         # Levenberg damping keeps the solve defined when a voxel layout leaves
         # one pose direction unconstrained (a corridor constrains motion across
@@ -509,7 +514,9 @@ def ndt_align(
         except np.linalg.LinAlgError:
             delta = -gradient / gradient_norm
         if not np.all(np.isfinite(delta)):
-            return current_pose, iteration + 1, current_score, False
+            return _alignment_result(
+                current_pose, iteration + 1, current_score, False, "ndt_score"
+            )
 
         # Backtracking: shrink the step until the score actually improves.
         alpha = step_size
@@ -527,17 +534,22 @@ def ndt_align(
             # The line search could not improve on the current pose. That is a
             # stall, not a convergence, and reporting it as success is what let
             # the old optimizer return a wrong pose with converged=True.
-            return current_pose, iteration + 1, current_score, False
+            return _alignment_result(
+                current_pose, iteration + 1, current_score, False, "ndt_score"
+            )
 
         if alpha * float(np.linalg.norm(delta)) < tolerance:
-            return (
+            return _alignment_result(
                 current_pose,
                 iteration + 1,
                 current_score,
                 (current_score < NO_MATCH_SCORE),
+                "ndt_score",
             )
 
-    return current_pose, max_iterations, current_score, False
+    return _alignment_result(
+        current_pose, max_iterations, current_score, False, "ndt_score"
+    )
 
 
 def ndt_covariance(

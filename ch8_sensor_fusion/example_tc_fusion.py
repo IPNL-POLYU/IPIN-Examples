@@ -17,7 +17,6 @@ References: Chapter 8, Section 8.1.2 (Tightly Coupled)
 import argparse
 import sys
 from pathlib import Path
-from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -38,7 +37,7 @@ from core.eval import (
 from core.fusion import load_fusion_dataset, run_tc_fusion
 
 
-def evaluate_results(dataset: Dict, history: Dict) -> Dict:
+def evaluate_results(dataset: dict, history: dict) -> dict:
     """Evaluate fusion results against ground truth.
 
     Args:
@@ -82,7 +81,7 @@ def evaluate_results(dataset: Dict, history: Dict) -> Dict:
     return metrics
 
 
-def plot_results(dataset: Dict, history: Dict, save_path: str = None) -> None:
+def plot_results(dataset: dict, history: dict, save_path: str = None) -> None:
     """Generate fusion results plots.
 
     Args:
@@ -137,7 +136,9 @@ def plot_results(dataset: Dict, history: Dict, save_path: str = None) -> None:
     ax = axes[1, 0]
     if len(history["nis"]) > 0:
         nis = np.array(history["nis"])
-        accepted = np.array(history["gated"])
+        accepted = np.array(
+            history.get("measurement_accepted", history.get("gated", []))
+        )
 
         ax.plot(nis[accepted], "g.", label="Accepted", markersize=4)
         if np.any(~accepted):

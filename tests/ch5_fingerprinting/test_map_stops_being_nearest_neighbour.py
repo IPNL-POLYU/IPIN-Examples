@@ -123,9 +123,7 @@ def test_the_single_sample_model_says_out_loud_that_its_sigma_is_constant(
     assert "1-NN" in model.sigma_summary()
 
 
-def test_map_is_exactly_nearest_neighbour_on_a_single_sample_survey(
-    db_single, queries
-):
+def test_map_is_exactly_nearest_neighbour_on_a_single_sample_survey(db_single, queries):
     """Not approximately. Every query, on the nose.
 
     Asserted as an equality rather than a bound because it is a theorem about

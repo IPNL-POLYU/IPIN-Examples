@@ -9,7 +9,8 @@ This module implements positioning algorithms for TOA, TDOA, and AOA measurement
 All algorithms implement equations from Chapter 4 of the IPIN book.
 """
 
-from typing import Dict, Optional, Tuple, Union
+from dataclasses import dataclass
+from typing import Any, Dict, Optional, Tuple, Union
 
 import numpy as np
 
@@ -27,6 +28,101 @@ DIVERGENCE_M = 100.0
 #: convergence. The error then scores as the distance from the seed to the
 #: truth, which is a property of the seed and not of the measurements.
 STALL_M = 1e-6
+
+
+@dataclass(frozen=True)
+class PositionSolveResult:
+    """Typed, discoverable wrapper for a position solve.
+
+    Existing ``solve()`` methods continue to return ``(position, info)`` for
+    backward compatibility. New ``solve_result()`` methods return this wrapper
+    so callers can use named fields/properties instead of remembering dict keys.
+
+    Attributes:
+        estimated_position_m: Estimated agent position in metres, shape
+            ``(2,)`` or ``(3,)``. Its coordinate frame matches ``anchors``.
+        info: Original solver metadata dictionary, preserved verbatim.
+    """
+
+    estimated_position_m: np.ndarray
+    info: dict[str, Any]
+
+    @property
+    def position(self) -> np.ndarray:
+        """Backward-compatible short alias for ``estimated_position_m``."""
+        return self.estimated_position_m
+
+    @property
+    def position_enu_m(self) -> np.ndarray:
+        """Estimated position in ENU metres when anchors are expressed in ENU."""
+        return self.estimated_position_m
+
+    @property
+    def estimated_position(self) -> np.ndarray:
+        """Compatibility alias; prefer the unit-bearing dataclass field."""
+        return self.estimated_position_m
+
+    @property
+    def converged(self) -> bool:
+        """Whether the underlying solver reported convergence."""
+        return bool(self.info.get("converged", False))
+
+    @property
+    def iterations(self) -> int:
+        """Number of iterations reported by the solver, or 0 if absent."""
+        return int(self.info.get("iterations", 0))
+
+    @property
+    def residual_norm(self) -> float:
+        """Final residual norm reported by the solver, or NaN if absent."""
+        return float(self.info.get("residual", np.nan))
+
+    @property
+    def history_enu_m(self) -> np.ndarray | None:
+        """Position/history array in metres when the solver reports it."""
+        history = self.info.get("history")
+        return None if history is None else np.asarray(history)
+
+    @property
+    def method(self) -> str | None:
+        """Solver method name when reported."""
+        method = self.info.get("method")
+        return None if method is None else str(method)
+
+    @property
+    def measurement_domain(self) -> str | None:
+        """AOA measurement domain when reported, otherwise None."""
+        domain = self.info.get("measurement_domain")
+        return None if domain is None else str(domain)
+
+    def __iter__(self):
+        """Allow ``position, info = result`` during the compatibility period."""
+        yield self.estimated_position_m
+        yield self.info
+
+
+def _resolve_reference_anchor_index(
+    *,
+    reference_anchor_index: Optional[int] = None,
+    reference_idx: Optional[int] = None,
+    ref_idx: Optional[int] = None,
+) -> int:
+    """Resolve compatible TDOA/closed-form reference-anchor keyword aliases."""
+    provided = {
+        name: value
+        for name, value in {
+            "reference_anchor_index": reference_anchor_index,
+            "reference_idx": reference_idx,
+            "ref_idx": ref_idx,
+        }.items()
+        if value is not None
+    }
+    if len(set(provided.values())) > 1:
+        raise ValueError(
+            "Conflicting reference anchor aliases: "
+            + ", ".join(f"{name}={value}" for name, value in provided.items())
+        )
+    return int(next(iter(provided.values()), 0))
 
 
 class SolveOutcome:
@@ -179,7 +275,9 @@ def solve_batch(
 
 def build_tdoa_covariance(
     sigmas: np.ndarray,
-    ref_idx: int = 0,
+    ref_idx: Optional[int] = None,
+    *,
+    reference_anchor_index: Optional[int] = None,
 ) -> np.ndarray:
     """
     Build correlated covariance matrix for TDOA measurements.
@@ -199,8 +297,9 @@ def build_tdoa_covariance(
     Args:
         sigmas: Per-anchor range measurement standard deviations, shape (N,).
                 sigmas[i] is the std dev of range measurement to anchor i.
-        ref_idx: Index of reference anchor (default 0).
-                This anchor is used as the base for all TDOA differences.
+        reference_anchor_index: Index of reference anchor (default 0).
+                This explicit spelling is preferred for new code.
+        ref_idx: Backward-compatible alias for reference_anchor_index.
 
     Returns:
         Covariance matrix Sigma of shape (N-1, N-1) for TDOA measurements.
@@ -211,7 +310,7 @@ def build_tdoa_covariance(
     Example:
         >>> # 4 anchors with different noise levels
         >>> sigmas = np.array([0.1, 0.2, 0.15, 0.25])  # [ref, anc1, anc2, anc3]
-        >>> cov = build_tdoa_covariance(sigmas, ref_idx=0)
+        >>> cov = build_tdoa_covariance(sigmas, reference_anchor_index=0)
         >>> print(cov.shape)  # (3, 3)
         >>> # Diagonal: [0.2^2 + 0.1^2, 0.15^2 + 0.1^2, 0.25^2 + 0.1^2]
         >>> # Off-diagonal: 0.1^2 = 0.01
@@ -229,25 +328,32 @@ def build_tdoa_covariance(
     """
     sigmas = np.asarray(sigmas, dtype=float)
     n_anchors = len(sigmas)
+    reference_anchor_index = _resolve_reference_anchor_index(
+        reference_anchor_index=reference_anchor_index,
+        ref_idx=ref_idx,
+    )
 
-    if ref_idx < 0 or ref_idx >= n_anchors:
-        raise ValueError(f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}")
+    if reference_anchor_index < 0 or reference_anchor_index >= n_anchors:
+        raise ValueError(
+            f"reference_anchor_index must be in [0, {n_anchors-1}], "
+            f"got {reference_anchor_index}"
+        )
 
     # Reference anchor variance
-    sigma_ref_sq = sigmas[ref_idx] ** 2
+    sigma_ref_sq = sigmas[reference_anchor_index] ** 2
 
     # Number of TDOA measurements (all anchors except reference)
     n_tdoa = n_anchors - 1
 
     # Build covariance matrix
     # Indices of non-reference anchors
-    non_ref_indices = [i for i in range(n_anchors) if i != ref_idx]
+    non_ref_indices = [i for i in range(n_anchors) if i != reference_anchor_index]
 
     # Initialize covariance matrix
     cov = np.zeros((n_tdoa, n_tdoa))
 
     for i, anchor_i in enumerate(non_ref_indices):
-        for j, anchor_j in enumerate(non_ref_indices):
+        for j, _anchor_j in enumerate(non_ref_indices):
             if i == j:
                 # Diagonal: var(d^{k,ref}) = sigma_k^2 + sigma_ref^2
                 cov[i, j] = sigmas[anchor_i] ** 2 + sigma_ref_sq
@@ -466,6 +572,16 @@ class TOAPositioner:
 
         return position, info
 
+    def solve_result(
+        self,
+        ranges: np.ndarray,
+        initial_guess: np.ndarray,
+        **solve_kwargs: Any,
+    ) -> PositionSolveResult:
+        """Solve TOA and return named result fields instead of a tuple."""
+        position, info = self.solve(ranges, initial_guess, **solve_kwargs)
+        return PositionSolveResult(estimated_position_m=position, info=info)
+
 
 def toa_solve_with_clock_bias(
     anchors: np.ndarray,
@@ -607,22 +723,43 @@ class TDOAPositioner:
 
     Attributes:
         anchors: Array of anchor positions.
-        reference_idx: Index of reference anchor.
+        reference_anchor_index: Index of reference anchor.
+        reference_idx: Backward-compatible alias for reference_anchor_index.
     """
 
-    def __init__(self, anchors: np.ndarray, reference_idx: int = 0):
+    def __init__(
+        self,
+        anchors: np.ndarray,
+        reference_idx: Optional[int] = None,
+        *,
+        reference_anchor_index: Optional[int] = None,
+    ):
         """
         Initialize TDOA positioner.
 
         Args:
             anchors: Array of anchor positions, shape (N, 2) or (N, 3).
-            reference_idx: Index of reference anchor. Defaults to 0.
+            reference_anchor_index: Index of reference anchor. Defaults to 0.
+                This explicit spelling is preferred for new code.
+            reference_idx: Backward-compatible alias for reference_anchor_index.
         """
         self.anchors = np.asarray(anchors, dtype=float)
         self.n_anchors = self.anchors.shape[0]
         self.dim = self.anchors.shape[1]
-        self.reference_idx = reference_idx
-        self.reference_anchor = self.anchors[reference_idx]
+        self.reference_anchor_index = _resolve_reference_anchor_index(
+            reference_anchor_index=reference_anchor_index,
+            reference_idx=reference_idx,
+        )
+        if (
+            self.reference_anchor_index < 0
+            or self.reference_anchor_index >= self.n_anchors
+        ):
+            raise ValueError(
+                "reference_anchor_index must be in "
+                f"[0, {self.n_anchors-1}], got {self.reference_anchor_index}"
+            )
+        self.reference_idx = self.reference_anchor_index
+        self.reference_anchor = self.anchors[self.reference_anchor_index]
 
     def solve(
         self,
@@ -722,6 +859,16 @@ class TDOAPositioner:
         }
 
         return position, info
+
+    def solve_result(
+        self,
+        tdoa_measurements: np.ndarray,
+        initial_guess: np.ndarray,
+        **solve_kwargs: Any,
+    ) -> PositionSolveResult:
+        """Solve TDOA and return named result fields instead of a tuple."""
+        position, info = self.solve(tdoa_measurements, initial_guess, **solve_kwargs)
+        return PositionSolveResult(estimated_position_m=position, info=info)
 
 
 class AOAPositioner:
@@ -1171,6 +1318,7 @@ class AOAPositioner:
         max_iters: int = 20,
         tol: float = 1e-6,
         residual: str = "angle",
+        measurement_domain: str = "angle_rad",
     ) -> Tuple[np.ndarray, Dict]:
         """
         Solve AOA positioning problem using I-WLS.
@@ -1222,6 +1370,15 @@ class AOAPositioner:
                 - "tan": the book's literal Eq. (4.64) form, z = tan(psi).
                   Kept so the formulation can still be exercised, but it does
                   not converge reliably from a cold start -- see Notes.
+            measurement_domain: Format of aoa_measurements.
+                - "angle_rad" (default): raw angles in radians:
+                  [psi_i] in 2D or [theta_i, psi_i, ...] in 3D. This is the
+                  safe default and is what :func:`aoa_angle_vector` returns.
+                - "book_sin_tan": book Eq. (4.65) transformed vector:
+                  [tan(psi_i)] in 2D or [sin(theta_i), tan(psi_i), ...] in 3D.
+                  This can only be used with residual="tan". Prefer the
+                  explicit :meth:`solve_book_sin_tan` wrapper when passing this
+                  domain.
 
         Returns:
             position: Estimated position, shape (2,) or (3,).
@@ -1312,6 +1469,27 @@ class AOAPositioner:
             raise ValueError(f"residual must be 'angle' or 'tan', got {residual!r}")
         use_angle_residual = residual == "angle"
 
+        if measurement_domain not in ("angle_rad", "book_sin_tan"):
+            raise ValueError(
+                "measurement_domain must be 'angle_rad' or 'book_sin_tan', "
+                f"got {measurement_domain!r}"
+            )
+        if use_angle_residual and measurement_domain != "angle_rad":
+            raise ValueError(
+                "residual='angle' requires measurement_domain='angle_rad'. "
+                "Use solve_angles_rad() for raw AOA angles, or "
+                "solve_book_sin_tan() for the book Eq. (4.65) vector."
+            )
+        if measurement_domain == "book_sin_tan" and (
+            sigma_theta is not None or sigma_psi is not None
+        ):
+            raise ValueError(
+                "sigma_theta and sigma_psi describe raw angle noise in radians "
+                "and require measurement_domain='angle_rad'. For "
+                "measurement_domain='book_sin_tan', pass explicit weights or "
+                "sigma_sin_theta / sigma_tan_psi."
+            )
+
         # sigma_sin_theta and sigma_tan_psi describe noise in the *transformed*
         # domain, so they mean nothing against angle-space residuals. Refuse
         # rather than ignore: silently dropping a weighting argument is how a
@@ -1327,6 +1505,8 @@ class AOAPositioner:
 
         # In angle space the measurements are already the residual quantity.
         if use_angle_residual:
+            z_measured = aoa_measurements.copy()
+        elif measurement_domain == "book_sin_tan":
             z_measured = aoa_measurements.copy()
         else:
             z_measured = self._angles_to_sin_tan(aoa_measurements)
@@ -1385,7 +1565,7 @@ class AOAPositioner:
 
             # Recompute weights at current estimate (if using sigma-based weights)
             if use_sigma_weights and recompute_weights and iteration > 0:
-                if not use_angle_residual:
+                if not use_angle_residual and measurement_domain == "angle_rad":
                     # Compute predicted angles at current position
                     predicted_angles = self._predicted_to_angles(z_predicted)
                     W = self._compute_weight_matrix(
@@ -1450,9 +1630,71 @@ class AOAPositioner:
             "residual": residual_norm,
             "history": np.array(history),
             "final_weights": W,
+            "measurement_domain": measurement_domain,
         }
 
         return position, info
+
+    def solve_result(
+        self,
+        aoa_measurements: np.ndarray,
+        initial_guess: np.ndarray,
+        **solve_kwargs: Any,
+    ) -> PositionSolveResult:
+        """Solve AOA and return named result fields instead of a tuple."""
+        position, info = self.solve(aoa_measurements, initial_guess, **solve_kwargs)
+        return PositionSolveResult(estimated_position_m=position, info=info)
+
+    def solve_angles_rad(
+        self,
+        aoa_angles_rad: np.ndarray,
+        initial_guess: np.ndarray,
+        **solve_kwargs: Any,
+    ) -> Tuple[np.ndarray, Dict]:
+        """Solve from raw AOA angle measurements in radians.
+
+        This explicit wrapper is the safe default for users: inputs are
+        azimuth angles ``[psi_i]`` in 2D, or interleaved elevation/azimuth
+        ``[theta_i, psi_i, ...]`` in 3D, exactly as returned by
+        :func:`core.rf.aoa_angle_vector`.
+        """
+        if "measurement_domain" in solve_kwargs:
+            raise ValueError("solve_angles_rad fixes measurement_domain='angle_rad'")
+        return self.solve(
+            aoa_angles_rad,
+            initial_guess,
+            measurement_domain="angle_rad",
+            **solve_kwargs,
+        )
+
+    def solve_book_sin_tan(
+        self,
+        aoa_sin_tan_measurements: np.ndarray,
+        initial_guess: np.ndarray,
+        **solve_kwargs: Any,
+    ) -> Tuple[np.ndarray, Dict]:
+        """Solve from the book Eq. (4.65) transformed AOA vector.
+
+        Inputs are ``[tan(psi_i)]`` in 2D, or interleaved
+        ``[sin(theta_i), tan(psi_i), ...]`` in 3D, exactly as returned by
+        :func:`core.rf.aoa_sin_tan_vector`. This intentionally selects the
+        book's tan-space residual; use :meth:`solve_angles_rad` for the more
+        robust angle-space default.
+        """
+        if "measurement_domain" in solve_kwargs:
+            raise ValueError(
+                "solve_book_sin_tan fixes measurement_domain='book_sin_tan'"
+            )
+        residual = solve_kwargs.pop("residual", "tan")
+        if residual != "tan":
+            raise ValueError("solve_book_sin_tan requires residual='tan'")
+        return self.solve(
+            aoa_sin_tan_measurements,
+            initial_guess,
+            residual="tan",
+            measurement_domain="book_sin_tan",
+            **solve_kwargs,
+        )
 
     def _predicted_to_angles(self, z_predicted: np.ndarray) -> np.ndarray:
         """
@@ -1800,7 +2042,9 @@ def aoa_ple_solve_3d(
 def toa_fang_solver(
     anchors: np.ndarray,
     ranges: np.ndarray,
-    ref_idx: int = 0,
+    ref_idx: Optional[int] = None,
+    *,
+    reference_anchor_index: Optional[int] = None,
 ) -> Tuple[np.ndarray, Dict]:
     """
     Fang's closed-form TOA positioning algorithm.
@@ -1825,7 +2069,9 @@ def toa_fang_solver(
                 Format: [[x_e^1, x_n^1], [x_e^2, x_n^2], ...]
         ranges: TOA range measurements, shape (N,).
                 ranges[i] is the measured distance to anchor i.
-        ref_idx: Index of reference anchor (default 0).
+        reference_anchor_index: Index of reference anchor (default 0).
+            This explicit spelling is preferred for new code.
+        ref_idx: Backward-compatible alias for reference_anchor_index.
 
     Returns:
         position: Estimated 2D position [x_e, x_n].
@@ -1858,6 +2104,10 @@ def toa_fang_solver(
     """
     anchors = np.asarray(anchors, dtype=float)
     ranges = np.asarray(ranges, dtype=float)
+    reference_anchor_index = _resolve_reference_anchor_index(
+        reference_anchor_index=reference_anchor_index,
+        ref_idx=ref_idx,
+    )
 
     n_anchors = anchors.shape[0]
     dim = anchors.shape[1]
@@ -1871,16 +2121,19 @@ def toa_fang_solver(
         )
     if len(ranges) != n_anchors:
         raise ValueError(f"Expected {n_anchors} ranges, got {len(ranges)}")
-    if ref_idx < 0 or ref_idx >= n_anchors:
-        raise ValueError(f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}")
+    if reference_anchor_index < 0 or reference_anchor_index >= n_anchors:
+        raise ValueError(
+            f"reference_anchor_index must be in [0, {n_anchors-1}], "
+            f"got {reference_anchor_index}"
+        )
 
     # Reference anchor position and range
-    x_ref = anchors[ref_idx]  # [x_e^ref, x_n^ref]
-    d_ref = ranges[ref_idx]
+    x_ref = anchors[reference_anchor_index]  # [x_e^ref, x_n^ref]
+    d_ref = ranges[reference_anchor_index]
 
     # Build linear system H_a * x_a = y_a (Eq. 4.48)
     # Skip reference anchor
-    non_ref_indices = [i for i in range(n_anchors) if i != ref_idx]
+    non_ref_indices = [i for i in range(n_anchors) if i != reference_anchor_index]
     n_eqs = len(non_ref_indices)
 
     H_a = np.zeros((n_eqs, 2))
@@ -1932,8 +2185,10 @@ def toa_fang_solver(
 def tdoa_chan_solver(
     anchors: np.ndarray,
     tdoa_measurements: np.ndarray,
-    ref_idx: int = 0,
+    ref_idx: Optional[int] = None,
     covariance: Optional[np.ndarray] = None,
+    *,
+    reference_anchor_index: Optional[int] = None,
 ) -> Tuple[np.ndarray, Dict]:
     """
     Chan's closed-form TDOA positioning algorithm.
@@ -1964,7 +2219,9 @@ def tdoa_chan_solver(
         tdoa_measurements: TDOA measurements (range differences), shape (N-1,).
                           tdoa_measurements[k] = d^{k+1} - d^{ref} if ref_idx=0
                           (range to anchor k+1 minus range to reference)
-        ref_idx: Index of reference anchor (default 0).
+        reference_anchor_index: Index of reference anchor (default 0).
+            This explicit spelling is preferred for new code.
+        ref_idx: Backward-compatible alias for reference_anchor_index.
         covariance: Optional covariance matrix for WLS, shape (N-1, N-1).
                    If None, uses identity (LS solution).
                    For proper WLS, use build_tdoa_covariance() to construct
@@ -2006,6 +2263,10 @@ def tdoa_chan_solver(
     """
     anchors = np.asarray(anchors, dtype=float)
     tdoa_measurements = np.asarray(tdoa_measurements, dtype=float)
+    reference_anchor_index = _resolve_reference_anchor_index(
+        reference_anchor_index=reference_anchor_index,
+        ref_idx=ref_idx,
+    )
 
     n_anchors = anchors.shape[0]
     dim = anchors.shape[1]
@@ -2021,14 +2282,17 @@ def tdoa_chan_solver(
         raise ValueError(
             f"Expected {n_anchors-1} TDOA measurements, got {len(tdoa_measurements)}"
         )
-    if ref_idx < 0 or ref_idx >= n_anchors:
-        raise ValueError(f"ref_idx must be in [0, {n_anchors-1}], got {ref_idx}")
+    if reference_anchor_index < 0 or reference_anchor_index >= n_anchors:
+        raise ValueError(
+            f"reference_anchor_index must be in [0, {n_anchors-1}], "
+            f"got {reference_anchor_index}"
+        )
 
     # Reference anchor position
-    x_ref = anchors[ref_idx]  # [x_e^ref, x_n^ref]
+    x_ref = anchors[reference_anchor_index]  # [x_e^ref, x_n^ref]
 
     # Non-reference anchor indices
-    non_ref_indices = [i for i in range(n_anchors) if i != ref_idx]
+    non_ref_indices = [i for i in range(n_anchors) if i != reference_anchor_index]
     n_eqs = len(non_ref_indices)
 
     # Build linear system H_a * x_a = y_a (Eq. 4.59-4.60)

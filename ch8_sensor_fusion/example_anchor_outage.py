@@ -117,6 +117,16 @@ COLOR_LC = "tab:blue"
 COLOR_TC = "tab:orange"
 
 
+def format_peak_ratio(peak_lc: float, peak_tc: float) -> str:
+    """Describe the outage peak ratio without hiding which method is larger."""
+    if peak_lc <= 0 or peak_tc <= 0:
+        return "ratio undefined"
+
+    if peak_tc >= peak_lc:
+        return f"TC peak is {peak_tc / peak_lc:.1f}x LC"
+    return f"LC peak is {peak_lc / peak_tc:.1f}x TC"
+
+
 def apply_anchor_outage(dataset, window=OUTAGE_WINDOW, keep=ANCHORS_KEPT):
     """Blank all but ``keep`` anchors inside ``window``.
 
@@ -449,8 +459,9 @@ def main() -> None:
     )
     print(f"  RMSE over the run:      LC {rmse_lc:.3f} m   TC {rmse_tc:.3f} m")
     print(
-        f"  Peak error in outage:   LC {peak_lc:.2f} m   TC {peak_tc:.2f} m "
-        f"({peak_lc / peak_tc:.0f}x)"
+        f"  Peak error in outage + 3 s recovery: "
+        f"LC {peak_lc:.2f} m   TC {peak_tc:.2f} m "
+        f"({format_peak_ratio(peak_lc, peak_tc)})"
     )
 
     # The other half of the story, and it is a geometry problem rather than a

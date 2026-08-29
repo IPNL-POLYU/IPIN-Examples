@@ -125,9 +125,7 @@ def test_the_shipped_map_decomposes_into_a_field_and_fast_fading(db):
     # What is left once path loss and the location's own shadowing are removed
     # is fast fading, and nothing else.
     leftover = np.concatenate(residuals)
-    assert leftover.std() == pytest.approx(
-        config["fast_fading_std_dBm"], rel=0.10
-    ), (
+    assert leftover.std() == pytest.approx(config["fast_fading_std_dBm"], rel=0.10), (
         f"after removing path loss and S_ap(p) the map still varies by "
         f"{leftover.std():.3f} dB against a declared fast fading of "
         f"{config['fast_fading_std_dBm']} dB"

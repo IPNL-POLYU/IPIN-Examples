@@ -11,7 +11,13 @@ coordinate frames and transformations commonly used in navigation:
 Reference: Chapter 2 - Coordinate Systems
 """
 
-from core.coords.frames import Frame, FrameType
+from core.coords.frames import (
+    FRAME_BODY,
+    FRAME_BODY_CH2,
+    FRAME_BODY_FRD,
+    Frame,
+    FrameType,
+)
 from core.coords.rotations import (
     euler_to_quat,
     euler_to_rotation_matrix,
@@ -38,6 +44,9 @@ __all__ = [
     # Frames
     "Frame",
     "FrameType",
+    "FRAME_BODY",
+    "FRAME_BODY_CH2",
+    "FRAME_BODY_FRD",
     # Transforms
     "llh_to_ecef",
     "ecef_to_llh",

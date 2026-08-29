@@ -18,7 +18,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
-from typing import Optional
+from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -46,6 +46,7 @@ from core.sensors import (
     detect_zupt_windowed,
     mag_heading,
     pdr_step_update,
+    random_walk_to_rate_sample_std,
     step_frequency,
     step_length_book_eq6_49,
     strapdown_update,
@@ -94,6 +95,56 @@ C_SPEED_TO_BODY = np.array(
         [0.0, 0.0, 1.0],
     ]
 )
+
+
+class MixedTrajectory(NamedTuple):
+    """Shared trajectory and ideal sensor signals for the method comparison."""
+
+    timestamps_s: np.ndarray
+    true_positions_map_m: np.ndarray
+    true_velocities_map_mps: np.ndarray
+    specific_force_body_mps2: np.ndarray
+    angular_rates_body_rad_s: np.ndarray
+    true_headings_rad: np.ndarray
+    true_magnetic_field_body: np.ndarray
+    stance_mask_stationary: np.ndarray
+    true_wheel_speed_mps: np.ndarray
+
+    @property
+    def t(self) -> np.ndarray:
+        return self.timestamps_s
+
+    @property
+    def pos_true(self) -> np.ndarray:
+        return self.true_positions_map_m
+
+    @property
+    def vel_true(self) -> np.ndarray:
+        return self.true_velocities_map_mps
+
+    @property
+    def accel_body(self) -> np.ndarray:
+        return self.specific_force_body_mps2
+
+    @property
+    def gyro_body(self) -> np.ndarray:
+        return self.angular_rates_body_rad_s
+
+    @property
+    def heading_true(self) -> np.ndarray:
+        return self.true_headings_rad
+
+    @property
+    def mag_body(self) -> np.ndarray:
+        return self.true_magnetic_field_body
+
+    @property
+    def stance_mask(self) -> np.ndarray:
+        return self.stance_mask_stationary
+
+    @property
+    def wheel_speed_true(self) -> np.ndarray:
+        return self.true_wheel_speed_mps
 
 
 def _speed_envelope(tau: np.ndarray, duration: float, ramp: float) -> np.ndarray:
@@ -153,25 +204,15 @@ def _wrap_to_pi(angle: float) -> float:
 def generate_mixed_trajectory(
     duration: float = 120.0,
     dt: float = 0.01,
-    frame: Optional[FrameConvention] = None,
+    frame: FrameConvention | None = None,
     v_walk: float = 1.2,
     step_freq: float = 1.75,
     bob_accel_mps2: float = 2.5,
     ramp_time: float = 0.6,
     stop_duration: float = 3.0,
     turn_time: float = 1.5,
-    lever_arm_a: Optional[np.ndarray] = None,
-) -> tuple[
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
-    np.ndarray,
-]:
+    lever_arm_a: np.ndarray | None = None,
+) -> MixedTrajectory:
     """Generate one trajectory that all four DR methods can be run against.
 
     A 30 m x 20 m rectangular walk with a pause and an in-place turn at each
@@ -215,17 +256,23 @@ def generate_mixed_trajectory(
             Default: None (uses ``LEVER_ARM_A``).
 
     Returns:
-        Tuple ``(t, pos_true, vel_true, accel_body, gyro_body, heading_true,
-        mag_body, stance_mask, wheel_speed_true)``:
-            t: Time vector, shape (N,), units s.
-            pos_true: Ground-truth position in map frame, shape (N, 3), units m.
-            vel_true: Ground-truth velocity in map frame, shape (N, 3), m/s.
-            accel_body: Ideal specific force in body frame, shape (N, 3), m/s^2.
-            gyro_body: Ideal angular rate in body frame, shape (N, 3), rad/s.
-            heading_true: Ground-truth heading, shape (N,), rad (ENU: 0 = East).
-            mag_body: Ideal magnetometer reading in body frame, shape (N, 3).
-            stance_mask: True where the walker is not translating, shape (N,).
-            wheel_speed_true: Ideal speed-frame velocity at the wheel-speed
+        MixedTrajectory with semantic fields and tuple-compatible order:
+            timestamps_s: Time vector, shape (N,), units s.
+            true_positions_map_m: Ground-truth position in map frame, shape
+                (N, 3), units m.
+            true_velocities_map_mps: Ground-truth velocity in map frame, shape
+                (N, 3), units m/s.
+            specific_force_body_mps2: Ideal specific force in body frame,
+                shape (N, 3), units m/s^2.
+            angular_rates_body_rad_s: Ideal angular rate in body frame, shape
+                (N, 3), units rad/s.
+            true_headings_rad: Ground-truth heading in map frame, shape (N,),
+                units rad (ENU: 0 = East).
+            true_magnetic_field_body: Ideal magnetometer reading in body frame,
+                shape (N, 3).
+            stance_mask_stationary: True where the walker is not translating,
+                shape (N,).
+            true_wheel_speed_mps: Ideal speed-frame velocity at the wheel-speed
                 sensor, shape (N, 3), units m/s.
 
     References:
@@ -371,16 +418,16 @@ def generate_mixed_trajectory(
         )
         mag_body[sample] = c_yaw.T @ mag_reference_map
 
-    return (
-        t,
-        pos_true,
-        vel_true,
-        accel_body,
-        gyro_body,
-        heading_true,
-        mag_body,
-        stance_mask,
-        wheel_speed_true,
+    return MixedTrajectory(
+        timestamps_s=t,
+        true_positions_map_m=pos_true,
+        true_velocities_map_mps=vel_true,
+        specific_force_body_mps2=accel_body,
+        angular_rates_body_rad_s=gyro_body,
+        true_headings_rad=heading_true,
+        true_magnetic_field_body=mag_body,
+        stance_mask_stationary=stance_mask,
+        true_wheel_speed_mps=wheel_speed_true,
     )
 
 
@@ -431,11 +478,13 @@ def add_sensor_noise(
 
     # IMU noise and biases
     gyro_bias = rng.standard_normal(3) * imu_params.gyro_bias_rad_s
-    gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    gyro_noise_std = random_walk_to_rate_sample_std(imu_params.gyro_arw_rad_sqrt_s, dt)
     gyro_noise = rng.standard_normal((n_samples, 3)) * gyro_noise_std
 
     accel_bias = rng.standard_normal(3) * imu_params.accel_bias_mps2
-    accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    accel_noise_std = random_walk_to_rate_sample_std(
+        imu_params.accel_vrw_mps_sqrt_s, dt
+    )
     accel_noise = rng.standard_normal((n_samples, 3)) * accel_noise_std
 
     gyro_meas = gyro_body + gyro_bias + gyro_noise
@@ -522,8 +571,8 @@ def run_imu_zupt(
     zupt_detected = np.zeros(n_samples, dtype=bool)
 
     # Compute noise std devs for ZUPT detector
-    sigma_a = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
-    sigma_g = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
+    sigma_a = random_walk_to_rate_sample_std(imu_params.accel_vrw_mps_sqrt_s, dt)
+    sigma_g = random_walk_to_rate_sample_std(imu_params.gyro_arw_rad_sqrt_s, dt)
 
     for k in range(1, n_samples):
         q, v, p = strapdown_update(q, v, p, gyro[k - 1], accel[k - 1], dt, frame=frame)
@@ -943,7 +992,7 @@ def main() -> None:
     print("Configuration:")
     print(f"  Duration:        {duration} s")
     print("  Trajectory:      30m x 20m rectangular path with stops")
-    print(f"  IMU Rate:        {1/dt:.0f} Hz")
+    print(f"  IMU Rate:        {1 / dt:.0f} Hz")
     print(f"  Frame:           {frame.map_frame}")
     print(f"  Noise seed:      {DEFAULT_SEED} (figures are reproducible)\n")
 
@@ -982,14 +1031,14 @@ def main() -> None:
     print("  1. IMU only (pure strapdown)...")
     start = time.time()
     methods["IMU Only"] = run_imu_only(t, accel_meas, gyro_meas, initial, frame)
-    print(f"     Time: {time.time()-start:.3f} s")
+    print(f"     Time: {time.time() - start:.3f} s")
 
     print("  2. IMU + ZUPT (windowed, Eq. 6.44)...")
     start = time.time()
     methods["IMU + ZUPT"], zupt_detected = run_imu_zupt(
         t, accel_meas, gyro_meas, initial, frame, imu_params
     )
-    print(f"     Time: {time.time()-start:.3f} s")
+    print(f"     Time: {time.time() - start:.3f} s")
     print(
         f"     ZUPT fired on {100 * zupt_detected.mean():.1f}% of samples "
         f"({100 * stance.mean():.1f}% truly stationary)"
@@ -1000,12 +1049,12 @@ def main() -> None:
     methods["Wheel Odom"] = run_wheel_odom(
         t, wheel_meas, gyro_meas, initial, LEVER_ARM_A
     )
-    print(f"     Time: {time.time()-start:.3f} s")
+    print(f"     Time: {time.time() - start:.3f} s")
 
     print("  4. PDR (step-and-heading)...")
     start = time.time()
     methods["PDR (Mag)"], step_count = run_pdr(t, accel_meas, mag_meas, height)
-    print(f"     Time: {time.time()-start:.3f} s")
+    print(f"     Time: {time.time() - start:.3f} s")
     print(f"     Steps detected:  {step_count}")
 
     figs_dir = Path(__file__).parent / "figs"

@@ -11,8 +11,6 @@ Author: Li-Ta Hsu
 Date: 2024
 """
 
-from typing import Optional
-
 import numpy as np
 
 from .types import Fingerprint, FingerprintDatabase, Location
@@ -88,6 +86,19 @@ def distance(z: np.ndarray, f: np.ndarray, metric: str = "euclidean") -> float:
         raise ValueError(
             f"Unsupported metric: '{metric}'. Use 'euclidean' or 'manhattan'."
         )
+
+
+def fingerprint_distance(
+    query_fingerprint: np.ndarray,
+    reference_fingerprint: np.ndarray,
+    metric: str = "euclidean",
+) -> float:
+    """Descriptive alias for :func:`distance`.
+
+    Prefer this name in tutorial-facing code when readability matters more than
+    matching the compact notation used in Eq. (5.1).
+    """
+    return distance(query_fingerprint, reference_fingerprint, metric=metric)
 
 
 def pairwise_distances(
@@ -173,11 +184,20 @@ def pairwise_distances(
     return distances
 
 
+def fingerprint_pairwise_distances(
+    query_fingerprint: np.ndarray,
+    reference_fingerprints: np.ndarray,
+    metric: str = "euclidean",
+) -> np.ndarray:
+    """Descriptive alias for :func:`pairwise_distances`."""
+    return pairwise_distances(query_fingerprint, reference_fingerprints, metric=metric)
+
+
 def nn_localize(
     z: Fingerprint,
     db: FingerprintDatabase,
     metric: str = "euclidean",
-    floor_id: Optional[int] = None,
+    floor_id: int | None = None,
 ) -> Location:
     """
     Nearest-neighbor (NN) deterministic fingerprinting.
@@ -253,6 +273,16 @@ def nn_localize(
     return locations[i_star]
 
 
+def nearest_neighbor_localize(
+    query_fingerprint: Fingerprint,
+    database: FingerprintDatabase,
+    metric: str = "euclidean",
+    floor_id: int | None = None,
+) -> Location:
+    """Descriptive alias for :func:`nn_localize`."""
+    return nn_localize(query_fingerprint, database, metric=metric, floor_id=floor_id)
+
+
 def knn_localize(
     z: Fingerprint,
     db: FingerprintDatabase,
@@ -260,7 +290,7 @@ def knn_localize(
     metric: str = "euclidean",
     weighting: str = "inverse_distance",
     eps: float = 1e-6,
-    floor_id: Optional[int] = None,
+    floor_id: int | None = None,
 ) -> Location:
     """
     k-nearest-neighbor (k-NN) fingerprinting with weighted interpolation.
@@ -338,8 +368,7 @@ def knn_localize(
     M = len(locations)
     if k > M:
         raise ValueError(
-            f"k={k} exceeds number of available reference points M={M}. "
-            f"Use k <= {M}."
+            f"k={k} exceeds number of available reference points M={M}. Use k <= {M}."
         )
 
     # Compute distances to all reference points
@@ -376,3 +405,24 @@ def knn_localize(
     x_hat = np.sum(weights[:, np.newaxis] * k_locations, axis=0) / weights_sum
 
     return x_hat
+
+
+def k_nearest_neighbor_localize(
+    query_fingerprint: Fingerprint,
+    database: FingerprintDatabase,
+    k: int = 3,
+    metric: str = "euclidean",
+    weighting: str = "inverse_distance",
+    eps: float = 1e-6,
+    floor_id: int | None = None,
+) -> Location:
+    """Descriptive alias for :func:`knn_localize`."""
+    return knn_localize(
+        query_fingerprint,
+        database,
+        k=k,
+        metric=metric,
+        weighting=weighting,
+        eps=eps,
+        floor_id=floor_id,
+    )

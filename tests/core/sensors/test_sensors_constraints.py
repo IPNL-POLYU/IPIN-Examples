@@ -12,14 +12,16 @@ Run with: pytest tests/test_sensors_constraints.py -v
 """
 
 import unittest
+
 import numpy as np
 import pytest
 
+import core.sensors as sensors
 from core.sensors.constraints import (
-    detect_zupt,
-    ZuptMeasurementModel,
-    ZaruMeasurementModelPlaceholder,
     NhcMeasurementModel,
+    ZaruMeasurementModelPlaceholder,
+    ZuptMeasurementModel,
+    detect_zupt,
 )
 
 
@@ -36,7 +38,7 @@ class TestDetectZupt(unittest.TestCase):
 
         is_stationary = detect_zupt(gyro, accel, delta_omega, delta_f)
 
-        assert is_stationary == True
+        assert is_stationary
 
     def test_detect_zupt_rotating(self) -> None:
         """Test that rotating sensor is not detected (omega too high)."""
@@ -47,7 +49,7 @@ class TestDetectZupt(unittest.TestCase):
 
         is_stationary = detect_zupt(gyro, accel, delta_omega, delta_f)
 
-        assert is_stationary == False
+        assert not is_stationary
 
     def test_detect_zupt_accelerating(self) -> None:
         """Test that accelerating sensor is not detected (accel too high)."""
@@ -58,7 +60,7 @@ class TestDetectZupt(unittest.TestCase):
 
         is_stationary = detect_zupt(gyro, accel, delta_omega, delta_f)
 
-        assert is_stationary == False
+        assert not is_stationary
 
     def test_detect_zupt_both_moving(self) -> None:
         """Test that moving sensor fails both conditions."""
@@ -69,7 +71,7 @@ class TestDetectZupt(unittest.TestCase):
 
         is_stationary = detect_zupt(gyro, accel, delta_omega, delta_f)
 
-        assert is_stationary == False
+        assert not is_stationary
 
     def test_detect_zupt_threshold_boundary(self) -> None:
         """Test detection at threshold boundaries."""
@@ -81,12 +83,12 @@ class TestDetectZupt(unittest.TestCase):
 
         # Should not detect (< threshold required, not <=)
         is_stationary = detect_zupt(gyro_boundary, accel, delta_omega, delta_f)
-        assert is_stationary == False
+        assert not is_stationary
 
         # Slightly below threshold
         gyro_below = np.array([0.049, 0.0, 0.0])
         is_stationary = detect_zupt(gyro_below, accel, delta_omega, delta_f)
-        assert is_stationary == True
+        assert is_stationary
 
     def test_detect_zupt_tilted_stationary(self) -> None:
         """Test ZUPT detection for tilted but stationary sensor."""
@@ -102,7 +104,18 @@ class TestDetectZupt(unittest.TestCase):
 
         # ||accel|| should still be ≈ g
         assert np.isclose(np.linalg.norm(accel), g, atol=0.01)
-        assert is_stationary == True
+        assert is_stationary
+
+
+class TestPublicSurface(unittest.TestCase):
+    """Test compatibility for the incomplete ZARU placeholder export."""
+
+    def test_zaru_placeholder_importable_but_not_in_default_exports(self) -> None:
+        """Legacy direct import works, but wildcard-style public surface omits it."""
+        assert (
+            sensors.ZaruMeasurementModelPlaceholder is ZaruMeasurementModelPlaceholder
+        )
+        assert "ZaruMeasurementModelPlaceholder" not in sensors.__all__
 
 
 class TestZuptMeasurementModel(unittest.TestCase):
@@ -343,11 +356,11 @@ class TestEdgeCases(unittest.TestCase):
 
         # Strict threshold
         is_stat_strict = detect_zupt(gyro, accel, delta_omega=0.02, delta_f=0.3)
-        assert is_stat_strict == False
+        assert not is_stat_strict
 
         # Loose threshold
         is_stat_loose = detect_zupt(gyro, accel, delta_omega=0.1, delta_f=1.0)
-        assert is_stat_loose == True
+        assert is_stat_loose
 
     def test_measurement_models_with_long_state(self) -> None:
         """Test measurement models work with extended state vectors."""

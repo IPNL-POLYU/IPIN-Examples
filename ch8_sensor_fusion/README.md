@@ -66,7 +66,7 @@ Constructed outage: at most 2 of 4 anchors between t = 20 s and 28 s
 (the shipped dataset's own dropouts are single isolated epochs and do not stress the difference)
   LC position fixes that failed outright: 93
   RMSE over the run:      LC 0.707 m   TC 2.338 m
-  Peak error in outage:   LC 3.25 m   TC 43.92 m (0x)
+  Peak error in outage + 3 s recovery: LC 3.25 m   TC 43.92 m (TC peak is 13.5x LC)
 ```
 
 **Read that table before assuming tight coupling wins.** Two ranges do not
@@ -82,7 +82,8 @@ return; the structural point is unchanged, only its magnitude is more modest.
 But two ranges leave a **two-fold ambiguity**: the true position and its
 reflection across the baseline joining the surviving anchors. TC takes the
 wrong branch at t = 25.8 s, estimating (30.1, -35.5) against a truth of
-(20.0, 7.2) — a 43.92 m peak. It lasts under a second, and it is enough to put
+(20.0, 7.2) — a 43.92 m peak, 13.5x LC's peak over the same
+outage-plus-recovery window. It lasts under a second, and it is enough to put
 TC's whole-run RMSE (2.338 m) *above* LC's (0.707 m) *at this particular
 window* -- by a wider margin than before, again because LC's own baseline
 tracking improved.
@@ -217,10 +218,13 @@ where the two report almost the same RMSE.
 ![TC Fusion Results](figs/tc_uwb_imu_results.svg)
 
 *Four-panel visualization:*
-- **Trajectory:** Truth vs EKF estimate with UWB anchors
-- **Position Error:** Drift accumulation over time
-- **NIS Plot:** Innovation consistency with chi-square bounds
-- **Covariance Trace:** Filter uncertainty evolution
+- **Trajectory:** truth is black, TC EKF is blue in this standalone figure,
+  and UWB anchors are red triangles.
+- **Position Error:** blue error curve over time in metres.
+- **NIS Plot:** accepted updates are green dots, rejected updates are red x's,
+  and red dashed horizontal lines are the central 95% chi-square bounds for
+  one range DOF.
+- **Covariance Trace:** blue trace of the EKF covariance matrix.
 
 ### LC Fusion Demo
 
@@ -619,6 +623,11 @@ uwb_anchors = data['uwb_anchors']  # Anchor positions
 config = data['config']     # Configuration parameters
 ```
 
+`load_fusion_dataset()` returns a `FusionDataset`: it still behaves like the
+plain dictionaries used in older snippets, but it also exposes reader-friendly
+properties such as `true_positions_xy_m`, `imu_timestamps_s`,
+`measured_uwb_ranges_m`, and `uwb_anchor_positions_xy_m`.
+
 **Generate custom datasets:**
 ```bash
 python scripts/generate_ch8_fusion_2d_imu_uwb_dataset.py
@@ -673,6 +682,8 @@ risk of filter divergence. See `core/fusion/adaptive.py` for implementation deta
 | `create_uwb_range_measurement_model()` | `core/fusion/tc_models.py` | UWB range measurement for TC |
 | `solve_uwb_position_wls()` | `core/fusion/lc_models.py` | WLS position solver for LC |
 | `create_lc_position_measurement_model()` | `core/fusion/lc_models.py` | Position measurement for LC |
+| `FusionDataset` | `core/fusion/dataset.py` | Dict-compatible dataset wrapper with semantic accessors for truth, IMU, UWB ranges, anchors, and units |
+| `FusionHistory` | `core/fusion/types.py` | Dict-compatible LC/TC run history with semantic accessors such as `timestamps_s`, `estimated_state_vectors`, `normalized_innovation_squared`, and `measurement_accepted` |
 
 ## Architecture
 
@@ -758,9 +769,10 @@ All demo scripts generate figures in the `ch8_sensor_fusion/figs/` directory. Th
 | `ch8_anchor_outage.svg` | `example_anchor_outage.py` | Sec. 8.1.2 |
 
 Every row names the script that writes it, and
-`tests/test_every_figure_has_a_demo_behind_it.py` checks both
-directions: each figure regenerates byte-for-byte, and nothing sits in `figs/`
-that no demo produces.
+`tests/test_every_figure_has_a_demo_behind_it.py` checks both directions: each
+committed figure is still produced, and no uncommitted figure is produced. It
+does not require byte-for-byte equality because SVG, PDF, and PNG metadata can
+vary across platforms.
 
 ---
 
@@ -772,10 +784,10 @@ that no demo produces.
 
 | Panel | Description | What to Look For |
 |-------|-------------|------------------|
-| **Top-Left: Trajectory** | 2D plot of ground truth (blue) vs EKF estimate (orange) with UWB anchor positions (red markers) | Good fusion: orange closely follows blue; large deviations indicate filter issues |
-| **Top-Right: Position Error** | 2D position error over time (meters) | Error should remain bounded; spikes indicate outlier measurements or filter instability |
-| **Bottom-Left: NIS Plot** | Normalized Innovation Squared with χ² bounds (confidence=0.95) | ~95% of points should be below the upper bound; consistent NIS near DOF indicates well-tuned filter |
-| **Bottom-Right: Covariance Trace** | Filter uncertainty (trace of P matrix) over time | Should decrease initially then stabilize; unbounded growth indicates divergence |
+| **Top-Left: Trajectory** | Ground truth is black, TC EKF is blue, and UWB anchors are red triangles | Good fusion: blue closely follows black; large deviations indicate filter issues |
+| **Top-Right: Position Error** | Blue 2D position error over time (meters) | Error should remain bounded; spikes indicate outlier measurements or filter instability |
+| **Bottom-Left: NIS Plot** | Green accepted updates, red rejected updates, and red dashed central 95% chi-square bounds | Most accepted points should be below the upper bound; consistent NIS should sit near the 1-DOF scale |
+| **Bottom-Right: Covariance Trace** | Blue trace of the EKF covariance matrix | Should decrease initially then stabilize; unbounded growth indicates divergence |
 
 **Interpretation:** TC fusion directly uses raw UWB range measurements (one update per anchor per epoch). With adaptive gating enabled, outliers are rejected while maintaining filter consistency.
 
@@ -787,10 +799,21 @@ that no demo produces.
 
 **Four-panel visualization of Loosely Coupled EKF fusion (same layout as TC):**
 
+| Panel | Description | What to Look For |
+|-------|-------------|------------------|
+| **Top-Left: Trajectory** | Ground truth is black, LC EKF is blue, cyan points are WLS UWB position fixes, and anchors are red triangles | Cyan fixes are the intermediate LC product; blue should follow black when enough anchors are visible |
+| **Top-Right: Position Error** | Blue 2D position error over time (meters) | Error rises when position fixes fail or are rejected, then recovers when fixes return |
+| **Bottom-Left: NIS Plot** | Green accepted updates, red rejected updates, and red dashed central 95% chi-square bounds | Compare against the 2-DOF scale because LC fuses a 2D position fix |
+| **Bottom-Right: Covariance Trace** | Blue trace of the EKF covariance matrix | Should remain bounded if position fixes arrive often enough |
+
 **Key Differences from TC:**
 - LC first solves for position using WLS from all UWB ranges, then fuses the position fix
 - Measurement DOF is 2 (position x,y) vs 1 (single range) in TC
 - LC requires ≥3 valid anchors per epoch; TC handles partial dropouts gracefully
+- The standalone LC figure uses the same visual key as TC: black truth, blue
+  EKF trajectory/error/covariance, cyan WLS position fixes, red anchor
+  triangles, green accepted NIS dots, red rejected NIS x's, and red dashed
+  chi-square bounds.
 
 **Interpretation:** LC fusion is simpler but may lose information when converting ranges to position. The NIS should be compared against χ²(2) since DOF=2 for position measurements.
 
@@ -806,12 +829,29 @@ that no demo produces.
 |-----|--------|-------------|
 | **Row 1** | Trajectories (LC, TC, Overlay) | Visual comparison of estimated paths vs ground truth |
 | **Row 2** | Position Errors (LC, TC, Comparison) | Error time series; comparison panel shows which method has lower error at each time |
-| **Row 3** | NIS Plots (LC, TC) + Metrics Table | Innovation consistency for both methods; table summarizes RMSE and acceptance rates |
+| **Row 3** | NIS Plots (LC, TC) + mixed-unit metric bars | Innovation consistency for both methods; bars summarize RMSE, maximum error, update count, and acceptance rate |
 
 **Interpretation:** This figure directly demonstrates the trade-offs discussed in Section 8.1.3:
-- TC typically achieves lower RMSE due to direct range fusion
-- LC may have higher acceptance rate (less sensitive to individual outliers)
-- Visual comparison helps understand when each method excels
+- On this nominal, well-conditioned dataset, LC slightly outperforms TC in RMSE
+  (the generated metrics in the figure are the source of truth).
+- TC preserves per-anchor range information and remains usable with partial
+  anchor dropouts, so it can outperform LC when visibility or geometry degrades.
+- LC first solves a position fix and can match or beat TC when all anchors are
+  visible and the geometry is good; neither architecture is universally more
+  accurate.
+
+Color key for this comparison figure: black is ground truth, LC is
+`tab:blue`, TC is `tab:orange`, red triangles are anchors, cyan points are LC's
+intermediate WLS position fixes, and the green star marks the start. In the NIS
+panels, green dots are accepted updates, red x's are rejected updates, and red
+dashed lines are the 95% chi-square bounds.
+
+The bottom-right bar chart is intentionally a **mixed-unit summary**, not one
+quantity on a common y-axis. Read each x-label's unit before comparing: RMSE
+and max error are metres, updates are divided by 100 (`Updates [×100]`), and
+acceptance is percent. It is safe to compare LC vs TC *within* one grouped
+category; it is not meaningful to compare the height of an RMSE bar to the
+height of an acceptance-rate bar.
 
 ---
 
@@ -840,13 +880,14 @@ that no demo produces.
 
 ![IMU Calibration](figs/imu_calibration.svg)
 
-**Three-panel IMU intrinsic calibration results (Sec. 8.4.1.3):**
+**Four-axis IMU intrinsic calibration results in a 3x2 layout (Sec. 8.4.1.3):**
 
 | Panel | Description | Expected Behavior |
 |-------|-------------|-------------------|
-| **Top** | Raw accelerometer readings during stationary period | Should show gravity (~9.81 m/s²) on one axis, small bias on others |
-| **Middle** | Raw gyroscope readings during stationary period | Should be near zero with small bias |
-| **Bottom** | Bar chart comparing true vs estimated biases | Estimated biases should closely match true values |
+| **Top, full width** | Raw accelerometer readings during stationary period | Z carries gravity at about -9.81 m/s² in this simulation, with small sensor biases on top |
+| **Middle, full width** | Raw gyroscope readings during stationary period | All axes should be near zero with small bias, reported in deg/s |
+| **Bottom-left** | Accelerometer bias bars, true vs estimated | Estimated m/s² biases should closely match the injected true biases |
+| **Bottom-right** | Gyroscope bias bars, true vs estimated | Estimated deg/s biases should closely match the injected true biases |
 
 **Interpretation:** This demonstrates the simplest IMU calibration method:
 - Stationary gyro reading = gyro bias (should be zero)

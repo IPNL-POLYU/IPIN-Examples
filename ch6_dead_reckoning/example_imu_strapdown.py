@@ -20,6 +20,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -37,6 +38,7 @@ from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
     NavStateQPVP,
+    random_walk_to_rate_sample_std,
     strapdown_update,
     units,
 )
@@ -47,6 +49,45 @@ from core.sim import generate_imu_from_trajectory
 # Seed for this example's sensor-noise draws. Fixed so the committed
 # figures can be regenerated exactly; see the noise function below.
 DEFAULT_SEED = 42
+
+
+class Figure8Trajectory(NamedTuple):
+    """Figure-8 ground truth and ideal IMU signals.
+
+    NamedTuple keeps legacy tuple unpacking while making semantic fields
+    discoverable. Positions/velocities are in the selected local map frame.
+    """
+
+    timestamps_s: np.ndarray
+    true_positions_map_m: np.ndarray
+    true_velocities_map_mps: np.ndarray
+    true_attitudes_quat_wxyz: np.ndarray
+    specific_force_body_mps2: np.ndarray
+    angular_rates_body_rad_s: np.ndarray
+
+    @property
+    def t(self) -> np.ndarray:
+        return self.timestamps_s
+
+    @property
+    def pos_true(self) -> np.ndarray:
+        return self.true_positions_map_m
+
+    @property
+    def vel_true(self) -> np.ndarray:
+        return self.true_velocities_map_mps
+
+    @property
+    def quat_true(self) -> np.ndarray:
+        return self.true_attitudes_quat_wxyz
+
+    @property
+    def accel_body(self) -> np.ndarray:
+        return self.specific_force_body_mps2
+
+    @property
+    def gyro_body(self) -> np.ndarray:
+        return self.angular_rates_body_rad_s
 
 
 def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None, lat_deg=45.0):
@@ -60,7 +101,10 @@ def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None, lat_deg=45.
         lat_deg: Latitude in degrees for gravity model (default: 45.0°).
 
     Returns:
-        Tuple of (t, pos_true, vel_true, quat_true, accel_body, gyro_body).
+        Figure8Trajectory with semantic fields and tuple-compatible order:
+        timestamps_s, true_positions_map_m, true_velocities_map_mps,
+        true_attitudes_quat_wxyz, specific_force_body_mps2,
+        angular_rates_body_rad_s.
     """
     if frame is None:
         frame = FrameConvention.create_enu()
@@ -110,7 +154,14 @@ def generate_figure8_trajectory(duration=100.0, dt=0.01, frame=None, lat_deg=45.
         lat_rad=lat_rad,
     )
 
-    return t, pos_true, vel_true, quat_true, accel_body, gyro_body
+    return Figure8Trajectory(
+        timestamps_s=t,
+        true_positions_map_m=pos_true,
+        true_velocities_map_mps=vel_true,
+        true_attitudes_quat_wxyz=quat_true,
+        specific_force_body_mps2=accel_body,
+        angular_rates_body_rad_s=gyro_body,
+    )
 
 
 def add_imu_noise(
@@ -142,8 +193,10 @@ def add_imu_noise(
 
     # White noise (scale with sqrt(1/dt) for discrete-time PSD)
     # For continuous-time noise with PSD σ², discrete noise std is σ/√dt
-    gyro_noise_std = imu_params.gyro_arw_rad_sqrt_s * np.sqrt(1 / dt)
-    accel_noise_std = imu_params.accel_vrw_mps_sqrt_s * np.sqrt(1 / dt)
+    gyro_noise_std = random_walk_to_rate_sample_std(imu_params.gyro_arw_rad_sqrt_s, dt)
+    accel_noise_std = random_walk_to_rate_sample_std(
+        imu_params.accel_vrw_mps_sqrt_s, dt
+    )
 
     gyro_noise = rng.standard_normal((N, 3)) * gyro_noise_std
     accel_noise = rng.standard_normal((N, 3)) * accel_noise_std
@@ -394,7 +447,7 @@ def main():
 
     print("Configuration:")
     print(f"  Duration:        {duration} s")
-    print(f"  IMU Rate:        {1/dt:.0f} Hz")
+    print(f"  IMU Rate:        {1 / dt:.0f} Hz")
     print(f"  IMU Grade:       {imu_params.grade}")
     print("  Trajectory:      Figure-8 pattern")
     print(f"  Frame:           {frame.map_frame}\n")
@@ -441,7 +494,7 @@ def main():
         t, accel_meas, gyro_meas, initial_state, frame, lat_rad=lat_rad
     )
     elapsed = time.time() - start_time
-    print(f"  Computation time: {elapsed:.3f} s ({len(t)/elapsed:.0f}x real-time)")
+    print(f"  Computation time: {elapsed:.3f} s ({len(t) / elapsed:.0f}x real-time)")
 
     # Create output directory
     figs_dir = Path(__file__).parent / "figs"

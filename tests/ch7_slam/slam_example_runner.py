@@ -38,7 +38,7 @@ Author: Li-Ta Hsu
 
 import json
 import re
-from typing import Any, Dict, Optional
+from typing import Any, Dict
 
 # The generic half of this module now lives in tests/example_runner.py, because
 # a second caller outside Chapter 7 needed it (tests/docs, which checks the
@@ -84,7 +84,7 @@ def run_scan_matching_example(*args: str) -> ExampleRun:
     return run_example(SCAN_MATCHING_MODULE, *args)
 
 
-def parse_slam_summary(stdout: str) -> Optional[Dict[str, Any]]:
+def parse_slam_summary(stdout: str) -> Dict[str, Any] | None:
     """Parse the [SLAM_SUMMARY] JSON line from script output.
 
     Args:

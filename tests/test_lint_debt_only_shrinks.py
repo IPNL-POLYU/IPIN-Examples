@@ -8,7 +8,7 @@ files, it did not, and not narrowly:
     black   237 of 288 files would be reformatted
     mypy    404 errors in core/ alone
 
-Black passes now, and ruff is at 951. mypy is untouched at 406 errors in
+Black passes now, and ruff is at 680. mypy is untouched at 406 errors in
 core/, and is the honest remaining gap.
 
 A reader who followed that section got thousands of complaints and reasonably
@@ -27,7 +27,7 @@ unsafe fix was right; the answer was a tool that could tell the difference, not
 The twelve W293 still here sit in argparse `epilog=` strings, which are not
 docstrings and whose blank lines are printed. Black leaves them, correctly.
 
-**What is left is mostly not lint at all.** 727 of the remaining findings are
+**What is left is mostly not lint at all.** 545 of the remaining findings are
 UP006/UP045/UP035/UP007 -- `List[int]` for `list[int]`, `Optional[X]` for
 `X | None`. Those became legal only when the floor moved to 3.10, they are
 mechanical, and they are worth doing in their own change. The ~100 after that
@@ -78,16 +78,16 @@ SOURCE_DIRS = (
 #: where the whitespace is content that gets printed rather than layout --
 #: black leaves those alone, correctly, and so should you.
 BASELINE = {
-    "UP006": 371,
-    "UP045": 178,
-    "UP035": 119,
-    "I001": 82,
+    "UP006": 283,
+    "UP045": 137,
+    "UP035": 87,
+    "I001": 64,
     "UP007": 38,
-    "B007": 26,
-    "B028": 14,
-    "E712": 13,
-    "W293": 12,
-    "E731": 7,
+    "B007": 17,
+    "B028": 9,
+    "E712": 4,
+    "W293": 10,
+    "E731": 6,
     "B904": 6,
     "E741": 4,
     "UP015": 4,
@@ -97,7 +97,6 @@ BASELINE = {
     "UP033": 2,
     "C401": 1,
     "C416": 1,
-    "E402": 1,
     "UP032": 1,
 }
 

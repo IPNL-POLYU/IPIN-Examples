@@ -91,7 +91,7 @@ leaping across the floor and snapping back.
 ```python
 import numpy as np
 from pathlib import Path
-from core.fingerprinting import load_fingerprint_database, nn_localize
+from core.fingerprinting import load_fingerprint_database, nearest_neighbor_localize
 
 # Load database
 db = load_fingerprint_database(Path("data/sim/ch5_wifi_fingerprint_grid"))
@@ -100,30 +100,34 @@ db = load_fingerprint_database(Path("data/sim/ch5_wifi_fingerprint_grid"))
 query = np.array([-45, -60, -75, -80, -50, -70, -85, -90])
 
 # Nearest-neighbor localization
-pos = nn_localize(query, db, metric="euclidean", floor_id=0)
+pos = nearest_neighbor_localize(query, db, metric="euclidean", floor_id=0)
 print(f"Estimated position: {pos}")
 ```
 
 ### k-Nearest-Neighbor (Eq. 5.2)
 
 ```python
-from core.fingerprinting import knn_localize
+from core.fingerprinting import k_nearest_neighbor_localize
 
-pos = knn_localize(query, db, k=3, metric="euclidean", 
-                   weighting="inverse_distance", floor_id=0)
+pos = k_nearest_neighbor_localize(query, db, k=3, metric="euclidean",
+                                  weighting="inverse_distance", floor_id=0)
 print(f"k-NN estimate: {pos}")
 ```
 
 ### Bayesian MAP and Posterior Mean (Eqs. 5.3-5.5)
 
 ```python
-from core.fingerprinting import fit_gaussian_naive_bayes, map_localize, posterior_mean_localize
+from core.fingerprinting import (
+    fit_gaussian_naive_bayes,
+    maximum_a_posteriori_localize,
+    posterior_mean_localize,
+)
 
 # Fit Bayesian model (uses Gaussian likelihood Eq. 5.6)
 model = fit_gaussian_naive_bayes(db, min_std=2.0)
 
 # MAP estimate (Eq. 5.4): discrete, selects best RP
-pos_map = map_localize(query, model, floor_id=0)
+pos_map = maximum_a_posteriori_localize(query, model, floor_id=0)
 
 # Posterior mean (Eq. 5.5): continuous, weighted average over all RPs
 pos_mean = posterior_mean_localize(query, model, floor_id=0)
@@ -136,7 +140,7 @@ pos_mean_topk = posterior_mean_localize(query, model, floor_id=0, top_k=10)
 ### Classification-Based Positioning
 
 ```python
-from core.fingerprinting import fit_classifier, hierarchical_localize
+from core.fingerprinting import fit_classifier, hierarchical_fingerprint_localize
 
 # Train Random Forest classifier (each RP is a class)
 classifier = fit_classifier(
@@ -165,7 +169,7 @@ pos_svm, info = classifier_svm.predict(query)
 
 ```python
 # Two-step hierarchical: classify floor first, then k-NN within that floor
-pos_hier, info = hierarchical_localize(
+pos_hier, info = hierarchical_fingerprint_localize(
     query,
     db,
     coarse_method="floor",       # Coarse: floor classification
@@ -185,7 +189,7 @@ print(f"Classified floor: {info['coarse_floor']}")
 # - "random_forest": RF-based region classification
 
 # Example: RF coarse + MAP fine
-pos_hier_rf, info = hierarchical_localize(
+pos_hier_rf, info = hierarchical_fingerprint_localize(
     query,
     db,
     coarse_method="random_forest",
@@ -297,6 +301,27 @@ docstring.
 - **Bottom-Center:** Median vs P90 errors
 - **Bottom-Right:** Radar chart of normalized performance metrics
 
+#### Probabilistic Figure
+
+![Probabilistic Positioning](figs/probabilistic_positioning.png)
+
+This is the single-method view behind the Bayesian rows above. Read it as
+three questions: where does MAP snap to a discrete reference point, how much
+does posterior mean smooth that decision, and how quickly does the error change
+as the assumed RSS standard deviation changes? On the default single-sample
+database, MAP is expected to look like 1-NN because all reference points share
+the same fallback sigma.
+
+#### Pattern Recognition Figure
+
+![Pattern Recognition Positioning](figs/pattern_recognition_positioning.png)
+
+This is the regression-based alternative: train a mapping from RSS space to x-y
+position, then test it on held-out queries. The key thing to look for is the
+train/test separation: low training error with much larger test error means the
+model memorized the radio map rather than learning a useful spatial
+relationship.
+
 ### Classification and Hierarchical Methods Example
 
 Running `python -m ch5_fingerprinting.example_classification` produces:
@@ -347,8 +372,8 @@ structure. A dataset can be made to score well on the first by being wrong.
 ![Classification Noise Robustness](figs/classification_noise_robustness.png)
 
 *This figure compares the robustness of classification-based methods (Random Forest, SVM) against k-NN as measurement noise increases:*
-- **X-axis:** Noise standard deviation in dBm (1, 2, 3, 4, 5 dBm)
-- **Y-axis:** Mean positioning error in meters
+- **X-axis:** Noise standard deviation in dBm (0, 2, 4, 6, 8 dBm)
+- **Y-axis:** Positioning error RMSE in meters
 - **Key insight:** k-NN generally outperforms classifiers due to its weighted averaging, while RF shows better stability than SVM at high noise levels
 
 **Visual Output 2 - Hierarchical Localization:**
@@ -460,7 +485,7 @@ query_preprocessed, info = preprocess_query(
 )
 
 # Use in localization
-pos = nn_localize(query_preprocessed, db, floor_id=0)
+pos = nearest_neighbor_localize(query_preprocessed, db, floor_id=0)
 ```
 
 **Benefits:**
@@ -480,7 +505,11 @@ The system gracefully handles missing AP readings (signal dropout), a common rea
 
 **Example:**
 ```python
-from core.fingerprinting import nn_localize, fit_gaussian_naive_bayes, map_localize
+from core.fingerprinting import (
+    fit_gaussian_naive_bayes,
+    maximum_a_posteriori_localize,
+    nearest_neighbor_localize,
+)
 import numpy as np
 
 # Query with some APs missing (NaN)
@@ -489,11 +518,13 @@ query = np.array([-51.0, np.nan, -71.0, -81.0, np.nan, -65.0, -75.0, -85.0])
 #                 ✓      X       ✓      ✓      X      ✓      ✓      ✓
 
 # Deterministic methods work with missing values
-pos_nn = nn_localize(query, db, floor_id=0)  # Uses AP1, AP3, AP4, AP6
+pos_nn = nearest_neighbor_localize(query, db, floor_id=0)  # Uses AP1, AP3, AP4, AP6
 
 # Probabilistic methods work with missing values
 model = fit_gaussian_naive_bayes(db, min_std=2.0)
-pos_map = map_localize(query, model, floor_id=0)  # Likelihood from AP1, AP3, AP4, AP6
+pos_map = maximum_a_posteriori_localize(
+    query, model, floor_id=0
+)  # Likelihood from AP1, AP3, AP4, AP6
 ```
 
 **Tested:** Up to 50% dropout rate, 100 queries, no crashes ✓
@@ -504,8 +535,8 @@ pos_map = map_localize(query, model, floor_id=0)  # Likelihood from AP1, AP3, AP
 
 | Function | Location | Equation | Description |
 |----------|----------|----------|-------------|
-| `nn_localize()` | `core/fingerprinting/deterministic.py` | Eq. (5.1) | NN: i* = argmin_i D(z, f_i), x = x_{i*} |
-| `knn_localize()` | `core/fingerprinting/deterministic.py` | Eq. (5.2) | k-NN: x = sum(w_i * x_i) / sum(w_i) |
+| `nearest_neighbor_localize()` (`nn_localize()` legacy alias) | `core/fingerprinting/deterministic.py` | Eq. (5.1) | NN: i* = argmin_i D(z, f_i), x = x_{i*} |
+| `k_nearest_neighbor_localize()` (`knn_localize()` legacy alias) | `core/fingerprinting/deterministic.py` | Eq. (5.2) | k-NN: x = sum(w_i * x_i) / sum(w_i) |
 
 ### Probabilistic Fingerprinting (Bayesian)
 
@@ -513,7 +544,7 @@ pos_map = map_localize(query, model, floor_id=0)  # Likelihood from AP1, AP3, AP
 |----------|----------|----------|-------------|
 | `log_likelihood()` | `core/fingerprinting/probabilistic.py` | Eq. (5.6) | Likelihood P(z\|x_i) using Gaussian model (term in Eq. 5.3) |
 | `log_posterior()` | `core/fingerprinting/probabilistic.py` | Eq. (5.3) | Bayes posterior: P(x_i\|z) = P(z\|x_i)P(x_i)/P(z) |
-| `map_localize()` | `core/fingerprinting/probabilistic.py` | Eq. (5.4) | MAP: i* = argmax_i p(x_i\|z) |
+| `maximum_a_posteriori_localize()` (`map_localize()` legacy alias) | `core/fingerprinting/probabilistic.py` | Eq. (5.4) | MAP: i* = argmax_i p(x_i\|z) |
 | `posterior_mean_localize()` | `core/fingerprinting/probabilistic.py` | Eq. (5.5) | Posterior mean: x = sum(p(x_i\|z) * x_i), supports top-k optimization |
 
 ### Pattern Recognition - Regression
@@ -529,7 +560,7 @@ pos_map = map_localize(query, model, floor_id=0)  # Likelihood from AP1, AP3, AP
 |----------|----------|-------------|
 | `fit_classifier()` | `core/fingerprinting/classification.py` | Train Random Forest or SVM classifier (each RP as a class) |
 | `ClassificationLocalizer.predict()` | `core/fingerprinting/classification.py` | Predict location via classification |
-| `hierarchical_localize()` | `core/fingerprinting/classification.py` | Two-step: classify floor/region, then fine-grained localization |
+| `hierarchical_fingerprint_localize()` (`hierarchical_localize()` legacy alias) | `core/fingerprinting/classification.py` | Two-step: classify floor/region, then fine-grained localization |
 
 ## Architecture
 
@@ -628,6 +659,8 @@ All figures are generated by the example scripts and stored in the `figs/` direc
 | Figure | Source Script | Description |
 |--------|--------------|-------------|
 | `deterministic_positioning.png` | `example_deterministic.py` | 6-panel comparison of NN and k-NN methods: RP layout, error CDF, histogram, box plots, k-sensitivity, speed-accuracy trade-off |
+| `probabilistic_positioning.png` | `example_probabilistic.py` | Bayesian/MAP/posterior-mean view: posterior mass, MAP vs posterior mean estimates, and sensitivity to assumed RSS sigma |
+| `pattern_recognition_positioning.png` | `example_pattern_recognition.py` | Regression view: train/test predictions, error distribution, and overfit/generalization gap |
 | `comparison_all_methods.png` | `example_comparison.py` | 9-panel comprehensive comparison: RMSE by noise, error CDF, speed, box plots, robustness, trade-offs, category analysis, median/P90, radar chart |
 | `classification_noise_robustness.png` | `example_classification.py` | Noise robustness comparison: Random Forest vs SVM vs k-NN performance as measurement noise increases |
 | `hierarchical_localization.png` | `example_classification.py` | 4-panel hierarchical evaluation: error CDF, box plots, RMSE bars, floor classification accuracy |

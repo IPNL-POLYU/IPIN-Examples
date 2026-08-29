@@ -21,6 +21,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
+from typing import NamedTuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -34,7 +35,6 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.eval import resolve_figs_dir, save_figure, show_figures_if_requested
 from core.sensors import (
-    detect_floor_change,
     mag_heading,
     pressure_to_altitude,
     smooth_measurement_simple,
@@ -44,6 +44,41 @@ from core.sensors import (
 # Seed for this example's random walk and sensor noise. Fixed so the
 # committed figures can be regenerated exactly.
 DEFAULT_SEED = 42
+
+
+class BuildingWalk(NamedTuple):
+    """Indoor building walk truth with ideal environmental sensor signals."""
+
+    timestamps_s: np.ndarray
+    true_positions_map_m: np.ndarray
+    true_attitudes_rpy_rad: np.ndarray
+    true_magnetic_field_body: np.ndarray
+    true_pressure_pa: np.ndarray
+    true_floor_ids: np.ndarray
+
+    @property
+    def t(self) -> np.ndarray:
+        return self.timestamps_s
+
+    @property
+    def pos_true(self) -> np.ndarray:
+        return self.true_positions_map_m
+
+    @property
+    def att_true(self) -> np.ndarray:
+        return self.true_attitudes_rpy_rad
+
+    @property
+    def mag_true(self) -> np.ndarray:
+        return self.true_magnetic_field_body
+
+    @property
+    def pressure_true(self) -> np.ndarray:
+        return self.true_pressure_pa
+
+    @property
+    def floor_true(self) -> np.ndarray:
+        return self.true_floor_ids
 
 
 def generate_building_walk(duration=180.0, dt=0.1, rng=None):
@@ -57,7 +92,10 @@ def generate_building_walk(duration=180.0, dt=0.1, rng=None):
             the sensor noise so the two draw from a single seeded stream rather
             than two identical ones; defaults to a fresh seeded generator.
 
-    Returns: t, pos_true, att_true, mag_true, pressure_true, floor_true
+    Returns:
+        BuildingWalk with semantic fields and tuple-compatible order:
+        timestamps_s, true_positions_map_m, true_attitudes_rpy_rad,
+        true_magnetic_field_body, true_pressure_pa, true_floor_ids.
     """
     if rng is None:
         rng = np.random.default_rng(DEFAULT_SEED)
@@ -144,7 +182,14 @@ def generate_building_walk(duration=180.0, dt=0.1, rng=None):
         R_gas = 8.314  # Gas constant [J/(mol·K)]
         pressure_true[k] = p0 * (1 - L * h / T) ** (g * M / (R_gas * L))
 
-    return t, pos_true, att_true, mag_true, pressure_true, floor_true
+    return BuildingWalk(
+        timestamps_s=t,
+        true_positions_map_m=pos_true,
+        true_attitudes_rpy_rad=att_true,
+        true_magnetic_field_body=mag_true,
+        true_pressure_pa=pressure_true,
+        true_floor_ids=floor_true,
+    )
 
 
 def add_env_sensor_noise(mag_true, pressure_true, t, dt, rng=None):
@@ -378,7 +423,7 @@ def main():
     print("\nComputing magnetometer heading...")
     start = time.time()
     heading_est = run_mag_heading(t, mag_meas, att_true)
-    print(f"  Time: {time.time()-start:.3f} s")
+    print(f"  Time: {time.time() - start:.3f} s")
 
     print("\nComputing barometric altitude...")
     start = time.time()
@@ -392,17 +437,18 @@ def main():
             alt_smooth[k - 1], alt_est[k], alpha=0.1
         )
 
-    # Detect floor changes
-    floor_detected = np.zeros_like(floor_true)
-    current_floor = 0
-    for k in range(1, len(t)):
-        delta_floor = detect_floor_change(
-            alt_smooth[k - 1], alt_smooth[k], floor_height=3.5, threshold=1.5
-        )
-        current_floor += delta_floor
-        floor_detected[k] = max(0, min(2, current_floor))  # Clamp to [0, 2]
+    # Detect floors from absolute altitude relative to the known start floor.
+    # The simple detect_floor_change() helper is still useful for two-sample
+    # step changes, but applying it to adjacent smoothed samples here misses
+    # most floor transitions: smoothing deliberately spreads a 3.5 m step over
+    # many samples, so no individual sample crosses the 1.5 m threshold. For a
+    # barometer demo with a known starting floor, the readable baseline is:
+    # altitude / floor_height -> nearest integer floor, then clamp to building.
+    floor_height = 3.5
+    floor_detected = np.rint(alt_smooth / floor_height).astype(int)
+    floor_detected = np.clip(floor_detected, 0, 2)
 
-    print(f"  Time: {time.time()-start:.3f} s")
+    print(f"  Time: {time.time() - start:.3f} s")
 
     figs_dir = Path(__file__).parent / "figs"
     figs_dir.mkdir(exist_ok=True)

@@ -53,7 +53,7 @@ from core.estimators import (
     levenberg_marquardt,
     linear_least_squares,
     robust_gauss_newton,
-    weighted_least_squares,
+    solve_weighted_least_squares,
 )
 from core.eval import save_figure, show_figures_if_requested
 
@@ -226,8 +226,12 @@ def example_2_weighted_ls():
     A = jacobian(x0)
 
     # Solve WLS: (A'WA) dx = A'W r
-    dx_wls, P_wls = weighted_least_squares(A, r, W)
-    position_wls = x0 + dx_wls
+    wls_result = solve_weighted_least_squares(
+        design_matrix=A,
+        observations=r,
+        weight_matrix=W,
+    )
+    position_wls = x0 + wls_result.estimated_state
 
     # Compare with standard LS (ignoring weights)
     dx_ls, P_ls = linear_least_squares(A, r)
@@ -240,7 +244,7 @@ def example_2_weighted_ls():
     print(f"\nTrue position:      {true_position}")
     print(f"WLS estimate:       {position_wls} (error: {error_wls:.4f} m)")
     print(f"LS estimate:        {position_ls} (error: {error_ls:.4f} m)")
-    print(f"\nWLS covariance trace: {np.trace(P_wls):.6f}")
+    print(f"\nWLS covariance trace: " f"{np.trace(wls_result.state_covariance):.6f}")
     print(f"LS covariance trace:  {np.trace(P_ls):.6f}")
     # One draw, so labelled as one. This line used to print the same quantity
     # as "Improvement: 36.7%", which reads as a property of weighting and is
@@ -263,7 +267,7 @@ def example_2_weighted_ls():
     print("  and worse than plain LS on ~28% of them. A single draw cannot tell")
     print("  you which of those you are looking at.")
 
-    return position_wls, P_wls
+    return position_wls, wls_result.state_covariance
 
 
 def example_3_gauss_newton():
