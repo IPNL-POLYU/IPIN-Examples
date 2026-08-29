@@ -31,8 +31,8 @@ SLAM addresses the chicken-and-egg problem:
 | **3. Back-End** | Pose graph optimization with loop constraints |
 
 **Performance (Inline Mode - Square Trajectory, 3 laps):**
-- Front-end: ~36% RMSE improvement (local correction via scan-to-map ICP)
-- Full pipeline: ~63% RMSE improvement (with loop closure constraints)
+- Front-end: ~37% RMSE improvement (local correction via scan-to-map ICP)
+- Full pipeline: ~64% RMSE improvement (with loop closure constraints)
 
 ✅ **Key Features:**
 - **Observation-driven**: All constraints come from sensor measurements (odometry + LiDAR scans)
@@ -257,7 +257,7 @@ for i, (odom_delta, scan) in enumerate(zip(odometry, scans)):
     result["correction_magnitude"]  # |pose_est - pose_pred|
 ```
 
-**Performance:** Typical improvement of 36% over raw odometry (local alignment only)
+**Performance:** Typical improvement of 37% over raw odometry (local alignment only)
 
 #### 2. Loop Closure Detection: LoopClosureDetector2D (`core/slam/loop_closure_2d.py`)
 
@@ -324,7 +324,7 @@ graph = create_pose_graph(
 optimized_vars, history = graph.optimize(method="gauss_newton")
 ```
 
-**Performance:** Inline mode achieves ~63% RMSE improvement with observation-based loop closures
+**Performance:** Inline mode achieves ~64% RMSE improvement with observation-based loop closures
 
 #### 4. Visualization: Map Quality Assessment
 
@@ -427,22 +427,22 @@ Building pose graph...
   Factors: 1 prior + 40 odometry + 1 loop closures
 ...
 Optimizing pose graph...
-  Initial error: 8.350582
-  Final error: 0.003522
+  Initial error: 1087.794404
+  Final error: 0.003599
   Iterations: 3
-  Error reduction: 99.96%
+  Error reduction: 100.00%
 ...
 Results:
   Odometry RMSE: 0.3281 m (baseline)
   Frontend RMSE: 0.3404 m (scan-to-map corrected)
-  Optimized RMSE: 0.2184 m (backend with 1 loop closures)
+  Optimized RMSE: 0.2194 m (backend with 1 loop closures)
   Frontend improvement: -3.74%
-  Full pipeline improvement: +33.44%
-  Final loop closure error: 0.0360 m
+  Full pipeline improvement: +33.13%
+  Final loop closure error: 0.0364 m
 ...
    Building map point clouds...
    Map before (front-end): 537 points
-   Map after (backend):    481 points
+   Map after (backend):    482 points
 ```
 
 </details>
@@ -581,8 +581,8 @@ python -m ch7_slam.example_bundle_adjustment --animate
 | Stage | RMSE | Improvement | Notes |
 |-------|------|-------------|-------|
 | **Odometry** (baseline) | 0.85 m | - | Raw sensor integration with drift |
-| **Front-end** (local) | 0.54 m | **+36%** | Scan-to-map ICP correction |
-| **Full Pipeline** (global) | 0.31 m | **+63%** | With 5 loop closures |
+| **Front-end** (local) | 0.53 m | **+37%** | Scan-to-map ICP correction |
+| **Full Pipeline** (global) | 0.30 m | **+64%** | With 147 loop closures |
 
 **Key Insights:**
 - **Trajectory:** Square 8m x 8m loop with 3 laps (145 poses)
@@ -599,7 +599,7 @@ python -m ch7_slam.example_bundle_adjustment --animate
 - **Prediction**: Integrate odometry deltas using SE(2) composition
 - **Correction**: ICP scan-to-map alignment for drift reduction
 - **Map Update**: Accumulate scans into local submap with voxel downsampling
-- **Performance**: ~36% local improvement over raw odometry
+- **Performance**: ~37% local improvement over raw odometry
 
 **2. Loop Closure: Observation-Based Detection**
 - **Descriptor**: Range histogram (rotation-invariant, fast computation)
@@ -611,7 +611,7 @@ python -m ch7_slam.example_bundle_adjustment --animate
 - **Structure**: Sparse factor graph with poses as variables
 - **Factors**: Prior (anchor) + odometry (sequential) + loop closure (long-range)
 - **Solver**: Gauss-Newton with sparse Cholesky factorization
-- **Performance**: ~63% total improvement (front-end: 36%, backend adds ~27%)
+- **Performance**: ~64% total improvement (front-end: 37%, backend adds ~27%)
 
 **4. Visualization: Map Quality Assessment**
 - **Before**: Map from odometry poses (shows drift/misalignment)
