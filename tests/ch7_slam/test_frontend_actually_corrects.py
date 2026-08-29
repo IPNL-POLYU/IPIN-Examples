@@ -31,7 +31,7 @@ the 0.85 m odometry baseline it started from. The two populations separate
 cleanly -- correct closures top out at 0.054 m RMS, wrong ones start at
 0.150 m -- so 0.10 takes all 147 correct closures and no wrong ones.
 
-  odometry 0.8488 m -> front-end 0.5344 m (+37.0%) -> optimised 0.3045 m (+64.1%)
+  odometry 0.8488 m -> front-end 0.5344 m (+37.0%) -> optimised 0.3033 m (+64.3%)
 
 Author: Li-Ta Hsu
 References: Chapter 7, Section 7.3 (scan matching), Section 7.5 (pose graph)
