@@ -174,12 +174,12 @@ Each chapter example folder has scripts that can load from these datasets. Use `
 
 ### Chapter 4: RF Point Positioning
 
-| Dataset | Geometry | GDOP TOA | GDOP TDOA | GDOP AOA | Key Learning | Documentation |
+| Dataset | Geometry | GDOP TOA | GDOP TDOA | AOA sens. (m/rad) | Key Learning | Documentation |
 |---------|----------|----------|-----------|----------|--------------|---------------|
-| `ch4_rf_2d_square/` | Square, 4 corners | 1.022 | 0.873 | 15.041 | Good geometry fundamentals | [README](ch4_rf_2d_square/README.md) |
-| `ch4_rf_2d_optimal/` | Circle, radius 10 m | 1.019 | 1.089 | 11.535 | **Barely differs from the square for TOA, and is worse for TDOA** | [README](ch4_rf_2d_optimal/README.md) |
-| `ch4_rf_2d_linear/` | Collinear array | 1.426 | 10.355 | 9.253 | **TDOA degrades 12x; TOA barely moves** | [README](ch4_rf_2d_linear/README.md) |
-| `ch4_rf_2d_nlos/` | Square + 0.8 m bias on 2 of 4 | 1.022 | 0.873 | 15.041 | GDOP is blind to bias | [README](ch4_rf_2d_nlos/README.md) |
+| `ch4_rf_2d_square/` | Square, 4 corners | 1.022 | 1.067 | 15.041 | Good geometry fundamentals | [README](ch4_rf_2d_square/README.md) |
+| `ch4_rf_2d_optimal/` | Circle, radius 10 m | 1.019 | 1.338 | 11.535 | **Barely differs from the square for TOA, and is worse for TDOA** | [README](ch4_rf_2d_optimal/README.md) |
+| `ch4_rf_2d_linear/` | Collinear array | 1.426 | 11.948 | 9.253 | **TDOA degrades 12x; TOA barely moves** | [README](ch4_rf_2d_linear/README.md) |
+| `ch4_rf_2d_nlos/` | Square + 0.8 m / 18 deg NLOS on 2 of 4 | 1.022 | 1.067 | 15.041 | GDOP is blind to bias | [README](ch4_rf_2d_nlos/README.md) |
 
 Mean over the 100 shipped query points, measured from the `gdop_*.txt` files.
 A single "mean GDOP" column used to sit here, which cannot be right: the three

@@ -141,6 +141,26 @@ def compute_geometry_matrix(
     elif measurement_type == "aoa":
         # AOA geometry (azimuth only): linearized tan(psi) Jacobian (Eq. 4.72-4.73)
         # For DOP purposes, we use simplified 2D bearing geometry
+        #
+        # **These rows carry units, and the TOA and TDOA rows above do not.**
+        # A row here is [-dy/d^2, dx/d^2] = (1/d) x (unit vector perpendicular
+        # to the line of sight), so it is in 1/m where the TOA rows are a bare
+        # direction cosine. Everything downstream inherits that: Q = (H^T H)^-1
+        # is in m^2 and `compute_dop(H)["GDOP"]` is **metres per radian**, a
+        # sensitivity rather than a dilution factor.
+        #
+        # The arithmetic is right and the *name* is the trap. Chapter 4's
+        # `config.json` used to list this under `dop.aoa` next to a
+        # dimensionless `dop.toa`, so a reader comparing 15.04 against 1.02
+        # concluded the array was 15x worse for bearings -- a ratio of two
+        # different quantities. What the number supports is
+        # 15.04 m/rad x 2 deg = 0.525 m, which is the AOA error that dataset
+        # measures. It is `aoa_sensitivity_m_per_rad` there now.
+        #
+        # To get something comparable to a TOA GDOP, divide by a reference
+        # distance and say which one: each row being (1/d) times a unit vector
+        # means the sensitivity is d times a pure geometry factor when the
+        # anchors share a range.
         H = np.zeros((n_anchors, dim))
         for i in range(n_anchors):
             dx = position[0] - anchors[i, 0]
@@ -182,6 +202,17 @@ def compute_dop(
         σ_position = DOP × σ_measurement    (Eq. 4.107)
 
     For example, if HDOP=1.5 and σ_range=0.3m, then σ_horizontal=0.45m.
+
+    **The returned numbers are dimensionless only for range-like measurements.**
+    Eq. (4.107) carries the units of σ_measurement through, so what comes back
+    is really "position error per unit of measurement error". For TOA and TDOA
+    the measurement is a length and the ratio is a pure number, which is what
+    "dilution of precision" means. For an **AOA** H from
+    :func:`compute_geometry_matrix` the measurement is an *angle*: the rows are
+    in 1/m, and GDOP comes back in **metres per radian**. It is a sensitivity,
+    not a dilution factor, and it must not be tabulated beside a TOA GDOP
+    without saying so -- 15.04 m/rad and 1.02 are not comparable numbers.
+    Divide by a stated reference distance if you need the dimensionless form.
 
     Args:
         geometry_matrix: Geometry matrix H, shape (N, d).

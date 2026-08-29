@@ -161,9 +161,35 @@ def _predicted_tdoa(beacons, positions, config):
     return geometric + bias
 
 
-def _predicted_aoa(beacons, positions):
-    """psi measured from the agent toward each anchor, Eq. (4.64)."""
-    return np.array([[aoa_azimuth(b, p) for b in beacons] for p in positions])
+def _predicted_aoa(beacons, positions, config):
+    """psi measured from the agent toward each anchor, Eq. (4.64).
+
+    **Plus the NLOS bearing bias the config declares**, for the same reason
+    `_predicted_toa` models the range bias: an undeclared per-beacon offset is
+    exactly what this file exists to catch, so a *declared* one has to be in
+    the prediction or the guard fires on the dataset's own design.
+
+    This arm used to take no config at all, because NLOS reached only the
+    ranges. `aoa_angles.txt` was byte-identical between `ch4_rf_2d_square` and
+    `ch4_rf_2d_nlos` while `toa_ranges.txt` and `tdoa_diffs.txt` both differed
+    -- so Chapter 4's NLOS experiment taught that bearings are immune to a
+    blocked direct path, which is the opposite of the truth. The generator now
+    rotates the azimuth of each blocked beacon by `nlos.bias_deg`, and this
+    test went red on `ch4_rf_2d_nlos` at 8.9 sigma the moment it did, which is
+    the correct reading for an 18 deg offset against 2 deg of noise. The fix
+    is to model the bias the config declares, never to widen the gate.
+
+    Beacons the config does not name are untouched, so the three datasets with
+    `nlos.enabled = false` predict exactly what they predicted before.
+    """
+    angles = np.array([[aoa_azimuth(b, p) for b in beacons] for p in positions])
+    nlos = config.get("nlos", {})
+    if nlos.get("enabled"):
+        # `.get` with a default, so a config predating this key still reads as
+        # "no bearing bias" rather than raising.
+        for j in nlos["beacon_indices"]:
+            angles[:, j] += np.deg2rad(nlos.get("bias_deg", 0.0))
+    return angles
 
 
 @pytest.mark.parametrize("dataset", DATASETS)
@@ -217,7 +243,8 @@ def test_aoa_angles_are_measured_from_the_agent_toward_the_anchor(dataset):
     data = _load(dataset)
     sigma_deg = data["config"]["measurements"]["aoa_noise_std_deg"]
     residual = angle_diff(
-        data["aoa"], _predicted_aoa(data["beacons"], data["positions"])
+        data["aoa"],
+        _predicted_aoa(data["beacons"], data["positions"], data["config"]),
     )
     worst = _worst_column(residual)
     assert worst < TOLERANCE_SIGMA * np.deg2rad(sigma_deg), (
@@ -343,5 +370,5 @@ def _residual(data, arm, observed):
     if arm == "tdoa":
         predicted = _predicted_tdoa(data["beacons"], data["positions"], data["config"])
         return _worst_column(observed - predicted)
-    predicted = _predicted_aoa(data["beacons"], data["positions"])
+    predicted = _predicted_aoa(data["beacons"], data["positions"], data["config"])
     return _worst_column(angle_diff(observed, predicted))

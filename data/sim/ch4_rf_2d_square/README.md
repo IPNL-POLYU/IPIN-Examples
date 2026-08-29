@@ -42,12 +42,12 @@ This dataset demonstrates **RF (Radio Frequency) positioning using TOA, TDOA, an
 
 ## Dataset Variants
 
-| Variant | Directory | Geometry | Mean GDOP: TOA / TDOA / AOA | Description |
+| Variant | Directory | Geometry | Mean TOA / TDOA GDOP / AOA sens. (m/rad) | Description |
 |---------|-----------|----------|-----------------------------|-------------|
 | **Baseline** | `ch4_rf_2d_square` | Square (4 corners) | 1.02 / 1.07 / 15.04 | Good geometry, low GDOP |
-| **Optimal** | `ch4_rf_2d_optimal` | Diamond (evenly spaced) | 1.02 / 1.34 / 11.54 | Best AOA geometry |
-| **Poor** | `ch4_rf_2d_linear` | Linear array | 1.43 / 11.95 / 9.25 | Poor for TDOA — see its README |
-| **NLOS** | `ch4_rf_2d_nlos` | Square + NLOS bias | 1.02 / 1.07 / 15.04 | Good geometry but measurement bias |
+| **Optimal** | `ch4_rf_2d_optimal` | Diamond (evenly spaced) | 1.02 / 1.34 / 11.54 | Lowest AOA sensitivity, because its beacons are closer |
+| **Poor** | `ch4_rf_2d_linear` | Linear array | 1.43 / 11.95 / 9.25 | Poor for TDOA — see its README. Its low AOA figure is lever arm, not geometry: dimensionless it is the worst of the three |
+| **NLOS** | `ch4_rf_2d_nlos` | Square + NLOS (0.8 m, 18 deg) | 1.02 / 1.07 / 15.04 | Good geometry but measurement bias, on range *and* bearing |
 
 DOP is reported per method because it differs by an order of magnitude between
 them, and the "poor" variant is the case in point: its TOA GDOP of 1.43 is
@@ -79,7 +79,7 @@ python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset nlos
 ### DOP Metrics
 - `gdop_toa.txt`: GDOP values for TOA [N×1]
 - `gdop_tdoa.txt`: GDOP values for TDOA [N×1]
-- `gdop_aoa.txt`: GDOP values for AOA [N×1]
+- `gdop_aoa.txt`: AOA sensitivity, metres per radian, [N×1] (not a dimensionless GDOP)
 
 ### Configuration
 - `config.json`: All dataset parameters and performance metrics
@@ -453,11 +453,11 @@ python scripts/generate_ch4_rf_2d_positioning_dataset.py --output data/sim/ch4_a
 
 **Expected Results**, per method, because no geometry wins every column:
 
-| Geometry | TOA GDOP / error | TDOA GDOP / error | AOA GDOP / error |
+| Geometry | TOA GDOP / error | TDOA GDOP / error | AOA sens. (m/rad) / error |
 |---|---|---|---|
 | Square | **1.02** / 0.088 m | 1.07 / 0.092 m | 15.04 / 0.397 m |
 | Optimal | 1.02 / 0.079 m | 1.34 / 0.121 m | 11.54 / 0.273 m |
-| Collinear | 1.43 / 6.770 m [100 failed] | 11.95 / 6.770 m [100 failed] | **9.25** / 0.262 m [8] |
+| Collinear | 1.43 / 6.770 m [100 failed] | 11.95 / 6.770 m [100 failed] | 9.25 / 0.262 m [8] |
 
 Three things in that table are worth pausing on, and none of them is "optimal
 is best":
@@ -553,9 +553,9 @@ landed more than 100 m away.
 | **Mean over solved** | 0.09m | 0.10m | 0.46m | TOA best, as its GDOP says |
 | **Max over solved** | 0.23m | 0.24m | 1.30m | |
 | **Failed to solve** | **0/100** | **0/100** | **0/100** | every fix solves on this array |
-| **Mean GDOP** | 1.02 | 1.07 | 15.04 | TOA/TDOA similar |
-| **Min GDOP** | 1.00 | 1.00 | 13.84 | Center of area |
-| **Max GDOP** | 1.09 | 1.14 | 16.74 | Near edges |
+| **Mean GDOP** | 1.02 | 1.07 | 15.04 m/rad | AOA column is a sensitivity, not a DOP |
+| **Min GDOP** | 1.00 | 1.00 | 13.84 m/rad | Center of area |
+| **Max GDOP** | 1.09 | 1.14 | 16.74 m/rad | Near edges |
 
 The median and the failure count are reported rather than a mean, because a
 single solve that "converges" to somewhere absurd makes a mean a property of
