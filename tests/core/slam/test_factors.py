@@ -465,6 +465,104 @@ class TestPoseGraphCreation:
         assert abs(optimized[2][1]) < 0.05
 
 
+class TestPoseGraphPerEdgeLoopInformation:
+    """create_pose_graph must apply one information matrix per loop closure.
+
+    Regression coverage for an audit finding in
+    ch7_slam/example_pose_graph_slam.py: two call sites built a per-edge
+    list of loop-closure information matrices from each closure's own ICP
+    covariance and then discarded it -- one used only the first edge's
+    matrix for all closures, the other overwrote the list with a single
+    hardcoded matrix. Neither was reachable from create_pose_graph itself,
+    because its ``loop_information`` parameter only ever accepted one
+    matrix for every closure. This class tests the widened API directly.
+    """
+
+    def test_confident_closure_outweighs_marginal_one(self):
+        """Two closures disagree on where pose 1 is; the graph must side
+        with the tightly-constrained (confident) one, not the loose one."""
+        poses = [
+            np.array([0.0, 0.0, 0.0]),
+            np.array([0.5, 0.5, 0.0]),  # initial guess, between both claims
+        ]
+        odometry = []  # no odometry backbone -- isolate loop-closure weighting
+
+        # Both closures constrain the SAME pair (0 -> 1) but disagree on x:
+        # confident says x=0.0 (sigma=0.01 m), marginal says x=2.0 (sigma=100 m).
+        loop_closures = [
+            (0, 1, np.array([0.0, 0.0, 0.0])),
+            (0, 1, np.array([2.0, 0.0, 0.0])),
+        ]
+        confident_info = np.linalg.inv(np.diag([1e-4, 1e-4, 1e-4]))
+        marginal_info = np.linalg.inv(np.diag([1e4, 1e4, 1e4]))
+
+        graph = create_pose_graph(
+            poses,
+            odometry,
+            loop_closures=loop_closures,
+            loop_information=[confident_info, marginal_info],
+            prior_information=np.diag([1e6, 1e6, 1e6]),
+        )
+        optimized, _ = graph.optimize(max_iterations=20)
+
+        # Pulled to the confident measurement (x=0.0), nowhere near the
+        # marginal one (x=2.0) or the unweighted average of the two (x=1.0).
+        assert abs(optimized[1][0] - 0.0) < 0.01
+        assert abs(optimized[1][0] - 2.0) > 1.0
+
+    def test_a_single_shared_matrix_loses_the_distinction(self):
+        """Guard-the-guard, and the mutation used to validate the test above.
+
+        Same scenario, but both closures are given the SAME information
+        matrix (the marginal edge's) -- the shape create_pose_graph fell
+        back to before ``loop_information`` accepted a per-edge sequence,
+        and the shape site A's ``loop_info_matrices[0]`` selection would
+        produce if the confident edge were not first. With equal weight on
+        both edges the least-squares solution is pulled to the unweighted
+        average (x=1.0), not to the confident edge's measurement (x=0.0) --
+        proving the assertions above actually exercise per-edge weighting
+        rather than passing regardless of what loop_information contains.
+        """
+        poses = [
+            np.array([0.0, 0.0, 0.0]),
+            np.array([0.5, 0.5, 0.0]),
+        ]
+        odometry = []
+        loop_closures = [
+            (0, 1, np.array([0.0, 0.0, 0.0])),
+            (0, 1, np.array([2.0, 0.0, 0.0])),
+        ]
+        marginal_info = np.linalg.inv(np.diag([1e4, 1e4, 1e4]))
+
+        graph = create_pose_graph(
+            poses,
+            odometry,
+            loop_closures=loop_closures,
+            loop_information=marginal_info,  # single matrix, both edges equal
+            prior_information=np.diag([1e6, 1e6, 1e6]),
+        )
+        optimized, _ = graph.optimize(max_iterations=20)
+
+        assert abs(optimized[1][0] - 1.0) < 0.05
+        assert abs(optimized[1][0] - 0.0) > 0.5
+
+    def test_per_edge_length_mismatch_raises(self):
+        """A per-edge sequence must have exactly one entry per closure."""
+        poses = [np.array([0.0, 0.0, 0.0]), np.array([1.0, 0.0, 0.0])]
+        loop_closures = [
+            (0, 1, np.array([1.0, 0.0, 0.0])),
+            (0, 1, np.array([1.0, 0.0, 0.0])),
+        ]
+
+        with np.testing.assert_raises(ValueError):
+            create_pose_graph(
+                poses,
+                [],
+                loop_closures=loop_closures,
+                loop_information=[np.eye(3)],  # only 1 matrix for 2 closures
+            )
+
+
 class TestIntegration:
     """Integration tests combining multiple factor types."""
 
