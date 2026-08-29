@@ -38,7 +38,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from core.sensors import (
     mag_heading,
     pressure_to_altitude,
-    detect_floor_change,
     smooth_measurement_simple,
     wrap_angle_diff,
 )
@@ -602,18 +601,20 @@ def generate_dataset(
     mean_altitude_error = np.mean(altitude_error)
     max_altitude_error = np.max(altitude_error)
 
-    # Detect floor changes
-    floor_detected = np.zeros_like(floor_true)
-    current_floor = 0
-    for k in range(1, len(t)):
-        delta_floor = detect_floor_change(
-            altitude_smooth[k - 1],
-            altitude_smooth[k],
-            floor_height=floor_height,
-            threshold=1.5,
-        )
-        current_floor += delta_floor
-        floor_detected[k] = max(0, min(2, current_floor))
+    # Detect floors from absolute smoothed altitude, not from a two-sample
+    # delta. The previous form called detect_floor_change() on adjacent
+    # altitude_smooth samples, but the alpha=0.1 exponential smoother spreads
+    # a floor_height step over dozens of samples, so no single-sample delta
+    # ever approached the 1.5 m threshold: floor_detected stayed 0 for the
+    # entire walk, and floor_detection_accuracy silently scored the base rate
+    # of floor 0 (50.0%, coincidentally matching floor 0's 50.0% share of
+    # ground_truth_floor exactly). ch6_dead_reckoning/example_environment.py
+    # fixes the same bug the same way: round absolute altitude to the nearest
+    # floor -- altitude 0 is the known starting floor -- then clip to the
+    # building's floor range. This generator already tracks that range as
+    # num_floors, so the clip uses it instead of a hardcoded upper bound.
+    floor_detected = np.rint(altitude_smooth / floor_height).astype(int)
+    floor_detected = np.clip(floor_detected, 0, num_floors - 1)
 
     floor_detection_accuracy = np.mean(floor_detected == floor_true) * 100
 
