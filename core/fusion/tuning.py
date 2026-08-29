@@ -212,10 +212,19 @@ def huber_R_scale(residual: float, delta: float = 1.345) -> float:
         w_R(r) = |r| / δ          if |r| > δ  (outlier: inflate by ratio)
 
     Args:
-        residual: Normalized residual r (e.g., innovation / sqrt(variance)).
-        delta: Huber threshold δ (default 1.345 for 95% efficiency on
-               Gaussian data). Common values: 1.345 (standard), 2.0-3.0
-               (more tolerant).
+        residual: Normalized residual, r = innovation / sigma. **Not an
+            innovation in the measurement's own units** -- delta is compared
+            against it directly, so handing this metres silently disables the
+            function whenever the innovations are smaller than delta. Prefer a
+            *fixed* sigma, normally sqrt(R): sqrt(S) tracks the filter's own
+            confidence, so an over-confident filter shrinks its own scale,
+            inflates R, drifts, and enlarges the next residual. See
+            ch8_sensor_fusion/example_robust_tuning.py, which measures both.
+        delta: Huber threshold δ, in the same units as ``residual`` -- so in
+            multiples of sigma. The default 1.345 gives 95% efficiency on
+            *Gaussian* residuals; a filter whose innovations are heavy-tailed
+            needs a threshold measured against its own clean-data tail, which
+            can be far larger.
 
     Returns:
         Covariance scale factor w_R >= 1.
@@ -264,9 +273,15 @@ def cauchy_R_scale(residual: float, c: float = 2.385) -> float:
         w_R(r) = 1 + (r / c)²
 
     Args:
-        residual: Normalized residual r (e.g., innovation / sqrt(variance)).
-        c: Cauchy scale parameter (default 2.385 for 95% efficiency on
-           Gaussian data). Larger values are more tolerant of outliers.
+        residual: Normalized residual, r = innovation / sigma, exactly as for
+            ``huber_R_scale`` -- read that argument's note, including why a
+            fixed sqrt(R) is preferred over sqrt(S).
+        c: Cauchy scale parameter, in the same units as ``residual`` -- so in
+            multiples of sigma. Larger values are more tolerant of outliers.
+            The default 2.385 gives 95% efficiency on *Gaussian* residuals.
+            Note there is no dead zone here: w_R exceeds 1 for every nonzero
+            residual, so unlike Huber this cannot be made free on clean data,
+            only cheap -- choose c against the clean-data residual tail.
 
     Returns:
         Covariance scale factor w_R >= 1.
