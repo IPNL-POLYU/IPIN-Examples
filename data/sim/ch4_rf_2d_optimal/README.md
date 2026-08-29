@@ -8,19 +8,28 @@ arrangement for the same 20 × 20 m floor used by
 
 **Read the numbers before assuming it wins.** Measured over the same 100 query
 points, this geometry is indistinguishable from the square for TOA and slightly
-*worse* for TDOA:
+*worse* for TDOA — by 25%, not the 25 basis points the TOA column shows:
 
 | Preset | Mean GDOP (TOA) | Mean GDOP (TDOA) | Mean GDOP (AOA) |
 |---|---|---|---|
-| `ch4_rf_2d_square` | 1.022 | 0.873 | 15.041 |
-| **`ch4_rf_2d_optimal`** | **1.019** | **1.089** | **11.535** |
-| `ch4_rf_2d_linear` | 1.426 | 10.355 | 9.253 |
+| `ch4_rf_2d_square` | 1.022 | 1.067 | 15.041 |
+| **`ch4_rf_2d_optimal`** | **1.019** | **1.338** | **11.535** |
+| `ch4_rf_2d_linear` | 1.426 | 11.948 | 9.253 |
 
 That is the lesson this dataset actually teaches, and it is more useful than the
 one its name promises: **a square already achieves near-unity GDOP across its
 own interior, so there is nothing left for a cleverer arrangement to win.** The
 0.3% TOA improvement is noise. Geometry optimisation pays when the geometry is
 *bad* — compare the linear row, where TDOA GDOP is an order of magnitude worse.
+
+**Why TDOA and TOA diverge here while their beacons do not.** TDOA differences
+every range against beacon 0, so the *reference* beacon's line of sight enters
+all three rows of the design matrix and its error is common to all of them
+(rho = 0.5, Eq. 4.42). A circular layout puts the reference on the same circle
+as the rest, which is exactly the arrangement that makes the differenced
+geometry worse-conditioned than the undifferenced one; the square's corner
+reference happens to sit better. Neither number moves TOA, because TOA never
+forms a difference.
 
 ## Scenario Description
 
@@ -124,7 +133,7 @@ print(f"NLOS beacons:  {opt_config['nlos']['beacon_indices'] or 'none'}")
 |---|---|---|
 | `preset` | `optimal` | Beacons on a circle rather than at the corners |
 | `measurements.toa_noise_std_m` | 0.1 | Sets the error floor: `sigma_position = GDOP x sigma_range`, so ~0.10 m here |
-| `measurements.tdoa_noise_std_m` | 0.1 | TDOA differences are correlated through the shared reference beacon |
+| `measurements.tdoa_noise_std_m` | 0.1 | Per-*arrival-time* noise, not per difference: each difference carries two of these errors, so its std is `sqrt(2) x 0.1` and any two differences correlate at rho = 0.5 through the shared reference beacon (Eq. 4.42) |
 | `nlos.beacon_indices` | *(empty)* | No bias. For the biased variant see [`ch4_rf_2d_nlos`](../ch4_rf_2d_nlos/README.md) |
 
 ## Parameter Effects and Learning Experiments
