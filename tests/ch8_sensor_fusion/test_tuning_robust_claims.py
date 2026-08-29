@@ -1,24 +1,42 @@
-"""The tuning demo's gating result is a claim, so it is tested as one.
+"""The tuning demo's results are claims, so they are tested as ones.
 
-Chi-square gating scores ~18 m RMSE against a ~0.7 m baseline in this demo,
-which looks like a bug and is not. The figure and the printed summary now
-explain why; this file pins the explanation, link by link, so that a future
-change to the tuning either keeps the story true or fails here.
+Two separate stories live in this demo and both used to be wrong.
 
-The chain being asserted:
+**The robust losses did nothing.** ``huber_R_scale`` and ``cauchy_R_scale``
+take a residual normalized by sigma, and the demo handed them an innovation in
+metres with a threshold of 1.5. Against innovations whose median was 0.256 m,
+Huber's dead zone covered everything: it fired **once in 2271 updates** and its
+largest inflation was 1.020. The results table read "Huber 0.722" beside
+"Baseline 0.722" and invited the reader to conclude that robustness did not
+help. Nothing had happened at all -- the arithmetic signature CLAUDE.md calls
+out, a stage whose output exactly equals its input.
 
-  1. The dataset really is NLOS-corrupted -- about half the ranges carry a bias
-     an order of magnitude above the 0.05 m the filter is told to expect.
-  2. So the ungated filter is over-confident: its NIS sits far above the
-     chi-square(1) values a consistent filter would produce.
-  3. So a 95% gate rejects most measurements rather than a few outliers.
-  4. So the gated filter starves and diverges, while the robust losses, facing
-     exactly the same mis-specified R, do not.
+**Chi-square gating was blamed on the wrong thing.** The old explanation was
+that R is set from line-of-sight noise while half the NLOS ranges carry a
+bias, so the filter is over-confident and the gate rejects good data. The
+first half is true and the causal claim is not: gating collapses to 24 m on
+the *clean* dataset too, where the ungated NIS median is 0.74 against 0.45 for
+a consistent filter. The driver is the feedback -- a Gaussian gate over
+heavy-tailed innovations rejects several times too many, the starved state
+drifts, and the drift inflates the next innovation.
+
+What is asserted here:
+
+  1. The losses actually fire, and by an amount that varies.
+  2. Sporadic outliers -- an inlier majority, which is what an M-estimator
+     assumes -- are repaired by a clear margin, and by the *median*, which is
+     the statistic that survives a change of outlier draw.
+  3. Robustness is close to free on clean data, which is what pins the choice
+     of threshold: the textbook 1.345 sigma is not, by an order of magnitude.
+  4. Persistent NLOS is not repaired, and the per-anchor bias says why.
+  5. Gating collapses in every scenario including the clean one, so the
+     published explanation cannot be "NLOS causes it".
 
 Author: Li-Ta Hsu
 References: Chapter 8, Section 8.3; Eqs. (8.6), (8.7), (8.9)
 """
 
+import functools
 import unittest
 
 import matplotlib
@@ -27,9 +45,19 @@ matplotlib.use("Agg")  # headless: no display during tests
 
 import numpy as np
 
-from ch8_sensor_fusion.example_tc_fusion import load_fusion_dataset
-from ch8_sensor_fusion.example_robust_tuning import run_fusion_with_strategy
+from ch8_sensor_fusion.example_robust_tuning import (
+    CAUCHY_C_SIGMA,
+    HUBER_DELTA_SIGMA,
+    make_sporadic_outlier_dataset,
+    per_anchor_range_bias,
+    position_errors,
+    run_fusion_with_strategy,
+)
 from core.eval import compute_rmse
+from core.fusion import load_fusion_dataset
+
+LOS_DATASET = "data/sim/ch8_fusion_2d_imu_uwb"
+NLOS_DATASET = "data/sim/ch8_fusion_2d_imu_uwb_nlos"
 
 # The demo's assumed range noise, from run_fusion_with_strategy.
 ASSUMED_RANGE_NOISE_STD = 0.05
@@ -40,93 +68,271 @@ CHI2_1DOF_MEDIAN = 0.4549
 CHI2_1DOF_95 = 3.841
 
 
-def _rmse_against_truth(result, truth):
-    """Horizontal RMSE of an estimate against the truth, at truth samples.
+@functools.cache
+def _dataset(name: str, seed: int = 1):
+    """One loaded (and possibly corrupted) dataset per name, shared."""
+    if name == "los":
+        return load_fusion_dataset(LOS_DATASET)
+    if name == "nlos":
+        return load_fusion_dataset(NLOS_DATASET)
+    if name == "sporadic":
+        return make_sporadic_outlier_dataset(_dataset("los"), seed=seed)
+    raise ValueError(name)
 
-    Norm first, then RMS. Handing the (N, 2) error vectors to compute_rmse
-    averages over 2N components rather than N positions, giving the per-axis
-    RMS -- smaller by exactly sqrt(2), and not what "position RMSE" means.
+
+@functools.cache
+def _run(scenario: str, strategy: str, threshold=None, seed: int = 1):
+    """One fusion run per distinct configuration.
+
+    The whole file is about a dozen runs at a few seconds each, and several
+    tests want the same ones. Memoised on the argument tuple, in the spirit of
+    tests/example_runner.py -- note that functools.cache does not cache exceptions,
+    so nothing here may assert.
     """
-    est = np.asarray(result["x_est"])[:, :2]
-    t_est = np.asarray(result["t"])
-    idx = np.searchsorted(truth["t"], t_est).clip(0, len(truth["t"]) - 1)
-    return float(compute_rmse(np.linalg.norm(est - truth["p_xy"][idx], axis=1)))
+    return run_fusion_with_strategy(
+        _dataset(scenario, seed) if scenario == "sporadic" else _dataset(scenario),
+        strategy=strategy,
+        use_gating=(strategy == "gating"),
+        robust_threshold=threshold,
+    )
 
 
-class TestGatingFailureIsExplained(unittest.TestCase):
-    """Each link in the published explanation, asserted separately."""
+def _errors(scenario: str, strategy: str, threshold=None, seed: int = 1):
+    dataset = _dataset(scenario, seed) if scenario == "sporadic" else _dataset(scenario)
+    return position_errors(_run(scenario, strategy, threshold, seed), dataset["truth"])
 
-    @classmethod
-    def setUpClass(cls):
-        cls.dataset = load_fusion_dataset("data/sim/ch8_fusion_2d_imu_uwb_nlos")
-        cls.truth = cls.dataset["truth"]
-        cls.baseline = run_fusion_with_strategy(cls.dataset, strategy="baseline")
-        cls.gating = run_fusion_with_strategy(
-            cls.dataset, strategy="gating", use_gating=True
-        )
-        cls.huber = run_fusion_with_strategy(cls.dataset, strategy="huber")
 
-    def test_dataset_ranges_are_nlos_corrupted(self):
-        """Link 1: the measurements really are far worse than R claims.
+class TestTheRobustLossesActuallyFire(unittest.TestCase):
+    """Link 1: the stage does something, before anyone asks whether it helps."""
 
-        Without this the rest of the story could be blamed on the filter alone.
+    def test_huber_inflates_on_the_scenario_it_is_for(self):
+        """A constant w_R is the signature of a loss that never engaged.
+
+        This is the assertion the old code could not have passed: with the
+        innovation handed over in metres it returned 1.0 on 2270 of 2271
+        updates, so the set of distinct scale factors had size two and its
+        maximum was 1.020.
         """
-        uwb = self.dataset["uwb"]
-        anchors = np.asarray(self.dataset["uwb_anchors"])
-        idx = np.searchsorted(self.truth["t"], uwb["t"]).clip(
-            0, len(self.truth["t"]) - 1
+        scales = np.asarray(_run("sporadic", "huber")["robust_scales"])
+
+        self.assertGreater(len(np.unique(scales)), 10)
+        self.assertGreater(scales.max(), 2.0)
+        # ...and it is genuinely selective rather than always on: Huber has a
+        # dead zone, so most measurements must come through untouched.
+        self.assertGreater(float(np.mean(scales == 1.0)), 0.8)
+
+    def test_the_residual_handed_to_the_loss_is_normalized(self):
+        """The units, asserted directly rather than inferred from behaviour.
+
+        A normalized residual on clean data has median near 1; an innovation
+        in metres against a 0.05 m sigma has median near 0.05. Two orders of
+        magnitude apart, so this cannot pass for the wrong quantity.
+        """
+        r = np.asarray(_run("los", "baseline")["normalized_residuals"])
+        innovations = np.asarray(_run("los", "baseline")["innovations"])
+
+        self.assertAlmostEqual(
+            float(np.median(r)),
+            float(np.median(innovations)) / ASSUMED_RANGE_NOISE_STD,
+            places=6,
+        )
+        self.assertGreater(float(np.median(r)), 0.3)
+        self.assertLess(float(np.median(r)), 3.0)
+
+
+class TestSporadicOutliersAreRepaired(unittest.TestCase):
+    """Link 2: the case M-estimation is built for, and it must work."""
+
+    def test_both_losses_beat_baseline_by_a_clear_margin(self):
+        baseline = _errors("sporadic", "baseline")
+        for strategy in ("huber", "cauchy"):
+            with self.subTest(strategy=strategy):
+                improved = _errors("sporadic", strategy)
+                self.assertLess(
+                    float(np.median(improved)), 0.6 * float(np.median(baseline))
+                )
+                self.assertLess(compute_rmse(improved), 0.85 * compute_rmse(baseline))
+
+    def test_the_median_gain_survives_a_different_outlier_draw(self):
+        """The reason the demo reports the median and not only the RMSE.
+
+        RMSE here is dominated by the transient after the 57 deg/s turn at
+        t = 52-54 s, where a manoeuvre the process model does not predict
+        looks exactly like an outlier and the losses inflate R too. Measured
+        over five draws the median gain is 57-62% every time while the RMSE
+        gain ranges from +38% to -44%, so an RMSE-only claim here would be a
+        property of seed 1 rather than of the method. Seed 0 is deliberately
+        included: it is the draw where the RMSE claim fails.
+        """
+        for seed in (0, 1, 2):
+            with self.subTest(seed=seed):
+                baseline = np.median(_errors("sporadic", "baseline", seed=seed))
+                huber = np.median(_errors("sporadic", "huber", seed=seed))
+                self.assertLess(float(huber), 0.6 * float(baseline))
+
+    def test_the_scenario_really_does_have_an_inlier_majority(self):
+        """Without this the test above could be passing on a different problem.
+
+        Per anchor the mean range residual stays far below the +3 m bias,
+        because only a twentieth of the ranges carry it -- which is what
+        distinguishes this scenario from the NLOS one.
+        """
+        bias = per_anchor_range_bias(_dataset("sporadic"))
+
+        self.assertTrue(np.all(np.abs(bias) < 0.5))
+        self.assertGreater(_dataset("sporadic")["n_outliers"], 50)
+
+
+class TestRobustnessIsCheapWhenItIsNotNeeded(unittest.TestCase):
+    """Link 3: the constraint that actually pins the thresholds."""
+
+    def test_huber_is_neutral_on_clean_data(self):
+        """delta sits above the clean-data residual maximum, so nothing fires."""
+        baseline = compute_rmse(_errors("los", "baseline"))
+        huber = compute_rmse(_errors("los", "huber"))
+
+        self.assertLess(huber, 1.01 * baseline)
+        self.assertEqual(
+            float(np.max(_run("los", "huber")["robust_scales"])),
+            1.0,
+        )
+
+    def test_cauchy_costs_a_few_percent_and_cannot_cost_nothing(self):
+        """w_R = 1 + (r/c)^2 has no dead zone, so this is structural."""
+        baseline = compute_rmse(_errors("los", "baseline"))
+        cauchy = compute_rmse(_errors("los", "cauchy"))
+
+        self.assertGreater(cauchy, baseline)
+        self.assertLess(cauchy, 1.05 * baseline)
+        self.assertGreater(float(np.min(_run("los", "cauchy")["robust_scales"])), 1.0)
+
+    def test_the_textbook_threshold_would_destroy_the_clean_case(self):
+        """Why delta is 20 sigma and not 1.345, pinned so it cannot drift back.
+
+        1.345 is the 95%-efficiency value for *Gaussian* residuals. These are
+        not Gaussian: on the clean dataset almost a third of the normalized
+        residuals already exceed 1.345, so a textbook threshold fires on a
+        third of a clean run.
+        """
+        r = np.asarray(_run("los", "baseline")["normalized_residuals"])
+        self.assertGreater(float(np.mean(r > 1.345)), 0.2)
+        self.assertLess(float(np.max(r)), HUBER_DELTA_SIGMA)
+
+        baseline = compute_rmse(_errors("los", "baseline"))
+        textbook = compute_rmse(_errors("los", "huber", threshold=1.345))
+        self.assertGreater(textbook, 5 * baseline)
+
+    def test_cauchy_scale_is_chosen_against_the_measured_clean_tail(self):
+        """c = 50 keeps the inflation at the clean 99th percentile under 10%."""
+        r = np.asarray(_run("los", "baseline")["normalized_residuals"])
+        p99 = float(np.percentile(r, 99))
+
+        self.assertLess(1.0 + (p99 / CAUCHY_C_SIGMA) ** 2, 1.10)
+
+
+class TestPersistentNlosIsNotAnOutlierProblem(unittest.TestCase):
+    """Link 4: the honest negative result, and the measurement behind it."""
+
+    def test_half_the_anchors_are_biased_for_the_whole_run(self):
+        """The premise. An M-estimator needs a minority to down-weight."""
+        bias = per_anchor_range_bias(_dataset("nlos"))
+
+        biased = np.abs(bias) > 10 * ASSUMED_RANGE_NOISE_STD
+        self.assertEqual(int(np.sum(biased)), len(bias) // 2)
+
+    def test_neither_loss_recovers_much_of_it(self):
+        """Asserted as a *bound*, so a real repair fails here and is noticed.
+
+        If someone teaches this demo to fix persistent bias -- by augmenting
+        the state with a per-anchor bias, which is the right answer -- this
+        test must go red rather than silently keep passing.
+        """
+        baseline = compute_rmse(_errors("nlos", "baseline"))
+        for strategy in ("huber", "cauchy"):
+            with self.subTest(strategy=strategy):
+                self.assertGreater(
+                    compute_rmse(_errors("nlos", strategy)), 0.9 * baseline
+                )
+
+    def test_the_filter_still_tracks_despite_the_bias(self):
+        """A caveat worth pinning: the position is fine, the covariance is not."""
+        self.assertLess(compute_rmse(_errors("nlos", "baseline")), 2.0)
+
+
+class TestGatingCollapsesEverywhereNotJustUnderNlos(unittest.TestCase):
+    """Link 5: the correction to the published explanation."""
+
+    def test_the_gate_rejects_most_measurements_in_every_scenario(self):
+        for scenario in ("los", "sporadic", "nlos"):
+            with self.subTest(scenario=scenario):
+                history = _run(scenario, "gating")
+                total = history["n_uwb_accepted"] + history["n_uwb_rejected"]
+                self.assertLess(history["n_uwb_accepted"] / total, 0.5)
+
+    def test_it_diverges_on_clean_data_too(self):
+        """The assertion that falsifies "the NLOS bias causes this".
+
+        Nothing in the LOS dataset carries a bias, and gating still scores two
+        orders of magnitude worse than doing nothing.
+        """
+        self.assertGreater(
+            compute_rmse(_errors("los", "gating")),
+            50 * compute_rmse(_errors("los", "baseline")),
+        )
+
+    def test_the_clean_filter_is_only_mildly_inconsistent(self):
+        """So the collapse cannot be explained by the covariance alone.
+
+        On clean data most samples already pass the gate. It is the rejection
+        feedback, not a wildly wrong R, that takes acceptance down to a third.
+        """
+        nis = np.asarray(_run("los", "baseline")["nis"])
+        gating = _run("los", "gating")
+        accepted = gating["n_uwb_accepted"] / (
+            gating["n_uwb_accepted"] + gating["n_uwb_rejected"]
+        )
+
+        would_pass = float(np.mean(nis < CHI2_1DOF_95))
+        self.assertGreater(would_pass, 0.7)
+        self.assertLess(accepted, would_pass / 2)
+
+    def test_the_nlos_filter_really_is_overconfident(self):
+        """Still true, and still worth keeping: NLOS makes it much worse."""
+        nis = np.asarray(_run("nlos", "baseline")["nis"])
+
+        self.assertGreater(np.median(nis), 20 * CHI2_1DOF_MEDIAN)
+        self.assertLess(float(np.mean(nis < CHI2_1DOF_95)), 0.5)
+
+    def test_a_robust_loss_survives_the_same_mis_specified_R(self):
+        """The contrast the figure exists to draw."""
+        baseline = compute_rmse(_errors("nlos", "baseline"))
+
+        self.assertGreater(compute_rmse(_errors("nlos", "gating")), 10 * baseline)
+        self.assertLess(compute_rmse(_errors("nlos", "huber")), 2 * baseline)
+
+
+class TestTheDatasetsAreWhatTheClaimsAssume(unittest.TestCase):
+    """Guard the guard: these tests read shipped bytes, so check them."""
+
+    def test_nlos_ranges_really_are_corrupted(self):
+        dataset = _dataset("nlos")
+        truth = dataset["truth"]
+        anchors = np.asarray(dataset["uwb_anchors"])
+        idx = np.searchsorted(truth["t"], dataset["uwb"]["t"]).clip(
+            0, len(truth["t"]) - 1
         )
         true_range = np.linalg.norm(
-            self.truth["p_xy"][idx][:, None, :] - anchors[None, :, :2], axis=2
+            truth["p_xy"][idx][:, None, :] - anchors[None, :, :2], axis=2
         )
-        error = np.abs(np.asarray(uwb["ranges"]) - true_range)
+        error = np.abs(np.asarray(dataset["uwb"]["ranges"]) - true_range)
         error = error[np.isfinite(error)]
 
-        # A substantial minority sit an order of magnitude above the assumed
-        # noise -- that is what makes this an NLOS dataset.
         fraction_biased = float(np.mean(error > 10 * ASSUMED_RANGE_NOISE_STD))
         self.assertGreater(fraction_biased, 0.2)
 
-    def test_ungated_filter_is_overconfident(self):
-        """Link 2: NIS is far above chi-square(1), with no gate to blame.
-
-        The baseline never rejects anything, so it cannot have been driven off
-        course by its own rejections. Whatever its NIS says is a statement
-        about the covariance, not about a feedback loop.
-        """
-        nis = np.asarray(self.baseline["nis"])
-
-        self.assertGreater(np.median(nis), 20 * CHI2_1DOF_MEDIAN)
-        # ...and most samples would fail the gate the next test applies.
-        self.assertLess(float(np.mean(nis < CHI2_1DOF_95)), 0.5)
-
-    def test_the_gate_rejects_most_measurements_not_a_few_outliers(self):
-        """Link 3: a 95% gate keeping under half its data is not filtering."""
-        accepted = self.gating["n_uwb_accepted"]
-        total = accepted + self.gating["n_uwb_rejected"]
-
-        self.assertLess(accepted / total, 0.5)
-
-    def test_gating_diverges_while_a_robust_loss_survives(self):
-        """Link 4: the contrast the figure exists to draw.
-
-        Both face the same mis-specified R, so the difference is the hard
-        rejection rather than the noise model.
-        """
-        rmse_baseline = _rmse_against_truth(self.baseline, self.truth)
-        rmse_gating = _rmse_against_truth(self.gating, self.truth)
-        rmse_huber = _rmse_against_truth(self.huber, self.truth)
-
-        self.assertGreater(rmse_gating, 10 * rmse_baseline)
-        self.assertLess(rmse_huber, 2 * rmse_baseline)
-
-    def test_baseline_still_tracks_despite_being_overconfident(self):
-        """A caveat worth pinning: the position is fine, the covariance is not.
-
-        Guards against "fixing" the over-confidence by concluding the whole
-        baseline is broken -- it tracks to well under a metre.
-        """
-        self.assertLess(_rmse_against_truth(self.baseline, self.truth), 2.0)
+    def test_the_los_dataset_carries_no_bias_at_all(self):
+        """Otherwise "robustness is free on clean data" is measured on dirt."""
+        self.assertTrue(np.all(np.abs(per_anchor_range_bias(_dataset("los"))) < 0.01))
 
 
 if __name__ == "__main__":

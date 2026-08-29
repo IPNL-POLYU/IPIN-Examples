@@ -324,28 +324,68 @@ python -m ch8_sensor_fusion.example_robust_tuning
 
 <!-- example-output: ch8_sensor_fusion.example_robust_tuning -->
 ```
-Method                        RMSE [m]     Accepted     Rejected
-----------------------------------------------------------------------
-Baseline (no gating)             0.722         2271            0
-Chi-Square Gating               25.664          422         1849
-Huber Loss                       0.722         2271            0
-Cauchy Loss                      0.714         2271            0
-======================================================================
+Scenario   Method               RMSE [m]  Median [m]  Accepted  Rejected
+------------------------------------------------------------------------------
+LOS        Baseline                0.190       0.021      2271         0
+LOS        Chi-square gating      24.227       6.575       750      1521
+LOS        Huber loss              0.190       0.021      2271         0
+LOS        Cauchy loss             0.196       0.021      2271         0
+------------------------------------------------------------------------------
+Sporadic   Baseline                0.362       0.252      2271         0
+Sporadic   Chi-square gating      24.644       7.160       725      1546
+Sporadic   Huber loss              0.225       0.098      2271         0
+Sporadic   Cauchy loss             0.244       0.118      2271         0
+------------------------------------------------------------------------------
+NLOS       Baseline                0.722       0.684      2271         0
+NLOS       Chi-square gating      25.664       8.422       422      1849
+NLOS       Huber loss              0.707       0.683      2271         0
+NLOS       Cauchy loss             0.714       0.686      2271         0
+------------------------------------------------------------------------------
 
 Key Findings:
-  * Best method: Cauchy
-  * Improvement over baseline: 1.1%
+  * Sporadic outliers are what an M-estimator is for. Best method: Huber loss, median
+    error 0.252 m -> 0.098 m, 61% better; RMSE 38% better.
 ...
-  Why chi-square gating collapses here (RMSE 25.66 m):
+  * Persistent NLOS is not an outlier problem. Huber recovers 2.0% and Cauchy 1.1%,
 ```
 
-The 1.1% headline is the honest number and the interesting one is below it: a
-hard chi-square gate makes this dataset **35x worse**, because R is set from
-line-of-sight noise while half the ranges carry an NLOS bias an order of
-magnitude larger. The gate then rejects 81% of measurements, the state drifts,
-and the drift inflates the next innovation. A gate is only as good as the
-covariance it tests against; the robust losses survive the same mis-specified R
-because they scale an outlier down instead of removing it.
+**A robust loss can only be judged against the outlier distribution it was
+designed for**, which is why there are three scenarios rather than one. Huber
+repairs the sporadic case by 61% on the median and costs nothing at all on
+clean data; it recovers 2.0% of the persistent-NLOS case, and that is the
+correct answer rather than a disappointing one. An M-estimator down-weights the
+minority that disagrees with the majority, and this dataset biases *half* the
+anchors for the whole run -- measured per anchor, +0.001, +0.798, +0.799,
++0.001 m. With four anchors in 2D, two consistently biased ranges fix a
+position as firmly as two honest ones, so there is no majority to side with.
+Persistent bias needs a method that can represent it: state augmentation with a
+per-anchor bias term, or NLOS identification, not a reweighting of the residual.
+
+Two details worth reading before copying a threshold out of this demo:
+
+- **The losses take a residual normalized by `sqrt(R)`, not an innovation in
+  metres, and the thresholds are therefore in units of sigma_R.** They are 20
+  and 50, not the textbook 1.345 and 2.385, because these innovations are not
+  Gaussian: on the *clean* dataset `|y|/sigma_R` has a 99th percentile of 14.5
+  and a maximum of 17.2, so a threshold of 1.345 fires on a third of a clean
+  run and scores 2.591 m against a 0.190 m baseline. Run
+  `python -m ch8_sensor_fusion.example_robust_tuning --help` for the full
+  measurement.
+- **RMSE and median disagree on purpose.** The worst samples are the transient
+  after the 57 deg/s turn at t = 52-54 s, where a manoeuvre the process model
+  does not predict looks exactly like an outlier and the robust losses inflate
+  R too. Over five draws of the sporadic scenario the median gain is 57-62%
+  every time while the RMSE gain ranges from +38% to -44%, so the median is the
+  statistic that describes the method.
+
+Chi-square gating scores 24-26 m in **every** scenario, the clean one included,
+where nothing carries a bias at all and 81% of ungated samples already sit
+inside the 3.84 gate. So the NLOS bias is not what breaks it: a Gaussian gate
+over heavy-tailed innovations rejects several times too many, the starved state
+drifts, the drift inflates the next innovation, and the rejection rate runs away
+to 67-81%. A hard gate inherits every error in the covariance it tests against;
+the robust losses survive the same mis-specified R because they scale an outlier
+down instead of removing it.
 
 ### Temporal Calibration Demo
 
@@ -564,7 +604,7 @@ Three synthetic datasets are provided:
 | Example Script | Dataset | Description |
 |----------------|---------|-------------|
 | `example_lc_fusion.py`, `example_tc_fusion.py` | `data/sim/ch8_fusion_2d_imu_uwb/` | Baseline (no bias, no offset) |
-| `example_robust_tuning.py` | `data/sim/ch8_fusion_2d_imu_uwb_nlos/` | NLOS bias on anchors 1,2 |
+| `example_robust_tuning.py` | `data/sim/ch8_fusion_2d_imu_uwb/` and `data/sim/ch8_fusion_2d_imu_uwb_nlos/` | Clean LOS (also the base for the injected sporadic outliers) and persistent NLOS bias on anchors 1,2 |
 | `example_temporal_calibration.py` | `data/sim/ch8_fusion_2d_imu_uwb_timeoffset/` | 50ms offset + 100ppm drift |
 
 **Load dataset manually:**
@@ -661,7 +701,7 @@ flowchart TB
 | `example_comparison` | `core.eval`, `core.fusion` | `ch8_fusion_2d_imu_uwb` |
 | `example_lc_fusion` | `core.eval`, `core.fusion` | `ch8_fusion_2d_imu_uwb` |
 | `example_observability` | `core.estimators`, `core.eval`, `core.fusion` | — |
-| `example_robust_tuning` | `core.estimators`, `core.eval`, `core.fusion`, `core.fusion.tc_models` | `ch8_fusion_2d_imu_uwb_nlos` |
+| `example_robust_tuning` | `core.estimators`, `core.eval`, `core.fusion`, `core.fusion.tc_models` | `ch8_fusion_2d_imu_uwb`, `ch8_fusion_2d_imu_uwb_nlos` |
 | `example_tc_fusion` | `core.eval`, `core.fusion` | `ch8_fusion_2d_imu_uwb` |
 | `example_temporal_calibration` | `core.estimators`, `core.eval`, `core.fusion`, `core.fusion.tc_models` | `ch8_fusion_2d_imu_uwb_timeoffset` |
 
@@ -858,21 +898,38 @@ prints.
 
 **Robust loss functions for outlier handling (Sec. 8.3, Eq. 8.7):**
 
-![Baseline, chi-square gating, Huber and Cauchy on the NLOS dataset](figs/tuning_robust_demo.svg)
+![Baseline, chi-square gating, Huber and Cauchy across three outlier distributions](figs/tuning_robust_demo.svg)
 
-Built by `example_robust_tuning.py` on the NLOS dataset, comparing no gating,
-chi-square gating, Huber and Cauchy.
+Built by `example_robust_tuning.py` across three scenarios -- clean LOS, the
+same data with a +3 m bias on a random 5% of ranges, and the shipped
+persistent-NLOS dataset -- comparing no gating, chi-square gating, Huber and
+Cauchy in each.
 
 **Key Concept (Eq. 8.7):** the robust functions return scale factors
 **w_R >= 1** that inflate R for outliers -- small residual gives w_R around 1,
 large residual gives w_R much greater than 1, reducing influence without
-removing the measurement.
+removing the measurement. They take the residual **normalized by sigma_R**, so
+the thresholds on the figure are in multiples of the range noise.
 
-The figure's point is the failure, not the 1.1% win: hard chi-square gating
-scores 25.66 m against a 0.72 m baseline, because R is set from line-of-sight
-noise while half these ranges carry an NLOS bias an order of magnitude larger.
-The gate rejects 81% of measurements, the state drifts, and the drift inflates
-the next innovation. The robust losses survive the same mis-specified R.
+Three panels carry the argument, and none of them is the trajectory row:
+
+- **The residual survival curve** (middle) is why the thresholds are 20 and 50
+  rather than 1.345 and 2.385. Roughly a third of the *clean* run already lies
+  beyond 1.345 sigma, so the textbook value fires constantly; the sporadic
+  scenario shows its injected outliers as a 5% shelf running out past 60 sigma.
+- **The per-anchor residual** (bottom right) is why the NLOS case cannot be
+  repaired by reweighting: two of four anchors sit at +0.8 m for the whole run,
+  so there is no inlier majority for an M-estimator to side with.
+- **The RMSE panel** (middle left) draws the bar as the RMSE and a black tick
+  as the median, because the two disagree here -- the gap between them is the
+  post-corner transient, and it is the RMSE rather than the method that it
+  describes.
+
+Chi-square gating towers over every scenario at 24-26 m, the clean one
+included. That is the same lesson it always was, with the cause corrected: it
+is not the NLOS bias, since gating collapses identically on data that has none.
+A hard gate inherits every error in the covariance it tests against, and the
+rejection feeds itself. The robust losses survive the same mis-specified R.
 
 ---
 
