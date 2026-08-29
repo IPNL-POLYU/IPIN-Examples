@@ -154,7 +154,7 @@ never left the initial guess, or landed more than 100 m away.
 |--------|-----|------|-----|
 | **Median error** | 6.77m | 6.77m | **0.26m** |
 | **Failed to solve** | **100/100** | **100/100** | **8/100** |
-| **Mean GDOP** | 1.43 | 10.36 | 9.25 |
+| **Mean GDOP** | 1.43 | 11.95 | 9.25 |
 
 The identical 6.77 m median for TOA and TDOA is the tell: it is the distance
 from the centroid to the grid points, i.e. both solvers returned the seed
@@ -206,22 +206,26 @@ for label, guess in [("centroid [10, 10] (on the line)", beacons.mean(axis=0)),
 
 **Expected**: TOA goes from 100/100 failing on the line to 0/100 failing off
 it — its problem is entirely the starting point, not the measurements. TDOA
-goes from 100/100 to 17, and its median stays an order of magnitude worse than
-TOA's (5.13 m against 1.07 m). AOA goes the other way, from 8 failures to 43:
-its own basin is best approached from the middle of the array.
+goes from 100/100 to 19, and its median stays more than twice TOA's (2.45 m
+against 1.07 m). AOA goes the other way, from 8 failures to 43: its own basin
+is best approached from the middle of the array.
 
 So the seed matters most, and the geometry still matters after it. TDOA's GDOP
-here averages 10.36 and reaches 111 near the line, against 1.43 for TOA on the
+here averages 11.95 and reaches 113 near the line, against 1.43 for TOA on the
 same beacons, because differencing collinear ranges leaves very flat
 hyperbolae — and that shows up as the residual gap once the seed is fixed.
 
-> This paragraph used to say "TDOA fails from every starting point tried",
-> which was true of the data it was written against: `tdoa_diffs.txt` shipped
-> negated until the generator's argument order was corrected. Re-measured on
-> the corrected file, TDOA solves 83 of 100 from `[10, 3]`. The claim about
-> flat hyperbolae survives; the claim that nothing solves did not, which is why
-> the loop above now evaluates all three methods rather than describing the
-> third in prose.
+> This paragraph has been wrong twice, in opposite directions, and both times
+> because the data underneath it moved. It first said "TDOA fails from every
+> starting point tried", which was true of a `tdoa_diffs.txt` that shipped
+> *negated*; correcting the generator's argument order made TDOA solve 81 of
+> 100 from `[10, 3]`. It then said the median was 5.13 m, "an order of
+> magnitude worse" than TOA — measured on differences that carried
+> independent noise instead of the shared reference error (Eq. 4.42). With the
+> correlation restored it is 2.45 m against 1.07 m. The claim about flat
+> hyperbolae has survived both corrections; every number attached to it has
+> had to be re-measured. That is the argument for putting all three methods in
+> the loop above rather than describing the third in prose.
 
 ## Comparison to the square variant
 
@@ -230,15 +234,15 @@ hyperbolae — and that shows up as the residual gap once the seed is fixed.
 | TOA failed | 0/100 | 100/100 (from the centroid) |
 | TOA median | 0.09m | 6.77m |
 | TDOA failed | 0/100 | 100/100 |
-| TDOA median | 0.07m | 6.77m |
+| TDOA median | 0.09m | 6.77m |
 | AOA failed | 0/100 | 8/100 |
 | AOA median | 0.40m | 0.26m |
 | TOA mean GDOP | 1.02 | 1.43 |
-| TDOA mean GDOP | 0.87 | 10.36 |
+| TDOA mean GDOP | 1.07 | 11.95 |
 
-TDOA is the sharpest contrast in the table: 0.07 m with no failures on the
+TDOA is the sharpest contrast in the table: 0.09 m with no failures on the
 square array, and nothing at all from the centroid here. Its GDOP moves by a
-factor of twelve between the two geometries where TOA's moves by 1.4, which is
+factor of eleven between the two geometries where TOA's moves by 1.4, which is
 why it is the method this variant exists to break. Note that both columns are
 measured from the beacon centroid, as every `config.json` is — the section
 above shows how much of the collinear column is the seed rather than the
@@ -295,7 +299,7 @@ GDOP aoa :  mean   9.253  min  3.418  max   19.099
 
 | Parameter | Try | What to watch |
 |---|---|---|
-| Beacon layout | `poor_geometry`, `baseline`, `optimal` | TDOA GDOP goes 10.36 -> 0.87. TOA barely moves. **The measurement type decides how much geometry costs you** |
+| Beacon layout | `poor_geometry`, `baseline`, `optimal` | TDOA GDOP goes 11.95 -> 1.07 -> 1.34. TOA barely moves. **The measurement type decides how much geometry costs you** |
 | Beacon spread along the line | widen or narrow | Widening improves DOP *along* the line and does nothing for the reflection. Geometry has two failure modes here and only one responds |
 | Measurement type | TOA, TDOA, AOA | AOA has the best mean GDOP of the four ch4 datasets here (9.25), because a bearing distinguishes the two sides. TDOA has the worst |
 | Add one off-line beacon | move beacon 3 to (10, 2) | The cheapest fix. One measurement off the line collapses the ambiguity |
