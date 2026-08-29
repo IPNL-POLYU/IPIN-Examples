@@ -21,8 +21,20 @@ from .scan_descriptor_2d import (
     compute_descriptor_similarity,
     batch_compute_descriptors,
 )
-from .scan_matching import icp_point_to_point
+from .scan_matching import compute_icp_covariance, icp_point_to_point
 from .se2 import se2_relative
+
+# Floor on the loop-closure covariance's diagonal (m^2 for x/y, rad^2 for
+# yaw). compute_icp_covariance scales sigma as sqrt(residual / N), which is
+# exactly singular at residual == 0 -- a coincidentally perfect match. That
+# is far below anything a genuine match produces: measured 1.6e-6 to 1.8e-6
+# on this module's own square-trajectory dataset (147 closures, ICP residual
+# 0.024-0.054 m over ~360-point scans). This floor sits ~1000x below that, so
+# it only trips on a near-zero residual, not on an ordinarily good match; its
+# job is to stop np.linalg.inv (called by callers building the loop-closure
+# information matrix, e.g. ch7_slam/example_pose_graph_slam.py) from raising
+# on a singular matrix or returning a near-infinite weight for one closure.
+_MIN_LOOP_CLOSURE_VARIANCE = 1e-9
 
 
 @dataclass
@@ -328,7 +340,17 @@ class LoopClosureDetector2D:
         if residual > self.max_icp_residual:
             return None
 
-        # Estimate covariance (simple diagonal, could be improved)
-        covariance = np.diag([0.05, 0.05, 0.01])
+        # Estimate covariance from how well this specific pair actually
+        # matched, so a confident closure (many correspondences, tight
+        # residual) outweighs a marginal one in the backend instead of every
+        # closure being judged identically regardless of match quality.
+        # Same source/target/final_pose convention as the icp_point_to_point
+        # call above: source_scan=scan_j (earlier), target_scan=scan_i
+        # (later), final_pose=rel_pose (the transform ICP found from j to i).
+        covariance = compute_icp_covariance(scan_j, scan_i, rel_pose)
+
+        # See _MIN_LOOP_CLOSURE_VARIANCE above for why this floor exists and
+        # what it does and does not guard against.
+        covariance = np.maximum(covariance, _MIN_LOOP_CLOSURE_VARIANCE * np.eye(3))
 
         return rel_pose, covariance, residual, iters

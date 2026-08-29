@@ -427,22 +427,22 @@ Building pose graph...
   Factors: 1 prior + 40 odometry + 1 loop closures
 ...
 Optimizing pose graph...
-  Initial error: 8.350582
-  Final error: 0.003522
+  Initial error: 1087.794404
+  Final error: 0.003599
   Iterations: 3
-  Error reduction: 99.96%
+  Error reduction: 100.00%
 ...
 Results:
   Odometry RMSE: 0.3281 m (baseline)
   Frontend RMSE: 0.3404 m (scan-to-map corrected)
-  Optimized RMSE: 0.2184 m (backend with 1 loop closures)
+  Optimized RMSE: 0.2194 m (backend with 1 loop closures)
   Frontend improvement: -3.74%
-  Full pipeline improvement: +33.44%
-  Final loop closure error: 0.0360 m
+  Full pipeline improvement: +33.13%
+  Final loop closure error: 0.0364 m
 ...
    Building map point clouds...
    Map before (front-end): 537 points
-   Map after (backend):    481 points
+   Map after (backend):    482 points
 ```
 
 </details>
