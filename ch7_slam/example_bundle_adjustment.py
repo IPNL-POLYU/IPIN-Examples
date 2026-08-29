@@ -75,8 +75,9 @@ def reprojection_residuals_px(graph: FactorGraph, n_reprojection: int) -> np.nda
     Args:
         graph: The bundle-adjustment factor graph.
         n_reprojection: Number of leading factors that are reprojection
-            factors. The gauge prior is appended after them and its residual is
-            in metres, not pixels, so it must not be averaged in here.
+            factors. The two gauge priors are appended after them and their
+            residuals are in metres, not pixels, so they must not be averaged
+            in here.
 
     Returns:
         Array of residual magnitudes in pixels, one per observation.
@@ -658,7 +659,7 @@ def main(animate: bool = False):
         graph.add_variable(n_poses + i, landmark)
 
     # Add reprojection factors for all observations
-    n_factors = 0
+    n_reprojection_factors = 0
     # Inverse covariance for the pixel measurements. Weighting each residual by
     # 1/sigma^2 = 4 is why graph.compute_error() is not in pixels.
     pixel_info = np.eye(2) / (PIXEL_NOISE_STD**2)
@@ -673,19 +674,55 @@ def main(animate: bool = False):
                 information=pixel_info,
             )
             graph.add_factor(factor)
-            n_factors += 1
+            n_reprojection_factors += 1
 
-    # Add weak prior on first pose to prevent gauge freedom
+    # Anchor the coordinate frame with weak position priors on TWO poses, not
+    # one. A single prior pins translation and yaw (3 DOF) but monocular
+    # bundle adjustment has a fourth gauge freedom that one prior cannot
+    # reach: scale. Project a 3D point in camera frame through the pinhole
+    # model, u = fx * X/Z + cx, and the result depends only on the ratios
+    # X/Z, Y/Z -- so scaling every camera translation and every landmark
+    # position by the same factor s about ANY fixed point reprojects
+    # identically for every observation, at every pose, for every s. A prior
+    # on pose 0 alone cannot see this: under a scaling centred on pose 0,
+    # pose 0 does not move, so its own residual stays zero right along with
+    # the reprojection cost. Measured on this exact graph before this fix:
+    # scaling the converged solution by s=1.5 about camera 0 left the total
+    # cost at 52.4811 (identical to s=1) while landmark RMSE rose from
+    # 0.1136 m to 2.9365 m and pose RMSE from 0.1510 m to 3.7002 m -- the
+    # "converged" solve was one arbitrary point on an entire unpenalized
+    # one-parameter family, and the line this comment replaces was wrong.
+    #
+    # A second prior, on a pose OTHER than pose 0, breaks the degeneracy:
+    # that pose does move under the scaling, so its residual grows with s
+    # and the cost is no longer flat. This represents a second absolute
+    # position fix (e.g. GPS/UWB at a second instant), the same kind of
+    # information the existing prior already stands for, not knowledge of
+    # the whole trajectory. The pose diametrically opposite pose 0 gives the
+    # best-conditioned constraint: measured across the 4 candidate poses on
+    # this 8-pose circular trajectory, condition number of the linearized
+    # Hessian drops monotonically with baseline, from cond(H)=6.0e7 at pose 1
+    # (baseline 3.8 m) to cond(H)=5.4e6 at pose 4 (baseline 10.0 m, the
+    # trajectory's diameter), and pose/landmark RMSE improve correspondingly.
     from core.slam.factors import create_prior_factor
 
     prior_info = np.diag([10.0, 10.0, 10.0])  # Weak prior
     prior_factor = create_prior_factor(0, poses_true[0], information=prior_info)
     graph.add_factor(prior_factor)
-    n_factors += 1
+
+    scale_ref_pose_id = n_poses // 2  # pose diametrically opposite pose 0
+    scale_prior_factor = create_prior_factor(
+        scale_ref_pose_id, poses_true[scale_ref_pose_id], information=prior_info
+    )
+    graph.add_factor(scale_prior_factor)
+
+    n_factors = n_reprojection_factors + 2
 
     print(f"   Factor graph: {len(graph.variables)} variables")
     print(f"   Variables: {n_poses} poses + {n_landmarks} landmarks")
-    print(f"   Factors: {n_factors} ({n_factors-1} reprojection + 1 prior)")
+    print(
+        f"   Factors: {n_factors} ({n_reprojection_factors} reprojection + 2 prior)"
+    )
 
     # ------------------------------------------------------------------------
     # 6. Optimize Bundle Adjustment (with state tracking for animation)
@@ -693,7 +730,7 @@ def main(animate: bool = False):
     print("\n6. Running bundle adjustment optimization...")
 
     initial_error = graph.compute_error()
-    initial_px = reprojection_residuals_px(graph, n_factors - 1)
+    initial_px = reprojection_residuals_px(graph, n_reprojection_factors)
     print(f"   Initial cost (weighted sum of squares): {initial_error:.3f}")
     print(
         f"   Initial reprojection error: {rms(initial_px):.1f} px RMS, "
@@ -784,7 +821,7 @@ def main(animate: bool = False):
     optimized_vars = {var_id: var.copy() for var_id, var in graph.variables.items()}
 
     final_error = error_history[-1]
-    final_px = reprojection_residuals_px(graph, n_factors - 1)
+    final_px = reprojection_residuals_px(graph, n_reprojection_factors)
     print(f"   Final cost (weighted sum of squares): {final_error:.3f}")
     print(
         f"   Final reprojection error: {rms(final_px):.2f} px RMS, "
