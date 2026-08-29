@@ -49,8 +49,8 @@ python -m ch5_fingerprinting.example_walk_posterior
 The intuitive animation to reach for is "watch the posterior sharpen as the
 user walks." There is nothing to sharpen. With eight access points over this
 grid the Gaussian Naive-Bayes posterior of Eq. (5.3) is a near-delta
-everywhere — entropy ~0.1 against a maximum of 4.8, peak probability 0.92–1.00.
-It is already as sharp as it gets.
+everywhere — entropy 0.18 against a maximum of 4.80, peak probability
+0.63–1.00 with a median of 0.99. It is already as sharp as it gets.
 
 What *is* dynamic, and specific to fingerprinting, is how that sharp posterior
 **fails**. It does not spread out and hedge under noise; it stays a confident
@@ -63,12 +63,12 @@ Measured over a 21-step L-walk, aliasing jumps beyond 10 m occur:
 | Measurement noise | aliasing jumps | median error | mean error |
 |---|---|---|---|
 | 1 dB | 0 / 21 | 0.0 m | 0.0 m |
-| 3 dB | 0 / 21 | 0.0 m | 0.2 m |
-| 6 dB | **6 / 21** | **0.0 m** | **6.6 m** |
+| 3 dB | 0 / 21 | 0.0 m | 1.4 m |
+| 6 dB | **4 / 21** | **0.0 m** | **6.0 m** |
 
 The last row is the lesson. The MAP estimate is usually exactly right — the
-median stays 0 m — but at six steps it teleports to a radio-similar location up
-to 25 m away, and those few jumps drag the mean to 6.6 m. **A reported mean
+median stays 0 m — but at four steps it teleports to a radio-similar location up
+to 35 m away, and those few jumps drag the mean to 6.0 m. **A reported mean
 error hides the failure completely**; only the walk, or the median-vs-mean gap,
 makes it visible. The animation shows the hot spot tracking the user, then
 leaping across the floor and snapping back.
@@ -80,6 +80,7 @@ leaping across the floor and snapping back.
 | All examples | `data/sim/ch5_wifi_fingerprint_grid/` | Standard 5m grid, 121 RPs (default) |
 | All examples | `data/sim/ch5_wifi_fingerprint_dense/` | Dense 2m grid, 676 RPs (higher accuracy) |
 | All examples | `data/sim/ch5_wifi_fingerprint_sparse/` | Sparse 10m grid, 36 RPs per floor (quick deployment) |
+| `example_comparison.py` | `data/sim/ch5_wifi_fingerprint_multisamples/` | Same building and 5m grid, surveyed 10x per point. The only database here where Eq. (5.6) has a sigma to estimate |
 
 > **Note**: To use a different dataset density, edit the `db_path` variable in the example scripts.
 
@@ -207,12 +208,12 @@ RESULTS SUMMARY
 ======================================================================
 Method                    RMSE (m)     Median (m)   90th % (m)   Time (ms)
 ----------------------------------------------------------------------
-NN (Euclidean)            5.90         3.28         9.74         ~
-NN (Manhattan)            6.46         3.46         10.27        ~
-k-NN (k=3, inv-dist)      4.73         3.24         7.23         ~
-k-NN (k=5, inv-dist)      4.70         3.57         7.24         ~
-k-NN (k=7, inv-dist)      4.83         3.84         7.06         ~
-k-NN (k=5, uniform)       5.08         3.80         7.92         ~
+NN (Euclidean)            3.80         2.52         5.30         ~
+NN (Manhattan)            3.97         2.78         5.45         ~
+k-NN (k=3, inv-dist)      3.26         2.06         4.95         ~
+k-NN (k=5, inv-dist)      3.37         2.41         5.27         ~
+k-NN (k=7, inv-dist)      3.62         2.81         5.72         ~
+k-NN (k=5, uniform)       3.71         2.79         6.01         ~
 ```
 
 **Visual Output:**
@@ -238,17 +239,32 @@ The example runs three noise scenarios; this is the baseline one.
 Baseline:
 Method               Category             RMSE (m)     Median (m)   P90 (m)      Time (ms)
 ------------------------------------------------------------------------------------------
-NN (Euclidean)       Deterministic        10.05        8.22         16.18        ~
-k-NN (k=3)           Deterministic        7.55         6.01         12.05        ~
-MAP                  Probabilistic        10.05        8.22         16.18        ~
-Posterior Mean       Probabilistic        9.22         7.56         15.21        ~
-Post.Mean (k=10)     Probabilistic        9.22         7.56         15.21        ~
-Linear Regression    Pattern Recognition  7.74         6.66         11.83        ~
+NN (Euclidean)       Deterministic        4.32         2.82         6.24         ~
+k-NN (k=3)           Deterministic        3.24         2.36         4.96         ~
+MAP                  Probabilistic        4.32         2.82         6.24         ~
+Posterior Mean       Probabilistic        3.50         2.35         5.18         ~
+Post.Mean (k=10)     Probabilistic        3.50         2.35         5.18         ~
+Linear Regression    Pattern Recognition  6.13         5.22         9.16         ~
 ```
 
-`MAP` and `NN (Euclidean)` agree exactly, and `Post.Mean (k=10)` agrees with
-the full posterior mean, because both pairs select the same reference points on
-this database — the example prints the reasoning under Key Insights.
+`MAP` and `NN (Euclidean)` agree exactly, and `Post.Mean (k=10)` agrees with the
+full posterior mean. Neither is a coincidence and neither is a bug:
+
+- **MAP is 1-NN**, arithmetically, on any single-sample database. There is no
+  second sample to take a standard deviation of, so `fit_gaussian_naive_bayes`
+  uses one σ everywhere, and with a constant σ the Gaussian log-likelihood is
+  `const - ||z - mu_i||² / (2 σ²)` — monotone in Euclidean distance, so its
+  `argmax` is the `argmin` of Eq. (5.1). Ship a survey that visits each point
+  once and Eq. (5.4) cannot tell you anything Eq. (5.1) did not.
+- **The posterior concentrates**, so truncating it to the top 10 changes
+  nothing.
+
+The example measures both, in its **"What a repeat survey buys"** section, using
+`ch5_wifi_fingerprint_multisamples` — the same building and grid, surveyed ten
+times per point instead of once. There the σ is estimated rather than assumed
+and MAP does diverge from 1-NN, on 22% of queries. Whether diverging makes it
+*better* is a separate question the section also answers, and the answer is
+"barely, and only at the right `min_std`".
 
 **Visual Output:**
 
@@ -283,8 +299,8 @@ Test 1: Classification Accuracy
   one per class. This says the models fit; it says nothing about
   how they generalise, and is not a positioning result.
 --- Held-out queries (sigma = 2.0 dBm, n = 200) ---
-  Random Forest: 83.0% (166/200) exact RP
-  SVM:           97.0% (194/200) exact RP
+  Random Forest: 68.0% (136/200) exact RP
+  SVM:           91.0% (182/200) exact RP
   This is the number to compare against other methods.
 ```
 
@@ -293,6 +309,22 @@ numbers are not directly comparable with the tables above — a classifier that
 picks a neighbouring reference point scores 0 here and under a metre there.
 Note also that the 100% training recall is a memorisation check, printed
 precisely so it is not mistaken for a positioning result.
+
+**These two numbers went *down* when the radio map was fixed** — Random Forest
+from 83% to 68%, SVM from 97% to 91% — while every positioning error in the
+tables above roughly halved. Both moved for the same reason, and it is worth
+sitting with:
+
+The map used to redraw shadow fading independently at every reference point, so
+each RP carried a distinctive random vector. Adjacent RPs 5 m apart differed by
+**16.83 dB** in fingerprint space; they now differ by **11.23 dB**, because a
+radio map that is a smooth function of position makes nearby places *look
+alike*. That is harder for a classifier asked to name the exact reference point,
+and easier for anything asked where you are. The old accuracy was measuring how
+scrambled the map was.
+
+So: exact-RP accuracy rewards distinctiveness, and positioning rewards spatial
+structure. A dataset can be made to score well on the first by being wrong.
 
 **Visual Output 1 - Noise Robustness:**
 
@@ -494,7 +526,7 @@ drift from the code.
 
 ```mermaid
 flowchart TB
-    D["<b>optional input</b><br/>data/sim/ch5_wifi_fingerprint_grid<br/><i>every example reads it</i>"]
+    D["<b>optional input</b><br/>data/sim/ch5_wifi_fingerprint_grid<br/>data/sim/ch5_wifi_fingerprint_multisamples<br/><i>every example reads it</i>"]
     E["<b>ch5_fingerprinting/example_*.py</b><br/>6 runnable demos"]
     C["<b>the reusable library</b><br/>core/eval/ · core/fingerprinting/"]
     F["<b>ch5_fingerprinting/figs/</b><br/>svg + pdf + png"]
@@ -506,7 +538,7 @@ flowchart TB
 | Example | Core modules | Optional dataset |
 | --- | --- | --- |
 | `example_classification` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
-| `example_comparison` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
+| `example_comparison` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid`, `ch5_wifi_fingerprint_multisamples` |
 | `example_deterministic` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
 | `example_pattern_recognition` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
 | `example_probabilistic` | `core.eval`, `core.fingerprinting` | `ch5_wifi_fingerprint_grid` |
@@ -551,7 +583,12 @@ data/sim/
 │   ├── locations.npy
 │   ├── floor_ids.npy
 │   └── metadata.json
-└── ch5_wifi_fingerprint_sparse/      # Sparse dataset (10m grid, 36 RPs/floor)
+├── ch5_wifi_fingerprint_sparse/      # Sparse dataset (10m grid, 36 RPs/floor)
+│   ├── features.npy
+│   ├── locations.npy
+│   ├── floor_ids.npy
+│   └── metadata.json
+└── ch5_wifi_fingerprint_multisamples/ # 10 visits per RP, features.npy is (363, 10, 8)
     ├── features.npy
     ├── locations.npy
     ├── floor_ids.npy

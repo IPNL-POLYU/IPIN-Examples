@@ -64,7 +64,18 @@
     "P0_dBm": -30.0,
     "path_loss_exponent": 2.5,
     "shadow_fading_std_dBm": 4.0,
+    "fast_fading_std_dBm": 1.5,
     "floor_attenuation_dB": 15.0
+  },
+  "shadow_field": {
+    "type": "random_fourier_modes",
+    "kernel": "squared_exponential",
+    "sigma_dB": 4.0,
+    "decorrelation_length_m": 8.0,
+    "n_modes": 256,
+    "seed": 42,
+    "n_aps": 8,
+    "n_floors": 3
   },
   "description": "Synthetic Wi-Fi RSS fingerprint database (single-sample)",
   "generation_date": "2024-12-24",

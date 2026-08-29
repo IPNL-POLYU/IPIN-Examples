@@ -62,6 +62,11 @@ from .probabilistic import (
     map_localize,
     posterior_mean_localize,
 )
+from .shadowing import (
+    DEFAULT_DECORRELATION_M,
+    DEFAULT_N_MODES,
+    ShadowingField,
+)
 from .types import Fingerprint, FingerprintDatabase, Location
 
 __all__ = [
@@ -86,6 +91,10 @@ __all__ = [
     "log_posterior",
     "map_localize",
     "posterior_mean_localize",
+    # Radio-map propagation model
+    "ShadowingField",
+    "DEFAULT_DECORRELATION_M",
+    "DEFAULT_N_MODES",
     # Pattern recognition methods (regression)
     "LinearRegressionLocalizer",
     # Pattern recognition methods (classification)

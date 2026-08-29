@@ -106,8 +106,20 @@ Multi-floor fingerprint database from a log-distance path-loss model.
 | `--n-floors` | 3 | Number of floors |
 | `--floor-height` | 3.0 | Floor height (meters) |
 | `--n-aps` | 8 | Number of access points |
+| `--n-samples` | 1 | RSS samples per reference point. `> 1` writes the multi-sample `(M, S, N)` format Eq. (5.6) needs |
+| `--shadow-fading-std` | 4.0 | Std (dB) of the spatially correlated shadowing field — a property of the *location* |
+| `--fast-fading-std` | 1.5 | Std (dB) of the per-sample term — the only thing that varies between repeat visits |
+| `--decorrelation` | 8.0 | Correlation length (m) of the shadowing field. Must exceed the grid spacing for a survey to represent the field |
 
 **Presets**: `baseline`, `dense`, `sparse`, `few_aps`, `multisamples`
+
+The last two parameters are one model, not two knobs. RSS is
+`pathloss - floor_attenuation + S_ap(p) + fast`, where `S_ap(p)` is drawn once
+per (floor, AP) as a Gaussian random field and evaluated wherever it is needed,
+so the same spot always sees the same walls. Only `fast` is redrawn per sample.
+Setting `--fast-fading-std 4 --shadow-fading-std 0` recovers the old behaviour,
+where the whole term was per-sample noise and the radio map was not a smooth
+function of position.
 
 ---
 
