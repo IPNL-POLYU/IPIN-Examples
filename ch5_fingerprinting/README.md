@@ -262,9 +262,25 @@ full posterior mean. Neither is a coincidence and neither is a bug:
 The example measures both, in its **"What a repeat survey buys"** section, using
 `ch5_wifi_fingerprint_multisamples` — the same building and grid, surveyed ten
 times per point instead of once. There the σ is estimated rather than assumed
-and MAP does diverge from 1-NN, on 22% of queries. Whether diverging makes it
-*better* is a separate question the section also answers, and the answer is
-"barely, and only at the right `min_std`".
+and MAP does diverge from 1-NN, on 22% of queries.
+
+**Whether diverging makes it better is a separate question, and on this grid the
+answer is no.** That is a measurement, not a shortcoming of the model: making
+the fast fading genuinely vary with signal strength — the physically standard
+choice, RSS variance growing as SNR falls — makes MAP monotonically *worse*, and
+so does substituting the true σ instead of the estimated one. The error that
+decides the match is the radio map changing between the query and the nearest
+reference point (1.43 dB rms here, comparable to the whole 1.5 dB fast-fading
+budget), and it is **anti-correlated** with the noise a repeat survey can
+measure, because the path-loss gradient is steepest exactly where the signal is
+strongest. Weighting by the noise you can measure up-weights the APs whose
+unmodelled error is worst.
+
+Measured across the three shipped surveys, the penalty tracks that term
+exactly — +0.04 m on the 2 m grid, +0.38 m at 5 m, +1.46 m at 10 m. So
+Eq. (5.6) pays when the variability it models dominates the variability it does
+not; on a 5 m grid with 8 APs it does not. The derivation is in the section's
+docstring.
 
 **Visual Output:**
 

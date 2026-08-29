@@ -271,6 +271,53 @@ def report_what_a_repeat_survey_buys(db_single, db_multi, queries, true_locs):
     reaches the difference. Raising it widens the posterior honestly and, at the
     same time, floors away the per-RP sigma that made MAP interesting.
 
+    **MAP does not beat 1-NN here, and the reason is structural rather than a
+    missing ingredient.** The obvious diagnosis is that this model gives every
+    location the same true fast-fading std, so the sigma estimated from ten
+    visits is estimation noise and there is nothing for the weighting to
+    exploit. That diagnosis is wrong, and it was tested rather than argued:
+    giving the fast fading a physically standard attenuation dependence -- RSS
+    variance grows as SNR falls -- with the *mean* sigma held at 1.5 dB so the
+    total noise is unchanged, makes MAP monotonically **worse**, not better::
+
+        slope (dB per 10 dB attenuation)   0.0    0.5    1.0    2.0
+        NN   RMSE                         3.26   3.15   3.15   3.15  m
+        MAP  RMSE                         3.36   3.43   3.53   3.56  m
+
+    Two candidate explanations were ruled out by measurement. It is not
+    estimation noise: substituting the *oracle* sigma, the true one the samples
+    were drawn from, still loses to NN (3.23 to 3.35 m across the sweep). And it
+    is not the ``-log sigma_ij`` normalisation acting as a per-RP bonus for
+    confident locations: dropping that term entirely changes nothing (3.49 m
+    against 3.43 m at slope 0.5).
+
+    What is left is the term the likelihood cannot see. A query stands *between*
+    reference points, so it disagrees with the nearest one by the radio map's
+    change over that gap -- 1.43 dB rms on this grid, comparable to the entire
+    1.5 dB fast-fading budget -- and that term is **anti-correlated** with the
+    noise a repeat survey can measure: ``corr = -0.34`` over all (query, AP)
+    pairs. The path-loss gradient ``d(pathloss)/dd = -10 n / (d ln 10)`` is
+    steepest close to the AP, which is exactly where the signal is strongest and
+    the fast fading quietest. So Naive Bayes weighting systematically
+    up-weights the APs whose unmodelled spatial error is worst, and weighting by
+    the noise you can measure is worse than not weighting at all.
+
+    The dose-response confirms it. The penalty tracks the spatial term across
+    the three shipped survey grids, at slope 1.0::
+
+        survey        spacing   spatial mismatch   MAP - NN
+        dense            2 m         0.52 dB        +0.04 m
+        baseline         5 m         1.48 dB        +0.38 m
+        sparse          10 m         2.74 dB        +1.46 m
+
+    So the honest statement for the chapter is not "probabilistic fingerprinting
+    is better" but a sharper and more useful one: **Eq. (5.6) pays only when the
+    variability it models dominates the variability it does not.** That happens
+    on a grid dense relative to the radio map's correlation length, or with a
+    likelihood whose sigma includes the interpolation term rather than only the
+    per-visit one. On a 5 m grid with 8 APs, it does not, and the chapter is
+    better for saying so than for tuning until a table agrees.
+
     Args:
         db_single: Single-sample database (one visit per RP).
         db_multi: Multi-sample database of the same building.
