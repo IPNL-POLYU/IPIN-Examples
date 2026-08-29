@@ -296,9 +296,25 @@ plt.tight_layout()
 plt.show()
 ```
 
-**Expected Result**: ~1-2m altitude error, ~63% floor detection accuracy. The residual
-error is transition lag -- see Experiment 2 below for how accuracy varies with sensor
-noise.
+**Expected Result**: ~1-2m altitude error, ~63% floor detection accuracy.
+
+That 63.2% is measured against a ceiling of ~83.4%, not against 100%.
+`ground_truth_floor` holds the departure floor for the whole ~30s stair climb and
+only flips once the walker reaches the top (see `generate_building_walk()`), so even
+a perfect altitude sensor -- `round(true_altitude / floor_height)`, no noise, no
+smoothing at all -- disagrees with the label on 299 of 1800 samples (16.6%): 149
+samples labelled floor 0 while the walker's true altitude is already 1.76-3.49 m
+(physically nearer floor 1), and 150 labelled floor 1 while true altitude is
+5.25-6.99 m (nearer floor 2). No altitude-based detector can score above 83.4%
+against these labels, regardless of sensor quality.
+
+The 36.8-point gap between the real detector's 63.2% and 100% therefore splits into
+two causes:
+- **16.6 points**: the labelling convention above -- unavoidable; a perfect sensor
+  loses this much too.
+- **20.2 points**: the barometer itself (pressure noise, weather drift, and the
+  alpha=0.1 smoothing lag) -- the part sensor quality actually affects. See
+  Experiment 2 below for how this share grows with noise.
 
 ## Visualization Example
 
@@ -502,8 +518,10 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_poor --
 **Learning Point**: Floor detection accuracy tracks sensor noise directly: it falls
 from ~63% toward the ~50% base rate as pressure noise and weather drift grow to rival
 a single floor's ~42 Pa pressure signature. There is no calibration step in this
-pipeline -- accuracy is governed entirely by how much noise overlaps the per-floor
-pressure gap.
+pipeline -- the noise/pressure-gap overlap is the only thing sensor quality can move.
+It cannot move the other ~16.6 points of headroom below 100% (see the ceiling
+decomposition above): that part belongs to the labelling convention, not the sensor,
+and no amount of noise reduction reaches it.
 
 ### Experiment 3: Magnetometer vs. Gyro for Heading
 

@@ -22,6 +22,24 @@ reading the committed config.json, so this exercises the generator's real
 floor-detection code and fails if that code regresses -- a stored number
 would not move if someone reverted the fix.
 
+Why a flat margin over the base rate, not a margin under the ceiling: the
+real ceiling here is ~83.4%, not 100% -- ground_truth_floor holds the
+departure floor for the whole climb, so even round(true_altitude /
+floor_height) with zero sensor noise disagrees with the label on 299 of
+1800 samples (see the dataset README's "Expected Result" section for the
+derivation). Both base_rate and the ceiling are properties of the
+trajectory alone (generate_building_walk takes no noise arguments), so
+neither is more "fragile" to compute fresh here. The reason to anchor on
+base_rate instead is scope: a ceiling-relative bound would also fail if
+someone legitimately raised the baseline preset's sensor noise, conflating
+"detector is structurally broken" (this bug, and the only thing this test
+is for) with "sensor is noisier than it used to be" (a real but separate
+concern -- --preset noisy already scores 52.0% and --preset poor 49.4%
+with the *fixed* detector, so a ceiling-relative bound would not
+generalize across presets without per-preset tuning anyway). base_rate
++ MARGIN_PERCENTAGE_POINTS targets exactly the failure this bug produced
+and nothing else.
+
 Author: Li-Ta Hsu
 """
 
