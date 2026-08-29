@@ -8,7 +8,7 @@ files, it did not, and not narrowly:
     black   237 of 288 files would be reformatted
     mypy    404 errors in core/ alone
 
-Black passes now, and ruff is at 680. mypy is untouched at 406 errors in
+Black passes now, and ruff is at 951. mypy is untouched at 406 errors in
 core/, and is the honest remaining gap.
 
 A reader who followed that section got thousands of complaints and reasonably
@@ -27,7 +27,7 @@ unsafe fix was right; the answer was a tool that could tell the difference, not
 The twelve W293 still here sit in argparse `epilog=` strings, which are not
 docstrings and whose blank lines are printed. Black leaves them, correctly.
 
-**What is left is mostly not lint at all.** 545 of the remaining findings are
+**What is left is mostly not lint at all.** 727 of the remaining findings are
 UP006/UP045/UP035/UP007 -- `List[int]` for `list[int]`, `Optional[X]` for
 `X | None`. Those became legal only when the floor moved to 3.10, they are
 mechanical, and they are worth doing in their own change. The ~100 after that
@@ -81,7 +81,7 @@ BASELINE = {
     "UP006": 283,
     "UP045": 137,
     "UP035": 87,
-    "I001": 64,
+    "I001": 63,
     "UP007": 38,
     "B007": 17,
     "B028": 9,
