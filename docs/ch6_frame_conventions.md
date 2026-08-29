@@ -58,6 +58,50 @@ For a smartphone held upright:
 - y = toward left edge
 - z = out of screen (away from user)
 
+### Euler Angle Axis Assignment Differs From Chapter 2
+
+Chapter 2's Euler angles (`core/coords/rotations.py`) are **not** interchangeable
+with the roll/pitch used here, even though both call themselves "roll, pitch,
+yaw." The book's Section 2.2 assigns roll to the Y-axis and pitch to the
+X-axis (Eqs. (2.15)-(2.16)), deliberately, so that code reproduces the book's
+equations exactly. Chapter 6 (this module, `core/sensors/strapdown.py`, and
+`mag_heading` in `core/sensors/environment.py`) uses the common aerospace
+assignment instead -- **roll about X, pitch about Y** -- consistent with the
+x-Forward/y-Left/z-Up body frame defined above. Neither is wrong; they are two
+different, individually-documented conventions, and until now nothing named
+both in one place.
+
+**Consequence:** taking a Chapter 2 Euler triple `(roll, pitch, yaw)` as-is and
+feeding it anywhere in Chapter 6 gets roll and pitch swapped. The active/passive
+transpose between `core.coords.quat_to_rotation_matrix` and
+`core.sensors.strapdown.quat_to_rotmat` (documented on `quat_to_rotmat` itself)
+is a SECOND, independent difference on top of this one -- fixing only one of
+the two still gives the wrong attitude.
+
+**The conversion.** To build a Chapter-6-sense quaternion (usable directly as
+`strapdown_update`'s initial `q`) from Chapter-6-sense angles `(roll, pitch,
+yaw)` -- roll about X, pitch about Y, yaw about Z, the same physical rotation
+either way:
+
+```python
+from core.coords.rotations import euler_to_quat
+
+# Swap roll and pitch when calling the Chapter 2 function: its "roll"
+# parameter is a rotation about Y, which is what Chapter 6 calls "pitch",
+# and vice versa. Yaw (about Z) is the same angle in both conventions.
+q_init = euler_to_quat(pitch, roll, yaw)
+```
+
+Passed through `core.sensors.strapdown.quat_to_rotmat`, `q_init` gives the
+standard aerospace active matrix `Rz(yaw) @ Ry(pitch) @ Rx(roll)` built
+independently -- verified numerically to within 5.0e-16 (machine precision)
+across 500 random Euler triples (roll, pitch, yaw each drawn uniformly from
+-1.2 to 1.2 rad). Skipping the swap (passing `(roll, pitch, yaw)` unswapped
+into `euler_to_quat`) mismatches by up to 1.93 in a matrix element over the
+same 500 triples; it matches by coincidence only where `roll == pitch`
+(swapping two equal values changes nothing), which is why checking a single
+symmetric case would have hidden this.
+
 ### Quaternion Convention
 
 **Scalar-first representation:**  
