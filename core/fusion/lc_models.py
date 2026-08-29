@@ -32,7 +32,7 @@ def solve_uwb_position_wls(
     initial_guess: Optional[np.ndarray] = None,
     max_iterations: int = 10,
     tolerance: float = 0.01,
-    cov_floor_std: float = 0.2,
+    cov_floor_std: float = 0.0,
 ) -> Tuple[Optional[np.ndarray], Optional[np.ndarray], bool]:
     """Solve for 2D position from UWB ranges using Weighted Least Squares.
 
@@ -42,7 +42,8 @@ def solve_uwb_position_wls(
     Key improvements over naive WLS:
     - Uses proper measurement covariance: W = R^{-1} where R = diag(σ_i²)
     - Supports anchor-dependent noise levels (e.g., based on SNR, NLOS flags)
-    - Enforces covariance floor to prevent absurd certainty
+    - Can optionally floor the covariance to prevent absurd certainty (see
+      ``cov_floor_std`` below) -- off by default
 
     Args:
         ranges: Range measurements to each anchor (A,), NaN for dropouts
@@ -53,8 +54,27 @@ def solve_uwb_position_wls(
         initial_guess: Initial position guess (2,), default is anchor centroid
         max_iterations: Maximum WLS iterations (default 10)
         tolerance: Convergence tolerance (meters, default 0.01)
-        cov_floor_std: Minimum position std (meters, default 0.2)
-                       Prevents overconfident covariance estimates
+        cov_floor_std: Minimum position std (meters, default 0.0 -- no floor).
+                       The returned covariance is already `(H^T W H)^{-1}`,
+                       the Cramer-Rao bound implied by the anchor geometry and
+                       `range_noise_std`/`anchor_noise_std` -- an honest
+                       estimate, not an overconfident one, when those inputs
+                       are themselves honest. A floor exists for the case
+                       where they are not: unmodeled errors this solver
+                       cannot see (multipath, minor NLOS, anchor survey
+                       error) that make the true error larger than the
+                       nominal noise implies. Set it only when you have
+                       independent evidence of such error and can name a
+                       number for it -- flooring an honest covariance makes
+                       a downstream filter distrust good measurements. This
+                       function shipped for a long time with a 0.2 m default
+                       here and a 0.5 m override at its one call site
+                       (`run_lc_fusion`), neither justified by measurement;
+                       on this chapter's line-of-sight datasets the true
+                       position std is close to 0.03 m, so a 0.5 m floor was
+                       a ~25x variance inflation and manufactured most of the
+                       "TC beats LC" gap this repository used to report. See
+                       CLAUDE.md's Chapter 8 entries for the measurement.
 
     Returns:
         Tuple of (position, covariance, converged):

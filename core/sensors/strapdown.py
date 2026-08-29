@@ -214,6 +214,13 @@ def quat_to_rotmat(q: np.ndarray) -> np.ndarray:
           within their own module; do NOT feed a strapdown quaternion into the
           core.coords quaternion/Euler helpers (or vice versa) without
           transposing. Verified: quat_to_rotmat(q) == coords.quat_to_rotation_matrix(q).T.
+          A second, independent difference: core.coords' Euler angles assign
+          roll to the Y-axis and pitch to the X-axis (book Eqs. (2.15)-(2.16)),
+          not the roll->X, pitch->Y this module and
+          core.sensors.environment.mag_heading assume. A Chapter 2 Euler triple
+          needs roll and pitch swapped, in addition to the transpose above,
+          before it describes the same attitude here. See
+          docs/ch6_frame_conventions.md for the numerically-verified conversion.
         - This implementation follows standard aerospace formulas and is
           self-consistent with omega_matrix (Eq. 6.3) used in quat_integrate.
 

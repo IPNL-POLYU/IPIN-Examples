@@ -484,7 +484,7 @@ Running `python -m ch7_slam.example_bundle_adjustment` produces:
 5. Building bundle adjustment factor graph...
    Factor graph: 14 variables
    Variables: 8 poses + 6 landmarks
-   Factors: 47 (46 reprojection + 1 prior)
+   Factors: 48 (46 reprojection + 2 prior)
 6. Running bundle adjustment optimization...
    Initial reprojection error: 163.9 px RMS, worst 316.7 px
    Final reprojection error: 0.53 px RMS, worst 1.14 px
@@ -492,11 +492,11 @@ Running `python -m ch7_slam.example_bundle_adjustment` produces:
    Final RMS is at the 0.5 px measurement noise floor, so the solve is converged, not merely improved.
 7. Evaluating bundle adjustment results...
    Pose RMSE (initial): 0.5150 m
-   Pose RMSE (optimized): 0.1510 m
-   Pose improvement: 70.68%
+   Pose RMSE (optimized): 0.0604 m
+   Pose improvement: 88.28%
    Landmark RMSE (initial): 0.8717 m
-   Landmark RMSE (optimized): 0.1136 m
-   Landmark improvement: 86.97%
+   Landmark RMSE (optimized): 0.0479 m
+   Landmark improvement: 94.50%
 ```
 
 The reprojection error is reported in **pixels**, and the useful check is

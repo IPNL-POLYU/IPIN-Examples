@@ -14,7 +14,7 @@ baseline:
 | | `ch4_rf_2d_square` | `ch4_rf_2d_nlos` |
 |---|---|---|
 | Mean GDOP (TOA) | 1.022 | 1.022 |
-| Mean GDOP (TDOA) | 0.873 | 0.873 |
+| Mean GDOP (TDOA) | 1.067 | 1.067 |
 | Beacon 0 range residual | +0.0026 ± 0.0851 m | +0.0026 ± 0.0851 m |
 | Beacon 1 range residual | +0.0089 ± 0.1060 m | **+0.8089 ± 0.1060 m** |
 | Beacon 2 range residual | +0.0062 ± 0.0965 m | **+0.8062 ± 0.0965 m** |
@@ -54,6 +54,19 @@ Note also that beacon 0 is the TDOA reference and is *unbiased*, so the TDOA
 differences inherit the bias of beacons 1 and 2 directly rather than having it
 partly cancel. Choosing a biased beacon as the reference would spread the error
 across every difference instead — worth trying.
+
+**That paragraph described the intended dataset for longer than it described
+the shipped one.** The generator applied the NLOS bias inside its TOA loop
+only, and built the range differences from *true* ranges, so until recently
+`tdoa_diffs.txt` here was bias-free: its residual column means were
+`[-0.012, +0.001, +0.002]` where the sentence above predicts `[+0.8, +0.8, 0]`.
+The differences are now formed from the same biased, noisy ranges the TOA file
+carries — `tdoa_diffs.txt` is exactly `toa_ranges.txt` differenced against its
+first column — and they measure `[+0.806, +0.804, -0.001]`. TDOA's median error
+moved from 0.075 m to 0.604 m as a result, which is the right order: it is now
+degraded by NLOS about as much as TOA is (0.614 m), instead of being immune to
+a bias the dataset exists to demonstrate. A document that predicts your data is
+worth checking against it.
 
 ## Files and Data Structure
 

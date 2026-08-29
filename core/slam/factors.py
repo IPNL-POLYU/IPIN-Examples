@@ -108,12 +108,29 @@ def create_odometry_factor(
         return se2_relative(relative_pose, relative_actual)
 
     def jacobian_func(x_vars):
-        """Compute Jacobians with respect to both poses."""
+        """Compute Jacobians with respect to both poses.
+
+        Residual component 2 is a yaw wrapped to (-pi, pi] by se2_relative
+        (via se2_compose). A raw (r_plus - r_base) finite difference does not
+        know that: if perturbing pose_from or pose_to nudges the yaw residual
+        across the +-pi branch cut, the unwrapped difference jumps by roughly
+        +-2*pi, so the derivative comes out wrong by ~2*pi/epsilon -- seven
+        orders of magnitude off, with the wrong sign -- instead of the true
+        O(1) slope. Only the yaw row can hit that cut; the two translation
+        rows are ordinary linear quantities and are differenced as-is. See
+        CLAUDE.md, "Wrapping an angle difference".
+        """
         pose_from = x_vars[0]
         pose_to = x_vars[1]
 
         # Numerical Jacobians (finite differences)
         epsilon = 1e-7
+
+        def _diff(r_plus, r_base):
+            """Residual difference with the yaw row wrapped to (-pi, pi]."""
+            diff = r_plus - r_base
+            diff[2] = wrap_angle(diff[2])
+            return diff
 
         # Jacobian w.r.t. pose_from
         J_from = np.zeros((3, 3))
@@ -122,7 +139,7 @@ def create_odometry_factor(
             pose_from_plus[i] += epsilon
             r_plus = residual_func([pose_from_plus, pose_to])
             r_base = residual_func([pose_from, pose_to])
-            J_from[:, i] = (r_plus - r_base) / epsilon
+            J_from[:, i] = _diff(r_plus, r_base) / epsilon
 
         # Jacobian w.r.t. pose_to
         J_to = np.zeros((3, 3))
@@ -131,7 +148,7 @@ def create_odometry_factor(
             pose_to_plus[i] += epsilon
             r_plus = residual_func([pose_from, pose_to_plus])
             r_base = residual_func([pose_from, pose_to])
-            J_to[:, i] = (r_plus - r_base) / epsilon
+            J_to[:, i] = _diff(r_plus, r_base) / epsilon
 
         return [J_from, J_to]
 
@@ -370,6 +387,57 @@ def create_landmark_factor(
     return Factor([pose_id, landmark_id], residual_func, jacobian_func, information)
 
 
+def _resolve_loop_information(
+    loop_information: np.ndarray | None,
+    n_edges: int,
+) -> list[np.ndarray]:
+    """Normalize ``loop_information`` to one (3, 3) matrix per loop closure.
+
+    Accepts either a single (3, 3) matrix (applied to every closure, the
+    original behavior) or a sequence of ``n_edges`` matrices, each (3, 3)
+    (one per closure, in the same order as ``loop_closures``). A plain
+    Python list of ``n_edges`` arrays of shape (3, 3) and a stacked
+    ``(n_edges, 3, 3)`` ndarray are both accepted -- ``np.asarray`` turns
+    the former into the latter.
+
+    Raises:
+        ValueError: If the input is neither shape, or a per-edge sequence's
+            length does not match ``n_edges``.
+    """
+    if loop_information is None:
+        return [np.eye(3) for _ in range(n_edges)]
+
+    arr = np.asarray(loop_information)
+
+    if arr.ndim == 2:
+        if arr.shape != (3, 3):
+            raise ValueError(
+                f"A single loop_information matrix must have shape (3, 3), "
+                f"got {arr.shape}."
+            )
+        return [arr for _ in range(n_edges)]
+
+    if arr.ndim == 3:
+        if arr.shape[0] != n_edges:
+            raise ValueError(
+                f"loop_information has {arr.shape[0]} matrices but "
+                f"loop_closures has {n_edges} entries -- pass exactly one "
+                "information matrix per loop closure, or a single (3, 3) "
+                "matrix to apply to all of them."
+            )
+        if arr.shape[1:] != (3, 3):
+            raise ValueError(
+                f"Each loop_information matrix must have shape (3, 3), got "
+                f"{arr.shape[1:]}."
+            )
+        return [arr[k] for k in range(n_edges)]
+
+    raise ValueError(
+        "loop_information must be a single (3, 3) matrix or a sequence of "
+        f"(3, 3) matrices (one per loop closure); got shape {arr.shape}."
+    )
+
+
 def create_pose_graph(
     poses: list[np.ndarray],
     odometry_measurements: list[tuple[int, int, np.ndarray]],
@@ -394,8 +462,14 @@ def create_pose_graph(
         prior_pose: Optional prior for first pose. If None, uses identity with strong prior.
         odometry_information: Information matrix for all odometry factors.
                               If None, uses identity.
-        loop_information: Information matrix for all loop closure factors.
-                          If None, uses identity.
+        loop_information: Information for loop closure factors. Either a
+                          single (3, 3) matrix applied to every loop closure,
+                          or a sequence of (3, 3) matrices with one entry per
+                          entry of ``loop_closures``, in the same order (e.g.
+                          per-edge information built from each closure's own
+                          ICP/NDT covariance). A per-edge sequence whose
+                          length does not match ``loop_closures`` raises
+                          ValueError. If None, uses identity for every edge.
         prior_information: Information matrix for prior factor.
                            If None, uses strong prior (1e6 * I).
 
@@ -408,6 +482,15 @@ def create_pose_graph(
         >>> odom = [(0, 1, np.array([1, 0, 0])), (1, 2, np.array([1, 0, 0]))]
         >>> graph = create_pose_graph(poses, odom)
         >>> optimized, _ = graph.optimize()
+
+        >>> # Two loop closures with different confidence (per-edge information)
+        >>> lc_poses = [np.array([0.0, 0.0, 0.0])] * 4  # pose ids 0-3
+        >>> closures = [(0, 2, np.array([0.0, 0.0, 0.0])),
+        ...             (1, 3, np.array([0.0, 0.0, 0.0]))]
+        >>> info = [np.linalg.inv(np.diag([0.01, 0.01, 0.001])),  # confident
+        ...         np.linalg.inv(np.diag([1.0, 1.0, 0.5]))]       # marginal
+        >>> graph = create_pose_graph(lc_poses, [], loop_closures=closures,
+        ...                            loop_information=info)
 
     Notes:
         - This is a high-level convenience function.
@@ -445,14 +528,17 @@ def create_pose_graph(
         )
         graph.add_factor(factor)
 
-    # Add loop closure factors
+    # Add loop closure factors, one information matrix per edge.
     if loop_closures is not None:
-        if loop_information is None:
-            loop_information = np.eye(3)
+        per_edge_information = _resolve_loop_information(
+            loop_information, len(loop_closures)
+        )
 
-        for from_id, to_id, rel_pose in loop_closures:
+        for (from_id, to_id, rel_pose), information in zip(
+            loop_closures, per_edge_information, strict=True
+        ):
             factor = create_loop_closure_factor(
-                from_id, to_id, rel_pose, information=loop_information
+                from_id, to_id, rel_pose, information=information
             )
             graph.add_factor(factor)
 

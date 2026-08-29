@@ -7,6 +7,23 @@ This guide documents the **direct comparison tool** for Loosely Coupled (LC) and
 **Tool**: `ch8_sensor_fusion/example_comparison.py`  
 **Purpose**: Run both fusion approaches side-by-side on identical data for fair comparison
 
+> **Historical snapshot -- not reproducible from the current code.** Every
+> number below (the ~12-13 m RMSE scale, the "TC has lower RMSE (0.544m
+> difference)" summary, the JSON report, the Key Findings and Key Takeaways
+> built on them) predates a fix to `run_lc_fusion`'s WLS covariance handling:
+> it used to hardcode `range_noise_std=0.1` and floor the WLS covariance at
+> `cov_floor_std=0.5` regardless of the dataset's real noise, a ~25x variance
+> inflation that made LC look far worse than TC for reasons that had nothing
+> to do with the architecture. `docs/` is not executed by the test suite (see
+> the repository's `CLAUDE.md`), so this page was never re-run against the
+> current dataset and its ~12 m scale is not explained by that bug alone --
+> treat the analysis here as a historical illustration of the comparison
+> *methodology*, not as current numbers. For the current, tested transcript,
+> see the "LC vs TC Comparison" section of `ch8_sensor_fusion/README.md`: on
+> the current dataset LC and TC report close RMSE (0.143 m and 0.167 m),
+> matching the theory that with all anchors visible and good geometry the WLS
+> position fix is a sufficient statistic.
+
 ---
 
 ## Quick Start

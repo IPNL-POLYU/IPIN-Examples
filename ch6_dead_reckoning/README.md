@@ -572,6 +572,9 @@ sigma_gyro = arw_to_noise_std(arw=0.0088, dt=0.01)  # 100 Hz → rad/s per sampl
 ### 7. Comprehensive Comparison
 
 Running `python -m ch6_dead_reckoning.example_comparison` compares all methods.
+The numbers below are one noise draw (seed 42); add `--seed-sweep 12` to
+re-run every method over 12 seeds and see the median and min-max range
+instead (~2 minutes, does not change the figures).
 
 <!-- example-output: ch6_dead_reckoning.example_comparison -->
 ```
@@ -587,10 +590,12 @@ PDR (Mag)                  0.51       0.49       0.49       0.66      102.3
 
 ...
 KEY INSIGHTS:
-  1. IMU-only: UNBOUNDED. 100 m off after 120 s, tracing 169 m for a 100 m walk.
-     Unusable without corrections.
-  2. IMU+ZUPT: 84% RMSE reduction (54 m -> 8.8 m), detector active on 25% of samples.
-  4. PDR: BOUNDED, heading-limited. 149 detected steps cover 102.3 m against 100.0 m (+2.3%), RMSE 0.51 m.
+  1. IMU-only: UNBOUNDED. 100 m off after 120 s on seed 42, tracing 169 m for a 100 m walk.
+     One noise draw, not a property of the method: a 12-seed sweep (--seed-sweep 12) puts the final error at 53-311 m, median 142 m.
+  2. IMU+ZUPT: 84% RMSE reduction on this seed (54 m -> 8.8 m), detector active on 25% of samples.
+     The reduction is seed-dependent too: 74-84% over the same 12-seed sweep, median 82%.
+  3. Wheel Odom: BOUNDED. Error follows distance, not time: RMSE 0.42 m over 100 m, set by the 2% encoder scale error -- a systematic term, so this stays 0.39-0.48 m across the same sweep.
+  4. PDR: BOUNDED, heading-limited. 149 detected steps cover 102.3 m against 100.0 m (+2.3%), RMSE 0.51 m (0.43-0.61 m across the sweep; the step count itself does not move).
 ```
 
 **Read the `Path` column first.** Every method here is scored against a ground

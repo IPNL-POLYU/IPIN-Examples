@@ -14,7 +14,14 @@ Navigation*, Section 2.2, in an X-right / Y-forward / Z-up body frame):
   - yaw   = psi about the **Z-axis**    (book Eq. (2.14))
   Note this is the book's assignment (roll->Y, pitch->X); it differs from the
   common aerospace convention (roll->X, pitch->Y). It is deliberate so the code
-  reproduces the book's equations exactly.
+  reproduces the book's equations exactly. Chapter 6 (core/sensors/strapdown.py,
+  core/sensors/environment.py's mag_heading) uses that common aerospace
+  assignment instead, in its own x-Forward/y-Left/z-Up body frame -- a
+  DIFFERENT body frame from this module's X-right/Y-forward, not just a
+  relabelling. A Euler triple meant for one is not valid for the other without
+  both a roll/pitch swap and the active/passive transpose noted on
+  core.sensors.strapdown.quat_to_rotmat; see docs/ch6_frame_conventions.md for
+  the numerically-verified conversion.
 - Rotation matrix C is the **coordinate transform** from the old frame to the
   new frame: ``x_new = C @ x_old`` (book Eqs. (2.11), (2.17)). This is the
   passive form; the active (vector-rotating) matrix is its transpose.

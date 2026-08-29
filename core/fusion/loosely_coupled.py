@@ -26,6 +26,15 @@ from core.fusion.types import StampedMeasurement
 
 __all__ = ["run_lc_fusion"]
 
+# Used only if a caller hands run_lc_fusion a dataset dict whose config is
+# missing uwb.range_noise_std_m -- every shipped dataset has it (see
+# data/sim/*/config.json), so this is a defensive fallback, not the normal
+# path. Matches solve_uwb_position_wls's own default. run_lc_fusion used to
+# hardcode 0.1 m here unconditionally, diverging from both this fallback and
+# the dataset's real 0.05 m, and from what run_tc_fusion reads for the same
+# sensor -- see CLAUDE.md's Chapter 8 entries for the measurement.
+_FALLBACK_RANGE_NOISE_STD_M = 0.05
+
 
 def run_lc_fusion(
     dataset: Dict,
@@ -63,6 +72,21 @@ def run_lc_fusion(
     imu = dataset["imu"]
     uwb = dataset["uwb"]
     anchors = dataset["uwb_anchors"]
+
+    # Range noise std: read from the dataset config, exactly as run_tc_fusion
+    # does (core/fusion/tightly_coupled.py:99). LC and TC observe the same
+    # UWB sensor, so telling their WLS/EKF math two different noise levels
+    # for it is not a modelling choice, it is a bug -- see CLAUDE.md.
+    uwb_config = dataset.get("config", {}).get("uwb", {})
+    if "range_noise_std_m" in uwb_config:
+        range_noise_std = uwb_config["range_noise_std_m"]
+    else:
+        range_noise_std = _FALLBACK_RANGE_NOISE_STD_M
+        if verbose:
+            print(
+                "  WARNING: dataset config missing uwb.range_noise_std_m; "
+                f"falling back to {_FALLBACK_RANGE_NOISE_STD_M} m"
+            )
 
     # Initialize EKF at true starting position
     x0 = np.array(
@@ -176,8 +200,11 @@ def run_lc_fusion(
                 ranges=ranges,
                 anchor_positions=anchors,
                 initial_guess=initial_guess,
-                range_noise_std=0.1,  # Slightly conservative estimate
-                cov_floor_std=0.5,  # Conservative floor to account for unmodeled errors
+                range_noise_std=range_noise_std,
+                # No cov_floor_std: the dataset is line-of-sight with no
+                # unmodeled error to floor for, so the honest WLS covariance
+                # (H^T W H)^-1 is what the EKF and the chi-square gate should
+                # see. See solve_uwb_position_wls's docstring.
             )
 
             if pos_uwb is None or not converged:

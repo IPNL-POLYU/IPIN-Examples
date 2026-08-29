@@ -18,7 +18,7 @@ import argparse
 import sys
 import time
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -54,8 +54,28 @@ from core.sensors import (
 from core.sim import generate_imu_from_trajectory
 
 # Seed for the sensor-noise draws. Fixed so the committed figures can be
-# regenerated exactly; see add_sensor_noise.
+# regenerated exactly; see add_sensor_noise. A single seed is a single noise
+# realisation, not a characterisation of any method -- see run_seed_sweep and
+# --seed-sweep for the distribution across seeds.
 DEFAULT_SEED = 42
+
+# (min, median, max) over a 12-seed sweep (seed 42, then 0-10), reusing this
+# trajectory, IMUNoiseParams.consumer_grade() and add_sensor_noise's model --
+# see run_seed_sweep(). Backs the "one draw, not a property of the method"
+# caveats in the KEY INSIGHTS text below.
+#
+# A documented snapshot, not a live computation: recomputing it on every run
+# would multiply main()'s cost ~12x, and the default run must not get
+# slower. Reproduce with `--seed-sweep 12` and update these tuples if the
+# trajectory, IMU params or noise model change.
+SWEEP_STATS_12SEED = {
+    "imu_only_final_m": (52.58, 141.70, 311.04),
+    "imu_only_rmse_m": (53.78, 116.42, 247.93),
+    "zupt_rmse_m": (8.82, 22.11, 45.05),
+    "zupt_reduction_pct": (74.4, 81.6, 83.6),
+    "wheel_odom_rmse_m": (0.39, 0.42, 0.48),
+    "pdr_rmse_m": (0.43, 0.50, 0.61),
+}
 
 # Lever arm from the IMU/navigation centre to the wheel-speed sensor, in the
 # attitude frame A (Eq. 6.11): 1 m forward and 0.2 m below.
@@ -141,7 +161,7 @@ def generate_mixed_trajectory(
     stop_duration: float = 3.0,
     turn_time: float = 1.5,
     lever_arm_a: Optional[np.ndarray] = None,
-) -> Tuple[
+) -> tuple[
     np.ndarray,
     np.ndarray,
     np.ndarray,
@@ -373,7 +393,7 @@ def add_sensor_noise(
     imu_params: IMUNoiseParams,
     seed: int = DEFAULT_SEED,
     wheel_scale_error: float = 0.02,
-) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """Add noise to all sensors with explicit units.
 
     Args:
@@ -471,7 +491,7 @@ def run_imu_zupt(
     imu_params: IMUNoiseParams,
     window_size: int = 10,
     gamma: float = 100.0,
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """Method 2: IMU + ZUPT, windowed detector (Eq. 6.44) and reset (Eq. 6.45).
 
     The threshold is the whole algorithm here. On this trajectory the test
@@ -594,7 +614,7 @@ def run_pdr(
     accel: np.ndarray,
     mag: np.ndarray,
     height: float = 1.75,
-) -> Tuple[np.ndarray, int]:
+) -> tuple[np.ndarray, int]:
     """Method 4: pedestrian DR with magnetometer heading, Eqs. (6.46)-(6.53).
 
     Steps come from the book's peak detector rather than a bare threshold
@@ -654,9 +674,9 @@ def run_pdr(
 def plot_comparison(
     t: np.ndarray,
     pos_true: np.ndarray,
-    results: Dict[str, np.ndarray],
+    results: dict[str, np.ndarray],
     figs_dir: Path,
-) -> Dict[str, Dict[str, float]]:
+) -> dict[str, dict[str, float]]:
     """Generate comprehensive comparison plots.
 
     All three figures come from core.eval primitives rather than hand-rolled
@@ -722,10 +742,32 @@ def plot_comparison(
 
     plt.close("all")
 
-    # Compute metrics
+    return _compute_metrics(pos_true, results)
+
+
+def _compute_metrics(
+    pos_true: np.ndarray, results: dict[str, np.ndarray]
+) -> dict[str, dict[str, float]]:
+    """Horizontal error statistics for each method's estimated position.
+
+    Split out of plot_comparison so run_seed_sweep can compute the same
+    statistics for many noise draws without generating (and discarding)
+    figures for each one.
+
+    Args:
+        pos_true: Ground-truth position, shape (N, 3). Units: m.
+        results: {method name: estimated position, shape (N, 3)}.
+
+    Returns:
+        {method name: {'rmse', 'final', 'median', 'p90', 'path'}}, all in m.
+        Errors are horizontal -- see plot_comparison, the other caller, for
+        why: the walk is planar, every method reports its own vertical
+        channel (PDR has none at all), and the figures plot the horizontal
+        error, so this has to agree with them.
+    """
     metrics = {}
     for name, pos in results.items():
-        error = np.linalg.norm(errors[name], axis=1)
+        error = np.linalg.norm(pos[:, :2] - pos_true[:, :2], axis=1)
         metrics[name] = {
             "rmse": float(np.sqrt(np.mean(error**2))),
             "final": float(error[-1]),
@@ -737,18 +779,154 @@ def plot_comparison(
             # actually traced next to it.
             "path": float(np.sum(np.linalg.norm(np.diff(pos[:, :2], axis=0), axis=1))),
         }
-
     return metrics
+
+
+def run_seed_sweep(
+    t: np.ndarray,
+    pos_true: np.ndarray,
+    accel_body: np.ndarray,
+    gyro_body: np.ndarray,
+    mag_body: np.ndarray,
+    wheel_true: np.ndarray,
+    dt: float,
+    imu_params: IMUNoiseParams,
+    initial: NavStateQPVP,
+    frame: FrameConvention,
+    height: float,
+    seeds: tuple[int, ...],
+) -> dict[str, dict[str, tuple[float, float, float]]]:
+    """Re-run every method over several noise seeds and summarise.
+
+    A single seed is one noise realisation; SWEEP_STATS_12SEED and the
+    KEY INSIGHTS caveats it backs exist because seed 42 turns out to be an
+    unusually kind draw for the unaided IMU. This is how those constants
+    were produced, and --seed-sweep lets a reader reproduce or refresh them.
+
+    Reuses add_sensor_noise -- the sole noise-model entry point -- and the
+    four run_* estimators; only the seed passed to add_sensor_noise changes
+    between iterations, so this characterises seed sensitivity rather than
+    introducing a second noise model that could drift from the first.
+
+    Args:
+        t, pos_true, accel_body, gyro_body, mag_body, wheel_true, dt: the
+            trajectory and ideal sensor streams from generate_mixed_trajectory.
+            None of these depend on the noise seed, so the caller generates
+            them once and this function reuses them for every seed.
+        imu_params: IMU noise specification.
+        initial: Initial navigation state.
+        frame: Frame convention.
+        height: Pedestrian height for PDR, Eq. (6.49).
+        seeds: Seeds to draw sensor noise with; one full run per seed.
+
+    Returns:
+        {method name: {'rmse': (min, median, max), 'final': (min, median, max)}}
+        in metres, plus a synthetic "ZUPT Reduction" entry whose 'pct' is the
+        (min, median, max) of the *per-seed* RMSE reduction -- not derived
+        from the min/median/max RMSEs above, which would pair each method's
+        best seed with the other's best seed even when those are different
+        seeds.
+    """
+    per_seed: dict[str, dict[str, list]] = {
+        name: {"rmse": [], "final": []}
+        for name in ("IMU Only", "IMU + ZUPT", "Wheel Odom", "PDR (Mag)")
+    }
+    zupt_reduction_pct = []
+
+    for seed in seeds:
+        accel_meas, gyro_meas, mag_meas, wheel_meas = add_sensor_noise(
+            accel_body, gyro_body, mag_body, wheel_true, dt, imu_params, seed=seed
+        )
+        results = {
+            "IMU Only": run_imu_only(t, accel_meas, gyro_meas, initial, frame),
+            "IMU + ZUPT": run_imu_zupt(
+                t, accel_meas, gyro_meas, initial, frame, imu_params
+            )[0],
+            "Wheel Odom": run_wheel_odom(
+                t, wheel_meas, gyro_meas, initial, LEVER_ARM_A
+            ),
+            "PDR (Mag)": run_pdr(t, accel_meas, mag_meas, height)[0],
+        }
+        seed_metrics = _compute_metrics(pos_true, results)
+        for name in per_seed:
+            per_seed[name]["rmse"].append(seed_metrics[name]["rmse"])
+            per_seed[name]["final"].append(seed_metrics[name]["final"])
+        zupt_reduction_pct.append(
+            100
+            * (
+                1
+                - seed_metrics["IMU + ZUPT"]["rmse"] / seed_metrics["IMU Only"]["rmse"]
+            )
+        )
+
+    summary = {
+        name: {
+            metric: (min(vals), float(np.median(vals)), max(vals))
+            for metric, vals in by_metric.items()
+        }
+        for name, by_metric in per_seed.items()
+    }
+    summary["ZUPT Reduction"] = {
+        "pct": (
+            min(zupt_reduction_pct),
+            float(np.median(zupt_reduction_pct)),
+            max(zupt_reduction_pct),
+        )
+    }
+    return summary
+
+
+def _print_seed_sweep(
+    summary: dict[str, dict[str, tuple[float, float, float]]],
+    seeds: tuple[int, ...],
+    elapsed_s: float,
+) -> None:
+    """Print the run_seed_sweep summary as a min/median/max table."""
+    print("\n" + "=" * 75)
+    print(
+        f"SEED SWEEP: N={len(seeds)} seeds ({', '.join(str(s) for s in seeds)}); "
+        f"{elapsed_s:.0f} s"
+    )
+    print("=" * 75)
+    for metric_key, label in (("rmse", "RMSE [m]"), ("final", "Final [m]")):
+        print(f"\n{label:<20} {'min':>10} {'median':>10} {'max':>10}")
+        print("-" * 52)
+        for name in ("IMU Only", "IMU + ZUPT", "Wheel Odom", "PDR (Mag)"):
+            lo, med, hi = summary[name][metric_key]
+            print(f"{name:<20} {lo:>10.2f} {med:>10.2f} {hi:>10.2f}")
+
+    red_lo, red_med, red_hi = summary["ZUPT Reduction"]["pct"]
+    print(
+        f"\nZUPT RMSE reduction, per seed: min {red_lo:.0f}%, median "
+        f"{red_med:.0f}%, max {red_hi:.0f}%."
+    )
 
 
 def main() -> None:
     """Main execution."""
     # Parse arguments before doing any work, so --help answers instead of
     # running the whole demonstration.
-    argparse.ArgumentParser(
+    parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
-    ).parse_args()
+    )
+    parser.add_argument(
+        "--seed-sweep",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            f"Re-run every method over N noise seeds (seed {DEFAULT_SEED} "
+            "plus 0..N-2) and print the median and min-max range per "
+            "method, instead of trusting the single seed used for the "
+            "figures and the RESULTS table above. Off by default: it does "
+            "not change the figures, and each extra seed costs roughly as "
+            "long as the base run (~10 s here), so N=12 takes ~2 minutes."
+        ),
+    )
+    args = parser.parse_args()
+    if args.seed_sweep < 0:
+        parser.error("--seed-sweep must be >= 0")
 
     print("\n" + "=" * 75)
     print("Chapter 6: COMPREHENSIVE COMPARISON of Dead Reckoning Methods")
@@ -865,17 +1043,35 @@ def main() -> None:
         1 - metrics["IMU + ZUPT"]["rmse"] / metrics["IMU Only"]["rmse"]
     )
     pdr_overrun = 100 * (metrics["PDR (Mag)"]["path"] / total_dist - 1)
+
+    # Across-seed ranges for the caveats below -- see SWEEP_STATS_12SEED.
+    imu_final_lo, imu_final_med, imu_final_hi = SWEEP_STATS_12SEED["imu_only_final_m"]
+    zupt_red_lo, zupt_red_med, zupt_red_hi = SWEEP_STATS_12SEED["zupt_reduction_pct"]
+    wheel_rmse_lo, _, wheel_rmse_hi = SWEEP_STATS_12SEED["wheel_odom_rmse_m"]
+    pdr_rmse_lo, _, pdr_rmse_hi = SWEEP_STATS_12SEED["pdr_rmse_m"]
+
     print(
         f"  1. IMU-only: UNBOUNDED. {metrics['IMU Only']['final']:.0f} m off "
-        f"after {duration:.0f} s, tracing {metrics['IMU Only']['path']:.0f} m "
-        f"for a {total_dist:.0f} m walk."
+        f"after {duration:.0f} s on seed {DEFAULT_SEED}, tracing "
+        f"{metrics['IMU Only']['path']:.0f} m for a {total_dist:.0f} m walk."
     )
-    print("     Unusable without corrections.")
     print(
-        f"  2. IMU+ZUPT: {zupt_reduction:.0f}% RMSE reduction "
+        f"     One noise draw, not a property of the method: a 12-seed "
+        f"sweep (--seed-sweep 12) puts the final error at "
+        f"{imu_final_lo:.0f}-{imu_final_hi:.0f} m, median "
+        f"{imu_final_med:.0f} m."
+    )
+    print("     Unusable without corrections either way.")
+    print(
+        f"  2. IMU+ZUPT: {zupt_reduction:.0f}% RMSE reduction on this seed "
         f"({metrics['IMU Only']['rmse']:.0f} m -> "
         f"{metrics['IMU + ZUPT']['rmse']:.1f} m), detector active on "
         f"{100 * zupt_detected.mean():.0f}% of samples."
+    )
+    print(
+        f"     The reduction is seed-dependent too: {zupt_red_lo:.0f}-"
+        f"{zupt_red_hi:.0f}% over the same 12-seed sweep, median "
+        f"{zupt_red_med:.0f}%."
     )
     print(
         "     Velocity is reset while standing but attitude is never "
@@ -884,7 +1080,8 @@ def main() -> None:
     print(
         f"  3. Wheel Odom: BOUNDED. Error follows distance, not time: RMSE "
         f"{metrics['Wheel Odom']['rmse']:.2f} m over {total_dist:.0f} m, set "
-        f"by the 2% encoder scale error."
+        f"by the 2% encoder scale error -- a systematic term, so this stays "
+        f"{wheel_rmse_lo:.2f}-{wheel_rmse_hi:.2f} m across the same sweep."
     )
     print(
         "     'Final' is near zero only because the loop closes on its own "
@@ -894,7 +1091,9 @@ def main() -> None:
         f"  4. PDR: BOUNDED, heading-limited. {step_count} detected steps "
         f"cover {metrics['PDR (Mag)']['path']:.1f} m against "
         f"{total_dist:.1f} m ({pdr_overrun:+.1f}%), RMSE "
-        f"{metrics['PDR (Mag)']['rmse']:.2f} m."
+        f"{metrics['PDR (Mag)']['rmse']:.2f} m ({pdr_rmse_lo:.2f}-"
+        f"{pdr_rmse_hi:.2f} m across the sweep; the step count itself does "
+        f"not move)."
     )
     print()
     print("  The 'Path' column is the check that makes the rest meaningful: a")
@@ -908,6 +1107,31 @@ def main() -> None:
     print("             - Best: Multi-sensor fusion (Chapter 8)")
     print("=" * 75)
     print()
+
+    if args.seed_sweep > 0:
+        seeds = (DEFAULT_SEED,) + tuple(range(args.seed_sweep - 1))
+        print(
+            f"Running --seed-sweep {args.seed_sweep}: all four methods, "
+            f"once per seed..."
+        )
+        sweep_start = time.time()
+        summary = run_seed_sweep(
+            t,
+            pos_true,
+            accel_body,
+            gyro_body,
+            mag_body,
+            wheel_true,
+            dt,
+            imu_params,
+            initial,
+            frame,
+            height,
+            seeds,
+        )
+        _print_seed_sweep(summary, seeds, time.time() - sweep_start)
+        print()
+
     show_figures_if_requested()
 
 
