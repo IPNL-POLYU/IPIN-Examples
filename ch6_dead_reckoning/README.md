@@ -29,7 +29,7 @@ python -m ch6_dead_reckoning.example_wheel_odometry
 python -m ch6_dead_reckoning.example_pdr
 python -m ch6_dead_reckoning.example_environment
 python -m ch6_dead_reckoning.example_allan_variance         # Standard analysis
-python -m ch6_dead_reckoning.example_allan_variance  # prints the component breakdown
+python -m ch6_dead_reckoning.example_allan_variance --debug  # component breakdown figures
 
 # Run PDR with pre-generated dataset
 python -m ch6_dead_reckoning.example_pdr --data ch6_pdr_corridor_walk
@@ -544,7 +544,7 @@ The previous implementation incorrectly used `cumsum` for BI (producing +1/2 slo
 **Debug Mode:**  
 Run with `--debug` flag to see individual noise components plotted separately:
 ```bash
-python -m ch6_dead_reckoning.example_allan_variance
+python -m ch6_dead_reckoning.example_allan_variance --debug
 ```
 This generates additional figures showing ARW, BI, and RRW with their expected reference slopes marked.
 
