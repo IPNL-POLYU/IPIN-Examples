@@ -169,9 +169,9 @@ def test_the_installed_mypy_is_the_pinned_one():
     of truth; this test reads it rather than repeating it, and fails with the
     upgrade command instead of letting version skew masquerade as new debt.
     """
-    import tomllib
     from pathlib import Path
 
+    import tomllib
     from mypy.version import __version__ as installed
 
     pyproject = tomllib.loads(

@@ -146,8 +146,9 @@ def test_the_installed_black_is_the_pinned_one():
     than repeating it, and fails with the upgrade command instead of letting
     a version skew masquerade as a formatting or typing regression.
     """
-    import tomllib
     from pathlib import Path
+
+    import tomllib
 
     pyproject = tomllib.loads(
         (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(
