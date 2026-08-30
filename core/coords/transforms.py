@@ -13,6 +13,8 @@ WGS84 ellipsoid parameters:
 Reference: Chapter 2, Section 2.1 - Coordinate Systems and Transformations
 """
 
+from typing import cast
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -407,7 +409,7 @@ def body_to_map(
     x_map = rz.T @ np.asarray(x_body, dtype=np.float64)
     if body_origin_map is not None:
         x_map = x_map + body_origin_map
-    return x_map
+    return cast(np.ndarray, x_map)
 
 
 # Rotation matrix C^NED_ENU that swaps E<->N and flips U->D (Eq. (2.5)).
@@ -544,4 +546,4 @@ def body_to_enu(
     """
     c_enu_body = euler_to_rotation_matrix(roll, pitch, yaw).T
     d = x_body if enu_origin_body is None else x_body - enu_origin_body
-    return c_enu_body @ np.asarray(d, dtype=np.float64)
+    return cast(np.ndarray, c_enu_body @ np.asarray(d, dtype=np.float64))

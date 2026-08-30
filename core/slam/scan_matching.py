@@ -28,7 +28,7 @@ from collections.abc import Iterator
 from dataclasses import dataclass
 
 import numpy as np
-from scipy.spatial import KDTree
+from scipy.spatial import KDTree  # type: ignore[import-untyped]
 
 from .se2 import se2_apply, se2_compose
 

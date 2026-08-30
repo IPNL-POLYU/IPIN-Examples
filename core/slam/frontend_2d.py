@@ -14,6 +14,7 @@ Date: December 2025
 
 from collections.abc import Iterator, Mapping
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -238,7 +239,8 @@ class SlamFrontend2D:
             return self._initialize_first_step(step_index, scan)
 
         # 1. PREDICTION: Apply odometry delta to previous pose
-        pose_pred = se2_compose(self.pose_est, odom_delta)
+        # `self.initialized` is True here, which is what sets `pose_est`.
+        pose_pred = se2_compose(cast(np.ndarray, self.pose_est), odom_delta)
 
         # 2. CORRECTION: Scan-to-map alignment via ICP
         pose_est, match_quality = self._scan_to_map_alignment(scan, pose_pred)
@@ -348,13 +350,16 @@ class SlamFrontend2D:
         # Run ICP: align scan (in robot frame) to submap (in map frame)
         # initial_pose is the transformation from robot frame to map frame
         try:
-            pose_est, iters, residual, converged = icp_point_to_point(
-                source_scan=scan,
-                target_scan=submap_points,
-                initial_pose=pose_pred,
-                max_iterations=50,
-                tolerance=1e-4,
-                max_correspondence_distance=self.max_correspondence_distance,
+            pose_est, iters, residual, converged = cast(
+                tuple[np.ndarray, int, float, bool],
+                icp_point_to_point(
+                    source_scan=scan,
+                    target_scan=submap_points,
+                    initial_pose=pose_pred,
+                    max_iterations=50,
+                    tolerance=1e-4,
+                    max_correspondence_distance=self.max_correspondence_distance,
+                ),
             )
         except Exception:
             # ICP failed (e.g., numerical issues)
@@ -392,7 +397,7 @@ class SlamFrontend2D:
         Returns:
             Current pose [x, y, yaw] or None if not initialized.
         """
-        return self.pose_est.copy() if self.initialized else None
+        return cast(np.ndarray, self.pose_est).copy() if self.initialized else None
 
     def get_submap_points(self, voxel_size: float | None = None) -> np.ndarray:
         """Get current submap points.

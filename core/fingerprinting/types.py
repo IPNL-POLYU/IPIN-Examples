@@ -9,7 +9,7 @@ Date: 2024
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 
@@ -142,12 +142,12 @@ class FingerprintDatabase:
     @property
     def n_reference_points(self) -> int:
         """Number of reference points (M) in the database."""
-        return self.locations.shape[0]
+        return int(self.locations.shape[0])
 
     @property
     def n_features(self) -> int:
         """Number of features (N) per fingerprint (e.g., number of APs)."""
-        return self.features.shape[-1]  # Last dimension is always N
+        return int(self.features.shape[-1])  # Last dimension is always N
 
     @property
     def n_samples_per_rp(self) -> Optional[int]:
@@ -168,7 +168,7 @@ class FingerprintDatabase:
     @property
     def location_dim(self) -> int:
         """Dimensionality (d) of location vectors (typically 2 or 3)."""
-        return self.locations.shape[1]
+        return int(self.locations.shape[1])
 
     @property
     def n_floors(self) -> int:
@@ -202,7 +202,7 @@ class FingerprintDatabase:
                 f"Floor {floor_id} not found in database. "
                 f"Available floors: {self.floor_list}"
             )
-        return self.floor_ids == floor_id
+        return cast(np.ndarray, self.floor_ids == floor_id)
 
     def filter_by_floor(self, floor_id: int) -> "FingerprintDatabase":
         """
@@ -238,7 +238,8 @@ class FingerprintDatabase:
             If multi-sample format, returns mean over samples axis (ignoring NaN).
         """
         if self.has_multiple_samples:
-            return np.nanmean(self.features, axis=1)  # Average over S, ignore NaN
+            # Average over S, ignore NaN
+            return cast(np.ndarray, np.nanmean(self.features, axis=1))
         else:
             return self.features
 

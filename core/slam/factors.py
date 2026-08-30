@@ -22,7 +22,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -30,6 +30,7 @@ from ..estimators.factor_graph import Factor
 from .se2 import se2_relative, wrap_angle
 
 if TYPE_CHECKING:
+    from ..estimators.factor_graph import FactorGraph
     from .types import CameraIntrinsics
 
 
@@ -87,7 +88,7 @@ def create_odometry_factor(
     if information is None:
         information = np.eye(3)
 
-    def residual_func(x_vars):
+    def residual_func(x_vars: list[np.ndarray]) -> np.ndarray:
         """Compute SE(2) relative pose residual, book Eq. (7.22).
 
         f(T_i, T_j, ΔT'_ij) = ln((ΔT'_ij)⁻¹ T_i⁻¹ T_j)^∨
@@ -107,7 +108,7 @@ def create_odometry_factor(
         # Residual: (ΔT'_ij)⁻¹ ⊕ (T_i⁻¹ T_j), yaw wrapped by se2_compose
         return se2_relative(relative_pose, relative_actual)
 
-    def jacobian_func(x_vars):
+    def jacobian_func(x_vars: list[np.ndarray]) -> list[np.ndarray]:
         """Compute Jacobians with respect to both poses.
 
         Residual component 2 is a yaw wrapped to (-pi, pi] by se2_relative
@@ -126,11 +127,11 @@ def create_odometry_factor(
         # Numerical Jacobians (finite differences)
         epsilon = 1e-7
 
-        def _diff(r_plus, r_base):
+        def _diff(r_plus: np.ndarray, r_base: np.ndarray) -> np.ndarray:
             """Residual difference with the yaw row wrapped to (-pi, pi]."""
             diff = r_plus - r_base
             diff[2] = wrap_angle(diff[2])
-            return diff
+            return cast(np.ndarray, diff)
 
         # Jacobian w.r.t. pose_from
         J_from = np.zeros((3, 3))
@@ -266,7 +267,7 @@ def create_prior_factor(
     if information is None:
         information = np.eye(3)
 
-    def residual_func(x_vars):
+    def residual_func(x_vars: list[np.ndarray]) -> np.ndarray:
         """Compute prior residual."""
         pose = x_vars[0]  # shape (3,)
 
@@ -276,9 +277,9 @@ def create_prior_factor(
         # Wrap yaw difference to [-π, π]
         residual[2] = wrap_angle(residual[2])
 
-        return residual
+        return cast(np.ndarray, residual)
 
-    def jacobian_func(x_vars):
+    def jacobian_func(x_vars: list[np.ndarray]) -> list[np.ndarray]:
         """Compute Jacobian: ∂r/∂pose = -I."""
         # Residual = prior - pose, so ∂r/∂pose = -I
         J = -np.eye(3)
@@ -334,7 +335,7 @@ def create_landmark_factor(
     if information is None:
         information = np.eye(2)
 
-    def residual_func(x_vars):
+    def residual_func(x_vars: list[np.ndarray]) -> np.ndarray:
         """Compute landmark observation residual."""
         pose = x_vars[0]  # shape (3,): [x, y, yaw]
         landmark = x_vars[1]  # shape (2,): [lx, ly]
@@ -354,9 +355,9 @@ def create_landmark_factor(
         # Residual
         residual = observation - predicted_obs
 
-        return residual
+        return cast(np.ndarray, residual)
 
-    def jacobian_func(x_vars):
+    def jacobian_func(x_vars: list[np.ndarray]) -> list[np.ndarray]:
         """Compute Jacobians with respect to pose and landmark."""
         pose = x_vars[0]
         landmark = x_vars[1]
@@ -446,7 +447,7 @@ def create_pose_graph(
     odometry_information: np.ndarray | None = None,
     loop_information: np.ndarray | None = None,
     prior_information: np.ndarray | None = None,
-):
+) -> "FactorGraph":
     """
     Create a complete pose graph from trajectory data.
 
@@ -695,7 +696,7 @@ def create_reprojection_factor(
         # (Eq. (7.69) is the map point set M^L, not this error.)
         residual = projected_pixel - observed_pixel
 
-        return residual
+        return cast(np.ndarray, residual)
 
     def jacobian_func(variables: list[np.ndarray]) -> list[np.ndarray]:
         """

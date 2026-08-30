@@ -8,7 +8,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import Dict, Optional, Union
+from typing import Dict, Optional, Union, cast
 
 import numpy as np
 
@@ -35,7 +35,7 @@ def compute_position_errors(truth: np.ndarray, estimated: np.ndarray) -> np.ndar
             f"Shape mismatch: truth {truth.shape} vs estimated {estimated.shape}"
         )
 
-    return estimated - truth
+    return cast(np.ndarray, estimated - truth)
 
 
 def compute_rmse(
@@ -57,11 +57,13 @@ def compute_rmse(
     errors = np.asarray(errors)
 
     if axis is None:
-        # Scalar RMSE across all dimensions
-        return np.sqrt(np.mean(errors**2))
+        # Scalar RMSE across all dimensions. `cast` rather than `float()`: the
+        # declared type is a union, so narrowing the object to a builtin float
+        # here would change what callers receive.
+        return cast(float, np.sqrt(np.mean(errors**2)))
     else:
         # Per-axis or per-sample RMSE
-        return np.sqrt(np.mean(errors**2, axis=axis))
+        return cast(np.ndarray, np.sqrt(np.mean(errors**2, axis=axis)))
 
 
 def compute_error_stats(errors: np.ndarray) -> Dict[str, float]:

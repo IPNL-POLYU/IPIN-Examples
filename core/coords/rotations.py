@@ -31,6 +31,8 @@ Navigation*, Section 2.2, in an X-right / Y-forward / Z-up body frame):
 Reference: Chapter 2, Section 2.2 - Attitude: Definition and Representation.
 """
 
+from typing import cast
+
 import numpy as np
 from numpy.typing import NDArray
 
@@ -289,4 +291,4 @@ def rotation_matrix_to_quat(C: NDArray[np.float64]) -> NDArray[np.float64]:
     q = np.array([q0, q1, q2, q3], dtype=np.float64)
     if q[0] < 0.0:
         q = -q  # canonical hemisphere: q0 >= 0
-    return q / np.linalg.norm(q)
+    return cast(np.ndarray, q / np.linalg.norm(q))

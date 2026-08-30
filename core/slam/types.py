@@ -15,14 +15,16 @@ Date: December 2025
 """
 
 from dataclasses import dataclass
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 
 # Type aliases for clarity and documentation
 PointCloud2D = np.ndarray  # Shape (N, 2), points in 2D space (meters)
 PointCloud3D = np.ndarray  # Shape (N, 3), points in 3D space (meters)
-VoxelGrid = Dict[Tuple[int, ...], Dict[str, np.ndarray]]  # Voxel key -> stats dict
+# Voxel key -> stats dict. The value dict is heterogeneous: `mean` and `cov`
+# are arrays, `n_points` is an int, so `Any` is what it actually holds.
+VoxelGrid = Dict[Tuple[int, ...], Dict[str, Any]]
 
 
 @dataclass
