@@ -21,7 +21,6 @@ from typing import Tuple
 
 import numpy as np
 
-
 # ============================================================================
 # PRESET CONFIGURATIONS
 # ============================================================================
@@ -346,8 +345,7 @@ Examples:
   # Longer trajectory
   python %(prog)s --duration 120 --output data/sim/ch6_strapdown_long
 
-Available presets: """
-        + ", ".join(PRESETS.keys()),
+Available presets: """ + ", ".join(PRESETS.keys()),
     )
 
     # Preset configuration
