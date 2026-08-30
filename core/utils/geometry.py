@@ -8,7 +8,7 @@ Provides functions for:
 """
 
 import numpy as np
-from typing import Tuple, Optional
+from typing import Tuple, Optional, cast
 import warnings
 
 # Singularity threshold constants
@@ -63,7 +63,7 @@ def normalize_jacobian_singularities(
             RuntimeWarning,
         )
 
-    return H
+    return cast(np.ndarray, H)
 
 
 def check_anchor_geometry(

@@ -11,10 +11,10 @@ Critical for:
 """
 
 import numpy as np
-from typing import Union
+from typing import Union, cast
 
 
-def wrap_angle(angle: float) -> float:
+def wrap_angle(angle: float | np.ndarray) -> float | np.ndarray:
     """
     Wrap angle to [-π, π] range.
 
@@ -24,10 +24,16 @@ def wrap_angle(angle: float) -> float:
     instead of 2° error).
 
     Args:
-        angle: Angle in radians (can be any value)
+        angle: Angle in radians (can be any value). An array works too and
+               wraps elementwise -- ``wrap_angle_array`` is the same call
+               under a name that says so, and is what array callers should
+               reach for. This annotation was ``float -> float`` until it was
+               measured: ``tests/core/test_angle_differences_are_wrapped.py``
+               passes arrays here, so the narrow version was a claim the
+               suite already disproved.
 
     Returns:
-        Wrapped angle in range [-π, π]
+        Wrapped angle in range [-π, π], scalar or array to match the input
 
     Example:
         >>> wrap_angle(3.5 * np.pi)  # 630° -> -90°
@@ -39,7 +45,7 @@ def wrap_angle(angle: float) -> float:
         Used in Extended Kalman Filter bearing measurement updates
     """
     # Use atan2 trick for robust wrapping
-    return np.arctan2(np.sin(angle), np.cos(angle))
+    return cast("float | np.ndarray", np.arctan2(np.sin(angle), np.cos(angle)))
 
 
 def wrap_angle_array(angles: np.ndarray) -> np.ndarray:
@@ -59,7 +65,7 @@ def wrap_angle_array(angles: np.ndarray) -> np.ndarray:
         >>> wrap_angle_array(angles)
         array([ 0.        ,  1.57079633,  3.14159265, -3.14159265, -3.14159265])
     """
-    return np.arctan2(np.sin(angles), np.cos(angles))
+    return cast(np.ndarray, np.arctan2(np.sin(angles), np.cos(angles)))
 
 
 def angle_diff(

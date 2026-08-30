@@ -8,7 +8,7 @@ References: Chapter 8 - Sensor Fusion
 """
 
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -170,7 +170,7 @@ class FusionHistory(dict[str, Any]):
     @property
     def timestamps_s(self) -> list[float]:
         """Fusion update timestamps in seconds."""
-        return self["t"]
+        return cast(list[float], self["t"])
 
     @property
     def x_est(self) -> list[np.ndarray]:
@@ -180,7 +180,7 @@ class FusionHistory(dict[str, Any]):
     @property
     def estimated_state_vectors(self) -> list[np.ndarray]:
         """Estimated EKF state vectors in the runner's documented ordering."""
-        return self["x_est"]
+        return cast(list[np.ndarray], self["x_est"])
 
     @property
     def p_trace(self) -> list[float]:
@@ -190,7 +190,7 @@ class FusionHistory(dict[str, Any]):
     @property
     def state_covariance_trace(self) -> list[float]:
         """Trace of the EKF state covariance after each stored step."""
-        return self["P_trace"]
+        return cast(list[float], self["P_trace"])
 
     @property
     def innovations(self) -> list[np.ndarray]:
@@ -200,7 +200,7 @@ class FusionHistory(dict[str, Any]):
     @property
     def innovation_vectors(self) -> list[np.ndarray]:
         """Measurement residual vectors used for updates."""
-        return self["innovations"]
+        return cast(list[np.ndarray], self["innovations"])
 
     @property
     def nis(self) -> list[float]:
@@ -210,17 +210,17 @@ class FusionHistory(dict[str, Any]):
     @property
     def normalized_innovation_squared(self) -> list[float]:
         """Normalized innovation squared values."""
-        return self["nis"]
+        return cast(list[float], self["nis"])
 
     @property
     def measurement_accepted(self) -> list[bool]:
         """True when a UWB update was accepted by gating/update logic."""
-        return self["measurement_accepted"]
+        return cast(list[bool], self["measurement_accepted"])
 
     @property
     def gated(self) -> list[bool]:
         """Deprecated alias for :attr:`measurement_accepted`."""
-        return self["gated"]
+        return cast(list[bool], self["gated"])
 
 
 @dataclass(frozen=True)

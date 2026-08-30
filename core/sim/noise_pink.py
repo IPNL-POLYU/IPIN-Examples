@@ -21,7 +21,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import Optional, Callable
+from typing import Optional, Callable, cast
 import numpy as np
 
 
@@ -228,4 +228,4 @@ def scale_to_bias_instability(
     # => sigma_min_scaled ≈ target_bi_rad_s * bi_factor
     scale = (target_bi_rad_s * bi_factor) / sigma_min
 
-    return pink_unit * scale
+    return cast(np.ndarray, pink_unit * scale)

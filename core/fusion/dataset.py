@@ -12,7 +12,7 @@ References: Chapter 8, Section 8.1 (Sensor Fusion Architectures)
 """
 
 import json
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 
@@ -31,52 +31,52 @@ class FusionDataset(dict[str, Any]):
     @property
     def truth_timestamps_s(self) -> np.ndarray:
         """Ground-truth timestamps, shape ``(N,)``, in seconds."""
-        return self["truth"]["t"]
+        return cast(np.ndarray, self["truth"]["t"])
 
     @property
     def true_positions_xy_m(self) -> np.ndarray:
         """Ground-truth map-frame positions, shape ``(N, 2)``, in metres."""
-        return self["truth"]["p_xy"]
+        return cast(np.ndarray, self["truth"]["p_xy"])
 
     @property
     def true_velocities_xy_mps(self) -> np.ndarray:
         """Ground-truth map-frame velocities, shape ``(N, 2)``, in m/s."""
-        return self["truth"]["v_xy"]
+        return cast(np.ndarray, self["truth"]["v_xy"])
 
     @property
     def true_yaw_rad(self) -> np.ndarray:
         """Ground-truth body-to-map yaw, shape ``(N,)``, in radians."""
-        return self["truth"]["yaw"]
+        return cast(np.ndarray, self["truth"]["yaw"])
 
     @property
     def imu_timestamps_s(self) -> np.ndarray:
         """IMU sample timestamps, shape ``(K,)``, in seconds."""
-        return self["imu"]["t"]
+        return cast(np.ndarray, self["imu"]["t"])
 
     @property
     def measured_accelerations_body_xy_mps2(self) -> np.ndarray:
         """Measured body-frame planar accelerations, shape ``(K, 2)``."""
-        return self["imu"]["accel_xy"]
+        return cast(np.ndarray, self["imu"]["accel_xy"])
 
     @property
     def measured_gyro_z_rad_s(self) -> np.ndarray:
         """Measured body z-axis angular rates, shape ``(K,)``, in rad/s."""
-        return self["imu"]["gyro_z"]
+        return cast(np.ndarray, self["imu"]["gyro_z"])
 
     @property
     def uwb_anchor_positions_xy_m(self) -> np.ndarray:
         """Map-frame UWB anchor positions, shape ``(A, 2)``, in metres."""
-        return self["uwb_anchors"]
+        return cast(np.ndarray, self["uwb_anchors"])
 
     @property
     def uwb_timestamps_s(self) -> np.ndarray:
         """UWB epoch timestamps, shape ``(M,)``, in seconds."""
-        return self["uwb"]["t"]
+        return cast(np.ndarray, self["uwb"]["t"])
 
     @property
     def measured_uwb_ranges_m(self) -> np.ndarray:
         """Measured UWB ranges, shape ``(M, A)``, in metres."""
-        return self["uwb"]["ranges"]
+        return cast(np.ndarray, self["uwb"]["ranges"])
 
 
 def load_fusion_dataset(data_dir: str) -> FusionDataset:

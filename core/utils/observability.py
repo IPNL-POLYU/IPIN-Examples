@@ -268,4 +268,4 @@ def estimate_observability_time_constant(
     # Multiply by number of steps needed for full observability
     tau = n_states * dt / min_sv
 
-    return tau
+    return float(tau)

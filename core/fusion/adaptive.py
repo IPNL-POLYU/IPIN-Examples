@@ -13,6 +13,8 @@ Date: December 2025
 References: Chapter 8, Section 8.3 (Innovation Monitoring and Tuning)
 """
 
+from typing import Any
+
 import numpy as np
 
 
@@ -80,7 +82,7 @@ class AdaptiveGatingManager:
 
         # State tracking
         self.consecutive_rejects = 0
-        self.nis_history = []  # Rolling window of NIS values
+        self.nis_history: list[float] = []  # Rolling window of NIS values
         self.current_R_scale = 1.0
         self.total_measurements = 0
         self.total_accepts = 0
@@ -193,7 +195,7 @@ class AdaptiveGatingManager:
             "total_adaptations": self.total_adaptations,
         }
 
-    def reset(self):
+    def reset(self) -> None:
         """Reset all tracking state (e.g., for new episode)."""
         self.consecutive_rejects = 0
         self.nis_history = []
@@ -205,7 +207,7 @@ class AdaptiveGatingManager:
 
 
 def create_adaptive_manager_for_tc(
-    n_anchors: int = 4, **kwargs
+    n_anchors: int = 4, **kwargs: Any
 ) -> AdaptiveGatingManager:
     """Create adaptive gating manager for TC fusion (per-anchor updates).
 
@@ -220,7 +222,7 @@ def create_adaptive_manager_for_tc(
     return AdaptiveGatingManager(dof=1, **kwargs)
 
 
-def create_adaptive_manager_for_lc(**kwargs) -> AdaptiveGatingManager:
+def create_adaptive_manager_for_lc(**kwargs: Any) -> AdaptiveGatingManager:
     """Create adaptive gating manager for LC fusion (position updates).
 
     Args:
