@@ -29,7 +29,7 @@ References:
 """
 
 from dataclasses import dataclass
-from typing import Dict, Any, Literal
+from typing import Dict, Any, Literal, cast
 import numpy as np
 
 
@@ -390,14 +390,14 @@ class IMUNoiseParams:
         )
 
         return cls(
-            gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(10.0),  # 10 deg/hr
-            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(
-                0.1
+            gyro_bias_rad_s=cast(float, deg_per_hour_to_rad_per_sec(10.0)),  # 10 deg/hr
+            gyro_arw_rad_sqrt_s=cast(
+                float, deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.1)
             ),  # 0.1 deg/√hr
             gyro_rrw_rad_s_sqrt_s=0.0,
-            accel_bias_mps2=mg_to_mps2(10.0),  # 10 mg
-            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(
-                0.01
+            accel_bias_mps2=cast(float, mg_to_mps2(10.0)),  # 10 mg
+            accel_vrw_mps_sqrt_s=cast(
+                float, mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.01)
             ),  # 0.01 m/s/√hr
             grade="consumer",
         )
@@ -420,14 +420,14 @@ class IMUNoiseParams:
         )
 
         return cls(
-            gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(1.0),  # 1 deg/hr
-            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(
-                0.01
+            gyro_bias_rad_s=cast(float, deg_per_hour_to_rad_per_sec(1.0)),  # 1 deg/hr
+            gyro_arw_rad_sqrt_s=cast(
+                float, deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.01)
             ),  # 0.01 deg/√hr
             gyro_rrw_rad_s_sqrt_s=0.0,
-            accel_bias_mps2=mg_to_mps2(1.0),  # 1 mg
-            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(
-                0.001
+            accel_bias_mps2=cast(float, mg_to_mps2(1.0)),  # 1 mg
+            accel_vrw_mps_sqrt_s=cast(
+                float, mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.001)
             ),  # 0.001 m/s/√hr
             grade="tactical",
         )
@@ -450,14 +450,16 @@ class IMUNoiseParams:
         )
 
         return cls(
-            gyro_bias_rad_s=deg_per_hour_to_rad_per_sec(0.01),  # 0.01 deg/hr
-            gyro_arw_rad_sqrt_s=deg_per_sqrt_hour_to_rad_per_sqrt_sec(
-                0.001
+            gyro_bias_rad_s=cast(
+                float, deg_per_hour_to_rad_per_sec(0.01)
+            ),  # 0.01 deg/hr
+            gyro_arw_rad_sqrt_s=cast(
+                float, deg_per_sqrt_hour_to_rad_per_sqrt_sec(0.001)
             ),  # 0.001 deg/√hr
             gyro_rrw_rad_s_sqrt_s=0.0,
-            accel_bias_mps2=mg_to_mps2(0.1),  # 0.1 mg
-            accel_vrw_mps_sqrt_s=mps_per_sqrt_hour_to_mps_per_sqrt_sec(
-                0.0001
+            accel_bias_mps2=cast(float, mg_to_mps2(0.1)),  # 0.1 mg
+            accel_vrw_mps_sqrt_s=cast(
+                float, mps_per_sqrt_hour_to_mps_per_sqrt_sec(0.0001)
             ),  # 0.0001 m/s/√hr
             grade="navigation",
         )

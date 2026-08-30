@@ -27,6 +27,7 @@ References:
 """
 
 import warnings
+from typing import Any
 
 import numpy as np
 
@@ -352,7 +353,7 @@ def identify_random_walk(
     # Random walk coefficient (units: rad/√s or m/s^(3/2))
     N = adev_at_target
 
-    return N
+    return float(N)
 
 
 def identify_rate_random_walk(
@@ -438,7 +439,7 @@ def identify_rate_random_walk(
     # Rate random walk coefficient: K = σ(τ) * √(3/τ)
     K = adev_at_target * np.sqrt(3.0 / tau_target)
 
-    return K
+    return float(K)
 
 
 def random_walk_to_rate_sample_std(random_walk: float, dt: float) -> float:
@@ -466,7 +467,7 @@ def random_walk_to_rate_sample_std(random_walk: float, dt: float) -> float:
     if random_walk < 0:
         raise ValueError(f"random_walk must be non-negative, got {random_walk}")
 
-    return random_walk / np.sqrt(dt)
+    return float(random_walk / np.sqrt(dt))
 
 
 def rate_sample_std_to_random_walk(sample_std: float, dt: float) -> float:
@@ -487,7 +488,7 @@ def rate_sample_std_to_random_walk(sample_std: float, dt: float) -> float:
     if sample_std < 0:
         raise ValueError(f"sample_std must be non-negative, got {sample_std}")
 
-    return sample_std * np.sqrt(dt)
+    return float(sample_std * np.sqrt(dt))
 
 
 def random_walk_to_increment_sample_std(random_walk: float, dt: float) -> float:
@@ -514,7 +515,7 @@ def random_walk_to_increment_sample_std(random_walk: float, dt: float) -> float:
     if random_walk < 0:
         raise ValueError(f"random_walk must be non-negative, got {random_walk}")
 
-    return random_walk * np.sqrt(dt)
+    return float(random_walk * np.sqrt(dt))
 
 
 def increment_sample_std_to_random_walk(increment_std: float, dt: float) -> float:
@@ -536,7 +537,7 @@ def increment_sample_std_to_random_walk(increment_std: float, dt: float) -> floa
     if increment_std < 0:
         raise ValueError(f"increment_std must be non-negative, got {increment_std}")
 
-    return increment_std / np.sqrt(dt)
+    return float(increment_std / np.sqrt(dt))
 
 
 def arw_to_noise_std(arw: float, dt: float) -> float:
@@ -693,7 +694,7 @@ def characterize_imu_noise(
         >>> print(f"Gyro ARW: {np.rad2deg(noise_params['gyro']['angle_random_walk'])*60:.2f} deg/√hr")
         >>> print(f"Gyro BI:  {np.rad2deg(noise_params['gyro']['bias_instability']):.4f} deg/s")
     """
-    results = {}
+    results: dict[str, dict[str, Any]] = {}
 
     # Process gyroscope
     if gyro_data.ndim == 2:

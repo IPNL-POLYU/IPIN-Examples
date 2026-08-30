@@ -26,14 +26,16 @@ References:
     Eq. (6.55): Generic state/measurement model for smoothing
 """
 
-from typing import Optional
+from typing import Optional, cast
 import numpy as np
 
 # Import FrameConvention for type hints
 from core.sensors.types import FrameConvention
 
 
-def wrap_angle_diff(angle1: float, angle2: float) -> float:
+def wrap_angle_diff(
+    angle1: float | np.ndarray, angle2: float | np.ndarray
+) -> float | np.ndarray:
     """
     Compute the smallest signed difference between two angles.
 
@@ -41,11 +43,12 @@ def wrap_angle_diff(angle1: float, angle2: float) -> float:
     This ensures the result is always the shortest angular distance.
 
     Args:
-        angle1: First angle (radians).
-        angle2: Second angle (radians).
+        angle1: First angle (radians). Arrays work and wrap elementwise.
+        angle2: Second angle (radians). Arrays work and wrap elementwise.
 
     Returns:
-        Signed difference angle1 - angle2 in range [-π, π].
+        Signed difference angle1 - angle2 in range [-π, π], scalar or array
+        to match the input.
         Positive means angle1 is counter-clockwise from angle2.
 
     Example:
@@ -60,7 +63,7 @@ def wrap_angle_diff(angle1: float, angle2: float) -> float:
     diff = angle1 - angle2
     # Wrap to [-π, π] using atan2 trick
     wrapped_diff = np.arctan2(np.sin(diff), np.cos(diff))
-    return wrapped_diff
+    return cast("float | np.ndarray", wrapped_diff)
 
 
 def mag_tilt_compensate(
@@ -268,7 +271,7 @@ def mag_heading(
     # Wrap to [-π, π]
     heading = np.arctan2(np.sin(heading), np.cos(heading))
 
-    return heading
+    return float(heading)
 
 
 def pressure_to_altitude(
@@ -350,7 +353,7 @@ def pressure_to_altitude(
     # Altitude (Eq. 6.54): h = (T / L) * (1 - (p / p0)^α)
     h = (T / L) * (1.0 - (p / p0) ** alpha)
 
-    return h
+    return float(h)
 
 
 def detect_floor_change(
@@ -555,4 +558,4 @@ def compensate_hard_iron(
     # Hard-iron correction: remove constant offset
     mag_corrected = mag_raw - offset
 
-    return mag_corrected
+    return cast(np.ndarray, mag_corrected)

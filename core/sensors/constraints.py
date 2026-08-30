@@ -32,7 +32,7 @@ References:
     Eq. (6.61): NHC pseudo-measurement (lateral/vertical velocity = 0)
 """
 
-from typing import Optional
+from typing import Any, Optional
 import numpy as np
 
 from core.sensors.gravity import gravity_magnitude
@@ -138,7 +138,7 @@ def zupt_test_statistic(
 
     # Compute average accelerometer measurement over window: ā_k
     accel_mean = np.mean(accel_window, axis=0)  # Shape: (3,)
-    accel_mean_norm = np.linalg.norm(accel_mean)
+    accel_mean_norm: float | np.floating[Any] = np.linalg.norm(accel_mean)
 
     # Avoid division by zero (shouldn't happen with real IMU data)
     if accel_mean_norm < 1e-6:
@@ -167,7 +167,7 @@ def zupt_test_statistic(
     # Normalize by window length: T_k = (1/N) * Σ(...)
     T_k /= N
 
-    return T_k
+    return float(T_k)
 
 
 def detect_zupt_windowed(
@@ -341,7 +341,7 @@ def detect_zupt(
     # ZUPT condition (Eq. 6.44): both conditions must hold
     zupt_detected = omega_stationary and f_stationary
 
-    return zupt_detected
+    return bool(zupt_detected)
 
 
 class ZuptMeasurementModel:

@@ -9,8 +9,9 @@ This module implements positioning algorithms for TOA, TDOA, and AOA measurement
 All algorithms implement equations from Chapter 4 of the IPIN book.
 """
 
+from collections.abc import Callable, Iterable, Iterator
 from dataclasses import dataclass
-from typing import Any, Dict, Optional, Tuple, Union
+from typing import Any, Dict, Optional, Tuple, Union, cast
 
 import numpy as np
 
@@ -95,7 +96,7 @@ class PositionSolveResult:
         domain = self.info.get("measurement_domain")
         return None if domain is None else str(domain)
 
-    def __iter__(self):
+    def __iter__(self) -> Iterator[Any]:
         """Allow ``position, info = result`` during the compatibility period."""
         yield self.estimated_position_m
         yield self.info
@@ -154,7 +155,14 @@ class SolveOutcome:
         solved: The conjunction of all four conditions, shape (N,).
     """
 
-    def __init__(self, estimates, converged, stalled, errors, divergence_m):
+    def __init__(
+        self,
+        estimates: np.ndarray,
+        converged: np.ndarray,
+        stalled: np.ndarray,
+        errors: np.ndarray,
+        divergence_m: float,
+    ) -> None:
         self.estimates = estimates
         self.converged = converged
         self.stalled = stalled
@@ -217,15 +225,15 @@ class SolveOutcome:
 
 
 def solve_batch(
-    solver,
+    solver: Any,
     measurements: np.ndarray,
     initial_guess: np.ndarray,
     truth: np.ndarray,
     *,
     divergence_m: float = DIVERGENCE_M,
     stall_m: float = STALL_M,
-    progress=None,
-    **solve_kwargs,
+    progress: Callable[[Iterable[int]], Iterable[int]] | None = None,
+    **solve_kwargs: Any,
 ) -> SolveOutcome:
     """Solve one fix per row of ``measurements`` and keep the failures.
 
@@ -806,8 +814,8 @@ class TDOAPositioner:
         for iteration in range(max_iters):
             # Compute predicted TDOA (Eq. 4.34)
             dist_ref = np.linalg.norm(position - self.reference_anchor)
-            predicted_tdoa = []
-            H = []
+            predicted_tdoa_rows: list[float] = []
+            h_rows: list[np.ndarray] = []
 
             idx = 0
             for i in range(self.n_anchors):
@@ -815,7 +823,7 @@ class TDOAPositioner:
                     continue
 
                 dist_i = np.linalg.norm(position - self.anchors[i])
-                predicted_tdoa.append(dist_i - dist_ref)
+                predicted_tdoa_rows.append(dist_i - dist_ref)
 
                 # Jacobian row (Eq. 4.37-4.38)
                 if dist_i > 1e-10 and dist_ref > 1e-10:
@@ -825,11 +833,11 @@ class TDOAPositioner:
                 else:
                     h_i = np.zeros(self.dim)
 
-                H.append(h_i)
+                h_rows.append(h_i)
                 idx += 1
 
-            predicted_tdoa = np.array(predicted_tdoa)
-            H = np.array(H)
+            predicted_tdoa = np.array(predicted_tdoa_rows)
+            H = np.array(h_rows)
 
             # Residuals
             residuals = tdoa_measurements - predicted_tdoa
@@ -1128,7 +1136,7 @@ class AOAPositioner:
         n_meas = 2 * self.n_anchors if self.is_3d else self.n_anchors
         variances = np.ones(n_meas)
 
-        def _fill(slot, sigma):
+        def _fill(slot: slice, sigma: float | np.ndarray | None) -> None:
             if sigma is None:
                 return
             sigma_arr = np.broadcast_to(
@@ -1169,7 +1177,7 @@ class AOAPositioner:
             return z
         else:
             # 2D: input is [ψ_1, ψ_2, ...]
-            return np.tan(aoa_measurements)
+            return cast(np.ndarray, np.tan(aoa_measurements))
 
     def _compute_weight_matrix(
         self,
@@ -1241,15 +1249,15 @@ class AOAPositioner:
                 if sigma_sin_theta is not None:
                     # Direct transformed-domain std
                     if np.isscalar(sigma_sin_theta):
-                        variances[idx_sin] = sigma_sin_theta**2
+                        variances[idx_sin] = cast(float, sigma_sin_theta) ** 2
                     else:
-                        variances[idx_sin] = sigma_sin_theta[i] ** 2
+                        variances[idx_sin] = cast(np.ndarray, sigma_sin_theta)[i] ** 2
                 elif sigma_theta is not None:
                     # First-order error propagation: var(sin θ) ≈ cos²(θ) * var(θ)
                     if np.isscalar(sigma_theta):
-                        var_theta = sigma_theta**2
+                        var_theta = cast(float, sigma_theta) ** 2
                     else:
-                        var_theta = sigma_theta[i] ** 2
+                        var_theta = cast(np.ndarray, sigma_theta)[i] ** 2
                     cos_theta = np.cos(theta_i)
                     variances[idx_sin] = cos_theta**2 * var_theta
                 # else: keep default variance = 1
@@ -1258,16 +1266,16 @@ class AOAPositioner:
                 if sigma_tan_psi is not None:
                     # Direct transformed-domain std
                     if np.isscalar(sigma_tan_psi):
-                        variances[idx_tan] = sigma_tan_psi**2
+                        variances[idx_tan] = cast(float, sigma_tan_psi) ** 2
                     else:
-                        variances[idx_tan] = sigma_tan_psi[i] ** 2
+                        variances[idx_tan] = cast(np.ndarray, sigma_tan_psi)[i] ** 2
                 elif sigma_psi is not None:
                     # First-order error propagation:
                     # var(tan ψ) ≈ sec⁴(ψ) * var(ψ) = (1 + tan²ψ)² * var(ψ)
                     if np.isscalar(sigma_psi):
-                        var_psi = sigma_psi**2
+                        var_psi = cast(float, sigma_psi) ** 2
                     else:
-                        var_psi = sigma_psi[i] ** 2
+                        var_psi = cast(np.ndarray, sigma_psi)[i] ** 2
                     tan_psi = np.tan(psi_i)
                     sec_sq = 1.0 + tan_psi**2  # sec²(ψ)
                     variances[idx_tan] = sec_sq**2 * var_psi
@@ -1281,16 +1289,16 @@ class AOAPositioner:
                 if sigma_tan_psi is not None:
                     # Direct transformed-domain std
                     if np.isscalar(sigma_tan_psi):
-                        variances[i] = sigma_tan_psi**2
+                        variances[i] = cast(float, sigma_tan_psi) ** 2
                     else:
-                        variances[i] = sigma_tan_psi[i] ** 2
+                        variances[i] = cast(np.ndarray, sigma_tan_psi)[i] ** 2
                 elif sigma_psi is not None:
                     # First-order error propagation:
                     # var(tan ψ) ≈ sec⁴(ψ) * var(ψ)
                     if np.isscalar(sigma_psi):
-                        var_psi = sigma_psi**2
+                        var_psi = cast(float, sigma_psi) ** 2
                     else:
-                        var_psi = sigma_psi[i] ** 2
+                        var_psi = cast(np.ndarray, sigma_psi)[i] ** 2
                     tan_psi = np.tan(psi_i)
                     sec_sq = 1.0 + tan_psi**2  # sec²(ψ)
                     variances[i] = sec_sq**2 * var_psi
@@ -1549,7 +1557,7 @@ class AOAPositioner:
         # Iteration history
         history = [position.copy()]
         converged = False
-        residual_norm = np.inf
+        residual_norm: float | np.floating[Any] = np.inf
 
         for iteration in range(max_iters):
             # Compute predicted measurements and Jacobian
@@ -1723,7 +1731,7 @@ class AOAPositioner:
                 angles[2 * i + 1] = np.arctan(tan_psi)  # ψ
             return angles
         else:
-            return np.arctan(z_predicted)
+            return cast(np.ndarray, np.arctan(z_predicted))
 
 
 def aoa_ove_solve(

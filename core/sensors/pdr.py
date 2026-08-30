@@ -30,9 +30,9 @@ References:
     Eq. (6.50): 2D position update
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 import numpy as np
-from scipy import signal
+from scipy import signal  # type: ignore[import-untyped]
 
 # Import FrameConvention for type hints
 from core.sensors.types import FrameConvention
@@ -89,7 +89,7 @@ def total_accel_magnitude(accel_b: np.ndarray) -> float:
     # Eq. (6.46): a_mag = ||a|| = sqrt(ax^2 + ay^2 + az^2)
     a_mag = np.linalg.norm(accel_b)
 
-    return a_mag
+    return float(a_mag)
 
 
 def remove_gravity_from_magnitude(
@@ -410,7 +410,7 @@ def step_length(
     # Generic power-law (NOT Eq. 6.49 or Weinberg)
     L = c * (h**a) * (f_step**b)
 
-    return L
+    return float(L)
 
 
 def step_length_book_eq6_49(
@@ -587,7 +587,7 @@ def step_length_weinberg(
     # Weinberg formula: SL = G_w * ptp^(1/4)
     SL = G_w * (ptp**power)
 
-    return SL
+    return float(SL)
 
 
 def calibrate_weinberg_gain(
@@ -802,7 +802,7 @@ def detect_step_simple(
     max_mag = np.max(accel_mag_window)
     step_detected = max_mag > threshold
 
-    return step_detected
+    return bool(step_detected)
 
 
 def integrate_gyro_heading(
@@ -861,7 +861,7 @@ def integrate_gyro_heading(
     return heading_next
 
 
-def wrap_heading(heading_rad: float) -> float:
+def wrap_heading(heading_rad: float | np.ndarray) -> float | np.ndarray:
     """
     Wrap heading angle to [-π, π] range.
 
@@ -870,9 +870,18 @@ def wrap_heading(heading_rad: float) -> float:
     Args:
         heading_rad: Heading angle (possibly outside [-π, π]).
                      Units: radians.
+                     An array works too and wraps elementwise. This was
+                     annotated ``float -> float`` until it was measured:
+                     ``example_pdr`` wraps whole 1800-sample heading arrays
+                     with it, and
+                     ``tests/core/test_angle_differences_are_wrapped.py``
+                     pins that, so the sanctioned scalar repair
+                     (``return float(wrapped)``) raises "only 0-dimensional
+                     arrays can be converted to Python scalars". Same lie,
+                     and same correction, as ``core.utils.wrap_angle``.
 
     Returns:
-        Wrapped heading in range [-π, π].
+        Wrapped heading in range [-π, π], scalar or array to match the input.
         Units: radians.
 
     Example:
@@ -882,4 +891,4 @@ def wrap_heading(heading_rad: float) -> float:
     """
     # Wrap to [-π, π]
     wrapped = np.arctan2(np.sin(heading_rad), np.cos(heading_rad))
-    return wrapped
+    return cast("float | np.ndarray", wrapped)
