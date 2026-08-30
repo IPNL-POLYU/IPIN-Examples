@@ -313,8 +313,14 @@ class TimeSyncModel:
 
         Example:
             >>> sync = TimeSyncModel(offset=0.5, drift=0.001)
-            >>> sync.to_fusion_time(10.0)
+            >>> round(sync.to_fusion_time(10.0), 6)
             10.51
+
+        Rounded because the exact value is 10.509999999999998: (1.001 * 10.0)
+        is not 10.01 in binary floating point. The example used to claim the
+        arithmetic answer as though it were the repr, which made it the one
+        false doctest in this file and kept the file off the allowlist in
+        tests/test_doctests_that_pass_keep_passing.py.
         """
         return (1.0 + self.drift) * t_sensor + self.offset
 

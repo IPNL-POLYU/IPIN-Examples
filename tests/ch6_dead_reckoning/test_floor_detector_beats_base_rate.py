@@ -80,9 +80,9 @@ def test_floor_detector_beats_a_constant_predictor(tmp_path):
         cwd=REPO_ROOT,
         env={**os.environ, "PYTHONIOENCODING": "utf-8", "MPLBACKEND": "Agg"},
     )
-    assert proc.returncode == 0, (
-        f"generator failed:\n{proc.stdout[-1500:]}\n{proc.stderr[-1500:]}"
-    )
+    assert (
+        proc.returncode == 0
+    ), f"generator failed:\n{proc.stdout[-1500:]}\n{proc.stderr[-1500:]}"
 
     config = json.loads((tmp_path / "config.json").read_text(encoding="utf-8"))
     accuracy = config["performance"]["barometric_altitude"][
