@@ -43,7 +43,7 @@ class TestSensorNoiseIsReproducible(unittest.TestCase):
         # Short: this exercises the noise draw, not the trajectory shape.
         cls.dt = 0.01
         frame = FrameConvention.create_enu()
-        (_, _, _, cls.accel_body, cls.gyro_body, _, cls.mag_body, _, cls.wheel_true) = (
+        _, _, _, cls.accel_body, cls.gyro_body, _, cls.mag_body, _, cls.wheel_true = (
             generate_mixed_trajectory(duration=2.0, dt=cls.dt, frame=frame)
         )
         cls.imu_params = IMUNoiseParams.consumer_grade()

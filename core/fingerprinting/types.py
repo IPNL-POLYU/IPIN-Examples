@@ -13,7 +13,6 @@ from typing import Optional
 
 import numpy as np
 
-
 # Type aliases for clarity and documentation
 Location = np.ndarray  # Shape (d,), typically d=2 or d=3 (x, y) or (x, y, z)
 Fingerprint = np.ndarray  # Shape (N,), feature vector (e.g., RSS from N APs)

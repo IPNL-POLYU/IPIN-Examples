@@ -51,7 +51,14 @@ dependencies = [
 dev = [
     "pytest>=7.0.0",
     "pytest-cov>=3.0.0",
-    "black>=22.0.0",
+    # Pinned exactly, not ranged: tests/test_black_is_actually_run.py and
+    # tests/test_mypy_debt_only_shrinks.py are assertions about what a SPECIFIC
+    # tool version reports. Unpinned, CI installs a newer release than the dev
+    # machine and the two argue -- black 26 reformatted 8 files that black 25
+    # accepted, and mypy 2.3 counts 413 errors where 1.19 counted 408. Bump
+    # these deliberately, re-running black and re-measuring the mypy baseline
+    # in the same commit.
+    "black==26.5.1",
     "flake8>=4.0.0",
     # Declared explicitly rather than left to arrive as flake8's transitive
     # dependency: tests/test_repo_conventions.py imports it, and a test whose
@@ -69,7 +76,7 @@ dev = [
     # only arrives today as a transitive dependency of jupyterlab, so the
     # equation index is guarded by a package nothing here asks for.
     "PyYAML>=6.0",
-    "mypy>=0.950",
+    "mypy==2.3.1",
     "ruff>=0.1.0",
     "pydocstyle>=6.0.0",
     "pylint>=2.12.0",

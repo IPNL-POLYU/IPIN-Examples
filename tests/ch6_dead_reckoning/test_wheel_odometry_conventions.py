@@ -63,7 +63,7 @@ class TestSpeedFrameConvention(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        (cls.t, cls.truth, cls.vel, cls.quat, cls.wheel, cls.gyro) = _setup()
+        cls.t, cls.truth, cls.vel, cls.quat, cls.wheel, cls.gyro = _setup()
         with contextlib.redirect_stdout(io.StringIO()):
             cls.wheel_meas, cls.gyro_meas = add_wheel_noise(cls.wheel, cls.gyro)
 
@@ -107,7 +107,7 @@ class TestSlipActuallySlips(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        (cls.t, cls.truth, cls.vel, cls.quat, cls.wheel, cls.gyro) = _setup()
+        cls.t, cls.truth, cls.vel, cls.quat, cls.wheel, cls.gyro = _setup()
 
     def test_the_turns_are_stationary(self):
         """Why the original slip windows injected nothing.

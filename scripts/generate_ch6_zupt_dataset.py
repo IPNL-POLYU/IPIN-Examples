@@ -21,7 +21,6 @@ from typing import Tuple
 
 import numpy as np
 
-
 # ============================================================================
 # PRESET CONFIGURATIONS
 # ============================================================================
@@ -413,8 +412,7 @@ Examples:
   # Test ZUPT with noisy IMU
   python %(prog)s --preset noisy_imu --output data/sim/ch6_zupt_noisy
 
-Available presets: """
-        + ", ".join(PRESETS.keys()),
+Available presets: """ + ", ".join(PRESETS.keys()),
     )
 
     # Preset configuration

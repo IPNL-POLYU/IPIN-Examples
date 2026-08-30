@@ -133,3 +133,32 @@ def test_every_source_file_is_black_formatted():
         "The diff is deliberately not printed here -- black prints a better "
         "one, and a formatting diff in a pytest failure report is unreadable."
     )
+
+
+def test_the_installed_black_is_the_pinned_one():
+    """The guard is an assertion about a SPECIFIC black version.
+
+    This exact failure shipped once already: the dev machine ran black
+    25.12.0 while CI freshly installed 26.5.1, and the two reported
+    different results over the same tree -- red on one side, green on the
+    other, and the disagreement was invisible until the merge. The pin in
+    pyproject.toml is the single source of truth; this test reads it rather
+    than repeating it, and fails with the upgrade command instead of letting
+    a version skew masquerade as a formatting or typing regression.
+    """
+    from pathlib import Path
+
+    import tomllib
+
+    pyproject = tomllib.loads(
+        (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    dev = pyproject["project"]["optional-dependencies"]["dev"]
+    pin = next(d.split("==")[1] for d in dev if d.startswith("black=="))
+    installed = __import__("black").__version__
+    assert installed == pin, (
+        f"black {installed} is installed but the guards are calibrated "
+        f"against {pin}. Run: pip install -e .[dev]"
+    )

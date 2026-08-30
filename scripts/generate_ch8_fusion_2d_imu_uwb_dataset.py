@@ -21,7 +21,6 @@ from typing import Tuple
 
 import numpy as np
 
-
 # ============================================================================
 # PRESET CONFIGURATIONS
 # ============================================================================
@@ -570,8 +569,7 @@ Examples:
   # High dropout test
   python %(prog)s --dropout-rate 0.3 --output data/sim/fusion_high_dropout
 
-Available presets: """
-        + ", ".join(PRESETS.keys()),
+Available presets: """ + ", ".join(PRESETS.keys()),
     )
 
     # Preset configuration

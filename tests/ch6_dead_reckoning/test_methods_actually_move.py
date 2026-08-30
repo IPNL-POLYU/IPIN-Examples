@@ -64,7 +64,7 @@ class TestMethodsActuallyMove(unittest.TestCase):
         frame = FrameConvention.create_enu()
         imu_params = IMUNoiseParams.consumer_grade()
 
-        (t, pos_true, vel_true, accel_body, gyro_body, _, mag_body, _, wheel_true) = (
+        t, pos_true, vel_true, accel_body, gyro_body, _, mag_body, _, wheel_true = (
             generate_mixed_trajectory(duration=duration, dt=dt, frame=frame)
         )
         accel, gyro, mag, wheel = add_sensor_noise(

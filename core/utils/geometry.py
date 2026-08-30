@@ -11,7 +11,6 @@ import numpy as np
 from typing import Tuple, Optional
 import warnings
 
-
 # Singularity threshold constants
 EPSILON_RANGE = 1e-10  # Minimum range for Jacobian computation (10 picometers)
 EPSILON_COLINEAR = 1e-6  # Threshold for colinearity detection

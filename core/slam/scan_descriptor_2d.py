@@ -125,7 +125,7 @@ def compute_descriptor_similarity(
         >>> desc1 = np.array([0.5, 0.3, 0.2])
         >>> desc2 = np.array([0.5, 0.3, 0.2])
         >>> sim = compute_descriptor_similarity(desc1, desc2, method="cosine")
-        >>> print(sim)  # Should be 1.0 (identical)
+        >>> round(sim, 6)  # 1.0 up to one ulp: exact float repr differs per CPU
         1.0
     """
     # Input validation
