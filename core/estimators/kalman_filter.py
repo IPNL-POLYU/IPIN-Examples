@@ -19,11 +19,17 @@ covariance update); the correct form is (I - K_k H_k) P_{k|k-1}, used here.
 See docs/book_errata.md (E-01).
 """
 
-from typing import Callable, Optional, Tuple, Union
+from typing import Any, Callable, Optional, Tuple, Union
 
 import numpy as np
 
 from core.estimators.base import StateEstimator
+
+#: `F`, `Q`, `H` and `R` may each be a fixed matrix or a callable returning
+#: one. Spelling the callable's return as `np.ndarray` rather than leaving it
+#: bare is what lets `_get_matrix` promise an `np.ndarray`: a bare `Callable`
+#: is `Callable[..., Any]`, and that `Any` propagated to every caller.
+MatrixOrCallable = Union[np.ndarray, Callable[..., np.ndarray]]
 
 
 class KalmanFilter(StateEstimator):
@@ -48,10 +54,10 @@ class KalmanFilter(StateEstimator):
 
     def __init__(
         self,
-        F: Union[np.ndarray, Callable],
-        Q: Union[np.ndarray, Callable],
-        H: Union[np.ndarray, Callable],
-        R: Union[np.ndarray, Callable],
+        F: MatrixOrCallable,
+        Q: MatrixOrCallable,
+        H: MatrixOrCallable,
+        R: MatrixOrCallable,
         x0: Optional[np.ndarray] = None,
         P0: Optional[np.ndarray] = None,
     ):
@@ -102,7 +108,7 @@ class KalmanFilter(StateEstimator):
                     f"P0 shape {self.covariance.shape} inconsistent with state_dim {state_dim}"
                 )
 
-    def _get_matrix(self, mat: Union[np.ndarray, Callable], *args) -> np.ndarray:
+    def _get_matrix(self, mat: MatrixOrCallable, *args: Any) -> np.ndarray:
         """
         Helper to get matrix value (handles both constant and callable).
 
@@ -223,7 +229,7 @@ class KalmanFilter(StateEstimator):
         return innovation, innovation_cov
 
 
-def check_kalman_filter_1d_constant_velocity():
+def check_kalman_filter_1d_constant_velocity() -> None:
     """
     Self-check: 1D constant velocity tracking.
 
@@ -296,7 +302,7 @@ def check_kalman_filter_1d_constant_velocity():
     print("  [PASS] Test passed")
 
 
-def check_kalman_filter_innovation():
+def check_kalman_filter_innovation() -> None:
     """
     Self-check: Innovation computation.
 
@@ -336,24 +342,24 @@ def check_kalman_filter_innovation():
     print("  [PASS] Test passed")
 
 
-def check_kalman_filter_callable_matrices():
+def check_kalman_filter_callable_matrices() -> None:
     """
     Self-check: Time-varying matrices (callable).
 
     Tests that the filter works with time-varying F, Q, H, R.
     """
 
-    def F_func(dt):
+    def F_func(dt: float) -> np.ndarray:
         return np.array([[1.0, dt], [0.0, 1.0]])
 
-    def Q_func(dt):
+    def Q_func(dt: float) -> np.ndarray:
         q = 0.01
         return q * np.array([[dt**3 / 3, dt**2 / 2], [dt**2 / 2, dt]])
 
-    def H_func():
+    def H_func() -> np.ndarray:
         return np.array([[1.0, 0.0]])
 
-    def R_func():
+    def R_func() -> np.ndarray:
         return np.array([[0.1]])
 
     x0 = np.array([0.0, 1.0])

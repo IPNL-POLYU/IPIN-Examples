@@ -33,7 +33,7 @@ satisfies the measurement equation. Mathematically, IEKF is equivalent to
 performing Gauss-Newton optimization of the measurement likelihood.
 """
 
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, cast
 
 import numpy as np
 
@@ -166,9 +166,16 @@ class IteratedExtendedKalmanFilter(StateEstimator):
         # Covariance propagation: P_k^- = F P_{k-1} F^T + Q
         self.covariance = F @ self.covariance @ F.T + Q
 
-    def update(self, z: np.ndarray) -> int:
+    def update(self, z: np.ndarray) -> int:  # type: ignore[override]
         """
         Perform iterated measurement update (IEKF correction step).
+
+        The return type widens the base class's ``-> None`` on purpose: the
+        iteration count is the quantity this filter exists to expose, and
+        ``ch3_estimators/example_iekf_range_bearing.py:276`` reads it off the
+        concrete class. Nothing calls ``update`` through the
+        :class:`StateEstimator` interface, so the Liskov violation is
+        annotated rather than resolved.
 
         Implements the IEKF algorithm from Section 3.2.3:
 
@@ -254,8 +261,18 @@ class IteratedExtendedKalmanFilter(StateEstimator):
         self.state = x_iter
 
         # Covariance update: P_k = (I - K H) P_k^- (Joseph form for stability)
-        I_KH = np.eye(self.state_dim) - K @ H
-        self.covariance = I_KH @ P_pred @ I_KH.T + K @ R @ K.T
+        #
+        # SUSPECTED BUG, left as-is and only annotated: mypy is right that `K`
+        # and `H` are still None here when the loop body never ran, which is
+        # `max_iterations <= 0`. Measured: that configuration raises
+        # `TypeError: unsupported operand type(s) for @: 'NoneType' and
+        # 'NoneType'` on the next line. Nothing in the repository passes it --
+        # the default is 5 and every caller passes >= 5 -- and the constructor
+        # does not validate the argument the way ParticleFilter validates
+        # `n_particles`. Fixing that is a behaviour change, so it is reported
+        # rather than made here.
+        I_KH = np.eye(self.state_dim) - K @ H  # type: ignore[operator]
+        self.covariance = I_KH @ P_pred @ I_KH.T + K @ R @ K.T  # type: ignore[union-attr]
 
         self._last_iterations = iterations_performed
         return iterations_performed
@@ -288,32 +305,32 @@ class IteratedExtendedKalmanFilter(StateEstimator):
         return innovation, innovation_cov
 
 
-def check_iekf_convergence():
+def check_iekf_convergence() -> None:
     """
     Self-check: Verify IEKF converges in fewer steps with mild nonlinearity.
     """
     dt = 0.1
 
     # Linear process model
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         F = np.array([[1, dt], [0, 1]])
-        return F @ x
+        return cast(np.ndarray, F @ x)
 
-    def process_jacobian(x, u, dt):
+    def process_jacobian(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         return np.array([[1, dt], [0, 1]])
 
     # Nonlinear measurement: range from origin
-    def measurement_model(x):
+    def measurement_model(x: np.ndarray) -> np.ndarray:
         return np.array([np.sqrt(x[0] ** 2 + 0.1)])
 
-    def measurement_jacobian(x):
+    def measurement_jacobian(x: np.ndarray) -> np.ndarray:
         r = np.sqrt(x[0] ** 2 + 0.1)
         return np.array([[x[0] / r, 0]])
 
-    def Q_func(dt):
+    def Q_func(dt: float) -> np.ndarray:
         return 0.01 * np.eye(2)
 
-    def R_func():
+    def R_func() -> np.ndarray:
         return np.array([[0.1]])
 
     x0 = np.array([5.0, 0.5])
@@ -347,7 +364,7 @@ def check_iekf_convergence():
     assert iters <= 10, "IEKF did not converge within max iterations"
 
 
-def check_iekf_vs_ekf_high_nonlinearity():
+def check_iekf_vs_ekf_high_nonlinearity() -> None:
     """
     Self-check: Compare IEKF vs EKF on highly nonlinear measurement.
 
@@ -358,18 +375,18 @@ def check_iekf_vs_ekf_high_nonlinearity():
     dt = 0.5
 
     # Process model
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
-        return F @ x
+        return cast(np.ndarray, F @ x)
 
-    def process_jacobian(x, u, dt):
+    def process_jacobian(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # Highly nonlinear measurement: range from origin
-    def measurement_model(x):
+    def measurement_model(x: np.ndarray) -> np.ndarray:
         return np.array([np.sqrt(x[0] ** 2 + x[1] ** 2)])
 
-    def measurement_jacobian(x):
+    def measurement_jacobian(x: np.ndarray) -> np.ndarray:
         r = np.sqrt(x[0] ** 2 + x[1] ** 2)
         if r < 1e-6:
             return np.array([[0, 0, 0, 0]])
@@ -377,7 +394,7 @@ def check_iekf_vs_ekf_high_nonlinearity():
 
     q = 0.1
 
-    def Q_func(dt):
+    def Q_func(dt: float) -> np.ndarray:
         return q * np.array(
             [
                 [dt**3 / 3, 0, dt**2 / 2, 0],
@@ -387,7 +404,7 @@ def check_iekf_vs_ekf_high_nonlinearity():
             ]
         )
 
-    def R_func():
+    def R_func() -> np.ndarray:
         return np.array([[0.5]])
 
     # Initial state with significant initial error

@@ -7,7 +7,7 @@ state estimation algorithms.
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Any, Tuple
 
 import numpy as np
 
@@ -98,7 +98,7 @@ class BatchEstimator(ABC):
 
     @abstractmethod
     def estimate(
-        self, measurements: np.ndarray, *args, **kwargs
+        self, measurements: np.ndarray, *args: Any, **kwargs: Any
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Compute batch estimate from measurements.
