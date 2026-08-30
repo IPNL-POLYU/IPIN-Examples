@@ -54,17 +54,21 @@ from tests.example_runner import WORKSPACE_ROOT
 #: overwhelmingly numpy operations whose stubs give back `Any`. The ones with
 #: content are further down: `union-attr` (32) and `index` (8) are the shapes
 #: that become AttributeError and IndexError at runtime.
+# Measured with mypy==2.3.1 (pinned in the dev extra -- see pyproject.toml for
+# why the pin is exact) under numpy 2.4.6. numpy is NOT pinned, and its stubs
+# move these counts: a numpy release can turn this red in either direction, at
+# which point re-measure and update in the same commit as the numpy bump.
 BASELINE = {
     "no-untyped-def": 119,
-    "no-any-return": 105,
+    "no-any-return": 113,
     "arg-type": 40,
-    "assignment": 35,
+    "assignment": 34,
     "union-attr": 32,
-    "operator": 27,
+    "operator": 26,
     "unreachable": 10,
-    "return-value": 9,
+    "index": 9,
     "dict-item": 8,
-    "index": 8,
+    "return-value": 7,
     "import-untyped": 6,
     "attr-defined": 4,
     "var-annotated": 4,
@@ -153,4 +157,31 @@ def test_the_recorded_numbers_are_not_stale():
         )
         + "\nLower the numbers in BASELINE, and delete the entry entirely at "
         "zero."
+    )
+
+
+def test_the_installed_mypy_is_the_pinned_one():
+    """The guard is an assertion about a SPECIFIC mypy version.
+
+    This exact failure shipped once already: the dev machine ran mypy 1.19.0
+    while CI freshly installed 2.3.1, and the two counted different error
+    totals over the same tree. The pin in pyproject.toml is the single source
+    of truth; this test reads it rather than repeating it, and fails with the
+    upgrade command instead of letting version skew masquerade as new debt.
+    """
+    import tomllib
+    from pathlib import Path
+
+    from mypy.version import __version__ as installed
+
+    pyproject = tomllib.loads(
+        (Path(__file__).resolve().parent.parent / "pyproject.toml").read_text(
+            encoding="utf-8"
+        )
+    )
+    dev = pyproject["project"]["optional-dependencies"]["dev"]
+    pin = next(d.split("==")[1] for d in dev if d.startswith("mypy=="))
+    assert installed == pin, (
+        f"mypy {installed} is installed but BASELINE was measured with {pin}. "
+        f"Run: pip install -e .[dev]"
     )
