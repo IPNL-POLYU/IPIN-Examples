@@ -21,7 +21,7 @@ References:
     Eq. (6.59): Scale factor and misalignment model
 """
 
-from typing import Optional
+from typing import Optional, cast
 import numpy as np
 
 
@@ -85,7 +85,7 @@ def correct_gyro(
     if n_g is not None:
         omega_corrected = omega_corrected - n_g
 
-    return omega_corrected
+    return cast(np.ndarray, omega_corrected)
 
 
 def correct_accel(
@@ -151,7 +151,7 @@ def correct_accel(
     if n_a is not None:
         f_corrected = f_corrected - n_a
 
-    return f_corrected
+    return cast(np.ndarray, f_corrected)
 
 
 def apply_imu_scale_misalignment(
@@ -237,7 +237,7 @@ def apply_imu_scale_misalignment(
     else:
         raise ValueError(f"u must have shape (3,) or (N, 3), got {u.shape}")
 
-    return u_corrected
+    return cast(np.ndarray, u_corrected)
 
 
 def remove_gravity_component(
@@ -317,4 +317,4 @@ def remove_gravity_component(
             f"accel_body must have shape (3,) or (N, 3), got {accel_body.shape}"
         )
 
-    return a_true
+    return cast(np.ndarray, a_true)

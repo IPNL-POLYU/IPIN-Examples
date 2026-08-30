@@ -10,7 +10,7 @@ This module implements measurement models for various RF positioning techniques:
 All functions implement equations from Chapter 4 of the IPIN book.
 """
 
-from typing import Optional, Tuple
+from typing import Any, Optional, Tuple
 
 import numpy as np
 
@@ -47,7 +47,7 @@ def _resolve_reference_anchor_index(
 # =============================================================================
 # Clock Bias Unit Conversion Utilities
 # =============================================================================
-def _rng(rng):
+def _rng(rng: Any) -> Any:
     """Return *rng*, or numpy's global stream when none was supplied.
 
     The default is np.random rather than a fresh default_rng() on purpose. A
@@ -197,7 +197,7 @@ def toa_range(
     bias_meters = c * clock_bias_s
     distance_with_bias = distance + bias_meters
 
-    return distance_with_bias
+    return float(distance_with_bias)
 
 
 def two_way_toa_range(
@@ -232,7 +232,7 @@ def two_way_toa_range(
     rx_pos = np.asarray(rx_pos, dtype=float)
 
     # Geometric distance (one-way)
-    return np.linalg.norm(rx_pos - tx_pos)
+    return float(np.linalg.norm(rx_pos - tx_pos))
 
 
 def rtt_to_range(
@@ -301,7 +301,7 @@ def simulate_rtt_measurement(
     clock_drift: float = 0.0,
     clock_drift_std: float = 0.0,
     c: float = SPEED_OF_LIGHT,
-    rng=None,
+    rng: Any = None,
 ) -> Tuple[float, dict]:
     """
     Simulate a realistic RTT measurement with noise.
@@ -478,7 +478,7 @@ def rss_pathloss(
     # Eq. 4.10: p_R = p_ref - 10*η*log10(d/d_ref)
     rss_dbm = p_ref_dbm - 10 * path_loss_exp * np.log10(distance / d_ref)
 
-    return rss_dbm
+    return float(rss_dbm)
 
 
 def rss_to_distance(
@@ -528,7 +528,7 @@ def simulate_rss_measurement(
     sigma_short_linear: float = 0.0,
     n_samples_avg: int = 1,
     short_fading_model: str = "rayleigh",
-    rng=None,
+    rng: Any = None,
 ) -> Tuple[float, dict]:
     """
     Simulate an RSS measurement with fading noise (book Eqs. 4.10, 4.12).
@@ -636,7 +636,7 @@ def simulate_rss_measurement(
         raise ValueError("Agent and anchor positions must be different")
 
     # True RSS without fading (Eq. 4.10)
-    rss_true = rss_pathloss(p_ref_dbm, true_distance, path_loss_exp, d_ref)
+    rss_true = rss_pathloss(p_ref_dbm, float(true_distance), path_loss_exp, d_ref)
 
     # Long-term fading (location-dependent, cannot be averaged)
     # Modeled as Gaussian in dB per book
@@ -822,7 +822,7 @@ def tdoa_range_difference(
     # Range difference
     range_diff = dist_i - dist_j
 
-    return range_diff
+    return float(range_diff)
 
 
 def tdoa_measurement_vector(
@@ -939,7 +939,7 @@ def aoa_azimuth(anchor_pos: np.ndarray, agent_pos: np.ndarray) -> float:
     # Azimuth from North, positive CCW: atan2(ΔE, ΔN)
     azimuth = np.arctan2(delta_e, delta_n)
 
-    return azimuth
+    return float(azimuth)
 
 
 def aoa_elevation(anchor_pos: np.ndarray, agent_pos: np.ndarray) -> float:
@@ -1002,7 +1002,7 @@ def aoa_elevation(anchor_pos: np.ndarray, agent_pos: np.ndarray) -> float:
     # Elevation angle: arctan2(ΔU, horizontal_dist)
     elevation = np.arctan2(delta_u, horizontal_dist)
 
-    return elevation
+    return float(elevation)
 
 
 def aoa_sin_elevation(anchor_pos: np.ndarray, agent_pos: np.ndarray) -> float:
@@ -1052,7 +1052,7 @@ def aoa_sin_elevation(anchor_pos: np.ndarray, agent_pos: np.ndarray) -> float:
     # sin(θ) = ΔU / distance per Eq. (4.63)
     sin_theta = delta_u / distance
 
-    return sin_theta
+    return float(sin_theta)
 
 
 def aoa_tan_azimuth(anchor_pos: np.ndarray, agent_pos: np.ndarray) -> float:
@@ -1102,7 +1102,7 @@ def aoa_tan_azimuth(anchor_pos: np.ndarray, agent_pos: np.ndarray) -> float:
 
     tan_psi = delta_e / delta_n
 
-    return tan_psi
+    return float(tan_psi)
 
 
 def aoa_sin_tan_vector(

@@ -37,7 +37,7 @@ Date: December 2025
 
 import numpy as np
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 from core.sensors.strapdown import strapdown_update
 from core.sensors.types import FrameConvention, IMUNoiseParams
 from core.sensors.gravity import gravity_magnitude
@@ -45,7 +45,7 @@ from core.sensors.gravity import gravity_magnitude
 
 def quat_normalize(q: np.ndarray) -> np.ndarray:
     """Normalize quaternion to unit norm."""
-    return q / np.linalg.norm(q)
+    return cast(np.ndarray, q / np.linalg.norm(q))
 
 
 @dataclass

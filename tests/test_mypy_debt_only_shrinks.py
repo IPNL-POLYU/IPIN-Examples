@@ -48,12 +48,11 @@ from tests.example_runner import WORKSPACE_ROOT
 #: entry entirely at zero -- an absent code is the guard, because the
 #: `appeared` check below fails on any code not listed here.
 #:
-#: 232 in 35 files, of 76 checked. `no-any-return` (80) is now the large one
+#: 125 in 21 files, of 76 checked. `no-any-return` (42) is still the large one
 #: and it is shallow: returning `Any` from a function declared to return
 #: something narrower, overwhelmingly numpy operations whose stubs give back
-#: `Any`. The ones with content are further down: `union-attr` (23) and
-#: `index` (7) are the shapes that become AttributeError and IndexError at
-#: runtime.
+#: `Any`. The one with content is `union-attr` (23), the shape that becomes
+#: AttributeError at runtime, and it is now the second-largest entry.
 #:
 #: Wave B took `core/fusion`, `core/utils`, `core/models` and `core/sim` to
 #: zero, which is the 82 errors between the 413 measured under mypy 2.3.1 and
@@ -78,23 +77,40 @@ from tests.example_runner import WORKSPACE_ROOT
 #: count where the base class returns None. The `[operator]`/`[union-attr]`
 #: pair on the covariance update is a real latent crash at
 #: `max_iterations <= 0`, left for a behaviour change to fix.
+#:
+#: Wave D took `core/rf` and `core/sensors` to zero: the 107 errors between
+#: 232 and the 125 here, and `operator` with them, which is why that entry is
+#: gone. 30 of the 107 sat in one function, `AOAPositioner._compute_weight_
+#: matrix`, where `np.isscalar(sigma)` guards each branch -- it is not a
+#: TypeGuard, so mypy keeps the whole `float | np.ndarray` union in both arms
+#: and every `sigma**2` and `sigma[i]` in the body reads as an error.
+#:
+#: The one error worth reading is the last `unreachable`'s twin. Wave B's
+#: `wrap_angle` lesson -- that `float -> float` on a wrapping helper is a lie
+#: the suite already disproves -- had a second live instance here in
+#: `core.sensors.pdr.wrap_heading`, and the sanctioned scalar repair
+#: (`return float(wrapped)`) raises "only 0-dimensional arrays can be
+#: converted to Python scalars" against `test_the_helpers_vectorise`. Verified
+#: by applying it and watching that test go red, not by reading. Both it and
+#: its body-identical sibling `core.sensors.wrap_angle_diff` are now
+#: `float | np.ndarray`, which is what `core.utils.angle_diff` beside them
+#: already said.
 # Measured with mypy==2.3.1 (pinned in the dev extra -- see pyproject.toml for
 # why the pin is exact) under numpy 2.4.6. numpy is NOT pinned, and its stubs
 # move these counts: a numpy release can turn this red in either direction, at
 # which point re-measure and update in the same commit as the numpy bump.
 BASELINE = {
-    "no-any-return": 80,
-    "arg-type": 27,
-    "operator": 24,
-    "no-untyped-def": 24,
+    "no-any-return": 42,
     "union-attr": 23,
-    "assignment": 22,
-    "dict-item": 8,
-    "index": 7,
-    "return-value": 5,
-    "import-untyped": 5,
-    "attr-defined": 4,
-    "unreachable": 2,
+    "no-untyped-def": 17,
+    "assignment": 16,
+    "arg-type": 14,
+    "import-untyped": 4,
+    "attr-defined": 3,
+    "return-value": 2,
+    "dict-item": 1,
+    "index": 1,
+    "unreachable": 1,
     "var-annotated": 1,
 }
 

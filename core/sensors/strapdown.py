@@ -36,7 +36,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import Optional
+from typing import Optional, cast
 import numpy as np
 
 # Import FrameConvention for type hints (avoid circular import)
@@ -180,7 +180,7 @@ def quat_integrate(
     # Normalize to maintain unit quaternion constraint
     q_next = q_next / np.linalg.norm(q_next)
 
-    return q_next
+    return cast(np.ndarray, q_next)
 
 
 def quat_to_rotmat(q: np.ndarray) -> np.ndarray:
@@ -466,7 +466,7 @@ def vel_update(
     # Velocity update (Eq. 6.7): v_k = v_{k-1} + a_M * Δt
     v_next = v_prev + a_M * dt
 
-    return v_next
+    return cast(np.ndarray, v_next)
 
 
 def pos_update(

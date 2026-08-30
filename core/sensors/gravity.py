@@ -24,7 +24,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import Optional
+from typing import Optional, cast
 import numpy as np
 
 
@@ -99,7 +99,7 @@ def gravity_magnitude_eq6_8(lat_rad: float) -> float:
 
     g = 9.7803 * (1.0 + 0.0053024 * sin_lat_sq - 0.000005 * sin_2lat_sq)
 
-    return g
+    return cast(float, g)
 
 
 def gravity_magnitude(

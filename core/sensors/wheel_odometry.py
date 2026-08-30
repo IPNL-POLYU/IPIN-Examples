@@ -24,6 +24,8 @@ References:
     Eq. (6.15): Position update from wheel odometry
 """
 
+from typing import cast
+
 import numpy as np
 
 
@@ -89,7 +91,7 @@ def wheel_speed_to_attitude_velocity(
     v_s: np.ndarray,
     omega_a: np.ndarray,
     lever_arm_a: np.ndarray,
-    C_S_A: np.ndarray = None,
+    C_S_A: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Convert wheel speed to attitude frame velocity with lever arm compensation.
@@ -182,7 +184,7 @@ def wheel_speed_to_attitude_velocity(
     # Lever arm compensation (Eq. 6.11): v^A = C_S^A @ v^S - [ω^A×] @ l^A
     v_a = C_S_A @ v_s - omega_skew @ lever_arm_a
 
-    return v_a
+    return cast(np.ndarray, v_a)
 
 
 def attitude_to_map_velocity(v_a: np.ndarray, q: np.ndarray) -> np.ndarray:
@@ -248,7 +250,7 @@ def attitude_to_map_velocity(v_a: np.ndarray, q: np.ndarray) -> np.ndarray:
     # Transform velocity to map frame: v^M = C_A^M @ v^A
     v_m = C_A_M @ v_a
 
-    return v_m
+    return cast(np.ndarray, v_m)
 
 
 def odom_pos_update(
@@ -323,7 +325,7 @@ def wheel_odom_update(
     omega_a: np.ndarray,
     lever_arm_a: np.ndarray,
     dt: float,
-    C_S_A: np.ndarray = None,
+    C_S_A: np.ndarray | None = None,
 ) -> np.ndarray:
     """
     Complete wheel odometry position update (convenience function).

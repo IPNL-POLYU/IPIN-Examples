@@ -18,7 +18,7 @@ Date: December 2025
 """
 
 import numpy as np
-from typing import Union
+from typing import Union, cast
 
 # Type alias for numeric types
 Numeric = Union[float, np.ndarray]
@@ -62,7 +62,7 @@ def deg_per_sec_to_rad_per_sec(deg_per_s: Numeric) -> Numeric:
     Returns:
         Angular velocity in radians per second.
     """
-    return np.deg2rad(deg_per_s)
+    return cast(Numeric, np.deg2rad(deg_per_s))
 
 
 def deg_per_sqrt_hour_to_rad_per_sqrt_sec(deg_per_sqrt_hr: Numeric) -> Numeric:
@@ -84,7 +84,7 @@ def deg_per_sqrt_hour_to_rad_per_sqrt_sec(deg_per_sqrt_hr: Numeric) -> Numeric:
         >>> print(f"{arw_rad_sqrt_s:.8f} rad/√s")
         0.00002909 rad/√s
     """
-    return np.deg2rad(deg_per_sqrt_hr) / np.sqrt(3600.0)
+    return cast(Numeric, np.deg2rad(deg_per_sqrt_hr) / np.sqrt(3600.0))
 
 
 def rad_per_hour_to_rad_per_sec(rad_per_hr: Numeric) -> Numeric:
@@ -161,7 +161,7 @@ def mps_per_sqrt_hour_to_mps_per_sqrt_sec(mps_per_sqrt_hr: Numeric) -> Numeric:
         >>> print(f"{vrw_mps_sqrt_s:.8f} m/s/√s")
         0.00016667 m/s/√s
     """
-    return mps_per_sqrt_hr / np.sqrt(3600.0)
+    return cast(Numeric, mps_per_sqrt_hr / np.sqrt(3600.0))
 
 
 # ============================================================================
@@ -209,7 +209,7 @@ def rad_per_sqrt_sec_to_deg_per_sqrt_hour(rad_per_sqrt_s: Numeric) -> Numeric:
     Returns:
         ARW in degrees per square root hour.
     """
-    return np.rad2deg(rad_per_sqrt_s) * np.sqrt(3600.0)
+    return cast(Numeric, np.rad2deg(rad_per_sqrt_s) * np.sqrt(3600.0))
 
 
 def mps2_to_mg(mps2: Numeric) -> Numeric:
@@ -240,7 +240,7 @@ def mps_per_sqrt_sec_to_mps_per_sqrt_hour(mps_per_sqrt_s: Numeric) -> Numeric:
     Returns:
         VRW in (m/s) per square root hour.
     """
-    return mps_per_sqrt_s * np.sqrt(3600.0)
+    return cast(Numeric, mps_per_sqrt_s * np.sqrt(3600.0))
 
 
 # ============================================================================

@@ -50,7 +50,7 @@ References:
     Equations: 4.99-4.108
 """
 
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 import numpy as np
 
@@ -276,13 +276,19 @@ def compute_dop(
         HtWH = H.T @ W @ H
         Q = np.linalg.inv(HtWH)
     except np.linalg.LinAlgError:
-        # Singular matrix, return infinite DOP
-        return {
+        # Singular matrix, return infinite DOP.
+        # Typed `Any` rather than `float` because VDOP is None in 2D -- the
+        # same widening `dop_dict` gets by inference at the foot of this
+        # function. Saying so in the signature (`Dict[str, Optional[float]]`)
+        # is the honest fix and was measured: it turns
+        # `core/utils/geometry.py:213` red, which is outside this change.
+        singular: dict[str, Any] = {
             "GDOP": np.inf,
             "PDOP": np.inf,
             "HDOP": np.inf,
             "VDOP": np.inf if dim >= 3 else None,
         }
+        return singular
 
     # Compute DOP values using book definitions (Eq. 4.107-4.108)
     dop_dict = {}
