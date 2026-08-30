@@ -14,7 +14,7 @@ Implements:
       K_k = P_k^- H_k^T S_k^{-1}, x̂_k = x̂_k^- + K_k y_k, P_k = (I - K_k H_k) P_k^-
 """
 
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, cast
 
 import numpy as np
 
@@ -221,7 +221,7 @@ class ExtendedKalmanFilter(StateEstimator):
         return innovation, innovation_cov
 
 
-def check_ekf_range_only_tracking():
+def check_ekf_range_only_tracking() -> None:
     """
     Self-check: 2D range-only tracking with EKF.
 
@@ -234,18 +234,18 @@ def check_ekf_range_only_tracking():
     n_steps = 100
 
     # Process model: constant velocity in 2D
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
-        return F @ x
+        return cast(np.ndarray, F @ x)
 
-    def process_jacobian(x, u, dt):
+    def process_jacobian(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # Measurement model: range from origin (nonlinear)
-    def measurement_model(x):
+    def measurement_model(x: np.ndarray) -> np.ndarray:
         return np.array([np.sqrt(x[0] ** 2 + x[1] ** 2)])
 
-    def measurement_jacobian(x):
+    def measurement_jacobian(x: np.ndarray) -> np.ndarray:
         r = np.sqrt(x[0] ** 2 + x[1] ** 2)
         if r < 1e-6:
             return np.array([[0, 0, 0, 0]])
@@ -254,7 +254,7 @@ def check_ekf_range_only_tracking():
     # Noise covariances
     q = 0.1
 
-    def Q_func(dt):
+    def Q_func(dt: float) -> np.ndarray:
         return q * np.array(
             [
                 [dt**3 / 3, 0, dt**2 / 2, 0],
@@ -264,7 +264,7 @@ def check_ekf_range_only_tracking():
             ]
         )
 
-    def R_func():
+    def R_func() -> np.ndarray:
         return np.array([[0.5]])
 
     # Initial state and covariance
@@ -325,7 +325,7 @@ def check_ekf_range_only_tracking():
     print("  [PASS] Test passed")
 
 
-def check_ekf_bearing_only_tracking():
+def check_ekf_bearing_only_tracking() -> None:
     """
     Self-check: 2D bearing-only tracking with EKF.
 
@@ -338,18 +338,18 @@ def check_ekf_bearing_only_tracking():
     n_steps = 50
 
     # Same process model as before
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
-        return F @ x
+        return cast(np.ndarray, F @ x)
 
-    def process_jacobian(x, u, dt):
+    def process_jacobian(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         return np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
 
     # Measurement model: bearing angle from origin
-    def measurement_model(x):
+    def measurement_model(x: np.ndarray) -> np.ndarray:
         return np.array([np.arctan2(x[1], x[0])])
 
-    def measurement_jacobian(x):
+    def measurement_jacobian(x: np.ndarray) -> np.ndarray:
         r_sq = x[0] ** 2 + x[1] ** 2
         if r_sq < 1e-6:
             return np.array([[0, 0, 0, 0]])
@@ -357,7 +357,7 @@ def check_ekf_bearing_only_tracking():
 
     q = 0.1
 
-    def Q_func(dt):
+    def Q_func(dt: float) -> np.ndarray:
         return q * np.array(
             [
                 [dt**3 / 3, 0, dt**2 / 2, 0],
@@ -367,7 +367,7 @@ def check_ekf_bearing_only_tracking():
             ]
         )
 
-    def R_func():
+    def R_func() -> np.ndarray:
         return np.array([[0.05]])  # 0.05 rad^2 variance
 
     x0 = np.array([10.0, 5.0, 0.5, 0.3])
@@ -387,7 +387,10 @@ def check_ekf_bearing_only_tracking():
         R_func,
         x0,
         P0,
-        innovation_func=lambda z, z_pred: angle_diff(z, z_pred),
+        # `angle_diff` is declared `float | np.ndarray` because it serves
+        # scalars too; both arguments here are arrays, which is the branch
+        # that returns an array (core/utils/angles.py:104).
+        innovation_func=lambda z, z_pred: cast(np.ndarray, angle_diff(z, z_pred)),
     )
 
     # Generate data
@@ -415,7 +418,7 @@ def check_ekf_bearing_only_tracking():
     print("  [PASS] Test passed")
 
 
-def check_ekf_jacobian_evaluation_point():
+def check_ekf_jacobian_evaluation_point() -> None:
     """
     Regression test: Verify process Jacobian F_{k-1} is evaluated at x̂_{k-1}.
 
@@ -434,14 +437,14 @@ def check_ekf_jacobian_evaluation_point():
 
     dt = 0.1
 
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         """Nonlinear: position update depends on x^2."""
         x_new = np.zeros(2)
         x_new[0] = x[0] + x[1] * dt + 0.1 * x[0] ** 2 * dt  # Nonlinear term
         x_new[1] = x[1]  # Constant velocity
         return x_new
 
-    def process_jacobian(x, u, dt):
+    def process_jacobian(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         """Jacobian depends on x[0], so evaluation point matters!"""
         F = np.array(
             [[1.0 + 0.2 * x[0] * dt, dt], [0.0, 1.0]]  # ∂f_0/∂x_0 = 1 + 0.2*x*dt
@@ -449,16 +452,16 @@ def check_ekf_jacobian_evaluation_point():
         return F
 
     # Simple linear measurement (position only)
-    def measurement_model(x):
+    def measurement_model(x: np.ndarray) -> np.ndarray:
         return np.array([x[0]])
 
-    def measurement_jacobian(x):
+    def measurement_jacobian(x: np.ndarray) -> np.ndarray:
         return np.array([[1.0, 0.0]])
 
-    def Q_func(dt):
+    def Q_func(dt: float) -> np.ndarray:
         return 0.01 * np.eye(2)
 
-    def R_func():
+    def R_func() -> np.ndarray:
         return np.array([[0.1]])
 
     # Initial state with large position (so Jacobian varies significantly)
@@ -476,6 +479,12 @@ def check_ekf_jacobian_evaluation_point():
         x0,
         P0,
     )
+
+    # `state`/`covariance` are declared `| None` on StateEstimator because a
+    # KalmanFilter may be built without x0/P0. This filter's __init__ requires
+    # both and assigns them unconditionally, and it was called immediately
+    # above, so narrow once here rather than at each of the five reads below.
+    assert ekf.state is not None and ekf.covariance is not None
 
     # Record pre-prediction state
     x_pre = ekf.state.copy()

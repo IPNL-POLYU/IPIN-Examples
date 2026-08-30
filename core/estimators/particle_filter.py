@@ -10,7 +10,7 @@ Implements:
     - Eq. (3.34): Weight update ẇ_k⁽ⁱ⁾ = w_{k-1}⁽ⁱ⁾ p(z_k | x_k⁽ⁱ⁾)
 """
 
-from typing import Callable, Optional, Tuple
+from typing import Any, Callable, Optional, Tuple, cast
 
 import numpy as np
 
@@ -45,7 +45,7 @@ class ParticleFilter(StateEstimator):
         x0: np.ndarray,
         P0: np.ndarray,
         resample_threshold: float = 0.5,
-        rng=None,
+        rng: Any = None,
     ):
         """
         Initialize Particle Filter.
@@ -60,6 +60,11 @@ class ParticleFilter(StateEstimator):
             P0: Initial state covariance (n×n) for particle initialization.
             resample_threshold: Effective sample size threshold for resampling.
                 Resample when N_eff < resample_threshold * n_particles.
+            rng: Numpy random source -- either a ``np.random.Generator`` or the
+                ``np.random`` module itself, which is the default. Annotated
+                ``Any`` because those two share no common type: a module and a
+                Generator are unrelated, and neither the stubs nor this
+                repository define a protocol spanning the draws used here.
 
         Raises:
             ValueError: If dimensions are inconsistent or n_particles < 1.
@@ -211,7 +216,7 @@ class ParticleFilter(StateEstimator):
         return self.particles.copy(), self.weights.copy()
 
 
-def check_particle_filter_1d():
+def check_particle_filter_1d() -> None:
     """
     Self-check: 1D tracking with Particle Filter.
 
@@ -222,15 +227,15 @@ def check_particle_filter_1d():
     n_particles = 100
 
     # Process model with noise
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         F = np.array([[1.0, dt], [0.0, 1.0]])
         process_noise = np.random.multivariate_normal(
             [0, 0], 0.1 * np.array([[dt**3 / 3, dt**2 / 2], [dt**2 / 2, dt]])
         )
-        return F @ x + process_noise
+        return cast(np.ndarray, F @ x + process_noise)
 
     # Likelihood function (Gaussian measurement model)
-    def likelihood_func(z, x):
+    def likelihood_func(z: np.ndarray, x: np.ndarray) -> float:
         H = np.array([1.0, 0.0])
         z_pred = H @ x
         measurement_std = 0.5
@@ -283,7 +288,7 @@ def check_particle_filter_1d():
     print(f"  Number of particles: {n_particles}")
 
 
-def check_particle_filter_nonlinear():
+def check_particle_filter_nonlinear() -> None:
     """
     Self-check: Nonlinear tracking with highly non-Gaussian noise.
 
@@ -294,7 +299,7 @@ def check_particle_filter_nonlinear():
     n_particles = 200
 
     # Nonlinear process model
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         # Simple nonlinear dynamics with bimodal noise
         x_new = np.array([x[0] + x[1] * dt + 0.1 * np.sin(x[0]), x[1] * 0.95])
         # Add bimodal noise
@@ -305,7 +310,7 @@ def check_particle_filter_nonlinear():
         return x_new
 
     # Nonlinear measurement model
-    def likelihood_func(z, x):
+    def likelihood_func(z: np.ndarray, x: np.ndarray) -> float:
         # Range measurement from origin
         z_pred = np.sqrt(x[0] ** 2 + x[1] ** 2)
         measurement_std = 0.5

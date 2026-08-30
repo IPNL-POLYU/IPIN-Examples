@@ -15,7 +15,7 @@ Implements:
     - Eq. (3.56): Gain ratio for LM damping adjustment
 """
 
-from typing import Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 
@@ -110,7 +110,7 @@ class FactorGraph:
         variable_dims: Dictionary mapping variable ID to dimension
     """
 
-    def __init__(self):
+    def __init__(self) -> None:
         """Initialize empty Factor Graph."""
         self.variables: Dict[int, np.ndarray] = {}
         self.factors: List[Factor] = []
@@ -162,7 +162,7 @@ class FactorGraph:
         method: str = "gauss_newton",
         max_iterations: int = 20,
         tol: float = 1e-6,
-        **kwargs,
+        **kwargs: Any,
     ) -> Tuple[Dict[int, np.ndarray], List[float]]:
         """
         Optimize the factor graph to find MAP estimate.
@@ -571,7 +571,7 @@ class FactorGraph:
             current_idx += dim
 
 
-def check_fgo_simple_ls():
+def check_fgo_simple_ls() -> None:
     """
     Self-check: Simple linear least squares using FGO.
 
@@ -590,10 +590,10 @@ def check_fgo_simple_ls():
     # Add measurement factors
     for z in measurements:
 
-        def residual_func(x_vars, z=z):
+        def residual_func(x_vars: list[np.ndarray], z: np.float64 = z) -> np.ndarray:
             return np.array([x_vars[0][0] - z])
 
-        def jacobian_func(x_vars):
+        def jacobian_func(x_vars: list[np.ndarray]) -> list[np.ndarray]:
             return [np.array([[1.0]])]
 
         information = np.array([[1.0]])  # Unit variance
@@ -617,7 +617,7 @@ def check_fgo_simple_ls():
     print("  [PASS] Test passed")
 
 
-def check_fgo_2d_positioning():
+def check_fgo_2d_positioning() -> None:
     """
     Self-check: 2D positioning from range measurements.
 
@@ -642,12 +642,18 @@ def check_fgo_2d_positioning():
     for i, anchor in enumerate(anchors):
         z = ranges[i]
 
-        def residual_func(x_vars, anchor=anchor, z=z):
+        def residual_func(
+            x_vars: list[np.ndarray],
+            anchor: np.ndarray = anchor,
+            z: np.float64 = z,
+        ) -> np.ndarray:
             pos = x_vars[0]
             predicted_range = np.linalg.norm(pos - anchor)
             return np.array([predicted_range - z])
 
-        def jacobian_func(x_vars, anchor=anchor):
+        def jacobian_func(
+            x_vars: list[np.ndarray], anchor: np.ndarray = anchor
+        ) -> list[np.ndarray]:
             pos = x_vars[0]
             diff = pos - anchor
             r = np.linalg.norm(diff)
@@ -675,7 +681,7 @@ def check_fgo_2d_positioning():
     print("  [PASS] Test passed")
 
 
-def check_fgo_levenberg_marquardt():
+def check_fgo_levenberg_marquardt() -> None:
     """
     Self-check: Levenberg-Marquardt optimization (Algorithm 3.2).
 
@@ -697,12 +703,18 @@ def check_fgo_levenberg_marquardt():
     for i, anchor in enumerate(anchors):
         z = ranges[i]
 
-        def residual_func(x_vars, anchor=anchor, z=z):
+        def residual_func(
+            x_vars: list[np.ndarray],
+            anchor: np.ndarray = anchor,
+            z: np.float64 = z,
+        ) -> np.ndarray:
             pos = x_vars[0]
             predicted_range = np.linalg.norm(pos - anchor)
             return np.array([predicted_range - z])
 
-        def jacobian_func(x_vars, anchor=anchor):
+        def jacobian_func(
+            x_vars: list[np.ndarray], anchor: np.ndarray = anchor
+        ) -> list[np.ndarray]:
             pos = x_vars[0]
             diff = pos - anchor
             r = np.linalg.norm(diff)
@@ -748,7 +760,7 @@ def check_fgo_levenberg_marquardt():
     print("  [PASS] Test passed")
 
 
-def check_fgo_line_search():
+def check_fgo_line_search() -> None:
     """
     Self-check: Line search optimization (Algorithm 3.1).
 
@@ -766,12 +778,18 @@ def check_fgo_line_search():
     for i, anchor in enumerate(anchors):
         z = ranges[i]
 
-        def residual_func(x_vars, anchor=anchor, z=z):
+        def residual_func(
+            x_vars: list[np.ndarray],
+            anchor: np.ndarray = anchor,
+            z: np.float64 = z,
+        ) -> np.ndarray:
             pos = x_vars[0]
             predicted_range = np.linalg.norm(pos - anchor)
             return np.array([predicted_range - z])
 
-        def jacobian_func(x_vars, anchor=anchor):
+        def jacobian_func(
+            x_vars: list[np.ndarray], anchor: np.ndarray = anchor
+        ) -> list[np.ndarray]:
             pos = x_vars[0]
             diff = pos - anchor
             r = np.linalg.norm(diff)
@@ -804,7 +822,7 @@ def check_fgo_line_search():
     print("  [PASS] Test passed")
 
 
-def check_lm_monotonic_decrease():
+def check_lm_monotonic_decrease() -> None:
     """
     Self-check: Verify LM error decreases monotonically.
 
@@ -828,12 +846,18 @@ def check_lm_monotonic_decrease():
     for i, anchor in enumerate(anchors):
         z_range = ranges[i]
 
-        def residual_func(x_vars, anchor=anchor, z=z_range):
+        def residual_func(
+            x_vars: list[np.ndarray],
+            anchor: np.ndarray = anchor,
+            z: np.float64 = z_range,
+        ) -> np.ndarray:
             pos = x_vars[0]
             predicted = np.linalg.norm(pos - anchor)
             return np.array([predicted - z])
 
-        def jacobian_func(x_vars, anchor=anchor):
+        def jacobian_func(
+            x_vars: list[np.ndarray], anchor: np.ndarray = anchor
+        ) -> list[np.ndarray]:
             pos = x_vars[0]
             diff = pos - anchor
             r = np.linalg.norm(diff)
@@ -848,7 +872,11 @@ def check_lm_monotonic_decrease():
     for i, anchor in enumerate(anchors):
         z_bearing = bearings[i]
 
-        def residual_func_b(x_vars, anchor=anchor, z=z_bearing):
+        def residual_func_b(
+            x_vars: list[np.ndarray],
+            anchor: np.ndarray = anchor,
+            z: np.float64 = z_bearing,
+        ) -> np.ndarray:
             pos = x_vars[0]
             predicted = np.arctan2(anchor[1] - pos[1], anchor[0] - pos[0])
             # Wrap the residual. `predicted` and `z` are each in (-pi, pi], so
@@ -859,7 +887,9 @@ def check_lm_monotonic_decrease():
             # gradient wherever the anchor lies roughly west of the estimate.
             return np.array([angle_diff(predicted, z)])
 
-        def jacobian_func_b(x_vars, anchor=anchor):
+        def jacobian_func_b(
+            x_vars: list[np.ndarray], anchor: np.ndarray = anchor
+        ) -> list[np.ndarray]:
             pos = x_vars[0]
             dx = anchor[0] - pos[0]
             dy = anchor[1] - pos[1]
@@ -896,7 +926,7 @@ def check_lm_monotonic_decrease():
     print("  [PASS] Test passed")
 
 
-def check_gd_with_line_search():
+def check_gd_with_line_search() -> None:
     """
     Self-check: Gradient descent with Armijo line search (Algorithm 3.1).
 
@@ -918,12 +948,18 @@ def check_gd_with_line_search():
     for i, anchor in enumerate(anchors):
         z = ranges[i]
 
-        def residual_func(x_vars, anchor=anchor, z=z):
+        def residual_func(
+            x_vars: list[np.ndarray],
+            anchor: np.ndarray = anchor,
+            z: np.float64 = z,
+        ) -> np.ndarray:
             pos = x_vars[0]
             predicted_range = np.linalg.norm(pos - anchor)
             return np.array([predicted_range - z])
 
-        def jacobian_func(x_vars, anchor=anchor):
+        def jacobian_func(
+            x_vars: list[np.ndarray], anchor: np.ndarray = anchor
+        ) -> list[np.ndarray]:
             pos = x_vars[0]
             diff = pos - anchor
             r = np.linalg.norm(diff)
@@ -942,12 +978,18 @@ def check_gd_with_line_search():
     for i, anchor in enumerate(anchors):
         z = ranges[i]
 
-        def residual_func(x_vars, anchor=anchor, z=z):
+        def residual_func(
+            x_vars: list[np.ndarray],
+            anchor: np.ndarray = anchor,
+            z: np.float64 = z,
+        ) -> np.ndarray:
             pos = x_vars[0]
             predicted_range = np.linalg.norm(pos - anchor)
             return np.array([predicted_range - z])
 
-        def jacobian_func(x_vars, anchor=anchor):
+        def jacobian_func(
+            x_vars: list[np.ndarray], anchor: np.ndarray = anchor
+        ) -> list[np.ndarray]:
             pos = x_vars[0]
             diff = pos - anchor
             r = np.linalg.norm(diff)

@@ -77,12 +77,18 @@ SOURCE_DIRS = (
 #: inside argparse `epilog` strings,
 #: where the whitespace is content that gets printed rather than layout --
 #: black leaves those alone, correctly, and so should you.
+#:
+#: UP007 fell 38 -> 34 in the mypy Wave C change, which is not an annotation
+#: migration: `KalmanFilter` spelled `Union[np.ndarray, Callable]` at five
+#: separate sites, and they became one `MatrixOrCallable` alias. Naming a
+#: repeated union once is what removed four findings; the wave otherwise
+#: writes its new annotations in PEP 585/604 form so it adds none.
 BASELINE = {
     "UP006": 283,
     "UP045": 137,
     "UP035": 87,
     "I001": 59,
-    "UP007": 38,
+    "UP007": 34,
     "B007": 17,
     "B028": 9,
     "E712": 4,

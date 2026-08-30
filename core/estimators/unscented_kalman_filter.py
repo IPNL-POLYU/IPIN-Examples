@@ -17,7 +17,7 @@ Kalman filter on linear systems; the re-draw (standard van der Merwe UKF) does.
 See docs/book_errata.md (E-02).
 """
 
-from typing import Callable, Optional, Tuple
+from typing import Callable, Optional, Tuple, cast
 
 import numpy as np
 
@@ -302,7 +302,7 @@ class UnscentedKalmanFilter(StateEstimator):
         self.covariance = self.covariance - K @ Pzz @ K.T
 
 
-def check_ukf_range_only_tracking():
+def check_ukf_range_only_tracking() -> None:
     """
     Self-check: 2D range-only tracking with UKF.
 
@@ -313,17 +313,17 @@ def check_ukf_range_only_tracking():
     n_steps = 50
 
     # Process model: constant velocity in 2D
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
-        return F @ x
+        return cast(np.ndarray, F @ x)
 
     # Measurement model: range from origin
-    def measurement_model(x):
+    def measurement_model(x: np.ndarray) -> np.ndarray:
         return np.array([np.sqrt(x[0] ** 2 + x[1] ** 2)])
 
     q = 0.1
 
-    def Q_func(dt):
+    def Q_func(dt: float) -> np.ndarray:
         return q * np.array(
             [
                 [dt**3 / 3, 0, dt**2 / 2, 0],
@@ -333,7 +333,7 @@ def check_ukf_range_only_tracking():
             ]
         )
 
-    def R_func():
+    def R_func() -> np.ndarray:
         return np.array([[0.5]])
 
     x0 = np.array([10.0, 5.0, 1.0, 0.5])
@@ -369,7 +369,7 @@ def check_ukf_range_only_tracking():
     print("  [PASS] Test passed")
 
 
-def check_ukf_bearing_only_tracking():
+def check_ukf_bearing_only_tracking() -> None:
     """
     Self-check: 2D bearing-only tracking with UKF.
 
@@ -378,16 +378,16 @@ def check_ukf_bearing_only_tracking():
     dt = 0.1
     n_steps = 50
 
-    def process_model(x, u, dt):
+    def process_model(x: np.ndarray, u: np.ndarray | None, dt: float) -> np.ndarray:
         F = np.array([[1, 0, dt, 0], [0, 1, 0, dt], [0, 0, 1, 0], [0, 0, 0, 1]])
-        return F @ x
+        return cast(np.ndarray, F @ x)
 
-    def measurement_model(x):
+    def measurement_model(x: np.ndarray) -> np.ndarray:
         return np.array([np.arctan2(x[1], x[0])])
 
     q = 0.1
 
-    def Q_func(dt):
+    def Q_func(dt: float) -> np.ndarray:
         return q * np.array(
             [
                 [dt**3 / 3, 0, dt**2 / 2, 0],
@@ -397,7 +397,7 @@ def check_ukf_bearing_only_tracking():
             ]
         )
 
-    def R_func():
+    def R_func() -> np.ndarray:
         return np.array([[0.05]])
 
     x0 = np.array([10.0, 5.0, 0.5, 0.3])
@@ -412,7 +412,10 @@ def check_ukf_bearing_only_tracking():
         R_func,
         x0,
         P0,
-        innovation_func=lambda z, z_pred: angle_diff(z, z_pred),
+        # `angle_diff` is declared `float | np.ndarray` because it serves
+        # scalars too; both arguments here are arrays, which is the branch
+        # that returns an array (core/utils/angles.py:104).
+        innovation_func=lambda z, z_pred: cast(np.ndarray, angle_diff(z, z_pred)),
     )
 
     true_state = x0.copy()

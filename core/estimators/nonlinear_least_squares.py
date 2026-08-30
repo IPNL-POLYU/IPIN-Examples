@@ -24,7 +24,7 @@ Mathematical Formulation:
 """
 
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional
+from typing import Any, Callable, Literal, Optional
 
 import numpy as np
 
@@ -526,7 +526,7 @@ def solve_nonlinear_ls(
     max_iter: int = 30,
     tol: float = 1e-8,
     return_covariance: bool = True,
-    **kwargs,
+    **kwargs: Any,
 ) -> NonlinearLSResult:
     """
     General nonlinear least squares solver.

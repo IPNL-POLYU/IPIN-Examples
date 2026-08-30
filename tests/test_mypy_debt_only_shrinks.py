@@ -48,39 +48,54 @@ from tests.example_runner import WORKSPACE_ROOT
 #: entry entirely at zero -- an absent code is the guard, because the
 #: `appeared` check below fails on any code not listed here.
 #:
-#: 331 in 43 files, of 76 checked. The two large ones are shallow: 110
-#: `no-untyped-def` is missing annotations, and 81 `no-any-return` is
-#: returning `Any` from a function declared to return something narrower --
-#: overwhelmingly numpy operations whose stubs give back `Any`. The ones with
-#: content are further down: `union-attr` (26) and `index` (8) are the shapes
-#: that become AttributeError and IndexError at runtime.
+#: 232 in 35 files, of 76 checked. `no-any-return` (80) is now the large one
+#: and it is shallow: returning `Any` from a function declared to return
+#: something narrower, overwhelmingly numpy operations whose stubs give back
+#: `Any`. The ones with content are further down: `union-attr` (23) and
+#: `index` (7) are the shapes that become AttributeError and IndexError at
+#: runtime.
 #:
 #: Wave B took `core/fusion`, `core/utils`, `core/models` and `core/sim` to
 #: zero, which is the 82 errors between the 413 measured under mypy 2.3.1 and
-#: the 331 here. `unreachable` fell from 10 to 2 on annotations alone: every
-#: one of the eight was a parameter defaulting to None while annotated as
-#: non-optional, so mypy called the `if x is None:` branch dead. The branches
-#: were live and load-bearing -- deleting them would have removed the
-#: `alpha`/`confidence` deprecation path and two noise-std defaults.
+#: the 331 that stood before Wave C. `unreachable` fell from 10 to 2 on
+#: annotations alone: every one of the eight was a parameter defaulting to
+#: None while annotated as non-optional, so mypy called the `if x is None:`
+#: branch dead. The branches were live and load-bearing -- deleting them would
+#: have removed the `alpha`/`confidence` deprecation path and two noise-std
+#: defaults.
+#:
+#: Wave C took `core/estimators` to zero: the 99 errors between 331 and the
+#: 232 here, and `override` with them, which is why that entry is gone. 86 of
+#: the 99 were `no-untyped-def` on the `check_*` self-checks and the process
+#: and measurement closures inside them -- the demonstration code at the foot
+#: of each filter, which nothing had ever annotated. The whole wave is
+#: annotations, `cast()` and one `assert`; all eight modules print
+#: byte-identical self-check output on both sides of it.
+#:
+#: Two errors are silenced rather than fixed, both in
+#: `iterated_extended_kalman_filter.py` and both carrying a comment saying
+#: why. The `[override]` on `update` is deliberate -- it returns the iteration
+#: count where the base class returns None. The `[operator]`/`[union-attr]`
+#: pair on the covariance update is a real latent crash at
+#: `max_iterations <= 0`, left for a behaviour change to fix.
 # Measured with mypy==2.3.1 (pinned in the dev extra -- see pyproject.toml for
 # why the pin is exact) under numpy 2.4.6. numpy is NOT pinned, and its stubs
 # move these counts: a numpy release can turn this red in either direction, at
 # which point re-measure and update in the same commit as the numpy bump.
 BASELINE = {
-    "no-untyped-def": 110,
-    "no-any-return": 81,
-    "arg-type": 31,
-    "union-attr": 26,
-    "operator": 25,
+    "no-any-return": 80,
+    "arg-type": 27,
+    "operator": 24,
+    "no-untyped-def": 24,
+    "union-attr": 23,
     "assignment": 22,
-    "index": 8,
     "dict-item": 8,
-    "return-value": 7,
+    "index": 7,
+    "return-value": 5,
     "import-untyped": 5,
     "attr-defined": 4,
     "unreachable": 2,
     "var-annotated": 1,
-    "override": 1,
 }
 
 #: mypy writes one error per line and puts the code last, in brackets.
