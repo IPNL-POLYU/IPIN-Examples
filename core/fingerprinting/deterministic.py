@@ -11,6 +11,8 @@ Author: Li-Ta Hsu
 Date: 2024
 """
 
+from typing import cast
+
 import numpy as np
 
 from .types import Fingerprint, FingerprintDatabase, Location
@@ -168,9 +170,9 @@ def pairwise_distances(
     if not has_missing:
         # Fast path: no missing values, use vectorized computation
         if metric == "euclidean":
-            return np.linalg.norm(F - z, axis=1)
+            return cast(np.ndarray, np.linalg.norm(F - z, axis=1))
         elif metric == "manhattan":
-            return np.sum(np.abs(F - z), axis=1)
+            return cast(np.ndarray, np.sum(np.abs(F - z), axis=1))
         else:
             raise ValueError(
                 f"Unsupported metric: '{metric}'. Use 'euclidean' or 'manhattan'."
@@ -270,7 +272,7 @@ def nn_localize(
 
     # Return location of nearest neighbor
     # Implements: x̂ = x_{i*} from Eq. (5.1)
-    return locations[i_star]
+    return cast(np.ndarray, locations[i_star])
 
 
 def nearest_neighbor_localize(
@@ -404,7 +406,7 @@ def knn_localize(
     # Implements Eq. (5.2): x̂ = Σ w_i x_i / Σ w_i
     x_hat = np.sum(weights[:, np.newaxis] * k_locations, axis=0) / weights_sum
 
-    return x_hat
+    return cast(np.ndarray, x_hat)
 
 
 def k_nearest_neighbor_localize(

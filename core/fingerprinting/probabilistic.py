@@ -14,6 +14,7 @@ Date: 2024
 """
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 
@@ -86,21 +87,21 @@ class NaiveBayesFingerprintModel:
     @property
     def n_reference_points(self) -> int:
         """Number of reference points M."""
-        return self.means.shape[0]
+        return int(self.means.shape[0])
 
     @property
     def n_features(self) -> int:
         """Number of features N (e.g., number of APs)."""
-        return self.means.shape[1]
+        return int(self.means.shape[1])
 
     @property
     def location_dim(self) -> int:
         """Dimensionality of location space (2D or 3D)."""
-        return self.locations.shape[1]
+        return int(self.locations.shape[1])
 
     def get_floor_mask(self, floor_id: int) -> np.ndarray:
         """Get boolean mask for reference points on specified floor."""
-        return self.floor_ids == floor_id
+        return cast(np.ndarray, self.floor_ids == floor_id)
 
     @property
     def sigma_is_constant(self) -> bool:
@@ -441,7 +442,7 @@ def log_posterior(
     # log P(x_i | z) = log P̃(x_i | z) - log P(z)
     log_post = log_unnorm - log_evidence
 
-    return log_post
+    return cast(np.ndarray, log_post)
 
 
 def _log_sum_exp(log_values: np.ndarray) -> float:
@@ -467,7 +468,9 @@ def _log_sum_exp(log_values: np.ndarray) -> float:
 
     # Log-sum-exp trick
     max_val = np.max(log_values)
-    return max_val + np.log(np.sum(np.exp(log_values - max_val)))
+    # Both reductions are over the whole array, so this is 0-d whatever the
+    # input shape; the branch above already returns a Python float.
+    return float(max_val + np.log(np.sum(np.exp(log_values - max_val))))
 
 
 def map_localize(
@@ -516,7 +519,7 @@ def map_localize(
 
     # Return location of MAP RP
     # Implements: x̂ = x_{i*} from Eq. (5.4)
-    return model.locations[i_star]
+    return cast(np.ndarray, model.locations[i_star])
 
 
 def maximum_a_posteriori_localize(
@@ -632,4 +635,4 @@ def posterior_mean_localize(
         # Result shape: (d,)
         x_hat = np.sum(posteriors[:, np.newaxis] * model.locations, axis=0)
 
-    return x_hat
+    return cast(np.ndarray, x_hat)

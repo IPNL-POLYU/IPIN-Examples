@@ -83,9 +83,17 @@ SOURCE_DIRS = (
 #: separate sites, and they became one `MatrixOrCallable` alias. Naming a
 #: repeated union once is what removed four findings; the wave otherwise
 #: writes its new annotations in PEP 585/604 form so it adds none.
+#:
+#: UP045 fell 137 -> 133 in mypy Wave E, for the same reason and not as a
+#: migration either: `normalize_fingerprint` and `preprocess_query` each had
+#: two reference statistics annotated `Optional[np.ndarray]` while their own
+#: bodies assign a float into them. Widening those four is what the wave
+#: needed, and `float | np.ndarray | None` is the PEP 604 spelling of the
+#: result, so four `Optional[...]` left the tree as a side effect. Every other
+#: rule is unchanged: the wave's new annotations are PEP 585/604 throughout.
 BASELINE = {
     "UP006": 283,
-    "UP045": 137,
+    "UP045": 133,
     "UP035": 87,
     "I001": 59,
     "UP007": 34,

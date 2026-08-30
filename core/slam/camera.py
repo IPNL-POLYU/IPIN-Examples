@@ -13,6 +13,8 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+from typing import cast
+
 import numpy as np
 
 from core.slam.types import CameraIntrinsics
@@ -155,7 +157,7 @@ def undistort_normalized(
     if single_point:
         xy_undistorted = xy_undistorted.reshape(-1)
 
-    return xy_undistorted
+    return cast(np.ndarray, xy_undistorted)
 
 
 def project_point(
@@ -321,7 +323,7 @@ def unproject_pixel(
     if single_point:
         directions = directions.reshape(-1)
 
-    return directions
+    return cast(np.ndarray, directions)
 
 
 def compute_reprojection_error(
@@ -360,7 +362,7 @@ def compute_reprojection_error(
     # Compute error
     error = projected_pixel - observed_pixel
 
-    return error
+    return cast(np.ndarray, error)
 
 
 def essential_matrix_from_pose(R: np.ndarray, t: np.ndarray) -> np.ndarray:
@@ -394,7 +396,7 @@ def essential_matrix_from_pose(R: np.ndarray, t: np.ndarray) -> np.ndarray:
     # Essential matrix
     E = t_skew @ R
 
-    return E
+    return cast(np.ndarray, E)
 
 
 def triangulate_point(
@@ -460,4 +462,4 @@ def triangulate_point(
     point1 = origin1 + s * ray1
     point2 = origin2_in_cam1 + u * ray2_in_cam1
 
-    return (point1 + point2) / 2.0
+    return cast(np.ndarray, (point1 + point2) / 2.0)

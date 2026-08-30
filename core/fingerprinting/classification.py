@@ -20,14 +20,16 @@ Date: December 2024
 """
 
 from dataclasses import dataclass
-from typing import Literal, NamedTuple
+from typing import Any, Literal, NamedTuple
 
 import numpy as np
 
 try:
-    from sklearn.ensemble import RandomForestClassifier
-    from sklearn.preprocessing import LabelEncoder
-    from sklearn.svm import SVC
+    from sklearn.ensemble import (  # type: ignore[import-untyped]
+        RandomForestClassifier,
+    )
+    from sklearn.preprocessing import LabelEncoder  # type: ignore[import-untyped]
+    from sklearn.svm import SVC  # type: ignore[import-untyped]
 
     SKLEARN_AVAILABLE = True
 except ImportError:
@@ -89,11 +91,11 @@ class ClassificationLocalizer:
         Chapter 5, Section 5.2: Pattern Recognition Approaches
     """
 
-    classifier: object  # scikit-learn classifier
+    classifier: Any  # scikit-learn classifier
     locations: np.ndarray
     class_to_location: dict  # Maps class_id -> location
     floor_ids: np.ndarray
-    label_encoder: object  # LabelEncoder
+    label_encoder: Any  # LabelEncoder
     meta: dict
 
     def predict(
@@ -140,7 +142,7 @@ def fit_classifier(
     classifier_type: Literal["random_forest", "svm"] = "random_forest",
     zone_type: Literal["rp"] = "rp",
     floor_id: int | None = None,
-    **classifier_kwargs,
+    **classifier_kwargs: Any,
 ) -> ClassificationLocalizer:
     """
     Fit a classification-based localizer from fingerprint database.
@@ -204,7 +206,19 @@ def fit_classifier(
         class_labels = np.arange(len(locations))
         class_to_location = {i: locations[i] for i in range(len(locations))}
 
-    elif zone_type == "grid":
+    # Silenced rather than fixed, because both halves of the conflict are
+    # pinned by tests. mypy is right that these branches cannot run under the
+    # declared type, and the declared type is deliberate:
+    # `test_fit_classifier_signature_advertises_only_supported_zone_type`
+    # asserts `get_args(...) == ("rp",)`, so the signature must advertise only
+    # what is implemented. The branches are equally deliberate --
+    # `test_legacy_experimental_zone_types_raise_clear_errors` calls
+    # `fit_classifier(db, zone_type="grid")` and requires the explicit
+    # NotImplementedError -- because a caller who is not type-checking gets a
+    # sentence instead of a silent fall-through. Widening the Literal to admit
+    # the two experimental names satisfies mypy and fails the first test, so
+    # the honest resolution is to say here that the dead code is on purpose.
+    elif zone_type == "grid":  # type: ignore[unreachable]
         raise NotImplementedError(
             "zone_type='grid' is an experimental mode that is not implemented. "
             "Use zone_type='rp', the only supported public option."
@@ -320,8 +334,8 @@ def hierarchical_localize(
     db: FingerprintDatabase,
     coarse_method: Literal["floor", "random_forest"] = "floor",
     fine_method: Literal["nn", "knn", "map", "posterior_mean"] = "knn",
-    coarse_model: object | None = None,
-    **fine_method_kwargs,
+    coarse_model: Any | None = None,
+    **fine_method_kwargs: Any,
 ) -> HierarchicalLocalizationResult:
     """Hierarchical coarse-to-fine localization.
 
@@ -364,7 +378,7 @@ def hierarchical_localize(
     References:
         Chapter 5, Section 5.2: Hierarchical classification approach.
     """
-    info = {"coarse_method": coarse_method, "fine_method": fine_method}
+    info: dict[str, Any] = {"coarse_method": coarse_method, "fine_method": fine_method}
 
     # Step 1: Coarse classification
     if coarse_method == "floor":
@@ -456,8 +470,8 @@ def hierarchical_fingerprint_localize(
     db: FingerprintDatabase,
     coarse_method: Literal["floor", "random_forest"] = "floor",
     fine_method: Literal["nn", "knn", "map", "posterior_mean"] = "knn",
-    coarse_model: object | None = None,
-    **fine_method_kwargs,
+    coarse_model: Any | None = None,
+    **fine_method_kwargs: Any,
 ) -> HierarchicalLocalizationResult:
     """Descriptive alias for :func:`hierarchical_localize`."""
     return hierarchical_localize(

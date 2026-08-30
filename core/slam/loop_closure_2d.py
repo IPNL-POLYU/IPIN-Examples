@@ -14,7 +14,7 @@ Date: December 2025
 """
 
 from dataclasses import dataclass
-from typing import List, Tuple
+from typing import List, Tuple, cast
 
 import numpy as np
 
@@ -270,7 +270,7 @@ class LoopClosureDetector2D:
 
             # Secondary filter: Position distance (optional)
             if self.max_distance is not None and poses is not None:
-                distance = np.linalg.norm(poses[query_idx][:2] - poses[j][:2])
+                distance = float(np.linalg.norm(poses[query_idx][:2] - poses[j][:2]))
 
                 if distance > self.max_distance:
                     continue
@@ -324,12 +324,18 @@ class LoopClosureDetector2D:
         # ICP(source, target) returns transform that aligns source to target
         # So ICP(scan_j, scan_i) returns transform from frame_j to frame_i
         try:
-            rel_pose, iters, residual, converged = icp_point_to_point(
-                source_scan=scan_j,  # Earlier scan (match)
-                target_scan=scan_i,  # Later scan (query)
-                initial_pose=initial_guess,  # Initial guess: j to i
-                max_iterations=self.icp_max_iterations,
-                tolerance=self.icp_tolerance,
+            # `AlignmentResult.__iter__` yields
+            # `ndarray | int | float | bool`, so unpacking gives every name
+            # that union. The cast restores the four declared field types.
+            rel_pose, iters, residual, converged = cast(
+                tuple[np.ndarray, int, float, bool],
+                icp_point_to_point(
+                    source_scan=scan_j,  # Earlier scan (match)
+                    target_scan=scan_i,  # Later scan (query)
+                    initial_pose=initial_guess,  # Initial guess: j to i
+                    max_iterations=self.icp_max_iterations,
+                    tolerance=self.icp_tolerance,
+                ),
             )
         except Exception:
             return None

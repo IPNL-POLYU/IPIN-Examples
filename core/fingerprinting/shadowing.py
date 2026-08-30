@@ -244,7 +244,7 @@ class ShadowingField:
         """Number of floors the field carries a realisation for."""
         return int(self.frequencies.shape[0])
 
-    def __call__(self, xy: np.ndarray, floor_id) -> np.ndarray:
+    def __call__(self, xy: np.ndarray, floor_id: int | np.ndarray) -> np.ndarray:
         """Evaluate the field at arbitrary positions.
 
         Args:

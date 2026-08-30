@@ -11,7 +11,6 @@
 #     KNOWN_UNCOLLECTED_TESTS
 #   tests/test_simulated_truth_is_physical.py    KNOWN_DISCONTINUOUS
 #   tests/test_lint_debt_only_shrinks.py         BASELINE  (ruff, per rule)
-#   tests/test_mypy_debt_only_shrinks.py         BASELINE  (mypy, per code)
 #   tests/test_semantic_api_debt_only_shrinks.py BASELINE
 #   tests/test_doctests_that_pass_keep_passing.py  ALLOWLIST
 #   tests/test_every_figure_has_a_demo_behind_it.py KNOWN_UNCOMMITTED
@@ -22,10 +21,13 @@
 #   tools/validate_dataset_docs.py               KNOWN_INCOMPLETE
 #     (run by tests/test_repo_validators.py)
 #
-# Not a ratchet but the same idea, and new with the mypy one:
+# Not a ratchet but the same idea:
 #   tests/test_black_is_actually_run.py -- no debt list, because black passes
 #   outright. It is here because black had already regressed twice through a
 #   gap where nothing ran it.
+#   tests/test_mypy_debt_only_shrinks.py -- no debt list either, since Wave E
+#   took core/ to zero. It kept its name and stopped being a ratchet: any mypy
+#   error in core/ now fails it outright.
 #
 # Their entire value is that they run, and until this file there was nothing
 # making them run: the audit that emptied two of those lists was merged on the

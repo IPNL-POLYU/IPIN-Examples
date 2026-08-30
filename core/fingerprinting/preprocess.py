@@ -13,7 +13,7 @@ Author: Li-Ta Hsu
 Date: December 2024
 """
 
-from typing import Literal, Optional, Tuple
+from typing import Literal, Optional, Tuple, cast
 
 import numpy as np
 
@@ -87,12 +87,12 @@ def average_scans(
     if method == "mean":
         # Arithmetic mean, ignoring NaN values
         # For Gaussian noise, this is the optimal estimator
-        return np.nanmean(scans, axis=0)
+        return cast(np.ndarray, np.nanmean(scans, axis=0))
 
     elif method == "median":
         # Median is robust to outliers
         # More robust than mean but less efficient for Gaussian noise
-        return np.nanmedian(scans, axis=0)
+        return cast(np.ndarray, np.nanmedian(scans, axis=0))
 
     elif method == "trimmed_mean":
         # Trimmed mean: remove extreme values, then average
@@ -134,8 +134,8 @@ def average_scans(
 def normalize_fingerprint(
     z: np.ndarray,
     method: Literal["zscore", "minmax", "none"] = "zscore",
-    ref_mean: Optional[np.ndarray] = None,
-    ref_std: Optional[np.ndarray] = None,
+    ref_mean: float | np.ndarray | None = None,
+    ref_std: float | np.ndarray | None = None,
     ref_min: Optional[np.ndarray] = None,
     ref_max: Optional[np.ndarray] = None,
 ) -> Tuple[np.ndarray, dict]:
@@ -319,8 +319,8 @@ def preprocess_query(
     scans: np.ndarray,
     averaging_method: Literal["mean", "median", "trimmed_mean"] = "mean",
     normalization_method: Literal["zscore", "minmax", "none"] = "none",
-    ref_mean: Optional[np.ndarray] = None,
-    ref_std: Optional[np.ndarray] = None,
+    ref_mean: float | np.ndarray | None = None,
+    ref_std: float | np.ndarray | None = None,
     ref_min: Optional[np.ndarray] = None,
     ref_max: Optional[np.ndarray] = None,
     trim_percent: float = 0.1,

@@ -10,12 +10,13 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import List, Tuple
+from collections.abc import Sequence
+from typing import Any, List, Tuple
 
 import numpy as np
 
 
-def _rng(rng):
+def _rng(rng: Any) -> Any:
     """Return *rng*, or numpy's global stream when none was supplied.
 
     The default is np.random rather than a fresh default_rng() on purpose. A
@@ -29,10 +30,10 @@ def _rng(rng):
 
 
 def ray_segment_intersection(
-    ray_origin: np.ndarray,
-    ray_direction: np.ndarray,
-    segment_start: np.ndarray,
-    segment_end: np.ndarray,
+    ray_origin: Sequence[float] | np.ndarray,
+    ray_direction: Sequence[float] | np.ndarray,
+    segment_start: Sequence[float] | np.ndarray,
+    segment_end: Sequence[float] | np.ndarray,
 ) -> Tuple[np.ndarray | None, float]:
     """Compute intersection between a ray and a line segment.
 
@@ -107,7 +108,7 @@ def generate_scan_with_occlusion(
     max_range: float = 10.0,
     noise_std: float = 0.02,
     min_range: float = 0.1,
-    rng=None,
+    rng: Any = None,
 ) -> np.ndarray:
     """Generate 2D LiDAR scan with proper occlusion handling using ray-casting.
 
@@ -206,7 +207,7 @@ def generate_dense_wall_scan(
     max_range: float = 8.0,
     noise_std: float = 0.02,
     points_per_wall: int = 50,
-    rng=None,
+    rng: Any = None,
 ) -> np.ndarray:
     """Generate dense LiDAR scan from walls (legacy, without occlusion handling).
 

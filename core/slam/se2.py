@@ -17,7 +17,7 @@ Author: Li-Ta Hsu
 Date: 2024
 """
 
-from typing import Union
+from typing import Union, cast
 
 import numpy as np
 
@@ -54,7 +54,7 @@ def wrap_angle(theta: float) -> float:
         Uses the formula: θ_wrapped = atan2(sin(θ), cos(θ))
         This is numerically stable and handles all edge cases correctly.
     """
-    return np.arctan2(np.sin(theta), np.cos(theta))
+    return float(np.arctan2(np.sin(theta), np.cos(theta)))
 
 
 def se2_compose(
@@ -285,7 +285,7 @@ def se2_apply(p: Union[np.ndarray, Pose2], points: np.ndarray) -> np.ndarray:
     # points.T has shape (2, N), R @ points.T has shape (2, N)
     points_transformed = (R @ points.T).T + t
 
-    return points_transformed
+    return cast(np.ndarray, points_transformed)
 
 
 def se2_relative(

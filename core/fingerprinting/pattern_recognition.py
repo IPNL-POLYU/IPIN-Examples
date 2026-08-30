@@ -16,7 +16,7 @@ Date: Jan 2026
 """
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Optional, cast
 
 import numpy as np
 
@@ -89,12 +89,12 @@ class LinearRegressionLocalizer:
     @property
     def location_dim(self) -> int:
         """Dimensionality of location space (2D or 3D)."""
-        return self.bias.shape[0]
+        return int(self.bias.shape[0])
 
     @property
     def n_features(self) -> int:
         """Number of features N (e.g., number of APs)."""
-        return self.weights.shape[1]
+        return int(self.weights.shape[1])
 
     @classmethod
     def fit(
@@ -241,7 +241,7 @@ class LinearRegressionLocalizer:
         # Result: (d,)
         x_hat = self.weights @ z + self.bias
 
-        return x_hat
+        return cast(np.ndarray, x_hat)
 
     def predict_batch(self, Z: np.ndarray) -> np.ndarray:
         """
@@ -284,7 +284,7 @@ class LinearRegressionLocalizer:
         # Result: (M, d)
         X_hat = Z @ self.weights.T + self.bias
 
-        return X_hat
+        return cast(np.ndarray, X_hat)
 
     def score(self, db: FingerprintDatabase, floor_id: Optional[int] = None) -> float:
         """
@@ -355,7 +355,9 @@ class LinearRegressionLocalizer:
             # All true locations are identical (degenerate case)
             return 1.0 if ss_res == 0 else 0.0
 
-        r2 = 1.0 - (ss_res / ss_tot)
+        # Both sums are over the whole array, so this is 0-d; the
+        # degenerate branch above already returns a Python float.
+        r2 = float(1.0 - (ss_res / ss_tot))
 
         return r2
 

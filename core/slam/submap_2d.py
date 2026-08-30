@@ -8,6 +8,8 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
+from typing import Any, cast
+
 import numpy as np
 
 from .se2 import se2_apply
@@ -107,10 +109,10 @@ class Submap2D:
             2
         """
         if self.points.shape[0] == 0:
-            return self.points.copy()
+            return cast(np.ndarray, self.points.copy())
 
         if voxel_size is None:
-            return self.points.copy()
+            return cast(np.ndarray, self.points.copy())
 
         # Voxel grid downsampling
         return self._voxel_downsample(self.points, voxel_size)
@@ -161,7 +163,7 @@ class Submap2D:
         Returns:
             Number of points currently stored.
         """
-        return self.points.shape[0]
+        return int(self.points.shape[0])
 
     @staticmethod
     def _voxel_downsample(points: np.ndarray, voxel_size: float) -> np.ndarray:
@@ -183,13 +185,13 @@ class Submap2D:
             raise ValueError(f"voxel_size must be positive, got {voxel_size}")
 
         if points.shape[0] == 0:
-            return points.copy()
+            return cast(np.ndarray, points.copy())
 
         # Quantize points to voxel indices
         voxel_indices = np.floor(points / voxel_size).astype(np.int32)
 
         # Group points by voxel using dictionary
-        voxel_dict = {}
+        voxel_dict: dict[tuple[Any, Any], list[np.ndarray]] = {}
         for i, voxel_idx in enumerate(voxel_indices):
             key = (voxel_idx[0], voxel_idx[1])
             if key not in voxel_dict:

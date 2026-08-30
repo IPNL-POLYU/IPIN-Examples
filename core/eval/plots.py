@@ -11,12 +11,14 @@ Date: December 2025
 """
 
 import os
+from collections.abc import Iterable
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, Union
+from typing import Any, Callable, Dict, List, Optional, Tuple, Union, cast
 
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.animation import FuncAnimation, PillowWriter
+from matplotlib.artist import Artist
 
 # Drawn on any trajectory panel that gives up equal axes. Exported so callers
 # and tests can assert on the disclosure rather than duplicating the wording.
@@ -279,7 +281,10 @@ def plot_trajectory_2d(
         if owns_figure:
             fig, ax = plt.subplots(figsize=(10, 8))
         else:
-            fig = ax.figure
+            # `owns_figure` is a plain bool, so mypy cannot narrow `ax`
+            # through it; not owning the figure means a caller supplied one.
+            assert ax is not None
+            fig = cast(plt.Figure, ax.figure)
         _draw_trajectories(ax, truth_xy, est_xy_dict, anchors_xy, axis_labels)
         ax.set_title(title, fontsize=14, fontweight=title_fontweight)
         ax.legend(fontsize=10)
@@ -343,7 +348,12 @@ def plot_position_error_time(
     else:
         axis_labels = ["X", "Y", "Z"][:n_dims]
 
-    fig, axes_arr = plt.subplots(n_dims, 1, figsize=(12, 4 * n_dims))
+    # `plt.subplots(n, 1)` returns a bare Axes for n == 1 and an ndarray of
+    # them otherwise, which no single static type describes; the line below
+    # normalises the two into a list, so the cast names what varies.
+    fig, axes_arr = cast(
+        tuple[plt.Figure, Any], plt.subplots(n_dims, 1, figsize=(12, 4 * n_dims))
+    )
     if n_dims == 1:
         axes_arr = [axes_arr]
 
@@ -418,7 +428,10 @@ def plot_error_magnitude_time(
     if owns_figure:
         fig, ax = plt.subplots(figsize=(12, 6))
     else:
-        fig = ax.figure
+        # `owns_figure` is a plain bool, so mypy cannot narrow `ax` through it;
+        # not owning the figure means a caller supplied one.
+        assert ax is not None
+        fig = cast(plt.Figure, ax.figure)
 
     peak = 0.0
 
@@ -529,7 +542,10 @@ def plot_error_cdf(
     if owns_figure:
         fig, ax = plt.subplots(figsize=(10, 6))
     else:
-        fig = ax.figure
+        # `owns_figure` is a plain bool, so mypy cannot narrow `ax` through it;
+        # not owning the figure means a caller supplied one.
+        assert ax is not None
+        fig = cast(plt.Figure, ax.figure)
 
     for i, (name, errors) in enumerate(errors_dict.items()):
         # Compute error magnitudes
@@ -559,7 +575,9 @@ def plot_error_cdf(
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
     ax.set_xlim(left=0)
-    ax.set_ylim([0, 1.05])
+    # matplotlib unpacks any 2-element iterable given as `bottom`; its stub
+    # admits only a tuple. The cast records that without touching the call.
+    ax.set_ylim(cast(tuple[float, float], [0, 1.05]))
 
     if owns_figure:
         plt.tight_layout()
@@ -704,7 +722,7 @@ def plot_dop_map(
 
 
 def plot_frame_3d(
-    ax,
+    ax: Any,
     C: Optional[np.ndarray] = None,
     origin: Optional[np.ndarray] = None,
     label: Optional[str] = None,
@@ -778,7 +796,7 @@ def plot_frame_3d(
             )
 
 
-def set_axes_equal_3d(ax, radius: float = 1.5) -> None:
+def set_axes_equal_3d(ax: Any, radius: float = 1.5) -> None:
     """Give a 3-D axes equal aspect so rotations are not visually sheared.
 
     Matplotlib's 3-D axes do not honour ``set_aspect("equal")`` on all
@@ -944,11 +962,15 @@ def save_animation(
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{name}.gif"
 
+    # `blit=False`, so matplotlib never reads what these callbacks return and
+    # every caller here returns None. Its stub asks for `Iterable[Artist]`,
+    # which is the blitting contract; the casts name that rather than forcing
+    # the requirement onto this module's own signature.
     animation = FuncAnimation(
         fig,
-        update,
+        cast(Callable[..., Iterable[Artist]], update),
         frames=n_frames,
-        init_func=init,
+        init_func=cast(Callable[[], Iterable[Artist]] | None, init),
         interval=1000 // max(fps, 1),
         blit=False,
     )

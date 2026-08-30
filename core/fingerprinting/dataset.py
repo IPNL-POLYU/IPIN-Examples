@@ -9,7 +9,7 @@ Date: 2024
 
 import json
 from pathlib import Path
-from typing import Union
+from typing import Any, Union
 
 import numpy as np
 
@@ -160,9 +160,9 @@ def validate_database(db: FingerprintDatabase, strict: bool = True) -> dict:
         >>> if not result['valid']:
         ...     print("Errors:", result['errors'])
     """
-    errors = []
-    warnings = []
-    stats = {}
+    errors: list[str] = []
+    warnings: list[str] = []
+    stats: dict[str, Any] = {}
 
     # Basic statistics
     stats["n_reference_points"] = db.n_reference_points
