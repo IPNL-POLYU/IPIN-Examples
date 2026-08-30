@@ -48,30 +48,38 @@ from tests.example_runner import WORKSPACE_ROOT
 #: entry entirely at zero -- an absent code is the guard, because the
 #: `appeared` check below fails on any code not listed here.
 #:
-#: 408 in 56 files, of 76 checked. The two large ones are shallow: 119
-#: `no-untyped-def` is missing annotations, and 105 `no-any-return` is
+#: 331 in 43 files, of 76 checked. The two large ones are shallow: 110
+#: `no-untyped-def` is missing annotations, and 81 `no-any-return` is
 #: returning `Any` from a function declared to return something narrower --
 #: overwhelmingly numpy operations whose stubs give back `Any`. The ones with
-#: content are further down: `union-attr` (32) and `index` (8) are the shapes
+#: content are further down: `union-attr` (26) and `index` (8) are the shapes
 #: that become AttributeError and IndexError at runtime.
+#:
+#: Wave B took `core/fusion`, `core/utils`, `core/models` and `core/sim` to
+#: zero, which is the 82 errors between the 413 measured under mypy 2.3.1 and
+#: the 331 here. `unreachable` fell from 10 to 2 on annotations alone: every
+#: one of the eight was a parameter defaulting to None while annotated as
+#: non-optional, so mypy called the `if x is None:` branch dead. The branches
+#: were live and load-bearing -- deleting them would have removed the
+#: `alpha`/`confidence` deprecation path and two noise-std defaults.
 # Measured with mypy==2.3.1 (pinned in the dev extra -- see pyproject.toml for
 # why the pin is exact) under numpy 2.4.6. numpy is NOT pinned, and its stubs
 # move these counts: a numpy release can turn this red in either direction, at
 # which point re-measure and update in the same commit as the numpy bump.
 BASELINE = {
-    "no-untyped-def": 119,
-    "no-any-return": 113,
-    "arg-type": 40,
-    "assignment": 34,
-    "union-attr": 32,
-    "operator": 26,
-    "unreachable": 10,
-    "index": 9,
+    "no-untyped-def": 110,
+    "no-any-return": 81,
+    "arg-type": 31,
+    "union-attr": 26,
+    "operator": 25,
+    "assignment": 22,
+    "index": 8,
     "dict-item": 8,
     "return-value": 7,
-    "import-untyped": 6,
+    "import-untyped": 5,
     "attr-defined": 4,
-    "var-annotated": 4,
+    "unreachable": 2,
+    "var-annotated": 1,
     "override": 1,
 }
 

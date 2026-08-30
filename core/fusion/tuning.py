@@ -15,6 +15,7 @@ References: Chapter 8, Section 8.3 (Tuning and Robustness), Equation 8.7
 """
 
 import warnings
+from typing import cast
 
 import numpy as np
 
@@ -57,7 +58,7 @@ def innovation(z: np.ndarray, z_pred: np.ndarray) -> np.ndarray:
             f"got {z.shape} and {z_pred.shape}"
         )
 
-    return z - z_pred
+    return cast(np.ndarray, z - z_pred)
 
 
 def innovation_covariance(
@@ -125,7 +126,7 @@ def innovation_covariance(
     # Ensure symmetry (numerical stability)
     S = 0.5 * (S + S.T)
 
-    return S
+    return cast(np.ndarray, S)
 
 
 def scale_measurement_covariance(R: np.ndarray, scale_factor: float) -> np.ndarray:

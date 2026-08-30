@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 import numpy as np
 
@@ -135,7 +135,7 @@ class StateIndex:
 
 
 def create_process_model(
-    process_noise_std: np.ndarray = None,
+    process_noise_std: np.ndarray | None = None,
 ) -> tuple[Callable, Callable, Callable]:
     """Create process model functions for 2D IMU-based dead reckoning.
 
@@ -283,7 +283,7 @@ def create_uwb_range_measurement_model(
 def create_tc_fusion_ekf(
     initial_state: np.ndarray,
     initial_cov: np.ndarray,
-    process_noise_std: np.ndarray = None,
+    process_noise_std: np.ndarray | None = None,
 ) -> ExtendedKalmanFilter:
     """Create and initialize tightly coupled fusion EKF.
 
@@ -302,13 +302,13 @@ def create_tc_fusion_ekf(
     process_f, process_F, process_Q = create_process_model(process_noise_std)
 
     # Dummy measurement model (we'll use per-anchor models during updates)
-    def dummy_h(x):
+    def dummy_h(x: np.ndarray) -> np.ndarray:
         return np.zeros(1)
 
-    def dummy_H(x):
+    def dummy_H(x: np.ndarray) -> np.ndarray:
         return np.zeros((1, 5))
 
-    def dummy_R():
+    def dummy_R() -> np.ndarray:
         return np.eye(1)
 
     ekf = ExtendedKalmanFilter(
@@ -339,7 +339,7 @@ def tc_process_model(x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     Control: u = [ax, ay, gyro_z]
     """
     f, _, _ = create_process_model()
-    return f(x, u, dt)
+    return cast(np.ndarray, f(x, u, dt))
 
 
 def tc_process_jacobian(x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
@@ -349,7 +349,7 @@ def tc_process_jacobian(x: np.ndarray, u: np.ndarray, dt: float) -> np.ndarray:
     Control: u = [ax, ay, gyro_z]
     """
     _, F, _ = create_process_model()
-    return F(x, u, dt)
+    return cast(np.ndarray, F(x, u, dt))
 
 
 def tc_process_noise_covariance(
@@ -372,7 +372,7 @@ def tc_process_noise_covariance(
     )
 
     _, _, Q = create_process_model(process_noise_std)
-    return Q(dt)
+    return cast(np.ndarray, Q(dt))
 
 
 def tc_uwb_measurement_model(x: np.ndarray, anchors: np.ndarray) -> np.ndarray:
@@ -389,7 +389,7 @@ def tc_uwb_measurement_model(x: np.ndarray, anchors: np.ndarray) -> np.ndarray:
     position = np.array([px, py])
 
     ranges = np.linalg.norm(anchors - position, axis=1)
-    return ranges
+    return cast(np.ndarray, ranges)
 
 
 def tc_uwb_measurement_jacobian(x: np.ndarray, anchors: np.ndarray) -> np.ndarray:

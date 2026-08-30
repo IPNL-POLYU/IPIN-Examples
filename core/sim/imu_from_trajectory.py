@@ -24,7 +24,7 @@ Author: Li-Ta Hsu
 Date: December 2025
 """
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, cast
 import numpy as np
 
 from core.sensors.types import FrameConvention
@@ -124,7 +124,7 @@ def compute_specific_force_body(
         f_b[i] = C_M_B @ (accel_map[i] - g_M)
 
     if single_sample:
-        return f_b[0]
+        return cast(np.ndarray, f_b[0])
     return f_b
 
 

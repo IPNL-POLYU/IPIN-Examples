@@ -10,7 +10,7 @@ All models include proper singularity handling and input validation.
 """
 
 import numpy as np
-from typing import Tuple, Optional
+from typing import Tuple, Optional, cast
 import warnings
 
 from core.utils import normalize_jacobian_singularities, angle_diff
@@ -69,7 +69,7 @@ class RangeMeasurement2D:
         """
         position = x[list(self.pos_idx)]
         ranges = np.linalg.norm(self.anchors - position, axis=1)
-        return ranges
+        return cast(np.ndarray, ranges)
 
     def H(self, x: np.ndarray) -> np.ndarray:
         """
@@ -223,7 +223,7 @@ class RangeBearingMeasurement2D:
         for i in range(1, len(innovation), 2):
             innovation[i] = angle_diff(z_measured[i], z_predicted[i])
 
-        return innovation
+        return cast(np.ndarray, innovation)
 
 
 class PositionMeasurement2D:
@@ -389,4 +389,4 @@ def create_measurement_noise_covariance(
         Sigma = np.diag(noise_std)
         R = Sigma @ correlation @ Sigma
 
-        return R
+        return cast(np.ndarray, R)

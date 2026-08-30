@@ -14,7 +14,10 @@ References: Chapter 8, Section 8.3 (Tuning and Robustness), Equations 8.8-8.9
 import warnings
 
 import numpy as np
-from scipy import stats
+
+# scipy ships no type information and `scipy-stubs` is not a dependency here;
+# adding one is a change to the install, not to an annotation.
+from scipy import stats  # type: ignore[import-untyped]
 
 
 def mahalanobis_distance_squared(y: np.ndarray, S: np.ndarray) -> float:
@@ -82,7 +85,10 @@ def mahalanobis_distance_squared(y: np.ndarray, S: np.ndarray) -> float:
 
 
 def chi_square_gate(
-    y: np.ndarray, S: np.ndarray, confidence: float = None, alpha: float = None
+    y: np.ndarray,
+    S: np.ndarray,
+    confidence: float | None = None,
+    alpha: float | None = None,
 ) -> bool:
     """Chi-square gating decision for measurement validation.
 
@@ -181,7 +187,7 @@ def chi_square_gate(
 
 
 def chi_square_threshold(
-    dof: int, confidence: float = None, alpha: float = None
+    dof: int, confidence: float | None = None, alpha: float | None = None
 ) -> float:
     """Get chi-square critical value for a given confidence level.
 
@@ -248,7 +254,7 @@ def chi_square_threshold(
 
 
 def chi_square_bounds(
-    dof: int, confidence: float = None, alpha: float = None
+    dof: int, confidence: float | None = None, alpha: float | None = None
 ) -> tuple[float, float]:
     """Get lower and upper chi-square bounds for consistency monitoring.
 

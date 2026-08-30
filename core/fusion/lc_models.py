@@ -212,7 +212,7 @@ def solve_uwb_position_wls(
 
 
 def create_lc_process_model(
-    process_noise_std: np.ndarray = None,
+    process_noise_std: np.ndarray | None = None,
 ) -> tuple[Callable, Callable, Callable]:
     """Create process model for LC fusion (same as TC).
 
@@ -229,7 +229,7 @@ def create_lc_process_model(
 
 
 def create_lc_position_measurement_model(
-    position_noise_std: np.ndarray = None,
+    position_noise_std: np.ndarray | None = None,
 ) -> tuple[Callable, Callable, Callable]:
     """Create position measurement model for LC fusion.
 
@@ -273,7 +273,7 @@ def create_lc_position_measurement_model(
 def create_lc_fusion_ekf(
     initial_state: np.ndarray,
     initial_cov: np.ndarray,
-    process_noise_std: np.ndarray = None,
+    process_noise_std: np.ndarray | None = None,
 ) -> ExtendedKalmanFilter:
     """Create and initialize loosely coupled fusion EKF.
 
@@ -291,13 +291,13 @@ def create_lc_fusion_ekf(
     process_f, process_F, process_Q = create_lc_process_model(process_noise_std)
 
     # Dummy measurement model (will be replaced during updates)
-    def dummy_h(x):
+    def dummy_h(x: np.ndarray) -> np.ndarray:
         return np.zeros(2)
 
-    def dummy_H(x):
+    def dummy_H(x: np.ndarray) -> np.ndarray:
         return np.zeros((2, 5))
 
-    def dummy_R():
+    def dummy_R() -> np.ndarray:
         return np.eye(2)
 
     ekf = ExtendedKalmanFilter(

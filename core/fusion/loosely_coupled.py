@@ -109,6 +109,10 @@ def run_lc_fusion(
     P0 = np.diag([1.0, 1.0, 1.0, 1.0, 0.5]) ** 2  # Larger initial uncertainty
 
     ekf = create_lc_fusion_ekf(initial_state=x0, initial_cov=P0)
+    # `BaseEstimator` declares state/covariance optional because a filter may
+    # exist before it is initialised; this factory always passes x0 and P0, so
+    # neither is None here. Stated once so the rest of the loop reads plainly.
+    assert ekf.state is not None and ekf.covariance is not None
 
     if verbose:
         print("\nInitialization:")
@@ -173,7 +177,7 @@ def run_lc_fusion(
         )
 
     # Run fusion
-    accepted_history = []
+    accepted_history: list[bool] = []
     history = FusionHistory(
         {
             "t": [],
@@ -224,6 +228,11 @@ def run_lc_fusion(
                 n_uwb_failed += 1
                 continue
 
+            # `solve_uwb_position_wls` returns the position and its covariance
+            # together or neither: every failure path is `return None, None,
+            # False`. So the guard above has already settled cov_uwb.
+            assert cov_uwb is not None
+
             # Store solved position
             history["uwb_positions"].append(pos_uwb)
 
@@ -252,6 +261,10 @@ def run_lc_fusion(
             # Gating with adaptive management
             accept = True
             if use_gating:
+                # `adaptive_mgr` is constructed under this same flag above, so
+                # the two are set together; mypy cannot see across that.
+                assert adaptive_mgr is not None
+
                 # First check with chi-square gate
                 gate_accept = chi_square_gate(y, S, confidence=gate_confidence)
 
