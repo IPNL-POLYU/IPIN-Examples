@@ -292,13 +292,10 @@ def run_with_dataset(data_dir: str) -> None:
 
         ekf.predict(dt=dt)
 
-        # Normalised innovation squared, before the update consumes it.
-        # Computed here rather than through `ekf.get_innovation`, which
-        # subtracts the angles raw and so cannot be used on bearings.
-        x_pred, P_pred = ekf.get_state()
-        H_pred = measurement_jacobian(x_pred)
-        S = H_pred @ P_pred @ H_pred.T + R_func()
-        nu = innovation_func(z, measurement_model(x_pred))
+        # Normalised innovation squared, taken before the update consumes it.
+        # `get_innovation` wraps the bearing components, because the filter was
+        # built with an `innovation_func` and the helper honours it.
+        nu, S = ekf.get_innovation(z)
         nis_values.append(float(nu @ np.linalg.solve(S, nu)))
 
         ekf.update(z)
