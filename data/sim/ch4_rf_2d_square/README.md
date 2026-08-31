@@ -51,7 +51,8 @@ This dataset demonstrates **RF (Radio Frequency) positioning using TOA, TDOA, an
 
 DOP is reported per method because it differs by an order of magnitude between
 them, and the "poor" variant is the case in point: its TOA GDOP of 1.43 is
-almost as good as the square's, while its TDOA GDOP is twelve times worse.
+almost as good as the square's, while its TDOA GDOP is eleven times worse
+(11.95 against 1.07).
 `data/sim/ch4_rf_2d_linear/README.md` covers that geometry, including why a
 healthy TOA GDOP there is still not enough to make TOA usable.
 
@@ -382,32 +383,59 @@ print(f"Max GDOP: {gdop_toa.max():.2f} (worst geometry)")
 
 ### Effect of Beacon Geometry
 
-| Geometry | Mean GDOP | Position Error (m) | Notes |
-|----------|-----------|-------------------|-------|
-| **Square** (corners) | 1.0-1.1 | 0.10-0.15 | Good, symmetric |
-| **Optimal** (circular) | 0.8-0.9 | 0.08-0.12 | Best, evenly spaced |
-| **L-shape** | 2.0-3.0 | 0.20-0.30 | Poor in some regions |
-| **Linear** | >10 | >1.0 | Very poor perpendicular |
-| **Clustered** | >20 | >2.0 | Unusable |
+Measured on the three shipped variants with
+`python -m ch4_rf_point_positioning.example_comparison --compare-geometry`:
+mean GDOP from each dataset's `gdop_*.txt`, median error over all 100 fixes
+with the failures in brackets.
+
+| Geometry | Mean TOA GDOP | Mean TDOA GDOP | TOA median | TDOA median | AOA median |
+|----------|---:|---:|---:|---:|---:|
+| **Square** (corners) | 1.02 | 1.07 | 0.088 m [0] | 0.092 m [0] | 0.397 m [0] |
+| **Optimal** (circular) | 1.02 | 1.34 | 0.079 m [0] | 0.121 m [0] | 0.273 m [0] |
+| **Linear** (collinear) | 1.43 | 11.95 | 6.770 m [100] | 6.770 m [100] | **0.262 m** [8] |
+
+This table used to give ranges nothing had measured, and every row disagreed
+with the shipped data: the optimal array at "0.8-0.9" GDOP, which is below the
+theoretical floor of 1 for four beacons; the square at "0.10-0.15 m" against a
+measured 0.088; a **Clustered** row naming a geometry the generator has no
+`--geometry` choice for. `--geometry` accepts `square`, `optimal`, `linear`,
+`lshape` and `poor`; the first three are the ones with shipped datasets, and
+those are the three quoted here.
+
+Note the linear row's 6.770 m is not an accuracy. All 100 fixes stall at the
+seed, so the number is the seed-to-truth distance and identical for TOA and
+TDOA — the signature `.cursor/rules/030-figures-and-claims.mdc` names.
 
 **Generate comparison**:
 ```bash
 python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset baseline
 python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset optimal
-python scripts/generate_ch4_rf_2d_positioning_dataset.py --geometry lshape --output data/sim/ch4_rf_lshape
 python scripts/generate_ch4_rf_2d_positioning_dataset.py --preset poor_geometry
 ```
 
-**Learning Point**: Geometry can cause 10× variation in accuracy!
+**Learning Point**: geometry is method-specific, not a single ranking. Ranges
+cannot fix a position at all on the collinear array, while bearings do *better*
+there than on the square (0.262 m against 0.397 m) — reflecting a position
+about the beacon line flips every azimuth and leaves every range unchanged.
 
 ### Effect of TOA Measurement Noise
 
-| TOA Noise (m) | Position Error (m) | GDOP Amplification | Notes |
-|---------------|-------------------|--------------------| ------|
-| 0.05 (excellent) | 0.05-0.08 | ~1.5× | High-quality UWB |
-| 0.10 (good) | 0.10-0.15 | ~1.5× | Baseline |
-| 0.30 (fair) | 0.30-0.45 | ~1.5× | GPS-like |
-| 0.50 (poor) | 0.50-0.75 | ~1.5× | Multipath environment |
+The amplification is this array's mean TOA GDOP, and it is **1.02**, not the
+"~1.5×" this table used to repeat on every row: four beacons on the corners of
+a square are close to the best a planar array can do, and 1.0 is the floor.
+The predicted error is therefore barely above the ranging noise itself.
+
+| TOA Noise (m) | Predicted error = 1.02 x noise | Notes |
+|---------------|---:|-------|
+| 0.05 (excellent) | 0.051 m | High-quality UWB |
+| 0.10 (good) | 0.102 m | Baseline — the shipped dataset measures 0.088 m median |
+| 0.30 (fair) | 0.307 m | GPS-like |
+| 0.50 (poor) | 0.511 m | Multipath environment |
+
+A median sits a little below an RMS prediction, which is the 0.088 against
+0.102 on the baseline row. `example_toa_positioning` checks the same
+relationship the other way, over 2000 draws: HDOP 1.010 predicts 0.1010 m and
+the measured RMS is 0.1012 m.
 
 **Formula**: `Position Error ≈ Measurement Noise × GDOP`
 
@@ -426,7 +454,7 @@ python scripts/generate_ch4_rf_2d_positioning_dataset.py --output data/sim/ch4_t
 | 1° (excellent) | 0.17 | High-precision arrays |
 | 2° (good) | 0.35 | Baseline |
 | 5° (fair) | 0.87 | Consumer antennas |
-| 10° (poor) | 1.75 | Low-cost systems |
+| 10° (poor) | 1.76 | Low-cost systems |
 
 **Formula**: `Position Error ≈ distance × tan(angle_error)`
 
@@ -492,7 +520,13 @@ for name in ['ch4_rf_2d_square', 'ch4_rf_2d_optimal', 'ch4_rf_2d_linear']:
 "
 ```
 
-**Learning Point**: Optimal beacon placement can reduce errors by 20-50%!
+**Learning Point**: what the optimal placement buys depends on the method, and
+one of the three it makes *worse*. Measured square -> optimal, median over 100
+fixes: TOA 0.088 -> 0.079 m (**10% better**), AOA 0.397 -> 0.273 m (**31%
+better**), TDOA 0.092 -> 0.121 m (**31% worse**, because the diamond's TDOA
+GDOP is 1.34 against the square's 1.07). This line used to promise "20-50%"
+across the board, sixteen lines after the same file's own summary says
+"Optimal wins no GDOP column outright".
 
 ### Experiment 2: TOA vs. TDOA vs. AOA Comparison
 
@@ -503,11 +537,23 @@ for name in ['ch4_rf_2d_square', 'ch4_rf_2d_optimal', 'ch4_rf_2d_linear']:
 2. Run TOA, TDOA, and AOA positioning
 3. Compare errors and characteristics
 
-**Expected Results**:
-- **TOA**: ~0.09m, but requires clock sync
-- **TDOA**: ~0.07m, and eliminates clock bias — on *this* geometry it is the
-  most accurate of the three, because its GDOP is the lowest of the three
-- **AOA**: ~0.40m; angle errors amplify with distance
+**Expected Results** (median over 100 fixes, measured):
+- **TOA**: 0.088 m, but requires clock sync
+- **TDOA**: 0.092 m, and eliminates clock bias — slightly *worse* than TOA
+  here, and it has to be: differencing is a projection, so it cannot extract
+  more from four beacons than the ranges themselves hold. TDOA's GDOP on this
+  array is 1.07 against TOA's 1.02.
+- **AOA**: 0.397 m; angle errors amplify with distance
+
+The second line used to read "~0.07m ... the most accurate of the three,
+because its GDOP is the lowest of the three". Both halves were wrong, and both
+had already been disowned 240 lines above in this same file — see the two
+paragraphs beginning "This block printed 0.075 m until recently" and "Until
+recently this block printed 13.75 m", which record the two corrections that
+moved this number and say plainly that TDOA is slightly worse than TOA here.
+A conclusion sentence outlives the measurement it was drawn from. When a
+dataset is corrected, re-read the prose that was written against the old one:
+this one survived two rounds of exactly that.
 
 **Code**: Use Quick Start examples for all three techniques
 

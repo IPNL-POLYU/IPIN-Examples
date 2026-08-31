@@ -36,8 +36,9 @@ from core.rf import (
     tdoa_chan_solver,
     toa_fang_solver,
 )
+from core.rf.positioning import STALL_M
 
-# Seed for the Monte Carlo in Demo 2.
+# Seed for the Monte Carlo in Demos 2 and 6.
 SEED = 42
 
 
@@ -86,7 +87,28 @@ def demo_tdoa_basic():
 
 
 def demo_tdoa_with_noise():
-    """Demonstrate TDOA positioning with measurement noise."""
+    """Demonstrate TDOA positioning with measurement noise.
+
+    **The noise is drawn per anchor and then differenced.** A TDOA measurement
+    is ``(d_j + e_j) - (d_0 + e_0)``: the reference anchor's error appears in
+    every difference, so the differences are correlated -- Eq. (4.42), which
+    ``build_tdoa_covariance`` writes as ``Var = 2 sigma^2``, ``Cov = sigma^2``,
+    ``rho = 0.5``.
+
+    This used to add ``standard_normal(len(tdoa)) * noise_std`` directly to the
+    true differences, which deletes the shared term and hands TDOA information
+    it cannot physically have: independent per-difference errors are what you
+    would get from four independent clocks, not from one receiver. Every other
+    demo in this file (3, 4, 7, 8, 9) already draws per anchor and differences
+    afterwards.
+
+    The cost was a third of the error. Over the same 300 draws per level the
+    err/noise ratio -- the column this table prints precisely so it can check
+    itself -- ran 0.56-0.59 under the independent model and runs 0.80-0.88
+    under the correlated one. Note the self-check passes either way: the ratio
+    is constant down the column under both, because both are linear in sigma.
+    A statistic that only tests *proportionality* cannot see a wrong variance.
+    """
     print("\n" + "=" * 70)
     print("Demo 2: TDOA Positioning with Measurement Noise")
     print("=" * 70)
@@ -122,7 +144,10 @@ def demo_tdoa_with_noise():
     for noise_std in noise_levels:
         errors, n_failed = [], 0
         for _ in range(trials if noise_std > 0 else 1):
-            tdoa_noisy = tdoa_true + rng.standard_normal(len(tdoa_true)) * noise_std
+            # Per anchor, then differenced: e_j - e_0, not an independent draw
+            # per difference. See this demo's docstring.
+            range_noise = rng.standard_normal(len(anchors)) * noise_std
+            tdoa_noisy = tdoa_true + (range_noise[1:] - range_noise[0])
             positioner = TDOAPositioner(anchors, reference_anchor_index=0)
             est_pos, info = positioner.solve(
                 tdoa_noisy, initial_guess=np.array([10.0, 10.0])
@@ -155,6 +180,8 @@ def demo_tdoa_with_noise():
     # Print results
     print("\n" + "-" * 70)
     print(f"Median position error over {trials} draws per noise level.")
+    print("Noise is drawn per anchor at the stated sigma and then differenced,")
+    print("so the TDOA errors are correlated (Eq. 4.42: rho = 0.5).")
     print(
         f"{'Noise (m)':<13} {'Median err (m)':<16} {'err/noise':<11} "
         f"{'no-converge':<13} {'>100 m':<8}"
@@ -423,8 +450,15 @@ def demo_covariance_sensitivity():
 
     print("\nKey Insight:")
     print("  - When reference noise >> other anchor noise, improvement is larger")
-    print("  - At sigma_ref = sigma_other, correlation still matters")
-    print("  - Proper covariance modeling is always beneficial")
+    print("  - At sigma_ref = sigma_other, correlation still matters (7.9% here)")
+    print("  - The first row is not evidence against that. When the reference")
+    print("    anchor is the QUIETEST one there is almost nothing to weight:")
+    print("    the true gain there is under 1%, and a ratio of two RMSEs over")
+    print("    200 draws carries a standard error of roughly 5%, so a number")
+    print("    that small is Monte-Carlo noise rather than a measurement. The")
+    print("    same row over eight other seeds runs +0.15% to +0.94%.")
+    print("  - So: modelling Eq. (4.42) never costs you, and pays in proportion")
+    print("    to how much noisier the reference anchor is than the rest.")
 
     return results
 
@@ -488,6 +522,14 @@ def demo_visualize_covariance():
         ax.set_xlabel("TDOA measurement index")
         ax.set_ylabel("TDOA measurement index")
 
+        # One tick per cell, named for the difference it holds. Matplotlib's
+        # default locator put ticks at 0.5, 1.5, ... on a 4x4 image -- half of
+        # them between cells, labelling nothing, on a figure whose whole
+        # subject is which cell holds which covariance.
+        tick_labels = [f"d{j},{reference_anchor_index}" for j in non_ref]
+        ax.set_xticks(range(len(cov)), tick_labels)
+        ax.set_yticks(range(len(cov)), tick_labels)
+
         # Add colorbar
         cbar = plt.colorbar(im, ax=ax)
         cbar.set_label("Covariance (m^2)")
@@ -517,8 +559,70 @@ def demo_visualize_covariance():
     return cov
 
 
+#: Iteration budget for the iterative arms of Demo 9. The library default of 10
+#: leaves RW-LS short of its step tolerance on 41 of 500 draws without changing
+#: the answers, so a demo that reports the flag needs the flag to mean
+#: something. Measured: at 10, 20 and 50 iterations the RMSE over all 500 draws
+#: is 0.3384 m unchanged, while the count reaching tol goes 459, 499, 500.
+ITERATIVE_MAX_ITERS = 50
+
+#: Draws per geometry in Demo 6. One draw per row was what this demo used to
+#: report, to four decimal places.
+GEOMETRY_TRIALS = 500
+
+#: Where Demo 6 starts its solves, as an offset from the anchor centroid. It has
+#: to be an offset: the square array's centroid *is* the target, so seeding at
+#: the centroid alone would be seeding at the truth for one of the two
+#: geometries and not the other -- the comparison silently answering itself.
+SEED_OFFSET = np.array([2.0, 2.0])
+
+
+def _tdoa_geometry_trial(anchors, true_position, seed_point, noise_std, rng, trials):
+    """Solve ``trials`` TDOA fixes from one seed, keeping every outcome.
+
+    Returns ``(errors, n_stalled, n_no_converge)``. Nothing is filtered: a
+    stall is reported as a stall rather than dropped, because the distance it
+    scores is a property of the seed, and averaging it in silently is how a
+    solver that never moved comes to look like one with a 5 m error.
+    """
+    distances = np.linalg.norm(true_position - anchors, axis=1)
+    tdoa_true = distances[1:] - distances[0]
+
+    errors, stalled, no_converge = [], 0, 0
+    for _ in range(trials):
+        range_noise = rng.standard_normal(len(anchors)) * noise_std
+        tdoa_noisy = tdoa_true + (range_noise[1:] - range_noise[0])
+        positioner = TDOAPositioner(anchors, reference_anchor_index=0)
+        est, info = positioner.solve(tdoa_noisy, initial_guess=seed_point)
+        errors.append(float(np.linalg.norm(est - true_position)))
+        stalled += bool(np.linalg.norm(est - seed_point) < STALL_M)
+        no_converge += not info["converged"]
+    return np.asarray(errors), stalled, no_converge
+
+
 def demo_geometry_effect():
-    """Demonstrate the effect of anchor geometry on TDOA accuracy."""
+    """Demonstrate the effect of anchor geometry on TDOA accuracy.
+
+    **Neither solve starts at the answer, and neither reports one draw.** Both
+    used to be seeded with ``initial_guess=[5, 5]``, which is the target
+    exactly, and each printed a single realisation to four decimals. Seeding a
+    solver with the ground truth converts a fragility into an accuracy; it is
+    the rule in ``.cursor/rules/030-figures-and-claims.mdc``, and this demo was
+    an instance of it. The collinear array printed 0.9702 m that way; from a
+    seed it has to travel from, the median over 500 draws is 1.27 m.
+
+    The seed is the anchor centroid plus ``SEED_OFFSET``, and the offset is
+    load-bearing. Seeded *on* the beacon line the collinear array cannot move
+    at all: every anchor lies in the same direction from a point on the line,
+    the Jacobian loses rank, and all 500 draws stall at the seed and score the
+    seed-to-truth distance of 5.3852 m -- one number, identical across draws,
+    which is the signature ``030`` names. That case is printed here rather than
+    quietly avoided, because the bare centroid is the seed a reader reaches for
+    first and 5.3852 m is not an error.
+
+    The noise is drawn per anchor and differenced, as everywhere else in this
+    file; see :func:`demo_tdoa_with_noise`.
+    """
     print("\n" + "=" * 70)
     print("Demo 6: Effect of Anchor Geometry on TDOA Accuracy")
     print("=" * 70)
@@ -534,74 +638,74 @@ def demo_geometry_effect():
     noise_std = 0.2  # meters
 
     print(f"\nTrue position: {true_position}")
-    print(f"Noise std: {noise_std} m")
-
-    # Test with good geometry
-    print("\n--- Good Geometry (surrounding) ---")
-    dist_ref = np.linalg.norm(true_position - good_anchors[0])
-    tdoa_good = np.array(
-        [
-            np.linalg.norm(true_position - good_anchors[i]) - dist_ref
-            for i in range(1, len(good_anchors))
-        ]
-    )
-    tdoa_good_noisy = tdoa_good + np.random.randn(len(tdoa_good)) * noise_std
-
-    positioner_good = TDOAPositioner(good_anchors, reference_anchor_index=0)
-    est_good, info_good = positioner_good.solve(
-        tdoa_good_noisy, initial_guess=np.array([5.0, 5.0])
-    )
-
-    if info_good["converged"]:
-        error_good = np.linalg.norm(est_good - true_position)
-        print(f"Estimated position: {est_good}")
-        print(f"Position error: {error_good:.4f} m")
-    else:
-        print("Failed to converge")
-        error_good = np.inf
-
-    # Test with poor geometry
-    print("\n--- Poor Geometry (collinear) ---")
-    dist_ref = np.linalg.norm(true_position - poor_anchors[0])
-    tdoa_poor = np.array(
-        [
-            np.linalg.norm(true_position - poor_anchors[i]) - dist_ref
-            for i in range(1, len(poor_anchors))
-        ]
-    )
-    tdoa_poor_noisy = tdoa_poor + np.random.randn(len(tdoa_poor)) * noise_std
-
-    positioner_poor = TDOAPositioner(poor_anchors, reference_anchor_index=0)
-    est_poor, info_poor = positioner_poor.solve(
-        tdoa_poor_noisy, initial_guess=np.array([5.0, 5.0])
-    )
-
-    if info_poor["converged"]:
-        error_poor = np.linalg.norm(est_poor - true_position)
-        print(f"Estimated position: {est_poor}")
-        print(f"Position error: {error_poor:.4f} m")
-    else:
-        print("Failed to converge")
-        error_poor = np.inf
-
-    # Summary
-    print("\n" + "-" * 70)
-    print("Geometry Comparison:")
-    print("-" * 70)
-    print(f"{'Geometry':<30} {'Position Error (m)':<20}")
-    print("-" * 70)
-    if error_good != np.inf:
-        print(f"{'Good (surrounding)':<30} {error_good:<20.4f}")
-    else:
-        print(f"{'Good (surrounding)':<30} {'FAILED':<20}")
-    if error_poor != np.inf:
-        print(f"{'Poor (collinear)':<30} {error_poor:<20.4f}")
-    else:
-        print(f"{'Poor (collinear)':<30} {'FAILED':<20}")
-
+    print(f"Noise std: {noise_std} m (per anchor, then differenced)")
+    print(f"Draws per geometry: {GEOMETRY_TRIALS}")
+    offset_str = ", ".join(f"{v:g}" for v in SEED_OFFSET)
     print(
-        "\nNote: Poor geometry leads to higher errors and potential convergence issues."
+        f"Seed: anchor centroid + ({offset_str}) m -- not the truth, "
+        "which both solves used to be handed"
     )
+
+    print("\n" + "-" * 78)
+    print("Geometry Comparison:")
+    print("-" * 78)
+    print(
+        f"{'Geometry':<26} {'Seed':<14} {'Median err (m)':<16} "
+        f"{'stalled':<9} {'no-conv':<9}"
+    )
+    print("-" * 78)
+
+    medians = {}
+    for name, anchors in (
+        ("Good (surrounding)", good_anchors),
+        ("Poor (collinear)", poor_anchors),
+    ):
+        seed = anchors.mean(axis=0) + SEED_OFFSET
+        errors, stalled, no_converge = _tdoa_geometry_trial(
+            anchors,
+            true_position,
+            seed,
+            noise_std,
+            np.random.default_rng(SEED),
+            GEOMETRY_TRIALS,
+        )
+        medians[name] = float(np.median(errors))
+        print(
+            f"{name:<26} {str(np.round(seed, 1)):<14} {medians[name]:<16.4f} "
+            f"{stalled:<9d} {no_converge:<9d}"
+        )
+
+    # The degenerate seed, shown rather than avoided.
+    centroid = poor_anchors.mean(axis=0)
+    errors, stalled, no_converge = _tdoa_geometry_trial(
+        poor_anchors,
+        true_position,
+        centroid,
+        noise_std,
+        np.random.default_rng(SEED),
+        GEOMETRY_TRIALS,
+    )
+    print(
+        f"{'Poor, seeded ON the line':<26} {str(np.round(centroid, 1)):<14} "
+        f"{np.median(errors):<16.4f} {stalled:<9d} {no_converge:<9d}"
+    )
+
+    good, poor = medians["Good (surrounding)"], medians["Poor (collinear)"]
+    print(
+        f"\nThe collinear array is {poor / good:.1f}x worse than the "
+        f"surrounding one ({good:.4f} -> {poor:.4f} m), and the"
+    )
+    print(
+        f"surrounding array's median is {good / noise_std:.2f}x the range noise"
+        " -- the same err/noise ratio Demo 2"
+    )
+    print("reports for its own well-conditioned array.")
+    print("\nThe third row is not an error of 5.3852 m. It is the distance from")
+    print("the seed to the target, scored 500 times because the solve never")
+    print("moved: on the beacon line every anchor lies in the same direction,")
+    print("the Jacobian is rank-deficient, and Gauss-Newton has nowhere to")
+    print("step. An identical number across every draw is the tell, and it is")
+    print("a property of the seed rather than of the measurements.")
 
 
 def demo_fang_toa_solver():
@@ -887,11 +991,18 @@ def demo_closed_form_comparison():
     n_trials = 500
     np.random.seed(123)
 
-    # Results storage
+    # Results storage. Every trial is scored for every method: the two
+    # iterative arms used to keep only the trials whose step fell below `tol`
+    # inside the budget, which put RW-LS's 459 draws beside three columns of
+    # 500 and understated its RMSE as 0.3163 against 0.3384 over all of them.
+    # Nothing had failed -- the flag is a step-tolerance stop, and the answer
+    # at iteration 10 and at iteration 50 agrees to four decimals.
     toa_fang_err = []
     toa_rw_err = []
     tdoa_chan_err = []
     tdoa_iwls_err = []
+    toa_rw_reached_tol = 0
+    tdoa_iwls_reached_tol = 0
 
     toa_positioner = TOAPositioner(anchors, method="range_weighted")
     tdoa_positioner = TDOAPositioner(
@@ -923,10 +1034,12 @@ def demo_closed_form_comparison():
         # TOA: range-weighted iterative
         try:
             pos, info = toa_positioner.solve(
-                ranges_noisy, initial_guess=np.array([10.0, 10.0])
+                ranges_noisy,
+                initial_guess=np.array([10.0, 10.0]),
+                max_iters=ITERATIVE_MAX_ITERS,
             )
-            if info["converged"]:
-                toa_rw_err.append(np.linalg.norm(pos - true_position))
+            toa_rw_err.append(np.linalg.norm(pos - true_position))
+            toa_rw_reached_tol += bool(info["converged"])
         except Exception:
             pass
 
@@ -945,10 +1058,13 @@ def demo_closed_form_comparison():
         # TDOA: I-WLS
         try:
             pos, info = tdoa_positioner.solve(
-                tdoa_noisy, initial_guess=np.array([10.0, 10.0]), covariance=cov
+                tdoa_noisy,
+                initial_guess=np.array([10.0, 10.0]),
+                covariance=cov,
+                max_iters=ITERATIVE_MAX_ITERS,
             )
-            if info["converged"]:
-                tdoa_iwls_err.append(np.linalg.norm(pos - true_position))
+            tdoa_iwls_err.append(np.linalg.norm(pos - true_position))
+            tdoa_iwls_reached_tol += bool(info["converged"])
         except Exception:
             pass
 
@@ -959,31 +1075,25 @@ def demo_closed_form_comparison():
         e = np.array(errors)
         return np.sqrt(np.mean(e**2)), np.mean(e), np.std(e), len(e)
 
-    print("\n" + "-" * 80)
+    print("\n" + "-" * 92)
     print(
-        f"{'Method':<25} {'RMSE (m)':<12} {'Mean (m)':<12} {'Std (m)':<12} {'Success':<10}"
+        f"{'Method':<25} {'RMSE (m)':<12} {'Mean (m)':<12} {'Std (m)':<12} "
+        f"{'Scored':<10} {'Step tol reached':<18}"
     )
-    print("-" * 80)
+    print("-" * 92)
 
-    rmse, mean, std, n = stats(toa_fang_err)
-    print(
-        f"{'TOA Fang (closed-form)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}"
-    )
-
-    rmse, mean, std, n = stats(toa_rw_err)
-    print(
-        f"{'TOA RW-LS (iterative)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}"
-    )
-
-    rmse, mean, std, n = stats(tdoa_chan_err)
-    print(
-        f"{'TDOA Chan (closed-form)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}"
-    )
-
-    rmse, mean, std, n = stats(tdoa_iwls_err)
-    print(
-        f"{'TDOA I-WLS (iterative)':<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} {n:<10}"
-    )
+    for label, errors, reached in (
+        ("TOA Fang (closed-form)", toa_fang_err, None),
+        ("TOA RW-LS (iterative)", toa_rw_err, toa_rw_reached_tol),
+        ("TDOA Chan (closed-form)", tdoa_chan_err, None),
+        ("TDOA I-WLS (iterative)", tdoa_iwls_err, tdoa_iwls_reached_tol),
+    ):
+        rmse, mean, std, n = stats(errors)
+        reached_str = "n/a (direct)" if reached is None else f"{reached}/{n_trials}"
+        print(
+            f"{label:<25} {rmse:<12.4f} {mean:<12.4f} {std:<12.4f} "
+            f"{n:<10} {reached_str:<18}"
+        )
 
     print("\nSummary:")
     print("  - Closed-form methods (Fang, Chan) don't need initial guess")
@@ -991,6 +1101,12 @@ def demo_closed_form_comparison():
     print("  - TOA methods require range measurements; TDOA uses range differences")
     print("  - TDOA eliminates need for clock synchronization between agent & beacons")
     print("  - All methods benefit from good geometry (low GDOP)")
+    print("  - 'Scored' is 500 for every method: the RMSEs are over the same")
+    print("    500 draws, which is what makes the four columns comparable.")
+    print("    'Step tol reached' is how often the iteration's step fell below")
+    print("    1e-6 m inside its budget -- a stopping report, not a success")
+    print("    rate. Filtering on it used to score RW-LS over 459 draws and")
+    print("    quote 0.3163 m where all 500 give 0.3384 m.")
 
     # Create comparison figure
     try:

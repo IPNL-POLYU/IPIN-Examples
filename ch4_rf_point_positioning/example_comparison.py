@@ -146,23 +146,25 @@ def print_method_table(
     )
     header = (
         f"{'Method':<8}{'median(m)':>11}{'mean(m)':>11}{'worst(m)':>11}"
-        f"{'failed':>12}{'DOP':>10}"
+        f"{'failed':>12}{'DOP':>10}  {'DOP unit':<14}"
     )
     print(header)
     print("-" * len(header))
     for method in METHODS:
         out = outcomes[method]
         failed = f"{out.n_failed}/{out.n}"
+        unit = "m/rad" if method == "AOA" else "dimensionless"
         print(
             f"{method:<8}{out.median_m:>11.3f}{out.mean_solved_m:>11.3f}"
             f"{out.max_solved_m:>11.3f}{failed:>12}"
-            f"{np.mean(gdop[method]):>10.2f}"
+            f"{np.mean(gdop[method]):>10.2f}  {unit:<14}"
         )
     # The AOA entry in that column is not a GDOP and must not be read against
     # the other two. Its geometry rows are [-dy/d^2, dx/d^2], units 1/m, so
     # the number is metres of position error per radian of bearing error.
-    # Printed rather than left implicit because the column header cannot say
-    # two things at once, and "AOA 15.04 vs TOA 1.02" is the wrong reading.
+    # The unit column says so on the row itself; the paragraph below says why
+    # it matters, because "AOA 15.04 vs TOA 1.02" is the wrong reading and a
+    # bare header of "DOP" invites it.
     print(
         "\nDOP is dimensionless for TOA and TDOA. The AOA entry is a "
         "sensitivity in\nmetres per radian, so it is not comparable to them: "
@@ -362,13 +364,38 @@ def generate_scenario(seed=42):
     return anchors, true_positions
 
 
+class _ClockBiasSolver:
+    """Adapter letting :func:`core.rf.solve_batch` drive Eqs. (4.24)-(4.26).
+
+    ``toa_solve_with_clock_bias`` is a function taking a ``(x, y, c*dt)`` seed,
+    not a positioner. Wrapping it here rather than hand-rolling a loop keeps
+    every method in this file on the one failure test -- raised, refused,
+    stalled, or diverged -- instead of on whichever subset somebody wrote out
+    at each call site.
+    """
+
+    def __init__(self, anchors):
+        self.anchors = np.asarray(anchors, dtype=float)
+
+    def solve(self, ranges, initial_guess, **kwargs):
+        state = np.concatenate([np.asarray(initial_guess, dtype=float), [0.0]])
+        position, _bias, info = toa_solve_with_clock_bias(
+            self.anchors, ranges, state, **kwargs
+        )
+        return position, info
+
+
+#: Where every inline solve starts. The middle of the room, and not the truth.
+INLINE_SEED = np.array([5.0, 5.0])
+
+
 def toa_positioning_test(
     anchors,
     true_positions,
     range_noise_std_m=0.0,
     clock_bias_m=0.0,
 ):
-    """Test TOA positioning (inline mode).
+    """Test TOA positioning (inline mode). Returns a `SolveOutcome`.
 
     Args:
         anchors: Anchor positions, shape (K, 2).
@@ -396,32 +423,29 @@ def toa_positioning_test(
     there. The figure now shows what Chapter 4 actually teaches -- TOA
     carries the clock as an unknown, TDOA differences it away.
     """
-    errors = []
+    ranges = np.array(
+        [
+            [toa_range(anchor, true_pos) for anchor in anchors]
+            for true_pos in true_positions
+        ]
+    )
+    ranges += clock_bias_m
+    if range_noise_std_m > 0:
+        ranges += np.random.randn(*ranges.shape) * range_noise_std_m
 
-    for true_pos in tqdm(true_positions, desc="  TOA", leave=False, unit="pt"):
-        ranges = np.array([toa_range(anchor, true_pos) for anchor in anchors])
-        ranges += clock_bias_m
-        if range_noise_std_m > 0:
-            ranges += np.random.randn(len(ranges)) * range_noise_std_m
-
-        try:
-            # (x, y, c*dt): three unknowns from K >= 3 pseudoranges.
-            est_pos, _bias, info = toa_solve_with_clock_bias(
-                anchors, ranges, initial_guess=np.array([5.0, 5.0, 0.0])
-            )
-            if info["converged"]:
-                error = np.linalg.norm(est_pos[:2] - true_pos)
-                errors.append(error)
-        except Exception:
-            continue
-
-    return np.array(errors)
+    return solve_batch(
+        _ClockBiasSolver(anchors),
+        ranges,
+        INLINE_SEED,
+        true_positions,
+        progress=partial(tqdm, desc="  TOA", leave=False, unit="pt"),
+    )
 
 
 def tdoa_positioning_test(
     anchors, true_positions, range_noise_std_m=0.0, clock_bias_m=0.0
 ):
-    """Test TDOA positioning (inline mode).
+    """Test TDOA positioning (inline mode). Returns a `SolveOutcome`.
 
     **The noise is drawn per anchor and then differenced, not per difference.**
     A TDOA measurement is `(d_j + e_j) - (d_0 + e_0)`: every difference is
@@ -443,26 +467,25 @@ def tdoa_positioning_test(
     -- and it is what TDOA actually buys, since the transmitters need no
     synchronised clock with the receiver.
     """
-    errors = []
+    ranges = np.array(
+        [
+            [np.linalg.norm(true_pos - anchor) for anchor in anchors]
+            for true_pos in true_positions
+        ]
+    )
+    ranges += clock_bias_m
+    if range_noise_std_m > 0:
+        ranges += np.random.randn(*ranges.shape) * range_noise_std_m
 
-    for true_pos in tqdm(true_positions, desc="  TDOA", leave=False, unit="pt"):
-        ranges = np.array([np.linalg.norm(true_pos - anchor) for anchor in anchors])
-        ranges = ranges + clock_bias_m
-        if range_noise_std_m > 0:
-            ranges = ranges + np.random.randn(len(ranges)) * range_noise_std_m
+    tdoa = ranges[:, 1:] - ranges[:, :1]
 
-        tdoa = ranges[1:] - ranges[0]
-
-        try:
-            positioner = TDOAPositioner(anchors, reference_anchor_index=0)
-            est_pos, info = positioner.solve(tdoa, initial_guess=np.array([5.0, 5.0]))
-            if info["converged"]:
-                error = np.linalg.norm(est_pos - true_pos)
-                errors.append(error)
-        except Exception:
-            continue
-
-    return np.array(errors)
+    return solve_batch(
+        TDOAPositioner(anchors, reference_anchor_index=0),
+        tdoa,
+        INLINE_SEED,
+        true_positions,
+        progress=partial(tqdm, desc="  TDOA", leave=False, unit="pt"),
+    )
 
 
 #: One anchor's bearings are this much noisier than the rest. A real array has
@@ -479,10 +502,33 @@ def aoa_noise_per_anchor(n_anchors, aoa_noise_std_rad):
     return sigma
 
 
-def aoa_positioning_test(anchors, true_positions, aoa_noise_std_rad=0.0, weighted=True):
-    """Test AOA positioning (inline mode).
+def aoa_bearings(anchors, true_positions, aoa_noise_std_rad=0.0):
+    """One noisy bearing vector per true position, shape (N, K).
+
+    Drawn once and handed to both solvers below. The weighted and unweighted
+    runs used to call this function's predecessor twice, drawing fresh noise
+    each time, while the table above them said they solved "the same bearings"
+    -- so the ratio the demo exists to report carried a full realisation of
+    noise on each side.
+    """
+    sigma = aoa_noise_per_anchor(len(anchors), aoa_noise_std_rad)
+    bearings = np.array(
+        [
+            [aoa_azimuth(anchor, true_pos) for anchor in anchors]
+            for true_pos in true_positions
+        ]
+    )
+    if aoa_noise_std_rad > 0:
+        bearings = bearings + np.random.randn(*bearings.shape) * sigma
+    return bearings, sigma
+
+
+def aoa_positioning_test(anchors, true_positions, bearings, sigma, weighted=True):
+    """Solve AOA from bearings already drawn. Returns a `SolveOutcome`.
 
     Args:
+        bearings: Noisy azimuths, shape (N, K), from :func:`aoa_bearings`.
+        sigma: Per-anchor azimuth std in radians, shape (K,).
         weighted: Pass the per-anchor sigma to the solver, so it can
             down-weight the degraded anchor (Eq. 4.77's W_a). With `False` the
             solver treats every bearing as equally trustworthy, which is the
@@ -497,27 +543,23 @@ def aoa_positioning_test(anchors, true_positions, aoa_noise_std_rad=0.0, weighte
     var(psi) made the weights angle-dependent -- that was the amplification
     that let near-singular anchors dominate, not a feature.)
     """
-    errors = []
-    sigma = aoa_noise_per_anchor(len(anchors), aoa_noise_std_rad)
+    kwargs = {"measurement_domain": "angle_rad"}
+    if weighted and np.any(sigma > 0):
+        kwargs["sigma_psi"] = sigma
 
-    for true_pos in tqdm(true_positions, desc="  AOA", leave=False, unit="pt"):
-        aoa = np.array([aoa_azimuth(anchor, true_pos) for anchor in anchors])
-        if aoa_noise_std_rad > 0:
-            aoa += np.random.randn(len(aoa)) * sigma
-
-        try:
-            positioner = AOAPositioner(anchors)
-            kwargs = {"initial_guess": np.array([5.0, 5.0])}
-            if weighted and aoa_noise_std_rad > 0:
-                kwargs["sigma_psi"] = sigma
-            est_pos, info = positioner.solve_angles_rad(aoa, **kwargs)
-            if info["converged"]:
-                error = np.linalg.norm(est_pos - true_pos)
-                errors.append(error)
-        except Exception:
-            continue
-
-    return np.array(errors)
+    return solve_batch(
+        AOAPositioner(anchors),
+        bearings,
+        INLINE_SEED,
+        true_positions,
+        progress=partial(
+            tqdm,
+            desc="  AOA" if weighted else "  AOAu",
+            leave=False,
+            unit="pt",
+        ),
+        **kwargs,
+    )
 
 
 def rss_positioning_test(
@@ -531,6 +573,18 @@ def rss_positioning_test(
 ):
     """
     Test RSS positioning with fading noise per book model (Eqs. 4.10-4.13).
+
+    Returns a `SolveOutcome`, with every fix scored.
+
+    **This used to keep only the fixes reporting `converged`, and RSS is where
+    that mattered most.** At 6 dB of long-term fading 13 of 50 reached the step
+    tolerance, so the figure's RMSE-vs-noise panel plotted RSS over a quarter
+    of its own sample -- a sample selected by how well each fix happened to
+    fit. The same defect was found and fixed for TOA in this file once already;
+    it survived here because RSS is *expected* to be bad, so a plausible-looking
+    number attracts no attention. Now `solve_batch` scores all 50 and the
+    convergence panel carries the failures, which is the division of labour
+    `.cursor/rules/030-figures-and-claims.mdc` asks for.
 
     Args:
         anchors: Anchor positions.
@@ -546,18 +600,19 @@ def rss_positioning_test(
         path_loss_exp: Path-loss exponent (eta). Defaults to 2.5.
 
     Returns:
-        Array of position errors.
+        A `SolveOutcome` over every true position.
     """
     from core.rf import simulate_rss_measurement
 
-    errors = []
     p_ref_dbm = -40.0  # Reference RSS at d_ref=1m (typical Wi-Fi beacon)
 
-    for true_pos in tqdm(true_positions, desc="  RSS", leave=False, unit="pt"):
-        ranges = []
-        for anchor in anchors:
+    ranges = np.zeros((len(true_positions), len(anchors)))
+    for i, true_pos in enumerate(
+        tqdm(true_positions, desc="  RSS", leave=False, unit="pt")
+    ):
+        for k, anchor in enumerate(anchors):
             # Use simulate_rss_measurement for full fading model (Eq. 4.12)
-            rss_meas, info = simulate_rss_measurement(
+            rss_meas, _info = simulate_rss_measurement(
                 anchor,
                 true_pos,
                 p_ref_dbm=p_ref_dbm,
@@ -568,21 +623,14 @@ def rss_positioning_test(
                 short_fading_model=short_fading_model,
             )
             # Invert RSS to range (Eq. 4.11)
-            range_est = rss_to_distance(rss_meas, p_ref_dbm, path_loss_exp)
-            ranges.append(range_est)
+            ranges[i, k] = rss_to_distance(rss_meas, p_ref_dbm, path_loss_exp)
 
-        ranges = np.array(ranges)
-
-        try:
-            positioner = TOAPositioner(anchors, method="iterative_ls")
-            est_pos, info = positioner.solve(ranges, initial_guess=np.array([5.0, 5.0]))
-            if info["converged"]:
-                error = np.linalg.norm(est_pos - true_pos)
-                errors.append(error)
-        except Exception:
-            continue
-
-    return np.array(errors)
+    return solve_batch(
+        TOAPositioner(anchors, method="iterative_ls"),
+        ranges,
+        INLINE_SEED,
+        true_positions,
+    )
 
 
 def run_inline_comparison():
@@ -668,12 +716,17 @@ def run_inline_comparison():
                 clock_bias_m=clock_bias_m,
             )
         )
+        # Drawn once; both AOA columns below solve these exact bearings. The
+        # unweighted control used to redraw, so the "weighting gain" it
+        # reported was a ratio between two different noise realisations.
+        bearings, aoa_sigma = aoa_bearings(anchors, true_positions, aoa_noise_rad)
         results["AOA"].append(
-            aoa_positioning_test(anchors, true_positions, aoa_noise_rad)
+            aoa_positioning_test(anchors, true_positions, bearings, aoa_sigma)
         )
-        # Same measurements, same seed offset, weighting switched off.
         results["AOA_unw"].append(
-            aoa_positioning_test(anchors, true_positions, aoa_noise_rad, weighted=False)
+            aoa_positioning_test(
+                anchors, true_positions, bearings, aoa_sigma, weighted=False
+            )
         )
         results["RSS"].append(
             rss_positioning_test(
@@ -705,40 +758,52 @@ def run_inline_comparison():
         f"{'Level':<6} {'TOA(m)':<9} {'TDOA(m)':<9} "
         f"{'AOA(deg)':<9} {'RSS(dB)':<9} "
         f"{'TOA':<9} {'TDOA':<9} {'AOA':<9} {'AOA unw':<9} "
-        f"{'RSS':<9} {'AOA fail':<9}"
+        f"{'RSS':<9} {'AOA fail':<9} {'RSS fail':<9}"
     )
     print(header)
     print("-" * len(header))
 
-    # Median, not RMS. This table used to report an RMS, and the AOA column
-    # read 5.3e9 m at *zero* angular noise -- not a comparison of methods but
-    # of one method against a handful of its own divergences. See the note
-    # printed under the table.
+    # Median over EVERY fix, not RMS and not over the survivors. This table
+    # used to report an RMS, and the AOA column read 5.3e9 m at *zero* angular
+    # noise -- not a comparison of methods but of one method against a handful
+    # of its own divergences. `SolveOutcome.median_m` is the median over every
+    # fix that produced a number, with `n_failed` counting the four ways a fix
+    # can fail beside it. See the note printed under the table.
     for i in range(n_levels):
-
-        def _median(arr):
-            return np.median(arr) if len(arr) > 0 else np.nan
-
-        def _gross(arr):
-            return int(np.sum(np.asarray(arr) > 100.0)) if len(arr) > 0 else 0
-
         print(
             f"{i+1:<6} "
             f"{toa_range_noise_levels_m[i]:<9.2f} "
             f"{tdoa_range_noise_levels_m[i]:<9.2f} "
             f"{aoa_noise_levels_deg[i]:<9.1f} "
             f"{rss_fading_noise_levels_db[i]:<9.1f} "
-            f"{_median(results['TOA'][i]):<9.3f} "
-            f"{_median(results['TDOA'][i]):<9.3f} "
-            f"{_median(results['AOA'][i]):<9.3f} "
-            f"{_median(results['AOA_unw'][i]):<9.3f} "
-            f"{_median(results['RSS'][i]):<9.3f} "
-            f"{_gross(results['AOA'][i]):<9d}"
+            f"{results['TOA'][i].median_m:<9.3f} "
+            f"{results['TDOA'][i].median_m:<9.3f} "
+            f"{results['AOA'][i].median_m:<9.3f} "
+            f"{results['AOA_unw'][i].median_m:<9.3f} "
+            f"{results['RSS'][i].median_m:<9.3f} "
+            f"{results['AOA'][i].n_failed:<9d} "
+            f"{results['RSS'][i].n_failed:<9d}"
         )
 
+    aoa_gross = [
+        int(np.sum(np.nan_to_num(results["AOA"][i].errors, nan=np.inf) > DIVERGENCE_M))
+        for i in range(n_levels)
+    ]
+
     print()
-    print("  'AOA fail' counts solves landing over 100 m away. It should now")
-    print("  read 0 at every noise level. It did not used to: solving on")
+    print("  The two 'fail' columns count fixes that raised, reported")
+    print("  converged=False, never left the seed, or landed over 100 m away")
+    print("  -- core.rf.solve_batch's four conditions. Every median above is")
+    print("  over all 50 fixes including those, which is the point: the RSS")
+    print("  series in the figure used to be an RMSE over the fixes that")
+    print("  reported convergence, 13 of 50 at 6 dB, so the panel showed the")
+    print("  accuracy of the quarter that happened to fit.")
+    print()
+    print(f"  Fixes landing over {DIVERGENCE_M:.0f} m away, by level:")
+    print(f"    AOA {aoa_gross}   -- all four conditions above give the column.")
+    print("  So 'AOA fail' at level 5 is the step tolerance not being reached")
+    print("  on a few draws where the degraded anchor sits at 100 deg sigma,")
+    print("  not a solve that ran away. It used to run away: solving on")
     print("  z = tan(psi) as Eq. (4.64) is written literally, 8 of 39 converged")
     print("  solves from the anchor centroid were wrong, the worst by 3e10 m,")
     print("  while the other 31 were exact to 1e-8 m. That was a")
@@ -770,7 +835,15 @@ def run_inline_comparison():
     print("  multiple of the identity and it cancels out of (H'WH)^-1 H'W.")
     print("  Only the spread between anchors carries information.")
 
-    return toa_range_noise_levels_m, results
+    # The schedules travel with the results, because the figure needs them:
+    # four series in three different units cannot share one x-axis in metres.
+    level_schedules = (
+        ("TOA", toa_range_noise_levels_m, "m"),
+        ("TDOA", tdoa_range_noise_levels_m, "m"),
+        ("AOA", aoa_noise_levels_deg, "deg"),
+        ("RSS", rss_fading_noise_levels_db, "dB"),
+    )
+    return level_schedules, results
 
 
 def plot_dataset_results(results: Dict, output_file: str = None):
@@ -1000,12 +1073,33 @@ def plot_geometry_comparison(all_results: dict):
     return fig
 
 
-def plot_inline_comparison(noise_levels, results):
-    """Plot comparison results (inline mode)."""
+def _schedule_label(method, schedule, unit):
+    """A legend entry that carries the series' own noise units.
+
+    Panels 1 and 4 plot four methods against a level *index*, because the four
+    schedules are in three different units: metres for TOA and TDOA, degrees
+    for AOA, dB for RSS. They used to be drawn at TOA's metre positions under
+    an x-axis reading "Measurement Noise (m)", which puts AOA's 10 deg at
+    x = 0.5 m and invites exactly one reading, the wrong one. The units now
+    travel with the line that owns them.
+    """
+    values = "/".join(f"{v:g}" for v in schedule)
+    return f"{method}  {values} {unit}"
+
+
+def plot_inline_comparison(level_schedules, results):
+    """Plot comparison results (inline mode).
+
+    Args:
+        level_schedules: Ordered ``(method, schedule, unit)`` triples, one per
+            plotted series, each schedule holding that method's own noise level
+            per index.
+        results: ``{method: [SolveOutcome per level]}``.
+    """
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle("RF Positioning Methods Comparison", fontsize=16, fontweight="bold")
 
-    methods = ["TOA", "TDOA", "AOA", "RSS"]
+    methods = [name for name, _, _ in level_schedules]
     colors = ["blue", "red", "green", "orange"]
     # One dash pattern per method, used by every line panel below. TOA and
     # TDOA now trace each other almost exactly -- they carry the same
@@ -1015,53 +1109,82 @@ def plot_inline_comparison(noise_levels, results):
     # had this problem for the same reason and solved it this way.
     dashes = ["-", "--", "-.", ":"]
 
-    # 1. RMSE vs Noise
+    n_levels = len(results[methods[0]])
+    level_index = np.arange(1, n_levels + 1)
+
+    def _level_caption(idx):
+        """'TOA 0.10 m, TDOA 0.10 m, AOA 3 deg, RSS 4 dB' for one level."""
+        return ", ".join(
+            f"{name} {schedule[idx]:g} {unit}"
+            for name, schedule, unit in level_schedules
+        )
+
+    # 1. Median error vs noise level.
+    #
+    # Median, not RMSE, and over every fix rather than over the ones that
+    # reported convergence. An RMSE over the survivors is two errors at once:
+    # a divergence that reports success is averaged in, and an honest refusal
+    # leaves the denominator. RSS at 6 dB had 13 of 50 fixes reach the step
+    # tolerance, so this panel was drawing the accuracy of a quarter of its
+    # sample, selected by fit. The failures are in panel 4, where they can be
+    # read as failures.
     ax1 = axes[0, 0]
-    for method, color, dash in zip(methods, colors, dashes, strict=True):
-        rmse_values = [
-            np.sqrt(np.mean(e**2)) if len(e) > 0 else np.nan for e in results[method]
-        ]
+    for (method, schedule, unit), color, dash in zip(
+        level_schedules, colors, dashes, strict=True
+    ):
+        medians = [outcome.median_m for outcome in results[method]]
         ax1.plot(
-            noise_levels,
-            rmse_values,
+            level_index,
+            medians,
             dash,
             marker="o",
-            label=method,
+            label=_schedule_label(method, schedule, unit),
             color=color,
             linewidth=2,
         )
-    ax1.set_xlabel("Measurement Noise (m)")
-    ax1.set_ylabel("RMSE (m)")
-    ax1.set_title("RMSE vs Measurement Noise")
+    ax1.set_xlabel("Noise level index (each method has its own schedule)")
+    ax1.set_ylabel("Median position error (m)")
+    ax1.set_title("Median error vs noise level")
+    ax1.set_xticks(level_index)
     ax1.grid(True, alpha=0.3)
-    ax1.legend()
+    ax1.legend(fontsize=8)
 
-    # 2. Error CDF
+    # 2. Error CDF at one level.
     ax2 = axes[0, 1]
     noise_idx = 2
-    for method, color, dash in zip(methods, colors, dashes, strict=True):
-        errors = results[method][noise_idx]
+    for (method, _, _), color, dash in zip(
+        level_schedules, colors, dashes, strict=True
+    ):
+        errors = results[method][noise_idx].errors
+        errors = errors[np.isfinite(errors)]
         if len(errors) > 0:
             sorted_errors = np.sort(errors)
             cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
             ax2.plot(sorted_errors, cdf, dash, label=method, color=color, linewidth=2)
     ax2.set_xlabel("Position Error (m)")
     ax2.set_ylabel("CDF")
-    ax2.set_title(f"Error CDF (Noise = {noise_levels[noise_idx]:.2f}m)")
+    ax2.set_title(f"Error CDF at level {noise_idx + 1}\n({_level_caption(noise_idx)})")
     ax2.grid(True, alpha=0.3)
     ax2.legend()
     ax2.set_xlim(left=0)
 
-    # 3. Boxplot
+    # 3. Boxplot at the same level.
     ax3 = axes[1, 0]
-    data = [results[m][noise_idx] for m in methods if len(results[m][noise_idx]) > 0]
-    labels = [m for m in methods if len(results[m][noise_idx]) > 0]
+    data, labels = [], []
+    for method, _, _ in level_schedules:
+        errors = results[method][noise_idx].errors
+        errors = errors[np.isfinite(errors)]
+        if len(errors) > 0:
+            data.append(errors)
+            labels.append(method)
     bp = ax3.boxplot(data, tick_labels=labels, patch_artist=True, showfliers=False)
     for patch, color in zip(bp["boxes"], colors[: len(data)], strict=True):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
     ax3.set_ylabel("Position Error (m)")
-    ax3.set_title(f"Error Distribution (Noise = {noise_levels[noise_idx]:.2f}m)")
+    ax3.set_title(
+        f"Error distribution at level {noise_idx + 1}\n({_level_caption(noise_idx)})"
+    )
     ax3.grid(True, alpha=0.3, axis="y")
 
     # 4. Success Rate
@@ -1073,23 +1196,30 @@ def plot_inline_comparison(noise_levels, results):
     # visible where they coincide, without nudging any value off its true
     # position.
     ax4 = axes[1, 1]
-    total_points = 50
-    for method, color, dash in zip(methods, colors, dashes, strict=True):
-        rates = [len(e) / total_points * 100 for e in results[method]]
+    for (method, schedule, unit), color, dash in zip(
+        level_schedules, colors, dashes, strict=True
+    ):
+        rates = [
+            100.0 * outcome.solved.sum() / outcome.n for outcome in results[method]
+        ]
         ax4.plot(
-            noise_levels,
+            level_index,
             rates,
             dash,
             marker="o",
-            label=method,
+            label=_schedule_label(method, schedule, unit),
             color=color,
             linewidth=2,
         )
-    ax4.set_xlabel("Measurement Noise (m)")
-    ax4.set_ylabel("Success Rate (%)")
-    ax4.set_title("Convergence Success Rate")
+    ax4.set_xlabel("Noise level index (each method has its own schedule)")
+    ax4.set_ylabel("Fixes solved (%)")
+    ax4.set_title(
+        "Fixes solved vs noise level\n"
+        "(raised, refused, stalled at the seed, or >100 m all count as failed)"
+    )
+    ax4.set_xticks(level_index)
     ax4.grid(True, alpha=0.3)
-    ax4.legend()
+    ax4.legend(fontsize=8)
     ax4.set_ylim([0, 105])
 
     plt.tight_layout()
@@ -1131,7 +1261,12 @@ Examples:
         "--output",
         type=str,
         default=None,
-        help="Output file for figure (default: ch4_rf_point_positioning/figs/ch4_rf_comparison.png)",
+        help=(
+            "Output file for the figure. Defaults per mode, in "
+            "ch4_rf_point_positioning/figs/: ch4_rf_comparison.png inline, "
+            "ch4_rf_comparison_dataset.png for --data, and "
+            "ch4_geometry_comparison.png for --compare-geometry."
+        ),
     )
 
     args = parser.parse_args()
@@ -1172,8 +1307,12 @@ Examples:
 
         results = run_with_dataset(str(data_path), verbose=True)
 
+        # A different basename from the inline run's. Both used to default to
+        # `ch4_rf_comparison`, so `--data` silently overwrote the committed
+        # four-panel comparison with a four-panel *dataset analysis* -- a
+        # different figure under the name the chapter README displays.
         output_file = (
-            args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
+            args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison_dataset.png"
         )
         Path(output_file).parent.mkdir(parents=True, exist_ok=True)
         plot_dataset_results(results, output_file)
@@ -1187,13 +1326,13 @@ Examples:
         print("\nTip: Run with --data ch4_rf_2d_square to use pre-generated dataset")
         print("     Run with --compare-geometry to compare beacon layouts\n")
 
-        noise_levels, results = run_inline_comparison()
+        level_schedules, results = run_inline_comparison()
 
         print("\n" + "=" * 70)
         print("Generating plots...")
         print("=" * 70)
 
-        fig = plot_inline_comparison(noise_levels, results)
+        fig = plot_inline_comparison(level_schedules, results)
 
         output_file = (
             args.output or "ch4_rf_point_positioning/figs/ch4_rf_comparison.png"
