@@ -37,7 +37,7 @@ longer has, and it uses the Joseph form, which is a sum of two congruence
 transforms and therefore positive semidefinite at *any* gain.
 
 Author: Li-Ta Hsu
-References: Chapter 8, Section 8.2; Joseph form as in Eq. (3.31)
+References: Chapter 8, Section 8.2; Joseph form correcting Eq. (3.19) (see docs/book_errata.md E-01)
 """
 
 import numpy as np

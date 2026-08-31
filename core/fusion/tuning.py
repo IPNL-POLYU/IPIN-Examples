@@ -15,7 +15,7 @@ References: Chapter 8, Section 8.3 (Tuning and Robustness), Equation 8.7
 """
 
 import warnings
-from typing import cast
+from typing import NamedTuple, cast
 
 import numpy as np
 
@@ -129,9 +129,20 @@ def innovation_covariance(
     return cast(np.ndarray, S)
 
 
+class KalmanUpdateResult(NamedTuple):
+    """Joseph-form measurement update output; unpacks as ``(state, covariance)``."""
+
+    updated_state_estimate: np.ndarray
+    updated_state_covariance: np.ndarray
+
+
 def kalman_update(
-    x: np.ndarray, P: np.ndarray, y: np.ndarray, H: np.ndarray, R: np.ndarray
-) -> tuple[np.ndarray, np.ndarray]:
+    state_estimate: np.ndarray,
+    state_covariance: np.ndarray,
+    innovation: np.ndarray,
+    measurement_matrix: np.ndarray,
+    measurement_covariance: np.ndarray,
+) -> KalmanUpdateResult:
     """Apply one measurement update in Joseph form, deriving S from ``P``.
 
     Returns new arrays; ``x`` and ``P`` are not modified.
@@ -191,8 +202,16 @@ def kalman_update(
         True
 
     References:
-        Chapter 8, Section 8.2; Joseph form as in Eq. (3.31)
+        Chapter 8, Section 8.2; Joseph form correcting Eq. (3.19) (see docs/book_errata.md E-01)
     """
+    # Book notation (docs/api_naming_conventions.md): x = state estimate,
+    # P = state covariance, y = innovation, H = measurement matrix,
+    # R = measurement covariance.
+    x = state_estimate
+    P = state_covariance
+    y = innovation
+    H = measurement_matrix
+    R = measurement_covariance
     x = np.asarray(x, dtype=float)
     P = np.asarray(P, dtype=float)
     H = np.asarray(H, dtype=float)
@@ -207,7 +226,9 @@ def kalman_update(
     I_KH = np.eye(P.shape[0]) - K @ H
     P_updated = I_KH @ P @ I_KH.T + K @ R @ K.T
 
-    return x_updated, cast(np.ndarray, 0.5 * (P_updated + P_updated.T))
+    return KalmanUpdateResult(
+        x_updated, cast(np.ndarray, 0.5 * (P_updated + P_updated.T))
+    )
 
 
 def scale_measurement_covariance(R: np.ndarray, scale_factor: float) -> np.ndarray:
