@@ -12,9 +12,20 @@
 #         object: "..."          # Function/class name
 #     tests:                     # List of test files (optional)
 #       - "..."
-#     notebooks:                 # List of notebooks (optional)
-#       - "..."
+#     verified_by: "..."         # The ONE test node that demonstrates this
+#                                # equation, as pytest would address it
+#                                # (path::Class::test_name). Optional, and
+#                                # resolved by tools/check_equation_index.py.
 #     notes: "..."               # Additional notes (optional)
+#
+# `verified_by` is used by 157 entries and was undocumented here until now,
+# while a `notebooks:` field this header did document is used by exactly zero.
+# The header has been removed of it rather than the field invented, since the
+# checker has never looked for one.
+#
+# A `verified_by` node must actually run. Two entries here pointed at tests
+# that are @pytest.mark.skip, which the checker resolves happily -- resolving
+# is not running. See the note on Eq. (7.69).
 
 # ==============================================================================
 # Chapter 2: Coordinate Systems and Attitude Representations
@@ -289,12 +300,12 @@
   files:
     - path: "core/estimators/least_squares.py"
       object: "iterative_least_squares"
-    - path: "ch3_estimators/example_least_squares.py"
-      object: "main"
+    - path: "core/estimators/nonlinear_least_squares.py"
+      object: "gauss_newton"
   tests:
     - "tests/core/estimators/test_least_squares.py"
   verified_by: "tests/core/estimators/test_least_squares.py"
-  notes: "Solved iteratively: x_{t+1} = x_t + (J^T J)^-1 J^T r."
+  notes: "Solved iteratively: x_{t+1} = x_t + (J^T J)^-1 J^T r. ch3_estimators/example_least_squares.py was listed here and calls gauss_newton, never iterative_least_squares - the two implement the same update and nothing outside tests/core/estimators/test_least_squares.py calls iterative_least_squares at all. gauss_newton is named explicitly so the entry points at the function a reader of the chapter actually runs."
 
 - eq: "Section 3.1.1 (WLS)"
   chapter: 3
@@ -1038,7 +1049,7 @@
   tests:
     - "tests/core/rf/test_measurement_models.py"
   verified_by: "tests/core/rf/test_measurement_models.py"
-  notes: "Stacked per-anchor sin(elevation)/tan(azimuth)."
+  notes: "Stacked per-anchor sin(elevation)/tan(azimuth). Book-literal, and NOT the path AOAPositioner.solve takes by default: it defaults to residual='angle' (positioning.py:1316), which works on the raw angles and their Jacobians instead. The sin/tan form runs only when residual='tan' is passed explicitly. Both exist; see (4.68) for why the default is the other one."
 
 - eq: "Eq. (4.68)"
   chapter: 4
@@ -1051,7 +1062,7 @@
   tests:
     - "tests/core/rf/test_positioning.py"
   verified_by: "tests/core/rf/test_positioning.py"
-  notes: "Jacobian of sin(theta) (Eqs. 4.68-4.70)."
+  notes: "Jacobian of sin(theta) (Eqs. 4.68-4.70), implemented in _compute_predicted_and_jacobian_2d/3d. AOAPositioner.solve reaches it only with residual='tan'; the default is residual='angle' (positioning.py:1316), whose Jacobian comes from _compute_angles_and_jacobian_2d/3d. The default is not a shortcut: the tan-space residual has no attractor-free basin from a cold start, measured at 19/50 gross failures against 0/50 for the angle form, and both parameterisations are exercised by tests/ch4_rf_point_positioning/test_aoa_initialisation_basin.py. So the book-literal Jacobian here is implemented and tested, but a reader running the chapter's demos is running the other one."
 
 - eq: "Eq. (4.72)"
   chapter: 4
@@ -1062,7 +1073,7 @@
   tests:
     - "tests/core/rf/test_positioning.py"
   verified_by: "tests/core/rf/test_positioning.py"
-  notes: "Jacobian of tan(psi) (Eqs. 4.72-4.74)."
+  notes: "Jacobian of tan(psi) (Eqs. 4.72-4.74). Same default-versus-book-literal split as (4.68): reached only with residual='tan', while AOAPositioner.solve defaults to residual='angle'."
 
 - eq: "Eq. (4.77)"
   chapter: 4
@@ -1389,7 +1400,7 @@
   tests:
     - "tests/core/sensors/test_sensors_imu_models.py"
   verified_by: "tests/core/sensors/test_sensors_imu_models.py"
-  notes: "Corrected specific force: f = f̃ - b_a - n_a"
+  notes: "Corrected specific force: f = f̃ - b_a - n_a, which is the *inverse* of the accelerometer error model f̃ = f + b_a + n_a. Same forward-versus-inverse split as (6.5) and (6.6) on the gyro side, with one asymmetry worth knowing: the gyro's two directions carry two book numbers, and the accelerometer's carry one. imu_models.py's header calls (6.9) 'Accel error model and correction', and correct_accel's docstring writes the forward model as 'similar to Eq. (6.5) for gyro' with no number of its own. So a reader looking for the forward accelerometer model will not find a citation for it anywhere in this repository, and (6.9) is doing both jobs here."
 
 - eq: "Eq. (6.10)"
   chapter: 6
@@ -1602,7 +1613,7 @@
 
 - eq: "Eq. (6.51)"
   chapter: 6
-  description: "Magnetometer measurement model mtilde^B = C^B_M B^M + bias + eps"
+  description: "Magnetometer heading definition, where magnetic declination enters"
   files:
     - path: "core/sensors/environment.py"
       object: "mag_heading"
@@ -1611,7 +1622,7 @@
   tests:
     - "tests/core/sensors/test_sensors_environment.py"
   verified_by: "tests/core/sensors/test_sensors_environment.py"
-  notes: "Body-frame field with hard-iron bias."
+  notes: "The declination step of the (6.51)-(6.53) chain: psi_map = frame.magnetic_north_heading(D), applied at environment.py:436 after (6.52) levels the field and (6.53) reads a heading off it. This entry used to be described as the forward measurement model mtilde^B = C^B_M B^M + bias + eps, which is a different equation - environment.py cites (6.51) as the heading definition in six independent places (lines 22, 101, 303, 340, 421 and the module header), and the forward field rotation it used to describe is earth_field_body, whose own docstring cites (6.52)/(6.53) for its inverses and claims no number for itself. The code's six citations are the evidence here; confirm against the printed text before this reaches the publisher. compensate_hard_iron is kept in the list because nothing else indexes it, but it cites no equation number of its own and belongs to (6.51) only under the old description."
 
 - eq: "Eq. (6.53)"
   chapter: 6
@@ -2041,12 +2052,10 @@
   files:
     - path: "core/slam/camera.py"
       object: "triangulate_point"
-    - path: "ch7_slam/example_bundle_adjustment.py"
-      object: "main"
   tests:
     - "tests/core/slam/test_camera.py::TestTriangulatePoint"
   verified_by: "tests/core/slam/test_camera.py::TestTriangulatePoint::test_recovers_ground_truth_point"
-  notes: "Two-view triangulation supplies the p_k that (7.68) chains into the local frame. Solved as the midpoint of closest approach; the pure-rotation (zero-baseline) case is rejected, matching the monocular scale degeneracy noted around (7.67)."
+  notes: "Two-view triangulation supplies the p_k that (7.68) chains into the local frame. Solved as the midpoint of closest approach; the pure-rotation (zero-baseline) case is rejected, matching the monocular scale degeneracy noted around (7.67). ch7_slam/example_bundle_adjustment.py used to be listed here and does not call triangulate_point at all - it starts from perturbed landmark positions rather than triangulating them - so tests/core/slam/test_camera.py is the only site that exercises this."
 
 - eq: "Eq. (7.69)"
   chapter: 7
@@ -2055,9 +2064,9 @@
     - path: "ch7_slam/example_bundle_adjustment.py"
       object: "main"
   tests:
-    - "tests/core/slam/test_bundle_adjustment_smoke.py::TestBundleAdjustmentSmoke"
-  verified_by: "tests/core/slam/test_bundle_adjustment_smoke.py::TestBundleAdjustmentSmoke::test_bundle_adjustment_improves_landmark_accuracy"
-  notes: "The landmark set optimised jointly with the poses in (7.70). This is a map definition, not the reprojection error - factors.py previously mis-cited the residual as (7.69)."
+    - "tests/ch7_slam/test_bundle_adjustment_scale_gauge.py"
+  verified_by: "tests/ch7_slam/test_bundle_adjustment_scale_gauge.py::TestASecondPosePriorFixesTheScaleGauge::test_cost_increases_with_scale"
+  notes: "The landmark set optimised jointly with the poses in (7.70). This is a map definition, not the reprojection error - factors.py previously mis-cited the residual as (7.69). Both this entry and (7.70) used to be verified_by tests in tests/core/slam/test_bundle_adjustment_smoke.py, every one of which is @pytest.mark.skip - so the sole evidence for both equations was five tests that have never run. The passing coverage is the twelve tests in tests/ch7_slam/test_bundle_adjustment_scale_gauge.py and tests/ch7_slam/test_bundle_adjustment_reports_pixels.py."
 
 - eq: "Eq. (7.70)"
   chapter: 7
@@ -2071,9 +2080,9 @@
       object: "main"
   tests:
     - "tests/core/slam/test_camera.py::TestComputeReprojectionError"
-    - "tests/core/slam/test_bundle_adjustment_smoke.py::TestBundleAdjustmentSmoke"
-  verified_by: "tests/core/slam/test_bundle_adjustment_smoke.py::TestBundleAdjustmentSmoke::test_bundle_adjustment_reduces_reprojection_error"
-  notes: "Book optimises SE(3) poses (R_i, t_i); the code uses SE(2) robot poses with a fixed camera mounting - a documented pedagogical simplification in create_reprojection_factor."
+    - "tests/ch7_slam/test_bundle_adjustment_reports_pixels.py"
+  verified_by: "tests/ch7_slam/test_bundle_adjustment_reports_pixels.py::TestResidualsAreReportedInPixels::test_the_cost_is_not_the_pixel_error"
+  notes: "Book optimises SE(3) poses (R_i, t_i); the code uses SE(2) robot poses with a fixed camera mounting - a documented pedagogical simplification in create_reprojection_factor. The previous verified_by pointed at tests/core/slam/test_bundle_adjustment_smoke.py, all five of whose tests are @pytest.mark.skip; see (7.69)."
 
 # ------------------------------------------------------------------------------
 # SE(2) Operations (Supporting Functions)
@@ -2128,7 +2137,7 @@
   tests:
     - "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityMatrix"
   verified_by: "tests/ch8_sensor_fusion/test_observability.py::TestObservabilityMatrix::test_simple_fully_observable_system"
-  notes: "The observability condition is rank(dV/dtheta) = q, which is what the rank of the observability matrix measures."
+  notes: "The observability condition is rank(dV/dtheta) = q, which is what the rank of the observability matrix measures. compute_observability_matrix here is the time-varying EKF form in ch8_sensor_fusion/example_observability.py:133, not the unrelated LTI helper of the same name in core/utils/observability.py:21 - two functions, one name, and only the path in this entry distinguishes them. No function returns V(theta) itself; the link is the stationarity argument above."
 
 - eq: "Eq. (8.3)"
   chapter: 8
@@ -2218,7 +2227,7 @@
   tests:
     - "tests/core/fusion/test_fusion_gating.py::TestMahalanobisDistanceSquared"
   verified_by: "tests/core/fusion/test_fusion_gating.py::TestMahalanobisDistanceSquared"
-  notes: "Solved rather than inverted. Non-negative for any innovation, and equal to the squared norm of the whitened innovation."
+  notes: "Non-negative for any innovation, and equal to the squared norm of the whitened innovation. This note used to say 'solved rather than inverted'; mahalanobis_distance_squared forms S^-1 explicitly with np.linalg.inv (gating.py:78) and always has. Left as it is deliberately: y.T @ np.linalg.solve(S, y) is mathematically equivalent but not bit-identical - over 20000 random SPD matrices the two agree exactly on only 56% of cases, differing by up to 8.6e-16 relative - and this function feeds chi_square_gate, whose output is an accept/reject decision that a last-bit change can flip at the threshold. A documentation claim is the cheap thing to correct here; a decision function's arithmetic is not."
 
 - eq: "Eq. (8.9)"
   chapter: 8
@@ -2232,13 +2241,13 @@
       object: "chi_square_bounds"
     - path: "core/fusion/adaptive.py"
       object: "AdaptiveGatingManager"
-    - path: "ch8_sensor_fusion/example_tc_fusion.py"
-      object: "main"
+    - path: "core/fusion/tightly_coupled.py"
+      object: "run_tc_fusion"
   tests:
     - "tests/core/fusion/test_fusion_gating.py::TestChiSquareGate"
     - "tests/core/fusion/test_adaptive_gating.py"
   verified_by: "tests/core/fusion/test_fusion_gating.py::TestChiSquareGate"
-  notes: "Thresholds match scipy's chi2 quantiles to 1e-6 across dof and confidence; on Gaussian draws the empirical rejection rate tracks the nominal alpha. The dof is the measurement dimension m."
+  notes: "Thresholds match scipy's chi2 quantiles to 1e-6 across dof and confidence; on Gaussian draws the empirical rejection rate tracks the nominal alpha. The dof is the measurement dimension m. run_tc_fusion is where the gate is actually applied per epoch (tightly_coupled.py:258 and :324), and it builds the adaptive manager through create_adaptive_manager_for_tc. ch8_sensor_fusion/example_tc_fusion.py used to be listed here in its place and names none of chi_square_gate, chi_square_threshold or AdaptiveGatingManager - it calls run_tc_fusion and does the gating one level down."
 
 # ------------------------------------------------------------------------------
 # Section 8.1: Tightly and Loosely Coupled Fusion (worked examples)
@@ -2256,12 +2265,14 @@
       object: "tc_uwb_measurement_model"
     - path: "core/fusion/tc_models.py"
       object: "tc_uwb_measurement_jacobian"
+    - path: "core/fusion/tightly_coupled.py"
+      object: "run_tc_fusion"
     - path: "ch8_sensor_fusion/example_tc_fusion.py"
       object: "main"
   tests:
     - "tests/ch8_sensor_fusion/test_batch_update.py"
   verified_by: "tests/ch8_sensor_fusion/test_batch_update.py"
-  notes: "Unnumbered in the book (Section 8.1 narrative). Range model verified equal to the Euclidean anchor distance, and both the measurement and process Jacobians agree with central differences to ~1e-10."
+  notes: "Unnumbered in the book (Section 8.1 narrative). Range model verified equal to the Euclidean anchor distance, and both the measurement and process Jacobians agree with central differences to ~1e-10. run_tc_fusion is the orchestrator that assembles these models into the filter loop; the example calls it, and until now the index listed the example without the function it calls."
 
 - eq: "Loosely coupled IMU + UWB fusion"
   chapter: 8
@@ -2298,14 +2309,16 @@
 
 - eq: "Intrinsic and extrinsic calibration"
   chapter: 8
-  description: "Target-based and motion-based calibration demonstrations"
+  description: "IMU intrinsic bias estimation, and 2D motion-based extrinsic lever-arm/rotation calibration"
   files:
     - path: "ch8_sensor_fusion/example_calibration.py"
-      object: "main"
+      object: "estimate_imu_bias_stationary"
+    - path: "ch8_sensor_fusion/example_calibration.py"
+      object: "calibrate_extrinsic_2d_least_squares"
   tests:
     - "tests/ch8_sensor_fusion/test_calibration.py"
   verified_by: "tests/ch8_sensor_fusion/test_calibration.py"
-  notes: "Unnumbered in the book (Section 8.4 is narrative). Covers the camera/LiDAR intrinsic cases and the extrinsic target-based and motion-based variants."
+  notes: "Unnumbered in the book (Section 8.4 is narrative). Intrinsic here means IMU accelerometer and gyroscope bias, recovered by averaging a detected stationary period; extrinsic means the lever arm and relative rotation between two sensors, solved by least squares over one synthetic circular-motion trajectory. This note used to claim the file covers the camera and LiDAR intrinsic cases and a target-based extrinsic variant. A case-insensitive search of the file for camera, lidar, target-based or motion-based returns nothing: there is no camera or LiDAR content and no target-based method, only the motion-based one."
 
 - eq: "Temporal calibration and measurement timing"
   chapter: 8

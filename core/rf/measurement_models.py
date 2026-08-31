@@ -802,12 +802,25 @@ def tdoa_range_difference(
         Range difference in meters.
 
     Example:
+        The agent at (5, 5) sits on the perpendicular bisector of the two
+        anchors, so both ranges are 7.0711 m and the difference is exactly
+        zero. This used to claim -2.929 m, which no geometry here produces:
+
         >>> anchor_1 = np.array([0.0, 0.0, 0.0])
         >>> anchor_2 = np.array([10.0, 0.0, 0.0])
         >>> agent = np.array([5.0, 5.0, 0.0])
         >>> rd = tdoa_range_difference(anchor_1, anchor_2, agent)
         >>> print(f"Range difference: {rd:.3f} m")
-        Range difference: -2.929 m
+        Range difference: 0.000 m
+
+        A zero TDOA is a hyperbola degenerated to that bisector, so it is the
+        one reading that constrains nothing about which side of it you are on.
+        Off the bisector the measurement is informative:
+
+        >>> agent = np.array([7.0, 4.0, 0.0])
+        >>> rd = tdoa_range_difference(anchor_1, anchor_2, agent)
+        >>> print(f"Range difference: {rd:.3f} m")
+        Range difference: 3.062 m
     """
     anchor_i = np.asarray(anchor_i, dtype=float)
     anchor_j = np.asarray(anchor_j, dtype=float)

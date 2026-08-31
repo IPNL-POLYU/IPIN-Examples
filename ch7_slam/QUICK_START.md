@@ -187,17 +187,32 @@ Summary below.
 
 The script generates a comprehensive figure showing:
 
-**Layout (1x3 grid):**
-1. **Left:** Trajectories (ground truth, odometry, optimized) + loop closures
-2. **Middle-top:** Map before optimization (red points from odometry poses)
-3. **Middle-bottom:** Map after optimization (blue points from optimized poses)
-4. **Right:** Position error over time
+**Layout (2x3 grid):** four axes — the trajectory and error plots span the full
+height, and the two map panels stack in the middle.
+
+1. **Left:** Trajectories — ground truth green, odometry red dashed, front-end
+   orange dash-dot, optimized backend blue. Loop-closure edges are
+   deliberately **not** drawn here; they are easier to read in the animation.
+2. **Middle-top:** Map before the backend — **orange** points, reconstructed
+   from the **front-end** poses, which is what the backend receives.
+3. **Middle-bottom:** Map after the backend — blue points from optimized poses
+4. **Right:** Position error over pose index (odometry, front-end, optimized),
+   with magenta rug ticks along the bottom marking the loop-closure epochs
 
 **Key Visual Features:**
 - Map "tightening" is clearly visible: 537 → 482 points (~10% reduction)
-- Red map shows odometry drift and misalignment
-- Blue map shows optimized alignment and consistency
-- Loop closure connections shown in magenta
+- The orange map shows the drift the front-end could not remove
+- The blue map shows optimized alignment and consistency
+- Magenta appears only as those rug ticks on the error panel, not as
+  connections drawn across the trajectory
+
+This list used to say "1x3", to attribute the middle-top panel's red points to
+odometry, and to place magenta loop-closure connections in the left panel. The
+figure draws none of that; the README's reading of it is the correct one, and
+the code agrees with the README (`example_pose_graph_slam.py`: the orange map
+at the `build_map_from_poses(frontend_poses, ...)` call, the two
+`# Loop closures NOT shown in static plot` comments, and
+`fig.add_gridspec(2, 3, ...)`).
 
 **File:** Saved to `ch7_slam/figs/slam_with_maps.png`
 

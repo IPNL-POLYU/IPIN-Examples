@@ -468,7 +468,7 @@ Results:
 
 Read the front-end line: **it is negative.** Scan-to-map ICP leaves this
 trajectory slightly worse than the odometry it started from, and the whole
-+33.44% comes from the backend closing the loop.
++33.13% comes from the backend closing the loop.
 
 That is specific to this dataset, not a broken front-end. In inline mode the
 same code earns +37.04% (see the performance figures at the top of this file),
