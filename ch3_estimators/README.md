@@ -238,6 +238,14 @@ jitter.
 
 ![EKF Range-Bearing Tracking](figs/ch3_ekf_range_bearing.png)
 
+Running it with `--data` writes a second figure,
+`figs/ch3_ekf_range_bearing_dataset.png`, showing the same four panels for
+whichever shipped dataset you point it at. Both used to share this basename, so
+the `--data` run overwrote the one above with a picture of a different
+trajectory.
+
+![EKF Range-Bearing on the shipped nonlinear dataset](figs/ch3_ekf_range_bearing_dataset.png)
+
 Read the 2×2 grid as trajectory, position-error magnitude, x/y position traces,
 and velocity-error magnitude. The trajectory panel explains the geometry; the
 time-series panels explain whether the filter remains consistent after
