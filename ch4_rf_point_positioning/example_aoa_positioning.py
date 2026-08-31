@@ -569,80 +569,212 @@ def demo_closed_form_algorithms():
             print(f"  {method}: No successful trials")
 
 
+#: Draws per row in Demo 7. One draw per row, to four decimals, is what this
+#: table used to report -- and it drew a *separate* one for each of its two
+#: columns, so the two solvers were never compared on the same measurements.
+GEOMETRY_TRIALS = 500
+
+#: Where Demo 7's second table walks the agent. Anchors on a line do not by
+#: themselves make bearings near-parallel; standing near that line does.
+LINE_WALK = ((5.0, 7.0), (5.0, 0.5), (30.0, 0.2))
+
+
+def _bearing_spread_deg(azimuths):
+    """Smallest pairwise bearing separation, in degrees, folded to [0, 90].
+
+    This is the quantity ``aoa_ple_solve_2d`` thresholds at 10 degrees for its
+    ``geometry_warning``, recomputed here so the table can show what the flag
+    is looking at rather than only what it decided.
+    """
+    diffs = [
+        min(
+            abs(azimuths[i] - azimuths[j]),
+            np.pi - abs(azimuths[i] - azimuths[j]) % np.pi,
+        )
+        for i in range(len(azimuths))
+        for j in range(i + 1, len(azimuths))
+    ]
+    return float(np.rad2deg(min(diffs))) if diffs else 90.0
+
+
+def _aoa_geometry_row(anchors, true_pos, noise_deg, trials, seed=2024):
+    """Median I-LS and PLE error over `trials` draws of the SAME bearings.
+
+    Both solvers see one noise realisation per trial. They used to be handed
+    independent draws -- `azimuths_noisy` for PLE and a freshly drawn
+    `aoa_noisy` for I-LS -- so the two columns of a row differed by the noise
+    as much as by the method, at one draw each.
+    """
+    rng = np.random.default_rng(seed)
+    psi_true = np.array([aoa_azimuth(a, true_pos) for a in anchors])
+    err_ils, err_ple, n_failed = [], [], 0
+
+    for _ in range(trials):
+        psi_noisy = psi_true + rng.standard_normal(len(psi_true)) * np.deg2rad(
+            noise_deg
+        )
+        try:
+            pos_ils, info_ils = AOAPositioner(anchors).solve_angles_rad(
+                psi_noisy, initial_guess=np.array([5.0, 5.0])
+            )
+            if info_ils["converged"]:
+                err_ils.append(float(np.linalg.norm(pos_ils - true_pos)))
+            else:
+                n_failed += 1
+        except Exception:  # noqa: BLE001 - counted as a failure, not hidden
+            n_failed += 1
+        pos_ple, _ = aoa_ple_solve_2d(anchors, psi_noisy)
+        err_ple.append(float(np.linalg.norm(pos_ple - true_pos)))
+
+    _, info_clean = aoa_ple_solve_2d(anchors, psi_true)
+    return {
+        "ils": float(np.median(err_ils)) if err_ils else float("inf"),
+        "ple": float(np.median(err_ple)),
+        "ple_errors": np.asarray(err_ple),
+        "cond": float(info_clean["condition_number"]),
+        "warning": bool(info_clean["geometry_warning"]),
+        "spread_deg": _bearing_spread_deg(psi_true),
+        "n_failed": n_failed,
+        "mean_range_m": float(np.linalg.norm(anchors - true_pos, axis=1).mean()),
+    }
+
+
 def demo_geometry_sensitivity():
-    """Demonstrate PLE degradation with poor geometry (aligned beacons)."""
+    """Demo 7: what geometry actually costs a bearing-only fix.
+
+    This demo used to be titled "PLE degradation" and print, under its own
+    table, that aligned anchors "cause high condition number and large PLE
+    errors". Its four rows said otherwise every time it ran: the near-collinear
+    array gave the *smallest* PLE error of the four, the square had the lowest
+    condition number, and the ``geometry_warning`` column read "no" in every
+    row. Two defects were hiding that.
+
+    **The two columns were different experiments.** PLE was solved on one draw
+    of ``azimuths_noisy`` and I-LS on a *separately drawn* ``aoa_noisy``, so
+    the comparison carried a full realisation of noise on each side, at one
+    draw per row. Both now solve the same bearings, and the table reports a
+    median over 500 draws.
+
+    **Collinear anchors are not the same thing as near-parallel bearings.**
+    From the target at (5, 7) the four "poor" arrays still spread their
+    bearings by 19-20 degrees, which is why the warning never fired: it
+    thresholds the *bearing* spread at the agent, not the anchor layout. On
+    equal draws all four geometries land within 30% of each other, and that is
+    the honest headline -- bearings tolerate a collinear array, exactly as
+    ``example_comparison --compare-geometry`` reports (AOA is the *best* of
+    the three methods on the collinear beacons, where ranges cannot separate a
+    target from its mirror image).
+
+    The second table is where the warning earns itself: walking the agent onto
+    the beacon line collapses the spread, and what it costs scales with range.
+    """
     print("\n" + "=" * 70)
-    print("Demo 7: Geometry Sensitivity (PLE Degradation)")
+    print("Demo 7: Geometry Sensitivity (what actually costs a bearing fix)")
     print("=" * 70)
-    print("\nAs noted in Section 4.4.3, PLE is biased and sensitive to:")
-    print("  - Poor geometry (near-parallel bearings from aligned anchors)")
-    print("  - Large bearing noise")
+    print("\nSection 4.4.3 lists PLE as sensitive to poor geometry and to large")
+    print("bearing noise. This demo measures the first of those.")
 
     true_pos = np.array([5.0, 7.0])
-    np.random.seed(123)
     noise_deg = 2.0
 
-    # Define different anchor geometries
     geometries = {
-        "Square (good)": np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float),
-        "Triangle (good)": np.array([[0, 0], [10, 0], [5, 10]], dtype=float),
-        "Linear (poor)": np.array([[0, 0], [5, 0], [10, 0], [15, 0]], dtype=float),
-        "Near-collinear (very poor)": np.array(
-            [[0, 0], [5, 0.1], [10, 0], [15, 0.1]], dtype=float
+        "Square (spread out)": np.array([[0, 0], [10, 0], [10, 10], [0, 10]], float),
+        "Triangle": np.array([[0, 0], [10, 0], [5, 10]], float),
+        "Linear anchors": np.array([[0, 0], [5, 0], [10, 0], [15, 0]], float),
+        "Near-collinear anchors": np.array(
+            [[0, 0], [5, 0.1], [10, 0], [15, 0.1]], float
         ),
     }
 
     print(f"\nTrue position: {true_pos}")
-    print(f"Noise level: {noise_deg} deg")
-    print("\n" + "-" * 80)
+    print(f"Bearing noise: {noise_deg} deg, {GEOMETRY_TRIALS} draws per row")
+    print("Both columns of a row solve the SAME draws.")
+    print("\n" + "-" * 94)
     print(
-        f"{'Geometry':<25} {'I-LS Error (m)':<18} {'PLE Error (m)':<18} "
-        f"{'PLE Cond#':<15} {'Warning':<10}"
+        f"{'Anchor layout':<24} {'I-LS med (m)':<14} {'PLE med (m)':<13} "
+        f"{'PLE cond#':<11} {'spread (deg)':<14} {'warning':<9} {'I-LS fail':<9}"
     )
-    print("-" * 80)
+    print("-" * 94)
 
+    rows = {}
     for name, anchors in geometries.items():
-        # Generate angles
-        azimuths = np.array([aoa_azimuth(a, true_pos) for a in anchors])
-        azimuths_noisy = azimuths + np.random.randn(len(azimuths)) * np.deg2rad(
-            noise_deg
+        row = _aoa_geometry_row(anchors, true_pos, noise_deg, GEOMETRY_TRIALS)
+        rows[name] = row
+        print(
+            f"{name:<24} {row['ils']:<14.4f} {row['ple']:<13.4f} "
+            f"{row['cond']:<11.2f} {row['spread_deg']:<14.1f} "
+            f"{('YES' if row['warning'] else 'no'):<9} {row['n_failed']:<9d}"
         )
 
-        # Iterative LS (unweighted)
-        aoa_meas = aoa_angle_vector(anchors, true_pos, include_elevation=False)
-        aoa_noisy = aoa_meas + np.random.randn(len(aoa_meas)) * np.deg2rad(noise_deg)
-        positioner = AOAPositioner(anchors)
-        try:
-            pos_ils, info_ils = positioner.solve_angles_rad(
-                aoa_noisy, initial_guess=np.array([5.0, 5.0])
-            )
-            if info_ils["converged"]:
-                err_ils = np.linalg.norm(pos_ils - true_pos)
-                ils_str = f"{err_ils:.4f}"
-            else:
-                ils_str = "FAIL"
-        except Exception:
-            ils_str = "FAIL"
+    ple_values = [r["ple"] for r in rows.values()]
+    print(
+        f"\nThe four PLE medians span {min(ple_values):.4f}-{max(ple_values):.4f} m, "
+        f"a factor of {max(ple_values) / min(ple_values):.2f}. Collinear anchors"
+    )
+    print("do not degrade a bearing fix: every bearing still points somewhere")
+    print("different, because the agent is 7 m off the line. The minimum")
+    print("pairwise spread is 19.5 deg there against the 10 deg the warning")
+    print("thresholds -- so 'no' in that column is the flag being right.")
+    print("This is the same result --compare-geometry reports from the other")
+    print("side: on collinear beacons AOA is the best of the three methods,")
+    print("because reflecting a position flips every azimuth while leaving")
+    print("every range unchanged.")
 
-        # PLE
-        try:
-            pos_ple, info_ple = aoa_ple_solve_2d(anchors, azimuths_noisy)
-            err_ple = np.linalg.norm(pos_ple - true_pos)
-            ple_str = f"{err_ple:.4f}"
-            cond_str = f"{info_ple['condition_number']:.2e}"
-            warn_str = "YES" if info_ple["geometry_warning"] else "no"
-        except Exception:
-            ple_str = "FAIL"
-            cond_str = "N/A"
-            warn_str = "N/A"
+    # Where near-parallel bearings do cost something: walk the agent in.
+    print("\n" + "-" * 94)
+    print("The same linear array, with the agent walked toward and along the line:")
+    print("-" * 94)
+    print(
+        f"{'Agent':<14} {'range (m)':<11} {'spread (deg)':<14} {'warn':<6} "
+        f"{'PLE med (m)':<13} {'along bias':<12} {'along sd':<10} {'cross sd':<10}"
+    )
+    print("-" * 94)
 
-        print(f"{name:<25} {ils_str:<18} {ple_str:<18} {cond_str:<15} {warn_str:<10}")
+    linear = geometries["Linear anchors"]
+    for point in LINE_WALK:
+        agent = np.array(point, dtype=float)
+        row = _aoa_geometry_row(linear, agent, noise_deg, GEOMETRY_TRIALS)
+        rng = np.random.default_rng(2024)
+        psi_true = np.array([aoa_azimuth(a, agent) for a in linear])
+        residuals = np.array(
+            [
+                aoa_ple_solve_2d(
+                    linear,
+                    psi_true
+                    + rng.standard_normal(len(psi_true)) * np.deg2rad(noise_deg),
+                )[0]
+                - agent
+                for _ in range(GEOMETRY_TRIALS)
+            ]
+        )
+        print(
+            f"{str(tuple(point)):<14} {row['mean_range_m']:<11.1f} "
+            f"{row['spread_deg']:<14.2f} {('YES' if row['warning'] else 'no'):<6} "
+            f"{row['ple']:<13.4f} {residuals[:, 0].mean():<+12.3f} "
+            f"{residuals[:, 0].std():<10.3f} {residuals[:, 1].std():<10.3f}"
+        )
 
     print("\nKey observations:")
-    print("  - With aligned (linear) anchors, bearings are near-parallel")
-    print("  - This causes high condition number and large PLE errors")
-    print("  - I-LS is more robust but may also struggle with poor geometry")
-    print("  - The 'geometry_warning' flag indicates potential issues")
+    print("  - What a bearing fix needs is spread between its bearings, and")
+    print("    that is a property of where the AGENT stands, not only of how")
+    print("    the anchors are laid out.")
+    print("  - A small spread is cheap up close and ruinous far away. On the")
+    print("    line but inside the array the spread is 2.85 deg and PLE still")
+    print("    reaches 0.10 m; 30 m out the spread is 0.08 deg and the median")
+    print("    error is 22 m. sigma_position ~ range x sigma_angle / spread,")
+    print("    and the table above moves the way that says it should.")
+    print("  - Read the last row's three right-hand columns together. The")
+    print("    22 m is almost all BIAS along the beacon line (-22.3 m), with")
+    print("    4.6 m of scatter beside it, while across the line the estimate")
+    print("    is good to 0.13 m. A near-parallel set of bearings pins you")
+    print("    across their common direction and says almost nothing along it,")
+    print("    so the estimator collapses back toward the array. A single")
+    print("    Euclidean error cannot say that, which is why the split is")
+    print("    printed: a 22 m bias and 22 m of noise are different failures.")
+    print("  - 'geometry_warning' fires on the middle and last rows and not on")
+    print("    the first, which is the flag doing its job. It is a warning")
+    print("    about conditioning, not a prediction of error: read it beside")
+    print("    the range, not on its own.")
 
 
 def demo_ove_vs_ple_3d():

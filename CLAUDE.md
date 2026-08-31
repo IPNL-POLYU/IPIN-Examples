@@ -1152,6 +1152,71 @@ three -- `(position, bias, info)` -- inside a `try/except Exception: pass`, and
 got a confident `0/100 converged`. That is the issue's own defect one level up:
 a blanket except turning a caller error into a result about the callee. Fourth
 harness in this file to report the thing it could not read as broken.
+
+## `converged` is a step-tolerance stop, and four Chapter 4 demos filtered on it
+
+The section above fixed one instance. A later sweep of the chapter found the
+same `if info["converged"]: errors.append(...)` in **four more** places, and
+all four were reporting the accuracy of a sample selected by how quickly the
+solver happened to stop. What makes the shape survive is that the flag reads
+like a success flag. It is not. In `TOAPositioner.solve` it is set by
+`norm(delta) < tol` with `tol = 1e-6` m, and the residual test above it cannot
+fire at all on noisy data, since four ranges over two unknowns leave a residual
+no solve can drive to zero. **The honest reading of `converged=False` is
+"needed more than `max_iters` steps", not "failed".**
+
+- `example_toa_positioning`'s WLS demo scored LS over 120 of 200 draws and WLS
+  over 200, then divided the two. The 80 it dropped were the *worse* half --
+  RMSE 0.416 m against 0.181 m for the survivors, 0.298 m over all 200 -- so
+  "WLS improvement 23.1%" was really 53.4%, against a BLUE prediction of 50.1%.
+  At `max_iters=50` both arms finish on every draw and the RMSE moves by 1e-4 m:
+  the extra iterations were polishing, not rescuing.
+- `example_comparison`'s RSS series plotted an RMSE over the converged fixes,
+  13 of 50 at 6 dB. Its own console table beside it already printed a median
+  over everything, so the figure and the table disagreed about the same run.
+- `example_tdoa_positioning`'s Demo 9 put RW-LS's 459 draws next to three
+  columns of 500, understating 0.3384 m as 0.3163 m.
+- Demo 4's two arms both filtered; there it changed nothing (200/200 each), and
+  that is worth knowing too -- the shape is not always live, so **measure the
+  drop before writing up the effect**.
+
+Two rules come out of it. **Raise the budget rather than filter**: if the flag
+is going to be reported, make it mean something first, and check that raising
+it does not move the answers -- if it does, the flag was hiding a real failure
+and filtering was hiding it twice. And **put the failures in their own panel**,
+which is what `core.rf.solve_batch` is for: `median_m` over every fix that
+returned a number, `n_failed` beside it on four conditions. The comparison
+figure's fourth panel is now "Fixes solved" on those four conditions rather
+than "Convergence Success Rate" on the flag alone.
+
+The same sweep found three more shapes that recur across the chapter, each the
+demo contradicting its own numbers:
+
+- **Two columns of one row drawn from independent noise.** AOA's Demo 7 drew
+  `azimuths_noisy` for PLE and a separate `aoa_noisy` for I-LS, one draw each;
+  `example_comparison` redrew the bearings for its unweighted AOA control while
+  the table above it said "solves the same bearings". A paired comparison on
+  unpaired draws is two experiments reported as a ratio.
+- **A solver seeded at the truth.** TDOA's Demo 6 passed
+  `initial_guess=[5, 5]` to a target at `[5, 5]`. Seeded from a neutral point
+  the collinear array reads 1.27 m rather than 0.97. The neutral point has to
+  be chosen with care: the *square* array's centroid is also the target, and
+  the collinear array's centroid lies on the beacon line, where all 500 draws
+  stall and score the seed-to-truth distance of 5.3852 m identically -- the
+  stall signature `030` names. Centroid plus a fixed offset avoids both.
+- **A conclusion its own table refuses.** AOA Demo 7 printed "aligned anchors
+  ... cause high condition number and large PLE errors" above four rows in
+  which the near-collinear array had the *smallest* error and the square the
+  lowest condition number, with the `geometry_warning` column reading "no"
+  throughout. The flag was right: it thresholds the **bearing spread at the
+  agent**, which is 19.5 deg from (5, 7) however collinear the anchors are.
+  What near-parallel bearings cost scales with range -- on the line but inside
+  the array PLE still reaches 0.10 m, while 30 m out along it the spread is
+  0.08 deg and the error is 22 m, of which -22.3 m is *bias* along the shared
+  direction and only 4.6 m is scatter. Report the along/across split: a 22 m
+  bias and 22 m of noise are different failures and one Euclidean error cannot
+  tell you which you have.
+
 ## Every example now bootstraps its own sys.path, and the sweep took three tries
 
 The trap at the top of this file -- `python chX/example.py` resolving `core` to

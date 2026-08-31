@@ -377,7 +377,7 @@ print("figure built")
 ```
 
 Points near y = 10 sit on the mirror axis itself, where the two solutions
-coincide and the geometry is at its most degenerate -- that is where the 111
+coincide and the geometry is at its most degenerate -- that is where the 113
 comes from.
 
 ## Recommended Experiments
@@ -388,7 +388,7 @@ comes from.
    [`ch4_rf_2d_square`](../ch4_rf_2d_square/README.md) with identical noise.
 
 2. **Predict before measuring.** `sigma_position = GDOP x sigma_range`, so the
-   worst TDOA point should give about 111 x 0.1 = 11 m. Check whether a real
+   worst TDOA point should give about 113 x 0.1 = 11 m. Check whether a real
    solve reaches that, and whether the failures are where GDOP says they will
    be.
 

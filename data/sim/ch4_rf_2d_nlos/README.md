@@ -307,10 +307,21 @@ Robust solvers live in `core.estimators.least_squares.robust_least_squares` and
    beacons are pulled differently from positions near the clean pair, because the
    bias enters through the geometry.
 
-2. **Predict before measuring.** DOP is 1.022 and the noise is 0.1 m, so
-   noise alone predicts ~0.10 m. Measure the actual RMSE. The gap is the bias,
-   and it will be much larger than 0.8 x 1.022 — a systematic error does not
-   propagate the way a random one does. Work out why from Eq. (4.5).
+2. **Predict before measuring.** DOP is 1.022 and the noise is 0.1 m, so noise
+   alone predicts ~0.10 m, and the baseline dataset measures 0.100 m RMSE
+   against exactly that. Here the RMSE is **0.635 m**. The gap is the bias —
+   and note it is *smaller* than the 0.8 m injected, not larger: only two of
+   the four beacons are biased, so least squares splits the difference,
+   settling on a position that partly reconciles the biased pair with the
+   clean one. A systematic error does not propagate the way a random one does,
+   and it does not propagate one-for-one either. Work out why from Eq. (4.5).
+
+   This exercise used to predict "much larger than 0.8 x 1.022", which is the
+   right instinct — a bias is not attenuated by averaging the way noise is —
+   pushed one step too far without measuring. The tell that the residual error
+   really is bias rather than noise is not its size but its *shape*: median
+   0.615, mean 0.607 and RMSE 0.635 all agree here, where a noise-dominated
+   error spreads them (baseline: median 0.088, RMSE 0.100).
 
 3. **Then make it robust, and check what it costs.** Re-solve with a Huber and a
    Cauchy loss. Compare against the *baseline* dataset too: a robust loss should

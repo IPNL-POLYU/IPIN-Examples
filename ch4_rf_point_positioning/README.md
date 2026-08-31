@@ -89,8 +89,10 @@ space the residual is formed in.
 The tan form carries two defects no starting point repairs. `tan` has period π, so an anchor
 ahead and an anchor behind give the same measurement; and as the estimate runs to infinity
 every bearing converges, so the tan residuals *shrink* on the way out. Infinity is an
-attractor, and the iteration arrives there reporting success — one traced seed at (−4.5,
-−2.0) walked to **9.4 × 10¹¹ m in 18 iterations with `converged=True`**.
+attractor, and the iteration arrives there reporting success — the worst silent failure of
+the sweep, the seed at (12.0, 12.0), walked to **4.43 × 10¹² m in 14 iterations with
+`converged=True`**. The example traces it and prints the seed, so this line is checkable
+against the run rather than remembered from one.
 
 Measured over the sweep:
 
@@ -99,7 +101,7 @@ Measured over the sweep:
 | seeds that fail | 785 / 1681 | 341 / 1681 |
 | **quiet:** stalled at the seed, or stopped somewhere plausible | **263** | **0** |
 | loud: walked off past 100 m | 522 | 341 |
-| failures that still reported `converged=True` | 305 | 196 |
+| failures that still reported `converged=True` | 308 | 182 |
 
 So the honest headline is 2.3× fewer failures, and a sharper claim underneath it: the
 wrapped-angle form removes the **quiet** class completely — the failures that look like
@@ -319,10 +321,11 @@ land low, and the percentile range says how little that means.
 
 Running `python -m ch4_rf_point_positioning.example_comparison` generates a comprehensive comparison:
 
-The left four columns are the noise injected at each level; the right columns
-are the resulting median position error over repeated draws. One draw is not a
-measurement, so this table reports medians rather than the single realisation
-it used to — see `.cursor/rules/030-figures-and-claims.mdc`.
+The left four columns are the noise injected at each level; the middle columns
+are the resulting median position error over all 50 fixes; the right two count
+the fixes that failed. One draw is not a measurement, so this table reports
+medians rather than the single realisation it used to — see
+`.cursor/rules/030-figures-and-claims.mdc`.
 
 <!-- example-output: ch4_rf_point_positioning.example_comparison -->
 ```
@@ -331,14 +334,22 @@ Results Summary (median error in metres)
   Clock bias: 1.5 m (TOA only; cancels in TDOA)
   RSS config: Rayleigh short-term (sigma=0.5), 5 samples averaged
   AOA anchor 3 is 10x noisier than the others; 'AOA unw' solves the same bearings unweighted
-Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       TDOA      AOA       AOA unw   RSS       AOA fail
-----------------------------------------------------------------------------------------------------------
-1      0.00      0.00      0.0       0.0       0.000     0.000     0.000     0.000     1.131     0
-2      0.05      0.05      1.0       2.0       0.044     0.047     0.121     0.455     1.956     0
-3      0.10      0.10      3.0       4.0       0.086     0.095     0.357     1.026     3.790     0
-4      0.20      0.20      5.0       6.0       0.169     0.164     0.797     1.660     5.480     0
-5      0.50      0.50      10.0      8.0       0.457     0.468     1.371     2.485     6.376     0
+Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       TDOA      AOA       AOA unw   RSS       AOA fail  RSS fail
+--------------------------------------------------------------------------------------------------------------------
+1      0.00      0.00      0.0       0.0       0.000     0.000     0.000     0.000     1.652     0         ~
+2      0.05      0.05      1.0       2.0       0.044     0.047     0.121     0.355     2.219     0         ~
+3      0.10      0.10      3.0       4.0       0.088     0.091     0.384     1.430     3.246     0         ~
+4      0.20      0.20      5.0       6.0       0.162     0.175     0.519     2.433     4.029     0         ~
+5      0.50      0.50      10.0      8.0       0.507     0.567     1.129     7.026     8.045     ~         ~
 ```
+
+The two fail columns carry `~` because they are integer counts with no
+tolerance to give: a fix "fails" partly on whether an iterative solve reached a
+1e-6 m step inside its budget, and that is exactly the kind of thing a
+different LAPACK moves by one. The medians beside them are pinned. On this
+machine the RSS column reads 21, 19, 26, 34, 38 of 50 and AOA's level 5 reads
+4 — none of them the >100 m kind, which is `[0, 0, 0, 0, 0]` and printed under
+the table.
 
 **TOA reads 0.000 m at level 1 because it now estimates the clock.** The
 comparison injects a shared 1.5 m receiver bias into the TOA pseudoranges, and
@@ -358,22 +369,46 @@ tracks TDOA across the sweep at the small penalty of the extra unknown. That is
 the comparison Chapter 4 is for: **TOA has to carry the clock, TDOA differences
 it away.**
 
-`AOA fail` counts solves landing over 100 m from truth, and reads 0 at every
-level. It did not always: solving on `z = tan(psi)` as Eq. (4.64) is written
-literally made infinity an attractor the solver reported as convergence, so
-8 of 39 converged solves were wrong — at zero angular noise. `AOAPositioner`
-now forms its residuals as `wrap(psi - atan2(dE, dN))`. The example prints the
-full explanation.
+Both fail columns count `core.rf.solve_batch`'s four conditions — raised,
+reported `converged=False`, never left the seed, or landed over 100 m away —
+and every median above is over all 50 fixes *including* those. That is the
+point of reporting them separately. **The RSS series in the figure used to be
+an RMSE over the fixes that reported convergence**, which at 6 dB was 13 of 50:
+the panel drew the accuracy of the quarter of the sample that happened to fit,
+next to a table whose RSS column already reported a median. This is the same
+defect that was found and fixed for TOA in this file once before; it survived
+in the RSS branch because RSS is *expected* to be inaccurate, so a plausible
+number there attracts no second look.
+
+None of the failures is the >100 m kind: the example prints that count
+separately and it reads `[0, 0, 0, 0, 0]` for AOA. It did not always — solving
+on `z = tan(psi)` as Eq. (4.64) is written literally made infinity an attractor
+the solver reported as convergence, so 8 of 39 converged solves were wrong, at
+zero angular noise. `AOAPositioner` now forms its residuals as
+`wrap(psi - atan2(dE, dN))`. The example prints the full explanation.
+
+`AOA unw` solves **the same bearings** as `AOA`, which is new: the two columns
+used to draw independent noise, so the weighting gain the table invites you to
+read was a ratio between two different noise realisations.
 
 **Visual Output:**
 
 ![RF Methods Comparison](figs/ch4_rf_comparison.png)
 
 *This figure shows four subplots comparing RF positioning methods:*
-- **Top-Left:** RMSE vs measurement noise - TOA/TDOA/AOA maintain accuracy while RSS degrades rapidly
-- **Top-Right:** Error CDF at 10cm noise - TOA/TDOA/AOA achieve sub-meter accuracy, RSS shows larger spread
-- **Bottom-Left:** Error distribution box plots - RSS has significantly higher variance
-- **Bottom-Right:** Convergence success rate - TOA/TDOA/AOA maintain high success, RSS drops with noise
+- **Top-Left:** median error over every fix, against the noise **level index**
+  1–5. The x-axis is an index and not a distance because the four methods have
+  four schedules in three different units; each series carries its own in the
+  legend. They used to be drawn at TOA's metre positions under an axis labelled
+  "Measurement Noise (m)", which put AOA's 10° at x = 0.5 m.
+- **Top-Right:** error CDF at level 3 — the panel title names all four methods'
+  noise there, rather than only TOA's. TOA/TDOA/AOA are sub-metre; RSS spreads
+  past 12 m.
+- **Bottom-Left:** error distribution at level 3 — RSS has far higher variance.
+- **Bottom-Right:** fixes solved, on the same four conditions as the table.
+  TOA and TDOA hold 100% across the sweep, AOA falls to 92% at level 5, and RSS
+  runs 58% down to 23%. This is where the failures live, so that the panel
+  above it can be an accuracy.
 
 ### Geometry is method-specific (`--compare-geometry`)
 
@@ -809,7 +844,15 @@ to compute W_a once using the initial measurements.
 - **PLE (Pseudolinear Estimator)** - Eqs. 4.86-4.95:
   - 2D: Line-of-bearing intersection via least squares (Eq. 4.89-4.91)
   - 3D: Two-step estimation (2D + elevation averaging, Eq. 4.92-4.95)
-  - Biased; sensitive to poor geometry (aligned beacons) and high noise
+  - Biased; sensitive to **near-parallel bearings** and high noise. Aligned
+    *beacons* are not by themselves the hazard — `example_aoa_positioning`'s
+    Demo 7 measures four layouts on the same 500 draws and the collinear array
+    lands within 30% of the square, because the agent stands 7 m off the line
+    and the bearings are still 19.5° apart. What costs you is the bearing
+    spread *at the agent*, and it costs you in proportion to range: on the
+    line and inside the array PLE still reaches 0.10 m, while 30 m out along
+    it the spread falls to 0.08° and the error is 22 m, almost all of it bias
+    along the shared direction.
   - Often used as initial guess for iterative methods
 
 **ENU Convention Notes:**
@@ -978,7 +1021,7 @@ All figures are generated by the example scripts and stored in the `figs/` direc
 | Figure | Source Script | Description |
 |--------|--------------|-------------|
 | `toa_positioning_example.png` | `example_toa_positioning.py` | TOA positioning geometry showing anchors, range circles, true/estimated positions, and iterative solver convergence path |
-| `ch4_rf_comparison.png` | `example_comparison.py` | Comprehensive comparison of TOA, TDOA, AOA, and RSS methods: RMSE vs noise, error CDF, box plots, and success rates |
+| `ch4_rf_comparison.png` | `example_comparison.py` | Comprehensive comparison of TOA, TDOA, AOA, and RSS methods: median error vs noise level, error CDF, box plots, and solved rates |
 | `ch4_aoa_geometry.png` | `example_aoa_positioning.py` | AOA positioning geometry demonstrating ENU coordinate convention with azimuth angles measured from North |
 | `ch4_dop_geometry.png` | `example_dop_geometry.py` | DOP field and walk-away curve showing how anchor geometry amplifies the same range noise into different position uncertainty |
 | `ch4_initial_guess_basin.png` | `example_initial_guess_basin.py` | Starting-point sweep showing where raw angle residuals and book sin/tan residuals converge or fail |

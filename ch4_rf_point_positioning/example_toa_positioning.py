@@ -508,11 +508,41 @@ def example_rtt_measurement():
     return
 
 
+#: Iteration budget for Example 6. The library default is 10, and the LS arm
+#: needs more than that here: see the docstring below for what happened when it
+#: did not get them.
+WLS_DEMO_MAX_ITERS = 50
+
+
 def example_wls_vs_ls():
     """Example 6: Weighted Least Squares vs ordinary LS (Eq. 4.23).
 
     Uses an asymmetric anchor layout with heterogeneous per-anchor
     measurement noise to demonstrate the benefit of WLS weighting.
+
+    **Every draw is reported, and the iteration budget is what made that
+    possible.** This used to keep only the draws whose ``info["converged"]``
+    was True, which at the library's default ``max_iters=10`` was 120 of 200
+    for LS against 200 of 200 for WLS -- so the two columns were computed over
+    different samples, and the LS column over a sample selected by how quickly
+    LS converged. The 80 discarded draws were the *worse* half: RMSE 0.416 m
+    against 0.181 m for the survivors, and 0.298 m over all 200. The
+    "improvement" therefore read 23.1% where the honest figure is 53.4%.
+
+    Nothing had actually failed. ``converged`` here is a **step-tolerance
+    stop** -- ``norm(delta) < tol`` with ``tol = 1e-6`` m -- and the residual
+    test above it cannot fire at all on noisy data, since four ranges over two
+    unknowns leave a residual the solve can never drive to zero. Raising the
+    budget to 50 gives 200 of 200 for both arms and moves the LS RMSE by 1e-4 m:
+    the extra iterations were polishing a converged answer, not rescuing a
+    failed one. A flag whose real meaning is "finished within the budget" is
+    not a sample selector, and reporting over its survivors is the survivor
+    statistic ``.cursor/rules/030-figures-and-claims.mdc`` warns about.
+
+    The number is checked against theory rather than admired: for a linear
+    model with covariance Sigma, WLS attains ``(H' Sigma^-1 H)^-1`` and LS
+    attains ``(H'H)^-1 H' Sigma H (H'H)^-1``, which for this geometry predict
+    0.143 m and 0.287 m -- a 50.1% improvement, against the 53.4% measured.
     """
     print("\n" + "=" * 70)
     print("Example 6: WLS vs LS with Asymmetric Geometry")
@@ -538,6 +568,9 @@ def example_wls_vs_ls():
     n_trials = 200
     errors_ls = []
     errors_wls = []
+    stopped_ls = 0
+    stopped_wls = 0
+    cov = np.diag(sigma_per_anchor**2)
 
     for _ in range(n_trials):
         true_ranges = np.array([toa_range(a, true_pos) for a in anchors])
@@ -548,18 +581,22 @@ def example_wls_vs_ls():
         pos_ls, info_ls = TOAPositioner(anchors, method="iterative_ls").solve(
             noisy_ranges,
             initial_guess=init,
+            max_iters=WLS_DEMO_MAX_ITERS,
         )
-        cov = np.diag(sigma_per_anchor**2)
         pos_wls, info_wls = TOAPositioner(anchors, method="iterative_wls").solve(
             noisy_ranges,
             initial_guess=init,
             covariance=cov,
+            max_iters=WLS_DEMO_MAX_ITERS,
         )
 
-        if info_ls["converged"]:
-            errors_ls.append(np.linalg.norm(pos_ls - true_pos))
-        if info_wls["converged"]:
-            errors_wls.append(np.linalg.norm(pos_wls - true_pos))
+        # Every draw is scored. The flag is recorded beside it rather than used
+        # to select the sample -- it says "the step fell below 1e-6 m within
+        # the budget", which is not the same question as "did this solve work".
+        errors_ls.append(np.linalg.norm(pos_ls - true_pos))
+        errors_wls.append(np.linalg.norm(pos_wls - true_pos))
+        stopped_ls += bool(info_ls["converged"])
+        stopped_wls += bool(info_wls["converged"])
 
     errors_ls = np.array(errors_ls)
     errors_wls = np.array(errors_wls)
@@ -567,11 +604,36 @@ def example_wls_vs_ls():
     rmse_ls = np.sqrt(np.mean(errors_ls**2))
     rmse_wls = np.sqrt(np.mean(errors_wls**2))
 
-    print(f"\nMonte-Carlo results ({n_trials} trials):")
-    print(f"  LS  RMSE: {rmse_ls:.3f} m   (converged {len(errors_ls)}/{n_trials})")
-    print(f"  WLS RMSE: {rmse_wls:.3f} m   (converged {len(errors_wls)}/{n_trials})")
+    # What should these be? Eq. (4.23) is BLUE for this covariance, and both
+    # estimators are linear in the measurements once the geometry is fixed.
+    ranges_true = np.array([toa_range(a, true_pos) for a in anchors])
+    jac = -(anchors - true_pos) / ranges_true[:, None]
+    pinv = np.linalg.inv(jac.T @ jac) @ jac.T
+    rmse_ls_theory = np.sqrt(np.trace(pinv @ cov @ pinv.T))
+    rmse_wls_theory = np.sqrt(np.trace(np.linalg.inv(jac.T @ np.linalg.inv(cov) @ jac)))
+
+    print(f"\nMonte-Carlo results over all {n_trials} trials (no draw discarded):")
+    print(
+        f"  LS  RMSE: {rmse_ls:.3f} m   (median {np.median(errors_ls):.3f} m, "
+        f"step tolerance reached {stopped_ls}/{n_trials})"
+    )
+    print(
+        f"  WLS RMSE: {rmse_wls:.3f} m   (median {np.median(errors_wls):.3f} m, "
+        f"step tolerance reached {stopped_wls}/{n_trials})"
+    )
     print(f"  WLS improvement: {(1 - rmse_wls / rmse_ls) * 100:.1f}%")
+    print(
+        f"  Predicted by Eq. (4.23): LS {rmse_ls_theory:.3f} m, "
+        f"WLS {rmse_wls_theory:.3f} m, "
+        f"improvement {(1 - rmse_wls_theory / rmse_ls_theory) * 100:.1f}%"
+    )
     print("\n  -> WLS down-weights the noisy far anchor, improving accuracy.")
+    print("     Reporting only the draws that reported convergence made this")
+    print("     23.1%: at the default max_iters=10 the LS arm reached the step")
+    print("     tolerance on 120 of 200 draws, and the 80 it dropped were the")
+    print("     worse half (RMSE 0.416 m against 0.181 m). Nothing had failed --")
+    print(f"     with max_iters={WLS_DEMO_MAX_ITERS} both arms finish on every")
+    print("     draw and the LS RMSE moves by 1e-4 m.")
 
 
 def main():
