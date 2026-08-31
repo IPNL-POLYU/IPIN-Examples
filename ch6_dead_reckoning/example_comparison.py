@@ -44,6 +44,8 @@ from core.sensors import (
     NavStateQPVP,
     detect_steps_peak_detector,
     detect_zupt_windowed,
+    earth_field_body,
+    earth_field_map,
     mag_heading,
     pdr_step_update,
     random_walk_to_rate_sample_std,
@@ -75,7 +77,7 @@ SWEEP_STATS_12SEED = {
     "zupt_rmse_m": (8.82, 22.11, 45.05),
     "zupt_reduction_pct": (74.4, 81.6, 83.6),
     "wheel_odom_rmse_m": (0.39, 0.42, 0.48),
-    "pdr_rmse_m": (0.43, 0.50, 0.61),
+    "pdr_rmse_m": (0.41, 0.51, 0.73),
 }
 
 # Lever arm from the IMU/navigation centre to the wheel-speed sensor, in the
@@ -401,22 +403,19 @@ def generate_mixed_trajectory(
     vel_wheel_body += omega_cross_lever
     wheel_speed_true = vel_wheel_body @ C_SPEED_TO_BODY
 
-    # Magnetometer: a fixed map-frame reference direction resolved into the
-    # body frame, so that mag_heading (Eqs. 6.51-6.53) recovers the heading the
-    # walker actually holds. The reference is the map +x axis, which in ENU is
-    # East -- the same direction heading is measured from.
-    mag_body = np.zeros((n_samples, 3))
-    mag_reference_map = np.array([1.0, 0.0, 0.0])
-    for sample in range(n_samples):
-        yaw = heading_true[sample]
-        c_yaw = np.array(
-            [
-                [np.cos(yaw), np.sin(yaw), 0.0],
-                [-np.sin(yaw), np.cos(yaw), 0.0],
-                [0.0, 0.0, 1.0],
-            ]
-        )
-        mag_body[sample] = c_yaw.T @ mag_reference_map
+    # Magnetometer: the fixed Earth field resolved into the body frame, so
+    # that mag_heading (Eqs. 6.51-6.53) recovers the heading the walker
+    # actually holds.
+    #
+    # The reference used to be the map +x axis -- East, not north, chosen
+    # because East is where ENU measures heading from -- and it was rotated by
+    # C_B^M rather than C_M^B. The two mistakes cancelled against a compass
+    # readout that was itself wrong. A magnetometer points at magnetic north;
+    # let it.
+    field_map = earth_field_map()
+    mag_body = np.array(
+        [earth_field_body(0.0, 0.0, yaw, field_map=field_map) for yaw in heading_true]
+    )
 
     return MixedTrajectory(
         timestamps_s=t,
@@ -491,7 +490,13 @@ def add_sensor_noise(
     accel_meas = accel_body + accel_bias + accel_noise
 
     # Magnetometer noise
-    mag_noise = rng.standard_normal((n_samples, 3)) * 0.05
+    # A fraction of the horizontal Earth field, not an absolute uT figure;
+    # see example_pdr.add_sensor_noise for why that distinction matters.
+    mag_noise = (
+        rng.standard_normal((n_samples, 3))
+        * 0.05
+        * float(np.hypot(*earth_field_map()[:2]))
+    )
     mag_meas = mag_body + mag_noise
 
     # Wheel encoder scale-factor error and noise
@@ -785,7 +790,10 @@ def plot_comparison(
     print(f"  [OK] Saved: {paths[0]}")
 
     # Figure 3: error CDF.
-    fig3 = plot_error_cdf(errors, title="Chapter 6 Comparison: Error CDF")
+    # Log x: the four methods here span 0.4 m to 100 m, and on a linear
+    # axis the wheel-odometry and PDR curves were a single vertical line
+    # against the y axis -- the two best methods, indistinguishable.
+    fig3 = plot_error_cdf(errors, title="Chapter 6 Comparison: Error CDF", xscale="log")
     paths = save_figure(fig3, figs_dir, "comparison_error_cdf")
     print(f"  [OK] Saved: {paths[0]}")
 

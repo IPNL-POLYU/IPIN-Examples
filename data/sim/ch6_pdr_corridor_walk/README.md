@@ -475,17 +475,37 @@ Over 100 steps: 1.2m error (1.7% of distance)
 3. Measure final position error vs heading error
 
 **Expected Results**:
-- 0° heading error: ~0.5m error (step length estimation errors)
-- 1° heading error: ~2.1m error (1.7% of 124m = 2.1m)
-- 5° heading error: ~10m error (8.7% of distance)
-- 10° heading error: ~20m error (17.6% of distance)
+**Measure the error along the path, not at the end.** This walk is a closed
+loop: it finishes 0.13 m from where it started. A constant heading bias rotates
+the whole estimated track about its origin, and rotating a track whose end
+coincides with its start leaves the end where it was. The final-point error is
+therefore *invariant* to the thing this experiment varies -- measured, it goes
+0.29 m at 0° to 0.25 m at 20°, i.e. very slightly **down**. An experiment whose
+metric cannot respond to its variable is not measuring a weak effect; it is not
+measuring.
+
+Mean distance from truth over the whole walk does respond, because the middle
+of a rotated loop is nowhere near the middle of the original:
+
+- 0° heading bias: 0.43 m mean error (step-length model only)
+- 1°: 0.78 m
+- 5°: 2.50 m
+- 10°: 4.71 m
+- 20°: 9.13 m (7.3% of the 124 m walked)
+
+Above about 1°, mean error is close to linear in the bias, at roughly
+0.45 m per degree on this 124 m loop.
 
 **Code**:
 ```python
 import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
-from core.sensors import step_length, pdr_step_update, total_accel_magnitude
+from core.sensors import (
+    step_length_book_eq6_49,
+    pdr_step_update,
+    total_accel_magnitude,
+)
 
 # Load dataset
 data_dir = Path("data/sim/ch6_pdr_corridor_walk")
@@ -496,7 +516,8 @@ accel_meas = np.loadtxt(data_dir / "accel.txt")
 
 # Test different constant heading biases
 heading_biases = [0, 1, 5, 10, 20]  # degrees
-errors = []
+mean_errors = []
+final_errors = []
 
 for bias_deg in heading_biases:
     bias_rad = np.deg2rad(bias_deg)
@@ -518,7 +539,12 @@ for bias_deg in heading_biases:
             last_step_time = t[k]
             
             f_step = 1.0 / delta_t if delta_t > 0 else 2.0
-            L = step_length(1.75, f_step)
+            # Book Eq. (6.49), the model the rest of Chapter 6 uses. The
+            # deprecated `step_length` helper that used to be here returns a
+            # different length for the same cadence, and its baseline error
+            # was 24 m -- fifty times the heading effect being studied, which
+            # buried it.
+            L = step_length_book_eq6_49(1.75, f_step)
             
             # Use TRUE heading + bias
             heading_biased = heading_true[k-1] + bias_rad
@@ -526,28 +552,42 @@ for bias_deg in heading_biases:
         else:
             pos_est[k] = pos_est[k-1]
     
-    # Compute final error
-    final_error = np.linalg.norm(pos_est[-1] - pos_true[-1])
-    errors.append(final_error)
-    print(f"Heading bias: {bias_deg:2d} deg -> Final error: {final_error:.2f} m")
+    # Two metrics, and the contrast between them is the point.
+    error = np.linalg.norm(pos_est - pos_true, axis=1)
+    mean_errors.append(error.mean())
+    final_errors.append(error[-1])
+    print(
+        f"Heading bias: {bias_deg:2d} deg -> mean {error.mean():5.2f} m, "
+        f"final {error[-1]:5.2f} m"
+    )
 
-# Plot
+# Plot both, so the flat line is visible next to the one that responds.
 plt.figure(figsize=(10, 6))
-plt.plot(heading_biases, errors, 'bo-', linewidth=2, markersize=8)
+plt.plot(heading_biases, mean_errors, 'bo-', linewidth=2, markersize=8,
+         label='Mean error along path')
+plt.plot(heading_biases, final_errors, 'rs--', linewidth=2, markersize=8,
+         label='Final-point error (rotation-invariant on a closed loop)')
 plt.xlabel('Constant Heading Bias (deg)')
-plt.ylabel('Final Position Error (m)')
+plt.ylabel('Position Error (m)')
 plt.title('Heading Error Amplification in PDR')
+plt.legend()
 plt.grid(True)
 plt.tight_layout()
 plt.show()
 
 # Compute error percentage
 total_distance = np.sum(np.linalg.norm(np.diff(pos_true, axis=0), axis=1))
-for bias_deg, err in zip(heading_biases, errors):
-    print(f"{bias_deg}° heading bias = {err/total_distance*100:.1f}% position error")
+for bias_deg, err in zip(heading_biases, mean_errors):
+    print(f"{bias_deg}° heading bias = {err/total_distance*100:.1f}% mean error")
 ```
 
-**Learning Point**: Even 1° heading error causes ~1.7% position error!
+**Learning Point**: heading bias costs about 0.45 m of mean error per degree on
+this 124 m loop -- 0.4% of distance per degree, and close to linear above 1°.
+
+**Second learning point, and the more transferable one**: the final-point error
+in the red series is flat, because rotating a closed loop about its own start
+does not move its end. Pick a metric that the variable under test can move. A
+metric that cannot is indistinguishable from an effect that is not there.
 
 ### Experiment 2: Gyro vs. Magnetometer Comparison
 
@@ -711,7 +751,7 @@ print(f"Expected: <5 deg for clean, >15 deg if distorted")
 **Fix**: Add bounds check:
 ```python
 f_step = max(0.5, min(4.0, 1.0 / delta_t))  # Clamp to [0.5, 4.0] Hz
-L = step_length(height, f_step)
+L = step_length_book_eq6_49(height, f_step)
 L = max(0.3, min(1.5, L))  # Clamp to [0.3, 1.5] m
 ```
 

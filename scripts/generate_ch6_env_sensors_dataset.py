@@ -36,11 +36,20 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.sensors import (
+    earth_field_body,
+    earth_field_map,
     mag_heading,
     pressure_to_altitude,
     smooth_measurement_simple,
     wrap_angle_diff,
 )
+
+#: The Earth field these datasets are synthesised in: fixed in the map
+#: frame, so the reading changes only because the walker turns. Declination
+#: is left at zero here, which makes magnetic north true north and the
+#: correction a no-op -- the dataset is a heading demonstration, and a
+#: constant offset between two norths would only obscure it.
+EARTH_FIELD_MAP = earth_field_map()
 
 
 def _runs_of(flag):
@@ -84,8 +93,9 @@ def generate_building_walk(
     N = len(t)
 
     # Constants
-    MAG_NORTH = 20.0  # microTesla (horizontal component)
-    MAG_DOWN = 40.0  # microTesla (vertical component)
+    # The Earth field is EARTH_FIELD_MAP, module level. It used to be two
+    # local constants here, MAG_NORTH = 20 and MAG_DOWN = 40 uT, spent
+    # building the field by hand a few lines below.
     P0 = 101325.0  # Sea level pressure (Pa)
     GRAVITY = 9.81
 
@@ -216,34 +226,18 @@ def generate_building_walk(
         pitch = 0.05 * np.cos(2 * np.pi * 2.0 * time_now)
         att[i] = [roll, pitch, yaw]
 
-        # Magnetometer, in the convention core.sensors.mag_heading inverts:
-        # the horizontal field in the *level* frame points along the current
-        # heading, so atan2(m_y, m_x) returns yaw directly. This is the same
-        # fix generate_ch6_pdr_dataset.py already carries -- see the comment
-        # there. Building it as R_z(-yaw) @ [MAG_NORTH, 0, -MAG_DOWN] instead
-        # made mag_heading return exactly minus the true heading, for a 65.7 deg
-        # mean error that config.json then recorded as if it were a property of
-        # the sensor.
-        mag_level = np.array(
-            [
-                MAG_NORTH * np.cos(yaw),
-                MAG_NORTH * np.sin(yaw),
-                -MAG_DOWN,
-            ]
-        )
-
-        # Tilt the level-frame field into the body frame. This is the forward
-        # rotation that mag_tilt_compensate (Eq. 6.52) inverts, so the reading
-        # now genuinely depends on roll and pitch. The previous version dropped
-        # this term as "small", which left nothing for tilt compensation to
-        # remove -- the README's tilt-compensation experiment compared 65.69 deg
-        # against 65.24 deg and printed "1.0x worse".
-        c_r, s_r = np.cos(-roll), np.sin(-roll)
-        c_p, s_p = np.cos(-pitch), np.sin(-pitch)
-        R_x = np.array([[1, 0, 0], [0, c_r, -s_r], [0, s_r, c_r]])
-        R_y = np.array([[c_p, 0, s_p], [0, 1, 0], [-s_p, 0, c_p]])
-
-        mag[i] = R_y @ R_x @ mag_level
+        # Magnetometer: one FIXED Earth field in the map frame, resolved into
+        # the device's attitude. The field does not turn with the walker --
+        # that is the whole mechanism the chapter's heading estimate inverts,
+        # and `earth_field_body` applies exactly the transpose of the attitude
+        # matrix strapdown integration uses, so the two cannot disagree.
+        #
+        # This used to build a level-frame field along `[cos(yaw), sin(yaw)]`,
+        # which turns with the device, chosen so that the old compass-style
+        # `atan2(m_y, m_x)` readout would return yaw. The dataset and the
+        # library were wrong in opposite directions and every check between
+        # them passed.
+        mag[i] = earth_field_body(roll, pitch, yaw, field_map=EARTH_FIELD_MAP)
 
         # Barometric pressure (decreases with altitude)
         # International barometric formula (Eq. 6.54)

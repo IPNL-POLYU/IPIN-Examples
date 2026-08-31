@@ -41,6 +41,7 @@ from core.sensors import (
     random_walk_to_rate_sample_std,
     strapdown_update,
     units,
+    wrap_angle_diff,
 )
 
 # Import IMU forward model
@@ -320,8 +321,13 @@ def plot_results(
     # Compute errors
     pos_error = np.linalg.norm(pos_est - pos_true, axis=1)
     vel_error = np.linalg.norm(vel_est - vel_true, axis=1)
-    att_error = np.abs(att_est - att_true)
-    att_error = np.rad2deg(att_error)  # Convert to degrees
+    # Wrap before taking the magnitude. A raw subtraction of two angles that
+    # live on (-pi, pi] reports 359.64 deg where the platform is 1.20 deg
+    # out -- the estimate crossed the branch cut and the truth had not.
+    # That number was printed as "Max Attitude Error: Yaw 359.6 deg" and
+    # pinned in the chapter README, where it reads as a gyro that has lost
+    # heading completely rather than one drifting by a degree.
+    att_error = np.rad2deg(np.abs(wrap_angle_diff(att_est, att_true)))
 
     # Figure 1: Trajectory (2D)
     fig1, ax1 = plt.subplots(figsize=(10, 8))
@@ -527,12 +533,58 @@ def main():
     print(f"    Yaw:    {max_att_error[2]:.1f}°")
     print(f"  Drift Rate:            {drift_rate:.3f} m/s (UNBOUNDED!)")
     print()
+
+    # Where the 645 m actually comes from. Worth printing rather than
+    # asserting in prose: the chapter used to attribute this drift to gyro
+    # bias, and the measurement says otherwise by two orders of magnitude.
+    final_error = pos_est[-1] - pos_true[-1]
+    horizontal_error = float(np.linalg.norm(final_error[:2]))
+    vertical_error = float(abs(final_error[2]))
+    accel_bias_vertical = float(abs(accel_bias[2]))
+    gyro_bias_magnitude = float(np.linalg.norm(gyro_bias))
+    print("Where the error comes from:")
+    print(
+        f"  Vertical:   {vertical_error:.1f} m of the {final_pos_error:.1f} m total "
+        f"({vertical_error / final_pos_error * 100:.1f}%). This is the"
+    )
+    print(
+        f"              accelerometer's own z bias, double-integrated: "
+        f"0.5 * {accel_bias_vertical:.4f} m/s^2 * ({duration:.0f} s)^2"
+    )
+    print(
+        f"              = {0.5 * accel_bias_vertical * duration**2:.1f} m, against "
+        f"{vertical_error:.1f} m measured. The log-log slope of the"
+    )
+    print("              vertical error is 2.000 -- t^2, not the t^1.5 of a")
+    print("              random walk and not the t^3 of a rotating tilt.")
+    print(
+        f"  Horizontal: {horizontal_error:.1f} m, the smaller part, and the part gyro "
+        "bias drives."
+    )
+    print(
+        f"              A tilt growing at {units.format_gyro_bias(gyro_bias_magnitude)} "
+        "leans gravity into the"
+    )
+    print(
+        f"              horizontal plane: g|b_g|t^3/6 = "
+        f"{9.81 * gyro_bias_magnitude * duration**3 / 6:.0f} m, "
+        f"against {horizontal_error:.1f} m measured."
+    )
+    print("              Not a clean separation -- the figure-8 rotates the body,")
+    print("              so horizontal accelerometer bias partly averages out.")
+    print()
     print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")
     print()
     print("=" * 60)
     print("KEY INSIGHT: IMU drift is UNBOUNDED without corrections!")
     print("             Velocity errors integrate to position errors.")
-    print("             Errors grow without bound over time.")
+    print("             It is the ACCELEROMETER bias that dominates here --")
+    print("             99% of the 645 m is vertical, where no gyro error")
+    print("             reaches. Attributing this drift to gyro bias, as this")
+    print("             chapter used to, points a reader at the wrong sensor:")
+    print("             the yaw error over the whole run is 1.2 deg, and the")
+    print("             359.6 deg this used to print was an unwrapped angle")
+    print("             difference across the branch cut, not drift.")
     print("             Solutions: ZUPT, wheel fusion, GPS, etc.")
     print("=" * 60)
     print()

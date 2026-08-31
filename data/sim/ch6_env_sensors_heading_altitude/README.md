@@ -194,8 +194,8 @@ for k in range(N):
 # `np.minimum(d, 2*np.pi - d)`, which is the shorter arc only while d <= 2*pi.
 # The true yaw here accumulates past 7.8 rad -- one circuit of the ground floor
 # is a full turn -- while mag_heading returns (-pi, pi], so d exceeds 2*pi,
-# `2*pi - d` goes negative, and 702 of 1800 samples are handed a negative
-# "error": a 0.70 deg mean reported where the truth is 3.41.
+# `2*pi - d` goes negative, and 704 of 1800 samples are handed a negative
+# "error": a 0.40 deg mean reported where the truth is 1.78.
 heading_error = np.abs(
     np.array([wrap_angle_diff(e, y) for e, y in zip(heading_est, yaw_true)])
 )
@@ -367,10 +367,22 @@ plt.show()
 
 | Mag Noise (μT) | Mean Heading Error (deg) | Notes |
 |----------------|--------------------------|-------|
-| 0.5 (excellent) | 1-2 | High-quality MEMS, outdoor |
-| 1.5 (good) | 2-4 | Baseline quality |
-| 4.0 (fair) | 9-10 | Consumer smartphone |
-| 6.0 (poor) | 10-15 | Low-cost or uncalibrated |
+| 0.5 (excellent) | 0.59 | High-quality MEMS, outdoor |
+| 1.5 (good) | 1.78 | Baseline quality |
+| 4.0 (fair) | 4.75 | Consumer smartphone |
+| 6.0 (poor) | 7.15 | Low-cost or uncalibrated |
+
+Measured by running the four commands below and reading each run's own
+"Mean heading error" line, not estimated. The column is linear in the noise and
+close to `0.798 * sigma / |H|` in radians -- 0.798 being the mean absolute
+deviation of a Gaussian, and |H| = 38.2 µT the horizontal field. At 1.5 µT that
+predicts 1.80 deg against 1.78 measured, so the heading error here is all
+sensor noise and no systematic part.
+
+These numbers roughly halved when Chapter 6's synthetic field became a physical
+one: the horizontal component went from 20 µT to 38.2 µT, and heading noise
+scales as sigma/|H|. The old column was also quoted as ranges without a run
+behind them.
 
 **Generate sweep**:
 ```bash
@@ -382,12 +394,20 @@ python scripts/generate_ch6_env_sensors_dataset.py --output data/sim/env_mag_60 
 
 ### Effect of Magnetic Disturbances
 
-| Disturbance Type | Heading Error (deg) | Altitude Error (m) | Notes |
-|------------------|---------------------|--------------------| ------|
-| None (outdoor) | 2-4 | 0.3-0.5 | Clean environment |
-| Mild (corridor) | 5-10 | 0.3-0.5 | Away from steel |
-| Moderate (office) | 10-20 | 0.3-0.5 | Near desks, chairs |
-| Severe (elevator) | 30-90 | 0.3-0.5 | Steel structure, motors |
+| Run | Mean Heading Error (deg) | Max Heading Error (deg) | Mean Altitude Error (m) |
+|-----|--------------------------|-------------------------|-------------------------|
+| baseline (no disturbances) | 1.78 | 7.81 | 1.57 |
+| `--add-disturbances` | 4.32 | 34.75 | 2.62 |
+
+Two rows, because two runs exist. The four-row table this replaces named
+environments (`corridor`, `office`, `elevator`) that no preset produces and
+gave ranges no command reports -- the numbers were plausible and nothing had
+measured them.
+
+The altitude error is not zero in the baseline row and never was: it is
+dominated by the ±30 Pa weather drift, which the barometer cannot distinguish
+from a change of floor. The `0.3-0.5 m` this table used to print for every row
+is about a factor of four below what the dataset actually delivers.
 
 **Generate comparison**:
 ```bash
@@ -486,7 +506,27 @@ plt.grid(True)
 plt.show()
 ```
 
-**Learning Point**: Tilt compensation (Eq. 6.52) is NON-NEGOTIABLE!
+**Learning Point**: Tilt compensation (Eq. 6.52) is NON-NEGOTIABLE -- but read
+the size of the effect on *this* dataset before quoting it. The device here is
+almost level: roll runs ±5.4° and pitch ±2.9°, so the run above prints 1.78 deg
+with compensation against 2.44 deg without, a factor of 1.4. That is not
+"non-negotiable"; it is 37%.
+
+The reason to believe the stronger claim is what happens as the tilt grows.
+With a noiseless field and the same 32° dip, the compensated heading is exact
+at every attitude while the uncompensated one degrades with the tilt:
+
+| roll / pitch | with compensation | without |
+|--------------|-------------------|---------|
+| 5° / 2.5° | 0.0000° | 2.23° |
+| 15° / 7.5° | 0.0000° | 6.81° |
+| 30° / 15° | 0.0000° | 14.63° |
+| 45° / 22.5° | 0.0000° | 25.62° |
+
+A phone in a hand or a pocket lives in the last two rows. The dataset's small
+tilt is what makes its own demonstration weak, and a ratio measured on it
+should not be quoted as the general case -- the same trap as reading a
+correction's value off the one scenario where it barely applies.
 
 ### Experiment 2: Floor Detection Robustness
 
@@ -546,8 +586,8 @@ and no amount of noise reduction reaches it.
 
 | Metric | Magnetometer | Barometer | Notes |
 |--------|--------------|-----------|-------|
-| **Mean Error** | 3.5 deg | 1.6m | Bounded, no drift |
-| **Max Error** | 14.6 deg | 2.9m | Occasional spikes |
+| **Mean Error** | 1.8 deg | 1.6m | Bounded, no drift |
+| **Max Error** | 7.8 deg | 2.9m | Occasional spikes |
 | **Floor Detection** | N/A | 50-70% | 3-floor building |
 | **Drift Over Time** | None! | ~2m/hour | Weather-dependent |
 | **Sample Rate** | 10 Hz | 10 Hz | 0.1s time steps |

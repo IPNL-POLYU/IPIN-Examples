@@ -66,6 +66,8 @@ Pedestrian Dead Reckoning functions (from pdr module):
     wrap_heading: Wrap heading to [-π, π]
 
 Environmental sensor functions (from environment module):
+    earth_field_map: Fixed Earth field in the map frame (reference for Eq. 6.51)
+    earth_field_body: That field resolved into a body attitude (synthesis)
     mag_tilt_compensate: Tilt compensation for magnetometer (Eq. 6.52)
     mag_heading: Heading from magnetometer (Eqs. 6.51-6.53)
     pressure_to_altitude: Barometric altitude (Eq. 6.54)
@@ -144,8 +146,13 @@ from core.sensors.constraints import (
     ZaruMeasurementModelPlaceholder as _ZaruMeasurementModelPlaceholder,
 )
 from core.sensors.environment import (
+    EARTH_FIELD_DECLINATION_RAD,
+    EARTH_FIELD_INCLINATION_RAD,
+    EARTH_FIELD_INTENSITY_UT,
     compensate_hard_iron,
     detect_floor_change,
+    earth_field_body,
+    earth_field_map,
     mag_heading,
     mag_tilt_compensate,
     pressure_to_altitude,
@@ -262,6 +269,11 @@ __all__ = [
     "integrate_gyro_heading",
     "wrap_heading",
     # Environmental sensors (magnetometer + barometer)
+    "earth_field_map",
+    "earth_field_body",
+    "EARTH_FIELD_INTENSITY_UT",
+    "EARTH_FIELD_INCLINATION_RAD",
+    "EARTH_FIELD_DECLINATION_RAD",
     "mag_tilt_compensate",
     "mag_heading",
     "wrap_angle_diff",

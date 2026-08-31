@@ -1419,7 +1419,14 @@
   tests:
     - "tests/core/sensors/test_sensors_wheel_odometry.py"
   verified_by: "tests/core/sensors/test_sensors_wheel_odometry.py"
-  notes: "v^A = v^S + [ω^B×]r^B. Compensates for IMU offset from wheel."
+  notes: >-
+    v^A = C_S^A v^S - [omega^B x] l^B, with l^B the lever arm FROM the IMU
+    TO the wheel-speed sensor. The note used to read "+ [omega x] r", the
+    opposite sign, which is the same equation with the lever arm pointing
+    the other way -- and the code (verified) uses the minus form with the
+    IMU-to-wheel direction, so the two disagreed about which end of the
+    vehicle the reference point is. A sign and a direction are one claim,
+    not two; state both or neither.
 
 - eq: "Eq. (6.12)"
   chapter: 6
@@ -1462,16 +1469,25 @@
 
 - eq: "Eq. (6.44)"
   chapter: 6
-  description: "Zero velocity (ZUPT) detector"
+  description: "Zero velocity (ZUPT) windowed test statistic and detector"
   files:
     - path: "core/sensors/constraints.py"
-      object: "detect_zupt"
+      object: "zupt_test_statistic"
+    - path: "core/sensors/constraints.py"
+      object: "detect_zupt_windowed"
     - path: "ch6_dead_reckoning/example_zupt.py"
       object: "main"
   tests:
-    - "tests/core/sensors/test_sensors_constraints.py"
-  verified_by: "tests/core/sensors/test_sensors_constraints.py"
-  notes: "Detects stationary periods: |Δω| < δ_ω AND |Δf - g| < δ_f"
+    - "tests/core/sensors/test_zupt_statistic_and_process_model.py"
+    - "tests/ch6_dead_reckoning/test_zupt_detector_beats_the_stance_base_rate.py"
+  verified_by: "tests/core/sensors/test_zupt_statistic_and_process_model.py"
+  notes: >-
+    T_k = (1/N) sum_l [ |a_l - g a_bar/|a_bar|| / sigma_A + |omega_l|^2 /
+    sigma_G ], and the detector is T_k < gamma. This used to point at
+    detect_zupt, which is the simple two-threshold variant
+    (|dw| < d_w AND |df - g| < d_f) -- a reasonable helper, but not the
+    equation: Eq. (6.44) is the windowed statistic, and the two do not
+    even take the same arguments.
 
 - eq: "Eq. (6.45)"
   chapter: 6
@@ -1549,16 +1565,23 @@
 
 - eq: "Eq. (6.49)"
   chapter: 6
-  description: "Weinberg step length model"
+  description: "Step length from height and cadence"
   files:
     - path: "core/sensors/pdr.py"
-      object: "step_length"
+      object: "step_length_book_eq6_49"
     - path: "ch6_dead_reckoning/example_pdr.py"
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_pdr.py"
   verified_by: "tests/core/sensors/test_sensors_pdr.py"
-  notes: "L = c·h^a·f_step^b. Empirical model based on height and cadence."
+  notes: >-
+    This pointed at `step_length`, a different empirical fit that returns
+    1.76x to 2.13x the book's length over the cadence range this chapter
+    uses (1.35 m against 0.63 m at 1.5 Hz for a 1.75 m walker; 1.44 m
+    against 0.75 m at 2 Hz). Both are legitimate models and the code
+    keeps both; only one of them is Eq. (6.49). A step-length model that
+    is wrong by 2x is the single largest error source in PDR, so this is
+    not a naming quibble.
 
 - eq: "Eq. (6.50)"
   chapter: 6
@@ -1644,27 +1667,41 @@
 
 - eq: "Eq. (6.56)"
   chapter: 6
-  description: "Allan variance sigma^2(tau) = 0.5 E[(theta_bar_{k+1} - theta_bar_k)^2]"
+  description: "Random-walk extraction from the Allan deviation: sigma(tau) = ARW / sqrt(tau)"
   files:
     - path: "core/sensors/calibration.py"
-      object: "allan_variance"
+      object: "identify_random_walk"
     - path: "ch6_dead_reckoning/example_allan_variance.py"
       object: "main"
   tests:
     - "tests/core/sensors/test_sensors_calibration.py"
   verified_by: "tests/core/sensors/test_sensors_calibration.py"
-  notes: "Overlapping Allan variance of the integrated rate."
+  notes: >-
+    Read at tau = 1 s on the -1/2 slope. This entry used to carry the
+    Allan *variance* definition as its description, which
+    calibration.py's own docstrings assign to Eq. (6.57) at ten separate
+    sites; the index and the code disagreed about which equation is
+    which. Aligned to the code, which is what the index maps -- the book
+    text was not consulted, so if it says otherwise the code's
+    docstrings are the thing to correct, and this follows them.
 
 - eq: "Eq. (6.58)"
   chapter: 6
-  description: "IMU noise characterization from the Allan-deviation slopes"
+  description: "Random walk to one-sample increment noise: sigma_increment = RW * sqrt(dt)"
   files:
+    - path: "core/sensors/calibration.py"
+      object: "random_walk_to_increment_sample_std"
     - path: "core/sensors/calibration.py"
       object: "characterize_imu_noise"
   tests:
     - "tests/core/sensors/test_sensors_calibration.py"
   verified_by: "tests/core/sensors/test_sensors_calibration.py"
-  notes: "Identifies ARW (-1/2 slope), bias instability (flat), RRW (+1/2)."
+  notes: >-
+    calibration.py's module docstring assigns Eq. (6.58) to the increment
+    conversion, and the index described it as the whole slope-based
+    characterization -- which is what characterize_imu_noise does, and it
+    stays listed because it applies (6.56)-(6.58) together. See the
+    Eq. (6.56) entry for why the index was aligned to the code here.
 
 - eq: "Eq. (6.59)"
   chapter: 6
@@ -1715,34 +1752,52 @@
   chapter: 6
   description: "EKF process model and covariance propagation (6.17-6.32)"
   files:
-    - path: "core/sensors/types.py"
-      object: "NavStateQPVPBias"
+    - path: "core/sensors/ins_ekf.py"
+      object: "ZUPT_EKF.predict"
+    - path: "core/sensors/ins_ekf.py"
+      object: "ZUPT_EKF.compute_process_noise"
   tests:
-    - "tests/core/sensors/test_sensors_types.py"
-  verified_by: "tests/core/sensors/test_sensors_types.py"
-  notes: "Nav state used as the EKF process model."
+    - "tests/core/sensors/test_zupt_statistic_and_process_model.py"
+  verified_by: "tests/core/sensors/test_zupt_statistic_and_process_model.py"
+  notes: >-
+    This used to point at NavStateQPVPBias, whose entire body is shape
+    validation -- the state the process model propagates, not the model.
+    The mechanization and the covariance step live in ZUPT_EKF.
+    PARTIAL: compute_process_noise builds Q, and predict propagates as
+    P <- P + Q. The state-transition Jacobian F of Eqs. (6.18)-(6.32) is
+    not implemented, so the covariance is an upper-bound-ish
+    approximation rather than the book's propagation. Said here because
+    an index entry that names an equation range implies all of it.
 
 - eq: "Eq. (6.33)"
   chapter: 6
   description: "Wheel speed measurement model for the EKF (6.33-6.38)"
-  files:
-    - path: "core/sensors/types.py"
-      object: "NavStateQPVPBias"
-  tests:
-    - "tests/core/sensors/test_sensors_types.py"
-  verified_by: "tests/core/sensors/test_sensors_types.py"
-  notes: "NHC + wheel-speed observation."
+  files: []
+  notes: >-
+    NOT IMPLEMENTED, and saying so is the honest entry. This pointed at
+    NavStateQPVPBias, which mentions Eqs. (6.33)-(6.38) in its docstring
+    and implements none of them -- a grep for the equation number finds
+    the citation and nothing else in the repository. What does exist is
+    adjacent but different: wheel_speed_to_attitude_velocity (Eq. 6.11)
+    for the lever arm, and NHCMeasurementModel (Eq. 6.61) for the
+    nonholonomic pseudo-measurement. An empty files list marks this
+    definition-only, which is what the validator's exemption is for.
 
 - eq: "Eq. (6.57)"
   chapter: 6
-  description: "Allan deviation log-linear form log(sigma(tau)) = log(ARW) - 0.5 log(tau)"
+  description: "Allan variance sigma^2(tau) = 0.5 E[(theta_bar_{k+1} - theta_bar_k)^2], and its log-linear form"
   files:
     - path: "core/sensors/calibration.py"
       object: "allan_variance"
   tests:
     - "tests/core/sensors/test_sensors_calibration.py"
   verified_by: "tests/core/sensors/test_sensors_calibration.py"
-  notes: "ARW slope on the Allan-deviation log-log plot."
+  notes: >-
+    The overlapping Allan variance of the integrated rate, which is what
+    allan_variance computes and what its inline comments label Eq. (6.57).
+    The log-linear form log sigma = log ARW - 0.5 log tau is the same
+    statement read on a log-log axis, and is how identify_random_walk
+    (Eq. 6.56) uses it.
 
 # ==============================================================================
 # Chapter 7: SLAM Technologies

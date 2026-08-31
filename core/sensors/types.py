@@ -295,6 +295,51 @@ class FrameConvention:
             )
         return float(np.arctan2(v[1], v[0]))
 
+    def magnetic_north_heading(self, declination_rad: float = 0.0) -> float:
+        """
+        Heading of magnetic north in this frame's heading convention.
+
+        This is where magnetic declination stops being a sign somebody has to
+        remember. Declination is defined once, physically -- magnetic north
+        lies `declination_rad` **east** of true north -- and each frame reads
+        that off its own axes:
+
+            ENU: true north is at heading pi/2 and heading increases toward
+                 North, so rotating toward East *decreases* it: pi/2 - D.
+            NED: true north is at heading 0 and heading increases toward East,
+                 so rotating toward East *increases* it: 0 + D.
+
+        The familiar rule "true = magnetic + east declination" is the NED/
+        compass form. It reverses in ENU, and writing ``+ declination`` there
+        was how `mag_heading` came to report a compass bearing while its
+        docstring promised an ENU heading.
+
+        Args:
+            declination_rad: Magnetic declination, positive when magnetic
+                             north is east of true north. Units: radians.
+
+        Returns:
+            Heading of magnetic north, wrapped to [-pi, pi]. Units: radians.
+
+        Example:
+            >>> frame = FrameConvention.create_enu()
+            >>> round(float(np.rad2deg(frame.magnetic_north_heading(0.0))), 6)
+            90.0
+            >>> ned = FrameConvention.create_ned()
+            >>> round(float(np.rad2deg(ned.magnetic_north_heading(0.0))), 6)
+            0.0
+
+        Related Equations:
+            - Eq. (6.51): Magnetometer heading definition (declination term)
+        """
+        # True north's own heading: zero if the frame measures from North,
+        # otherwise a quarter turn (the frame's second axis is North).
+        true_north = 0.0 if self.heading_zero_direction == "North" else np.pi / 2.0
+        # Sense: does turning from North toward East raise or lower a heading?
+        toward_east = 1.0 if self.heading_increases_towards == "East" else -1.0
+        heading = true_north + toward_east * declination_rad
+        return float(np.arctan2(np.sin(heading), np.cos(heading)))
+
 
 @dataclass(frozen=True)
 class IMUNoiseParams:

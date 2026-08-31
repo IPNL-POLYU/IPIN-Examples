@@ -279,6 +279,24 @@ def run_wheel_odometry(t, wheel_speed, gyro, initial_state, lever_arm):
     return pos_est
 
 
+#: Wheel-slip windows, seconds. Four 2 s windows on the four straights of the
+#: square, 30% over-reporting each.
+#:
+#: They cancel, exactly, and that is worth knowing before reading the figure:
+#: one equal slip per leg of a CLOSED square adds four 3 m displacements in
+#: four mutually perpendicular directions, which sum to zero. The two tracks
+#: separate by up to 3.91 m during the slips and rejoin to within 5 mm
+#: afterwards, so the "no slip" and "with slip" error curves coincide from
+#: t = 22 s and the final errors agree to three significant figures.
+#:
+#: Left as it is rather than made asymmetric: a periodic slip on a repeating
+#: route is a realistic scenario, and a demonstration whose effect cancels is
+#: a better lesson than one tuned to persist -- provided the figure says so,
+#: which it now does. RMSE (2.24 -> 3.19 m) and peak separation are the
+#: metrics that see it; final error is not.
+SLIP_INTERVALS_S = [(2, 4), (8, 10), (14, 16), (20, 22)]
+
+
 def plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir):
     """Generate plots."""
 
@@ -312,8 +330,23 @@ def plot_results(t, pos_true, pos_odom, pos_odom_slip, figs_dir):
 
     # Figure 2: Error
     fig2, ax = plt.subplots(figsize=(12, 6))
-    ax.plot(t, error_odom, "b-", linewidth=2, label="No Slip")
-    ax.plot(t, error_slip, "r-", linewidth=2, label="With Slip")
+    # The two curves are indistinguishable after the last slip window, and
+    # that is a result rather than a rendering problem -- see the shaded
+    # windows and the note below. Solid over solid drew one line and hid it;
+    # a dashed overlay shows both series wherever they coincide.
+    for start_s, end_s in SLIP_INTERVALS_S:
+        ax.axvspan(start_s, end_s, color="0.85", zorder=0)
+    ax.axvspan(float("nan"), float("nan"), color="0.85", label="Slip injected")
+    ax.plot(t, error_odom, "b-", linewidth=2.5, label="No Slip")
+    ax.plot(t, error_slip, "r--", linewidth=1.8, label="With Slip")
+    ax.annotate(
+        "four equal slips, one per leg of a\nclosed square: the phantom\ntravel cancels and the tracks rejoin",
+        xy=(SLIP_INTERVALS_S[-1][1], float(error_slip[int(len(t) * 0.28)])),
+        xytext=(0.42, 0.82),
+        textcoords="axes fraction",
+        fontsize=9,
+        arrowprops={"arrowstyle": "->", "color": "0.4", "lw": 1.0},
+    )
     ax.set_xlabel("Time [s]", fontsize=12)
     ax.set_ylabel("Position Error [m]", fontsize=12)
     ax.set_title(
@@ -379,7 +412,7 @@ def main():
     # injects nothing, which is why the no-slip and slip runs used to print
     # identical errors to three significant figures while the module docstring
     # advertised "sensitivity to wheel slip".
-    slip_intervals = [(2, 4), (8, 10), (14, 16), (20, 22)]  # On the straights
+    slip_intervals = SLIP_INTERVALS_S
     wheel_slip, gyro_slip = add_wheel_noise(
         wheel_true, gyro_true, add_slip=True, slip_intervals=slip_intervals
     )
@@ -435,6 +468,17 @@ def main():
     print(
         f"    (4 windows x 2 s x {SLIP_SPEED_HINT:.1f} m/s x 30% = "
         f"{4 * 2 * SLIP_SPEED_HINT * 0.3:.1f} m of phantom travel, as injected)"
+    )
+    print("    Why the final errors agree to three figures: one equal slip per leg")
+    print("    of a CLOSED square adds four equal displacements in four mutually")
+    print("    perpendicular directions, which sum to zero. The tracks separate by")
+    print(
+        f"    {np.abs(pos_odom - pos_odom_slip).max():.2f} m during the slips and rejoin "
+        "to within"
+    )
+    print(
+        f"    {np.linalg.norm(pos_odom[-1] - pos_odom_slip[-1]) * 1000:.0f} mm afterwards. "
+        "Final error cannot see this; RMSE can."
     )
     print()
     print(f"Figures saved to: {resolve_figs_dir(figs_dir)}/")

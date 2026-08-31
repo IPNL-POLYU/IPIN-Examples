@@ -35,13 +35,18 @@ import numpy as np
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from core.sensors import (
-    total_accel_magnitude,
-    step_length_book_eq6_49,
-    pdr_step_update,
+    earth_field_body,
+    earth_field_map,
     integrate_gyro_heading,
-    wrap_heading,
     mag_heading,
+    pdr_step_update,
+    step_length_book_eq6_49,
+    total_accel_magnitude,
+    wrap_heading,
 )
+
+#: Fixed map-frame Earth field; see generate_ch6_env_sensors_dataset.py.
+EARTH_FIELD_MAP = earth_field_map()
 
 
 def generate_corridor_walk(
@@ -199,20 +204,18 @@ def generate_corridor_walk(
         # Store state
         heading[i] = yaw
 
-        # Magnetometer: the map-frame reference direction expressed in the
-        # body frame, matching the convention core.sensors.mag_heading inverts
-        # and the one example_pdr's inline generator uses -- at yaw = 90 deg
-        # the body-frame reading is (0, 1, 0).
+        # Magnetometer: the fixed Earth field of EARTH_FIELD_MAP resolved into
+        # the walker's attitude. The walk is level, so only yaw moves the
+        # reading, and `earth_field_body` applies the same C_M^B the strapdown
+        # integrator would.
         #
-        # The sign here was negated, so mag_heading returned exactly minus the
-        # true heading: correct at 0 and 180 deg, 180 deg wrong at 90 and 270.
-        # Half of every run had a heading error above 90 deg. It survived
-        # because the walk is a closed loop -- the final error came out 3.0 m,
-        # which looks respectable, while the track had wandered 64.9 m away
-        # mid-lap for an RMSE of 42.3 m.
-        mag[i, 0] = np.cos(yaw)
-        mag[i, 1] = np.sin(yaw)
-        mag[i, 2] = 0.0
+        # This used to be `[cos(yaw), sin(yaw), 0]` -- a field that turned with
+        # the walker, so that the old compass-style readout came out as an ENU
+        # heading. The dataset and the library were each wrong and agreed, so
+        # nothing in the chapter could see either. It is fixed at the source
+        # now: neither this file nor any other in Chapter 6 builds a magnetic
+        # field by hand.
+        mag[i] = earth_field_body(0.0, 0.0, yaw, field_map=EARTH_FIELD_MAP)
 
     # Give each step a gait-shaped pulse rather than a single-sample impulse.
     #
@@ -278,7 +281,7 @@ def add_sensor_noise(
         mag_true: True magnetometer [N, 3] normalized.
         accel_noise: Accel noise std dev (m/s^2).
         gyro_noise: Gyro noise std dev (rad/s).
-        mag_noise: Mag noise std dev (normalized).
+        mag_noise: Mag noise std dev, as a fraction of the horizontal field.
         gyro_bias: Gyro bias (rad/s).
         seed: Random seed.
 
@@ -289,7 +292,13 @@ def add_sensor_noise(
 
     accel_meas = accel_true + rng.normal(0, accel_noise, accel_true.shape)
     gyro_meas = gyro_true + rng.normal(0, gyro_noise, gyro_true.shape) + gyro_bias
-    mag_meas = mag_true + rng.normal(0, mag_noise, mag_true.shape)
+    # `mag_noise` is a fraction of the horizontal field, applied before the
+    # normalisation below -- so 0.1 still means 10 percent, as it did when
+    # the synthetic field was a unit vector. An absolute 0.1 uT on a 38 uT
+    # field would be no noise at all, and the gyro-vs-magnetometer
+    # comparison this dataset exists for would stop comparing anything.
+    horizontal_ut = float(np.hypot(EARTH_FIELD_MAP[0], EARTH_FIELD_MAP[1]))
+    mag_meas = mag_true + rng.normal(0, mag_noise * horizontal_ut, mag_true.shape)
 
     # Normalize magnetometer
     mag_norm = np.linalg.norm(mag_meas, axis=1, keepdims=True)
@@ -525,7 +534,7 @@ def generate_dataset(
         dt: Time step (s).
         accel_noise: Accel noise std dev (m/s^2).
         gyro_noise: Gyro noise std dev (rad/s).
-        mag_noise: Mag noise std dev (normalized).
+        mag_noise: Mag noise std dev, as a fraction of the horizontal field.
         gyro_bias: Gyro bias (rad/s).
         seed: Random seed.
     """
@@ -813,7 +822,7 @@ Book Reference: Chapter 6, Section 6.3 (Pedestrian Dead Reckoning)
         "--mag-noise",
         type=float,
         default=0.1,
-        help="Mag noise std dev normalized (default: 0.1)",
+        help="Mag noise std dev, fraction of horizontal field (default: 0.1)",
     )
 
     # Other

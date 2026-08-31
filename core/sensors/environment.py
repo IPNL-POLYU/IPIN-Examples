@@ -32,6 +32,157 @@ import numpy as np
 # Import FrameConvention for type hints
 from core.sensors.types import FrameConvention
 
+#: Reference Earth magnetic field for the Chapter 6 examples and datasets.
+#:
+#: Representative values for an urban subtropical site (Hong Kong, roughly
+#: 22.3 deg N / 114.2 deg E): total intensity about 45 uT, inclination about
+#: +32 deg below horizontal, declination a few degrees west.  These are
+#: round numbers chosen to be realistic, not an IGRF evaluation -- what the
+#: examples need is a field of the right *shape* (a horizontal component that
+#: does not move with the platform, and a dip large enough that tilt
+#: compensation has something to do), and a single place to change it.
+#:
+#: The magnitude matters less than people expect: `mag_heading` reads a
+#: direction, so scaling the whole field changes nothing.  The dip matters a
+#: great deal, because it decides how much of the field leaks into the
+#: horizontal plane when the device tilts.
+EARTH_FIELD_INTENSITY_UT = 45.0
+EARTH_FIELD_INCLINATION_RAD = float(np.deg2rad(32.0))
+EARTH_FIELD_DECLINATION_RAD = float(np.deg2rad(-3.0))
+
+
+def earth_field_map(
+    intensity_ut: float = EARTH_FIELD_INTENSITY_UT,
+    inclination_rad: float = EARTH_FIELD_INCLINATION_RAD,
+    declination_rad: float = 0.0,
+    frame: FrameConvention | None = None,
+) -> np.ndarray:
+    """
+    Earth's magnetic field as a FIXED vector in the map frame.
+
+    This is the field a magnetometer actually sits in: it points at magnetic
+    north and dips into the ground, and it does **not** move when the platform
+    turns.  Rotating the platform is what changes the *body-frame* reading, and
+    that is the entire mechanism `mag_heading` inverts.
+
+    Args:
+        intensity_ut: Total field intensity F. Units: uT. Default:
+                      `EARTH_FIELD_INTENSITY_UT`.
+        inclination_rad: Dip angle I, positive when the field points *into*
+                         the ground (northern hemisphere). Units: radians.
+        declination_rad: Declination D, positive when magnetic north lies east
+                         of true north. Units: radians. Default 0.0, so the
+                         field points at true north and no correction is owed.
+        frame: Frame the components are returned in. Default: None (ENU,
+               components ordered East, North, Up). NED returns
+               (North, East, Down).
+
+    Returns:
+        Field vector in map-frame component order. Shape: (3,). Units: uT.
+
+    Notes:
+        - Horizontal magnitude is ``F cos(I)``; vertical is ``F sin(I)``,
+          pointing down, which is -Up in ENU and +Down in NED.
+        - Pair with `earth_field_body` to synthesise a magnetometer reading.
+          Do not hand-roll the rotation: six places in Chapter 6 used to --
+          two generators, three examples and a notebook cell -- and every
+          one of them built a field that co-rotated with the platform,
+          which is not a magnetic field at all.
+
+    Example:
+        >>> import numpy as np
+        >>> field = earth_field_map(declination_rad=0.0)
+        >>> bool(np.isclose(field[0], 0.0))  # nothing along East
+        True
+        >>> bool(field[1] > 0 and field[2] < 0)  # north and downward
+        True
+
+    Related Equations:
+        - Eq. (6.51): Magnetometer heading definition (declination enters here)
+    """
+    if frame is None:
+        frame = FrameConvention.create_enu()
+
+    horizontal = intensity_ut * np.cos(inclination_rad)
+    vertical_down = intensity_ut * np.sin(inclination_rad)
+
+    # Magnetic north sits at this heading in the map frame; the frame owns the
+    # sign, because ENU heading runs counter-clockwise and NED clockwise.
+    north_heading = frame.magnetic_north_heading(declination_rad)
+    horizontal_xy = horizontal * frame.heading_to_unit_vector(north_heading)
+
+    # Down is -z in ENU (gravity_direction -1) and +z in NED (+1), which is the
+    # same sign the frame already publishes for gravity.
+    vertical = frame.gravity_direction * vertical_down
+
+    return np.array([horizontal_xy[0], horizontal_xy[1], vertical])
+
+
+def earth_field_body(
+    roll_rad: float,
+    pitch_rad: float,
+    yaw_rad: float,
+    field_map: np.ndarray | None = None,
+) -> np.ndarray:
+    """
+    Resolve a fixed map-frame magnetic field into the body frame.
+
+    The single place Chapter 6 synthesises a magnetometer reading. It applies
+    ``C_M^B = (Rz(yaw) Ry(pitch) Rx(roll))^T`` -- the transpose of the attitude
+    matrix `core.sensors.strapdown.quat_to_rotmat` produces -- so a synthetic
+    reading and the strapdown integrator cannot disagree about what an
+    attitude means.
+
+    Args:
+        roll_rad: Roll about body x, positive right-side-down. Units: radians.
+        pitch_rad: Pitch about body y, positive nose-up. Units: radians.
+        yaw_rad: Heading in the map frame. Units: radians. ENU: 0 = East,
+                 increasing toward North.
+        field_map: Map-frame field, shape (3,). Default: None, meaning
+                   `earth_field_map()` with zero declination.
+
+    Returns:
+        Magnetic field in the body frame. Shape: (3,). Units: match field_map.
+
+    Notes:
+        - `mag_heading` inverts exactly this, so the pair is a round trip that
+          returns ``yaw_rad`` to machine precision -- pinned over 500 random
+          attitudes in tests/core/sensors/test_mag_chain_recovers_enu_heading.py.
+        - The field a magnetometer reports does NOT rotate with the platform.
+          Building one as ``[cos(yaw), sin(yaw), 0]`` describes a field that
+          follows the device around, and makes a *compass* readout look like
+          an ENU heading. All six Chapter 6 sites did that; the resulting
+          chain was self-consistent and wrong by ``90 deg - psi``.
+
+    Example:
+        >>> import numpy as np
+        >>> level_east = earth_field_body(0.0, 0.0, 0.0)
+        >>> facing_north = earth_field_body(0.0, 0.0, np.pi / 2)
+        >>> # Same field, different body: the reading moves, the field does not.
+        >>> bool(np.isclose(np.linalg.norm(level_east), np.linalg.norm(facing_north)))
+        True
+
+    Related Equations:
+        - Eq. (6.52): Tilt compensation undoes the roll/pitch part of this
+        - Eq. (6.53): Heading computation undoes the yaw part
+    """
+    if field_map is None:
+        field_map = earth_field_map()
+    field_map = np.asarray(field_map, dtype=float)
+    if field_map.shape != (3,):
+        raise ValueError(f"field_map must have shape (3,), got {field_map.shape}")
+
+    cos_r, sin_r = np.cos(roll_rad), np.sin(roll_rad)
+    cos_p, sin_p = np.cos(pitch_rad), np.sin(pitch_rad)
+    cos_y, sin_y = np.cos(yaw_rad), np.sin(yaw_rad)
+
+    rot_x = np.array([[1.0, 0.0, 0.0], [0.0, cos_r, -sin_r], [0.0, sin_r, cos_r]])
+    rot_y = np.array([[cos_p, 0.0, sin_p], [0.0, 1.0, 0.0], [-sin_p, 0.0, cos_p]])
+    rot_z = np.array([[cos_y, -sin_y, 0.0], [sin_y, cos_y, 0.0], [0.0, 0.0, 1.0]])
+
+    body_to_map = rot_z @ rot_y @ rot_x
+    return cast(np.ndarray, body_to_map.T @ field_map)
+
 
 def wrap_angle_diff(
     angle1: float | np.ndarray, angle2: float | np.ndarray
@@ -75,20 +226,37 @@ def mag_tilt_compensate(
     Apply tilt compensation to magnetometer measurement.
 
     Implements Eq. (6.52) in Chapter 6:
-        M_x = m̃_x cos(θ) + m̃_z sin(θ)
-        M_y = m̃_y cos(ϕ) + m̃_x sin(θ)sin(ϕ) - m̃_z cos(θ)sin(ϕ)
+        M_x = m̃_x cos(θ) + m̃_y sin(ϕ)sin(θ) + m̃_z cos(ϕ)sin(θ)
+        M_y = m̃_y cos(ϕ) - m̃_z sin(ϕ)
 
     where θ = pitch, ϕ = roll, and [m̃_x, m̃_y, m̃_z] = mag_b. The third
-    (vertical) component is Mz = m̃_y sin(ϕ) - m̃_x sin(θ)cos(ϕ) + m̃_z cos(θ)cos(ϕ).
-
-    This inverts the forward tilt body = R_y(pitch) @ R_x(roll) @ level, so the
-    output is tilt-invariant: mag_heading = atan2(My, Mx) recovers the same yaw
-    for any roll/pitch. Implemented directly from Eq. (6.52) to match the book.
+    (vertical) component is
+    Mz = -m̃_x sin(θ) + m̃_y sin(ϕ)cos(θ) + m̃_z cos(ϕ)cos(θ).
 
     Tilt compensation rotates the magnetic field vector from the tilted
-    body frame to the horizontal plane, removing the effect of device
+    body frame back into the horizontal plane, removing the effect of device
     orientation (pitch and roll). This is essential for accurate heading
     when the device is not held level.
+
+    ROTATION ORDER, and why it is this one. The expression above is
+    R_y(pitch) @ R_x(roll) @ mag_b, the exact inverse of the roll/pitch part
+    of the attitude matrix the rest of Chapter 6 uses -- strapdown integration
+    builds C_B^M = R_z(yaw) R_y(pitch) R_x(roll) (see
+    docs/ch6_frame_conventions.md), so a body reading is
+    m_b = R_x(-roll) R_y(-pitch) m_level and undoing it needs R_y then R_x,
+    in that order.
+
+    This module previously composed the same two rotations the other way round,
+    R_x(roll) @ R_y(pitch), which is the tilt-compensation form printed in
+    several sensor application notes -- correct for an attitude convention that
+    applies pitch outside roll, and wrong for this one. The two agree only when
+    roll or pitch is zero, so every level test passed. Settled by measurement
+    rather than by algebra, because three independent derivations of "the right
+    order" produced three different answers: over 500 random attitudes
+    (|roll|, |pitch| <= 45 deg) the implemented order recovers yaw to 3.7e-14
+    deg, R_x(roll) R_y(pitch) misses by up to 32.8 deg (median 6.0 deg), and
+    the two negated-angle orders by 177.9 and 178.4 deg. See
+    tests/core/sensors/test_mag_chain_recovers_enu_heading.py.
 
     Args:
         mag_b: Magnetic field vector in body frame B.
@@ -109,23 +277,27 @@ def mag_tilt_compensate(
     Notes:
         - Requires accurate roll and pitch from IMU.
         - Yaw (heading) is what we're solving for, so it's not an input.
-        - Rotation order: R_x @ R_y (pitch first, then roll).
-        - Sign convention: negative angles undo the body tilt.
+        - Rotation order: R_y(pitch) @ R_x(roll) -- see above; it is fixed by
+          the chapter's attitude convention and is not a free choice.
+        - The output is the field in the LEVEL frame: the map frame turned by
+          the platform's yaw, with the tilt taken out. Its horizontal part
+          therefore points at magnetic north as seen from the platform, which
+          is what Eq. (6.53) turns into a heading.
         - Indoor magnetic disturbances (steel, electronics) can corrupt results.
 
     Example:
         >>> import numpy as np
-        >>> # Level device: magnetic field points north-down
-        >>> mag = np.array([20.0, 0.0, -40.0])  # μT (north, down components)
-        >>> roll = 0.0  # level
-        >>> pitch = 0.0
-        >>> mag_comp = mag_tilt_compensate(mag, roll, pitch)
-        >>> print(mag_comp)  # [20, 0, -40] (unchanged when level)
-        >>>
-        >>> # Tilted device: 30° pitch
-        >>> pitch_30 = np.deg2rad(30)
-        >>> mag_comp = mag_tilt_compensate(mag, 0.0, pitch_30)
-        >>> # x-component should increase, z-component decrease
+        >>> # Level device: the level-frame field is the reading, unchanged.
+        >>> mag = np.array([20.0, 0.0, -40.0])  # μT
+        >>> mag_comp = mag_tilt_compensate(mag, 0.0, 0.0)
+        >>> bool(np.allclose(mag_comp, mag))
+        True
+        >>> # Tilting the device must NOT move the level-frame field.
+        >>> from core.sensors.environment import earth_field_body
+        >>> level = mag_tilt_compensate(earth_field_body(0.0, 0.0, 0.9), 0.0, 0.0)
+        >>> tilted_reading = earth_field_body(0.3, -0.2, 0.9)
+        >>> bool(np.allclose(mag_tilt_compensate(tilted_reading, 0.3, -0.2), level))
+        True
 
     Related Equations:
         - Eq. (6.51): Magnetometer heading definition
@@ -139,13 +311,13 @@ def mag_tilt_compensate(
     ct, st = np.cos(pitch), np.sin(pitch)  # theta = pitch
     cr, sr = np.cos(roll), np.sin(roll)  # phi = roll
 
-    # Book Eq. (6.52), implemented directly (not as a matrix product) so it
-    # matches the book exactly. This inverts the forward tilt
-    # body = Ry(pitch) @ Rx(roll) @ level, so the result is tilt-invariant and
-    # mag_heading = atan2(My, Mx) recovers the same yaw for any roll/pitch.
-    Mx = mx * ct + mz * st
-    My = my * cr + mx * st * sr - mz * ct * sr
-    Mz = my * sr - mx * st * cr + mz * ct * cr
+    # Eq. (6.52), written out componentwise rather than as a matrix product so
+    # the book's expression is readable in the code. It is R_y(pitch) R_x(roll),
+    # the inverse of the roll/pitch part of C_B^M = R_z R_y R_x; see the
+    # ROTATION ORDER note above for why the other composition is wrong here.
+    Mx = mx * ct + my * sr * st + mz * cr * st
+    My = my * cr - mz * sr
+    Mz = -mx * st + my * sr * ct + mz * cr * ct
 
     return np.array([Mx, My, Mz])
 
@@ -161,9 +333,12 @@ def mag_heading(
     Compute heading (yaw) from magnetometer with tilt compensation.
 
     Implements Eqs. (6.51)-(6.53) in Chapter 6:
-        1. Tilt compensation: mag_h = R(roll, pitch) @ mag_b    (Eq. 6.52)
-        2. Heading computation: ψ = atan2(mag_hy, mag_hx)       (Eq. 6.53)
-        3. Apply magnetic declination correction                (Eq. 6.51)
+        1. Tilt compensation: mag_h = R_y(pitch) R_x(roll) mag_b   (Eq. 6.52)
+        2. Heading of magnetic north as the platform sees it,
+           ψ_level = atan2(mag_h_y, mag_h_x)                       (Eq. 6.53)
+        3. Heading of magnetic north in the map frame, which is where
+           declination enters: ψ_map = frame.magnetic_north_heading(D)  (Eq. 6.51)
+        4. The platform's heading is the gap between them, ψ = ψ_map - ψ_level
 
     where:
         mag_b: magnetic field in body frame [μT]
@@ -183,9 +358,16 @@ def mag_heading(
                Shape: (3,). Units: μT (microtesla) or normalized.
         roll: Roll angle. Units: radians. From IMU attitude.
         pitch: Pitch angle. Units: radians. From IMU attitude.
-        declination: Magnetic declination (magnetic north → true north offset).
-                     Units: radians. Default: 0.0 (assume magnetic = true north).
-                     Varies by location: -25° to +25° (≈ ±0.44 rad) globally.
+        declination: Magnetic declination, positive when magnetic north lies
+                     **east** of true north. Units: radians. Default: 0.0
+                     (assume magnetic = true north).
+                     Varies by location: -25° to +25° (≈ ±0.44 rad) globally;
+                     Hong Kong is about -3°.
+                     NOTE the sense: the familiar rule "true = magnetic + east
+                     declination" is the *compass* form, and it reverses in ENU
+                     because ENU heading runs counter-clockwise. The frame owns
+                     that sign (`FrameConvention.magnetic_north_heading`), so
+                     the same argument is correct for ENU and NED.
         frame: Frame convention the reading is expressed in and the heading is
                reported in. Default: None (ENU: 0 = East, π/2 = North).
                NED gives 0 = North, π/2 = East.
@@ -218,16 +400,22 @@ def mag_heading(
 
     Example:
         >>> import numpy as np
-        >>> from core.sensors import FrameConvention
+        >>> from core.sensors import FrameConvention, earth_field_body
         >>> frame_enu = FrameConvention.create_enu()  # map_axes = E, N, U
-        >>> # Field along +y, i.e. North in ENU, with the usual downward dip.
-        >>> mag = np.array([0.0, 20.0, -40.0])  # [East, North, Up]
-        >>> heading = mag_heading(mag, 0.0, 0.0, frame=frame_enu)
-        >>> float(np.rad2deg(heading))  # North is a quarter turn from East
+        >>> # A level platform facing North: the Earth field, which points
+        >>> # North, therefore lands on the platform's own +x (forward) axis.
+        >>> mag = earth_field_body(0.0, 0.0, np.pi / 2)
+        >>> bool(np.isclose(mag[1], 0.0))  # nothing on the body's left axis
+        True
+        >>> float(np.round(np.rad2deg(mag_heading(mag, 0.0, 0.0, frame=frame_enu)), 6))
         90.0
+        >>> # Reading a body-frame field of [0, H, -Z] instead -- the field on
+        >>> # the platform's LEFT -- means the platform faces East, not North:
+        >>> float(np.round(np.rad2deg(mag_heading(np.array([0.0, 20.0, -40.0]), 0.0, 0.0)), 6))
+        0.0
         >>> # The same three numbers read as NED would be [North, East, Down],
-        >>> # a field pointing East and dipping upward -- a different physical
-        >>> # situation. Reordering, not relabelling, is what converts them.
+        >>> # a different physical situation. Reordering, not relabelling, is
+        >>> # what converts them.
 
     Related Equations:
         - Eq. (6.51): Magnetometer heading definition (with declination)
@@ -241,32 +429,41 @@ def mag_heading(
     if frame is None:
         frame = FrameConvention.create_enu()
 
-    # Step 1: Tilt compensation (Eq. 6.52)
+    # Step 1: Tilt compensation (Eq. 6.52). The result is the field in the
+    # LEVEL frame -- the map frame turned by the platform's own heading.
     mag_h = mag_tilt_compensate(mag_b, roll, pitch)
 
-    # Step 2: Heading from horizontal components (Eq. 6.53).
+    # Step 2: Heading from horizontal components (Eqs. 6.51, 6.53).
     #
-    # Delegated to the frame rather than written as an atan2 here. This used
-    # to be a hard-coded atan2(m_y, m_x) under a comment explaining how the
-    # ENU and NED interpretations differ, which read as though `frame`
-    # selected between them. It did not: the argument was accepted and never
-    # used, so passing create_ned() changed nothing.
+    # The heading is a DIFFERENCE of two directions, and writing it that way
+    # is what makes it come out in the map frame's convention:
     #
-    # There is genuinely only one expression, because both conventions put
-    # heading zero on the first map axis and increase it toward the second.
-    # But that fact belongs to FrameConvention, which also owns the forward
-    # direction (heading_to_unit_vector, used by pdr_step_update). Keeping
-    # both directions in one class is what stops them drifting apart, and it
-    # makes `frame` load-bearing here: change the convention there and this
-    # follows.
+    #   * where magnetic north sits in the MAP frame -- a known constant, and
+    #     the only place declination enters;
+    #   * where the platform sees it, in the LEVEL frame -- the measurement.
+    #
+    # The level frame is the map frame rotated by the heading, so the gap
+    # between the two readings IS the heading. Both are read by the same
+    # frame method that pdr_step_update walks along, so the two cannot drift
+    # apart.
+    #
+    # This used to be `atan2(m_y, m_x) + declination`, which is the *compass*
+    # bearing: clockwise from North, where this function's docstring, its
+    # `frame` argument and every downstream caller expect counter-clockwise
+    # from East. At level the two differ by exactly 90 deg - psi, a reflection
+    # rather than an offset, so it could not be absorbed by a constant. It
+    # survived because every synthetic magnetometer in Chapter 6 -- six of
+    # them, in two generators, three examples and a notebook -- was built to
+    # make it come out right, as a field co-rotating with the platform. Each
+    # file was self-consistent, so nothing that compared a file against
+    # itself could see either half of the error.
     #
     # The contract that remains on the caller is the axis order of the input:
     # mag_b must already be in frame.map_axes order. Nothing in three
     # unlabelled numbers could tell this function which order it was handed.
-    psi = frame.unit_vector_to_heading(mag_h)
-
-    # Step 3: Apply magnetic declination correction (Eq. 6.51)
-    heading = psi + declination
+    magnetic_north_in_map = frame.magnetic_north_heading(declination)
+    magnetic_north_in_level = frame.unit_vector_to_heading(mag_h)
+    heading = magnetic_north_in_map - magnetic_north_in_level
 
     # Wrap to [-π, π]
     heading = np.arctan2(np.sin(heading), np.cos(heading))

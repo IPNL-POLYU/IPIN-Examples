@@ -114,7 +114,7 @@ class TestHeadingErrorIsWrapped(unittest.TestCase):
     def test_config_does_not_match_the_naive_reduction(self) -> None:
         """A regression to the old formula fails loudly rather than silently.
 
-        The two reductions differ by 0.84 deg on this data, well outside the
+        The two reductions differ by 1.38 deg on this data, well outside the
         0.05 tolerance below, so they cannot both satisfy the config check.
         """
         naive_mean = float(np.rad2deg(self._naive_reduction()).mean())
