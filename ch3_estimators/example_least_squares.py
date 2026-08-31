@@ -469,7 +469,10 @@ def _compare_on_an_ill_conditioned_geometry():
 
     result_gn = gauss_newton(h, jacobian, y, x0, max_iter=50)
     result_lm = levenberg_marquardt(h, jacobian, y, x0, max_iter=50, mu0=1e-3)
-    for name, result in (("Gauss-Newton", result_gn), ("Levenberg-Marquardt", result_lm)):
+    for name, result in (
+        ("Gauss-Newton", result_gn),
+        ("Levenberg-Marquardt", result_lm),
+    ):
         print(
             f"  {name:<20} error {np.linalg.norm(result.x - true_position):.4g} m, "
             f"iters: {result.iterations}, converged: {result.converged}"

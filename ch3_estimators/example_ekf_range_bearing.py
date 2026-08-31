@@ -24,7 +24,6 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Dict, Tuple
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -78,7 +77,7 @@ def create_range_bearing_innovation_func(n_landmarks: int):
 REQUIRED_MEASUREMENT_KEYS = ("range_noise_std_m", "bearing_noise_std_deg")
 
 
-def read_measurement_noise(config: Dict, data_dir: str) -> Tuple[float, float]:
+def read_measurement_noise(config: dict, data_dir: str) -> tuple[float, float]:
     """Read the measurement noise a dataset records, in SI units for the filter.
 
     Args:
@@ -116,7 +115,7 @@ def read_measurement_noise(config: Dict, data_dir: str) -> Tuple[float, float]:
     )
 
 
-def load_estimator_dataset(data_dir: str) -> Dict:
+def load_estimator_dataset(data_dir: str) -> dict:
     """Load estimator dataset from directory.
 
     Args:
