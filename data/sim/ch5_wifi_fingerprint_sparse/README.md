@@ -15,10 +15,14 @@ where **the survey grid, not the algorithm, sets the accuracy**:
 | RPs per floor | **36 (6×6)** | 121 (11×11) | 676 (26×26) |
 | RPs total (3 floors) | **108** | 363 | 2,028 |
 | Survey effort | **1×** | 3.4× | 19× |
-| NN quantisation floor | **3.83 m** | 1.93 m | 0.76 m |
+| Mean distance to nearest RP | **3.83 m** | 1.93 m | 0.76 m |
 
-The floor row is measured — 2,000 random positions per floor, mean distance to
-the nearest reference point — and it tracks `0.38 x spacing` to within 1%.
+That row is measured — 2,000 random positions per floor, **mean** distance to
+the nearest reference point — and it tracks `0.38 x spacing` to within 1%. The
+*rms* of the same distance, `sqrt(2 s^2 / 12)` = `0.41 x spacing` (4.08 m here),
+is the statistic to compare an RMSE against; both are honest and they are 7%
+apart, but they are not the same number and this table used to call the mean
+"the quantisation floor".
 
 **Nearest-neighbour on this database cannot do better than 3.83 m mean error,
 however good the matching is**, because it returns one of 36 points per floor.

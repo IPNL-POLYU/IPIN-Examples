@@ -17,11 +17,19 @@ number of points:
 | RPs per floor | 36 (6×6) | 121 (11×11) | **676 (26×26)** |
 | RPs total (3 floors) | 108 | 363 | **2,028** |
 | Survey effort | 1× | 3.4× | **19×** |
-| NN quantisation floor | 3.83 m | 1.93 m | **0.76 m** |
+| Mean distance to nearest RP | 3.83 m | 1.93 m | **0.76 m** |
 
-The floor row is measured, not estimated: 2,000 random positions per floor, mean
+That row is measured, not estimated: 2,000 random positions per floor, **mean**
 distance to the nearest reference point. It tracks `0.38 x spacing` to within
 1% at all three densities (3.80 / 1.90 / 0.76 predicted).
+
+**The mean is not the quantisation floor**, and the two used to share a name in
+this file. The floor is the **rms** of the same distance, `sqrt(2 s^2 / 12)` =
+`0.41 x spacing` — 4.08 / 2.04 / 0.82 m — and it is the one to compare an RMSE
+against, which is what the experiment table further down does. The mean is the
+cheaper thing to picture (how far you typically stand from the nearest surveyed
+point) and the ratio between them is a constant 1.07, so no conclusion here
+changes; only the label does.
 
 The quantisation floor is the part worth understanding before running anything:
 nearest-neighbour returns *a reference point*, so its error can never be smaller
@@ -121,7 +129,7 @@ variability that is uncorrelated between visits — fast fading, at 1.5 dB.
 
 Measured with nearest-neighbour matching, 300 queries on floor 0:
 
-| Survey | Quantisation floor | Noiseless query | Realistic query |
+| Survey | Quantisation floor (rms) | Noiseless query | Realistic query |
 |---|---|---|---|
 | sparse, 10 m | 4.11 m | 4.99 m | 5.28 m |
 | baseline, 5 m | 2.04 m | 3.07 m | 3.97 m |

@@ -51,7 +51,7 @@ This dataset demonstrates **Wi-Fi fingerprinting for indoor positioning** using 
 |---------|--------------|-----------|-----------|---------------------|----------|
 | **Baseline** | 5m | 121 (11×11) | 363 | ~2-3m | Standard radio map |
 | **Dense** | 2m | 676 (26×26) | 2,028 | ~1-1.5m | High accuracy, high cost |
-| **Sparse** | 10m | 25 (5×5) | 75 | ~5-8m | Quick deployment, lower accuracy |
+| **Sparse** | 10m | 36 (6×6) | 108 | ~5-8m | Quick deployment, lower accuracy |
 | **Few APs** | 5m (4 APs) | 121 | 363 | ~3-5m | Limited infrastructure |
 
 **Generate variants**:
@@ -201,7 +201,14 @@ between a radio map and a table of random numbers:
 This dataset previously redrew the whole 4 dB for every (RP, AP, sample), so
 adjacent reference points 5 m apart disagreed by 5.7 dB rms for no physical
 reason. Nearest neighbour then scored 6.93 m against noiseless queries where
-this grid's own quantisation floor is 2.27 m; it now scores 3.39 m.
+this grid's own quantisation floor is 2.04 m; it now scores 3.01 m.
+
+The floor is `sqrt(2 s² / 12)` — the **rms** distance from a uniformly placed
+query to the nearest grid node, which is the statistic to compare an RMSE
+against. It is 2.041 m for `s = 5` and 2.043 m when sampled over 200k uniform
+positions. The *mean* of that distance is 1.91 m and the `ch5_wifi_fingerprint_dense`
+survey-effort table reports that one instead; both are honest, but they are not
+interchangeable and this paragraph used to quote 2.27 m, which is neither.
 
 ## Quick Start Examples
 
@@ -339,9 +346,13 @@ plt.show()
 |--------------|-----------|-----------|-------------------|---------|-----------------|
 | 2m (dense) | 676 | 2,028 | ~1-1.5m | 5.6× | 5.6× |
 | 5m (baseline) | 121 | 363 | ~2-3m | 1× | 1× |
-| 10m (sparse) | 25 | 75 | ~5-8m | 0.2× | 0.2× |
+| 10m (sparse) | 36 | 108 | ~5-8m | 0.3× | 0.3× |
 
 **Formula**: Positioning error ≈ grid_spacing / 2 (rule of thumb)
+
+The reference-point counts are `len(arange(0, 50 + s/2, s))²` per floor, so a
+10 m grid puts nodes at 0, 10, 20, 30, 40 **and 50** — 6 × 6, not 5 × 5. This
+table said 25 (75 total) until someone counted the shipped array.
 
 **Generate comparison**:
 ```bash

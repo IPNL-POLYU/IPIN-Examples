@@ -16,6 +16,7 @@ Date: December 2024
 """
 
 import argparse
+import dataclasses
 import sys
 import time
 from pathlib import Path
@@ -46,6 +47,60 @@ from core.fingerprinting.probabilistic import log_posterior
 DEFAULT_DATA = "data/sim/ch5_wifi_fingerprint_grid"
 DEFAULT_MULTI_DATA = "data/sim/ch5_wifi_fingerprint_multisamples"
 PANEL_LABELS = "ABCDEFGHI"
+
+#: One stroke per method, used in every line panel of the comparison figure.
+#:
+#: Two pairs of these six series are *arithmetically identical* on the shipped
+#: single-sample database, and both coincidences are findings of this figure
+#: rather than accidents of it:
+#:
+#: - ``MAP`` is ``NN (Euclidean)`` exactly, because one sample per reference
+#:   point gives one constant sigma and a constant sigma makes Eq. (5.4) the
+#:   argmin of Eq. (5.1).
+#: - ``Post.Mean (k=10)`` is ``Posterior Mean`` to five significant figures,
+#:   because the posterior concentrates on a handful of RPs and truncating the
+#:   rest changes nothing.
+#:
+#: Drawn solid, each pair shows only the line drawn last: the legend names six
+#: series and four are visible, which reads as a plotting bug. ``None`` means
+#: solid; every other entry is a dash pattern in points. No value is nudged --
+#: only the stroke changes, so a reader can still see the two curves land on
+#: each other.
+METHOD_DASHES = {
+    "NN (Euclidean)": None,
+    "k-NN (k=3)": (6, 2),
+    "MAP": (2, 2),  # lies on NN (Euclidean)
+    "Posterior Mean": None,
+    "Post.Mean (k=10)": (1, 2),  # lies on Posterior Mean
+    "Linear Regression": (6, 2, 1, 2),
+}
+
+#: One marker per method, for the panels that plot points rather than lines.
+#: Drawn hollow and in descending size so a marker landing exactly on another
+#: still shows both outlines.
+METHOD_MARKERS = {
+    "NN (Euclidean)": "o",
+    "k-NN (k=3)": "s",
+    "MAP": "D",
+    "Posterior Mean": "^",
+    "Post.Mean (k=10)": "v",
+    "Linear Regression": "P",
+}
+
+
+def apply_method_dashes(ax, methods):
+    """Give the lines already drawn on ``ax`` their per-method stroke.
+
+    ``methods`` must be in draw order. Used after :func:`plot_error_cdf`, which
+    picks its own styles from a shared cycle and cannot know that two of these
+    series coincide.
+    """
+    for line, method in zip(ax.get_lines(), methods, strict=True):
+        dash = METHOD_DASHES[method]
+        if dash is None:
+            line.set_linestyle("solid")
+        else:
+            line.set_dashes(dash)
 
 
 def label_panel(ax, label):
@@ -109,17 +164,33 @@ def generate_test_queries(
             The decomposition, measured on the grid database with
             nearest-neighbour matching over 200 queries on floor 0:
 
-                clean map, noiseless query (5 m quantisation floor)   2.27 m
-                shipped map, query = pathloss + S(p)                  3.39 m
-                shipped map, full query (+ fast fading)               3.82 m
-                shipped map, query carrying no shadowing at all       9.25 m
+                clean map, noiseless query                           2.18 m
+                shipped map, query = pathloss + S(p)                 3.01 m
+                shipped map, full query (+ fast fading)              3.82 m
+                shipped map, query carrying no shadowing at all      9.34 m
+
+            **The floor to read those against is 2.04 m**, which is
+            ``sqrt(2 s^2 / 12)`` for a grid of side ``s = 5`` -- the *rms*
+            distance from a uniformly placed query to the nearest node, and so
+            the right statistic to compare an RMSE to. Sampled directly it is
+            2.043 m over 200k uniform positions; the *mean* of the same
+            distance is 1.91 m, which is a different number for a different
+            question and is the one the dense dataset's survey-effort table
+            uses. This block used to quote 2.27 m, which is neither.
+
+            The 2.18 m first row is therefore not the floor but what nearest
+            neighbour *achieves* on a noiseless map: 7% above the geometric
+            bound, because the argmin over eight RSS channels is not quite the
+            argmin over distance.
 
             The last row is what the old model effectively measured, and it is
             correctly bad: a query that ignores the building's shadowing is not
-            a measurement taken in that building. The 3.39 m row is the one that
+            a measurement taken in that building. The 3.01 m row is the one that
             matters -- it was 6.93 m before this change, against a floor of
-            2.27 m, and the residual gap is the map's own 1.5 dB of fast fading
-            plus the field changing between reference points 5 m apart.
+            2.04 m, and the residual gap is the map's own 1.5 dB of fast fading
+            plus the field changing between reference points 5 m apart. Over 20
+            query seeds that row runs 2.95 to 3.44 m with a mean of 3.24, so
+            read it as "about 3 m" rather than as three significant figures.
         seed: Random seed for reproducibility.
 
     Returns:
@@ -295,52 +366,65 @@ def report_what_a_repeat_survey_buys(db_single, db_multi, queries, true_locs):
     reaches the difference. Raising it widens the posterior honestly and, at the
     same time, floors away the per-RP sigma that made MAP interesting.
 
-    **MAP does not beat 1-NN here, and the reason is structural rather than a
-    missing ingredient.** The obvious diagnosis is that this model gives every
-    location the same true fast-fading std, so the sigma estimated from ten
-    visits is estimation noise and there is nothing for the weighting to
-    exploit. That diagnosis is wrong, and it was tested rather than argued:
-    giving the fast fading a physically standard attenuation dependence -- RSS
-    variance grows as SNR falls -- with the *mean* sigma held at 1.5 dB so the
-    total noise is unchanged, makes MAP monotonically **worse**, not better::
+    **MAP does not beat 1-NN on the shipped survey, and on the shipped survey
+    the reason is entirely estimation noise.** The sweep below prints the
+    experiment that settles it: an *oracle* row that keeps the model and the
+    queries fixed and replaces the estimated sigma with the true constant the
+    samples were drawn from, 1.5 dB. MAP then differs from 1-NN on **0 of 200**
+    queries and scores the identical RMSE -- because a constant sigma of any
+    value collapses Eq. (5.4) onto Eq. (5.1), which is the theorem this whole
+    section is about. So every metre MAP loses here is the ten-visit sigma
+    estimate wobbling around a flat truth, and nothing else. The sweep's own
+    ``min_std`` column says the same thing from the other side: raise the floor
+    until the estimate is erased and the penalty goes to zero with it.
 
-        slope (dB per 10 dB attenuation)   0.0    0.5    1.0    2.0
-        NN   RMSE                         3.26   3.15   3.15   3.15  m
-        MAP  RMSE                         3.36   3.43   3.53   3.56  m
+    This paragraph used to argue the opposite -- that estimation noise was "the
+    obvious diagnosis" and "wrong". It is right for the data this example runs
+    on, and what follows is why the mistake was easy to make.
 
-    Two candidate explanations were ruled out by measurement. It is not
-    estimation noise: substituting the *oracle* sigma, the true one the samples
-    were drawn from, still loses to NN (3.23 to 3.35 m across the sweep). And it
-    is not the ``-log sigma_ij`` normalisation acting as a per-RP bonus for
-    confident locations: dropping that term entirely changes nothing (3.49 m
-    against 3.43 m at slope 0.5).
+    **A prototype that is not shipped.** Giving the fast fading a physically
+    standard attenuation dependence -- RSS variance growing as SNR falls, mean
+    sigma held at 1.5 dB so the total noise is unchanged -- makes MAP
+    monotonically worse as the dependence steepens, and *there* the mechanism is
+    not estimation noise. In that model the spatial mismatch (a query stands
+    between reference points, so it disagrees with the nearest one by the radio
+    map's change over the gap) is **anti-correlated** with the per-visit sigma,
+    ``corr = -0.34``, because the path-loss gradient
+    ``d(pathloss)/dd = -10 n / (d ln 10)`` is steepest close to the AP -- exactly
+    where the signal is strongest and, under that model, the fading quietest. So
+    Naive Bayes up-weights the APs whose unmodelled spatial error is worst.
 
-    What is left is the term the likelihood cannot see. A query stands *between*
-    reference points, so it disagrees with the nearest one by the radio map's
-    change over that gap -- 1.43 dB rms on this grid, comparable to the entire
-    1.5 dB fast-fading budget -- and that term is **anti-correlated** with the
-    noise a repeat survey can measure: ``corr = -0.34`` over all (query, AP)
-    pairs. The path-loss gradient ``d(pathloss)/dd = -10 n / (d ln 10)`` is
-    steepest close to the AP, which is exactly where the signal is strongest and
-    the fast fading quietest. So Naive Bayes weighting systematically
-    up-weights the APs whose unmodelled spatial error is worst, and weighting by
-    the noise you can measure is worse than not weighting at all.
+    **None of that describes the shipped datasets**, whose fast fading is one
+    constant for the whole building. Measured on the shipped multisample survey
+    the same correlation is ``+0.0156`` -- zero, as it must be: a constant has
+    nothing to anti-correlate with. Read the prototype as a conditional -- *if
+    sigma_fast varied with attenuation, then Eq. (5.6) would be actively
+    harmful* -- and not as an account of the numbers printed below.
 
-    The dose-response confirms it. The penalty tracks the spatial term across
-    the three shipped survey grids, at slope 1.0::
+    The spatial mismatch itself is shipped-verifiable and is worth carrying,
+    because it sets the ceiling on what any per-visit sigma could buy. It is the
+    rms change of the noiseless map between a query and its nearest reference
+    point, and it grows with the survey grid::
 
-        survey        spacing   spatial mismatch   MAP - NN
-        dense            2 m         0.52 dB        +0.04 m
-        baseline         5 m         1.48 dB        +0.38 m
-        sparse          10 m         2.74 dB        +1.46 m
+        survey        spacing   spatial mismatch    (measured on shipped data)
+        dense            2 m         0.54 dB
+        baseline         5 m         1.43 dB
+        sparse          10 m         2.98 dB
 
-    So the honest statement for the chapter is not "probabilistic fingerprinting
-    is better" but a sharper and more useful one: **Eq. (5.6) pays only when the
-    variability it models dominates the variability it does not.** That happens
-    on a grid dense relative to the radio map's correlation length, or with a
-    likelihood whose sigma includes the interpolation term rather than only the
-    per-visit one. On a 5 m grid with 8 APs, it does not, and the chapter is
-    better for saying so than for tuning until a table agrees.
+    At 5 m that term is already comparable to the entire 1.5 dB fast-fading
+    budget, which is the honest statement for the chapter: **Eq. (5.6) pays only
+    when the variability it models dominates the variability it does not.** That
+    happens on a grid dense relative to the radio map's correlation length, or
+    with a likelihood whose sigma includes the interpolation term rather than
+    only the per-visit one. On a 5 m grid with 8 APs, it does not, and the
+    chapter is better for saying so than for tuning until a table agrees.
+
+    The ``MAP - NN`` column that used to sit beside those three spacings is
+    gone. Only one multisample survey ships -- the 5 m one -- so a dense and a
+    sparse repeat survey had to be generated to produce it, under the
+    distance-dependent-sigma prototype above. Three numbers measured elsewhere
+    in a table whose other column is measured here is the mixture this
+    repository has been bitten by before.
 
     Args:
         db_single: Single-sample database (one visit per RP).
@@ -352,8 +436,9 @@ def report_what_a_repeat_survey_buys(db_single, db_multi, queries, true_locs):
     print("WHAT A REPEAT SURVEY BUYS (why MAP == NN above)")
     print("=" * 70)
 
-    def characterise(db, min_std):
-        model = fit_gaussian_naive_bayes(db, min_std=min_std)
+    def characterise(db, min_std, model=None):
+        if model is None:
+            model = fit_gaussian_naive_bayes(db, min_std=min_std)
         differ = 0
         max_weight, effective, err_map, err_nn = [], [], [], []
         for query, true_loc in zip(queries, true_locs, strict=True):
@@ -404,6 +489,37 @@ def report_what_a_repeat_survey_buys(db_single, db_multi, queries, true_locs):
             f"{row['effective']:7.2f}  {row['rmse_map']:5.2f} m  "
             f"{row['rmse_nn']:5.2f} m"
         )
+
+    # The experiment that says what MAP's penalty above is made of. Same
+    # database, same queries, same estimator -- only sigma is replaced, by the
+    # true constant the samples were drawn from. If any of the gap were the
+    # weighting exploiting real structure, the oracle would keep some of it.
+    oracle_sigma = float(db_multi.meta["path_loss_model"]["fast_fading_std_dBm"])
+    fitted = fit_gaussian_naive_bayes(db_multi, min_std=0.5)
+    oracle_model = dataclasses.replace(
+        fitted, stds=np.full_like(fitted.stds, oracle_sigma)
+    )
+    oracle = characterise(db_multi, min_std=None, model=oracle_model)
+    print(
+        f"  {'oracle':>7}  {oracle_sigma:5.2f} - {oracle_sigma:5.2f}  "
+        f"{oracle['differ']:5d}/{n:<3d}  {oracle['max_weight']:7.4f}  "
+        f"{oracle['effective']:7.2f}  {oracle['rmse_map']:5.2f} m  "
+        f"{oracle['rmse_nn']:5.2f} m"
+    )
+    print(
+        f"\n  The oracle row substitutes the true sigma these samples were drawn "
+        f"with\n"
+        f"  ({oracle_sigma} dB, one constant for the whole building) for the "
+        f"estimated one.\n"
+        f"  MAP then differs from 1-NN on {oracle['differ']}/{n} queries and "
+        f"scores {oracle['rmse_map']:.2f} m against NN's "
+        f"{oracle['rmse_nn']:.2f} m:\n"
+        f"  every metre MAP loses in the rows above is the ten-visit sigma "
+        f"estimate\n"
+        f"  wobbling around a flat truth. A constant sigma of ANY value is 1-NN "
+        f"-- that\n"
+        f"  is the theorem, and the oracle row is it, run rather than asserted."
+    )
 
     print(
         "\n  Read the two ends against each other. A floor below the measured "
@@ -735,6 +851,14 @@ def main():
     all_results = {}
 
     # Scenario 1: Baseline (low noise, single floor)
+    #
+    # The three scenario labels name what the sweep varies and the term it
+    # sits on top of. That second term is **fast fading at 1.5 dB**, the
+    # per-sample part of the noise model -- not the 4 dB of shadowing these
+    # labels used to name. Shadowing is a property of the location: the query
+    # carries the same S_ap(p) the radio map was built with, so it is *shared*
+    # with the map rather than added on top of it, and naming it here
+    # overstated the unlabelled half by nearly a factor of three.
     print("\n" + "=" * 70)
     print("SCENARIO 1: Baseline (low noise, single floor)")
     print("=" * 70)
@@ -743,7 +867,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=1.0, seed=42
     )
     all_results["Baseline"] = evaluate_scenario(
-        "Baseline (extra sigma=1dBm on top of 4dBm shadowing, Floor 0)",
+        "Baseline (extra sigma=1dBm on top of 1.5dBm fast fading, Floor 0)",
         db,
         queries1,
         true_locs1,
@@ -759,7 +883,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=2.0, seed=43
     )
     all_results["Moderate Noise"] = evaluate_scenario(
-        "Moderate (extra sigma=2dBm on top of 4dBm shadowing, Floor 0)",
+        "Moderate (extra sigma=2dBm on top of 1.5dBm fast fading, Floor 0)",
         db,
         queries2,
         true_locs2,
@@ -775,7 +899,7 @@ def main():
         db, n_queries=200, floor_id=0, noise_std=5.0, seed=44
     )
     all_results["High Noise"] = evaluate_scenario(
-        "High (extra sigma=5dBm on top of 4dBm shadowing, Floor 0)",
+        "High (extra sigma=5dBm on top of 1.5dBm fast fading, Floor 0)",
         db,
         queries3,
         true_locs3,
@@ -836,6 +960,10 @@ def main():
         ax=ax2,
         title_fontweight="normal",
     )
+    # Same strokes as panel E, for the same reason: NN and MAP draw one curve
+    # between them, and so do the two posterior means. Solid, this panel shows
+    # four lines for six legend entries.
+    apply_method_dashes(ax2, [r["method"] for r in all_results["Baseline"]])
     ax2.legend(fontsize=8)
     ax2.set_xlim(0, 15)
     label_panel(ax2, PANEL_LABELS[1])
@@ -881,21 +1009,11 @@ def main():
     noise_levels = [1.0, 2.0, 5.0]
     scenario_names = ["Baseline", "Moderate Noise", "High Noise"]
 
-    # Distinct dash patterns, because two pairs of these series lie exactly on
-    # top of each other and solid lines would show only the last one drawn.
-    # MAP is arithmetically identical to NN on this single-sample database, and
-    # the top-10 posterior mean to the full one -- both are findings of this
-    # figure, so they must not be what makes a curve disappear from it. No
-    # nudging of values; only the stroke changes.
-    dashes = [
-        (None, None),  # NN (Euclidean)
-        (6, 2),  # k-NN (k=3)
-        (2, 2),  # MAP -- lies on NN
-        (None, None),  # Posterior Mean
-        (1, 2),  # Post.Mean (k=10) -- lies on Posterior Mean
-        (6, 2, 1, 2),  # Linear Regression
-    ]
-    for method, dash in zip(methods, dashes, strict=True):
+    # Distinct dash patterns from METHOD_DASHES, because two pairs of these
+    # series lie exactly on top of each other and solid lines would show only
+    # the last one drawn. The table is shared with panels B and I so a method
+    # keeps one stroke across the whole figure.
+    for method in methods:
         rmses = []
         for scenario_name in scenario_names:
             method_result = [
@@ -905,7 +1023,8 @@ def main():
         (line,) = ax5.plot(
             noise_levels, rmses, "o-", label=method, linewidth=2, markersize=6
         )
-        if dash[0] is not None:
+        dash = METHOD_DASHES[method]
+        if dash is not None:
             line.set_dashes(dash)
 
     ax5.set_xlabel("RSS Noise Std (dBm)")
@@ -924,13 +1043,20 @@ def main():
     # actual finding, so it should not be what breaks the labelling. Colours
     # match the per-query cost panel above, so a method reads the same in both.
     ax6 = plt.subplot(3, 3, 6)
-    for r, color in zip(all_results["Baseline"], colors, strict=True):
+    # Hollow, distinctly shaped and in descending size: the two posterior means
+    # sit at almost the same cost and the same RMSE, so filled circles of one
+    # size drew one point where there are two. An outline nested inside another
+    # outline says "these coincide" where a single disc says "one method".
+    sizes = np.linspace(300, 130, len(all_results["Baseline"]))
+    for r, color, size in zip(all_results["Baseline"], colors, sizes, strict=True):
         ax6.scatter(
             r["ops_per_query"],
             r["rmse"],
-            s=150,
-            alpha=0.7,
-            color=color,
+            s=size,
+            facecolors="none",
+            edgecolors=color,
+            linewidths=2.2,
+            marker=METHOD_MARKERS[r["method"]],
             label=r["method"],
         )
     ax6.legend(fontsize=7)
@@ -950,14 +1076,30 @@ def main():
         cat_rmses[cat] = [r["rmse"] for r in cat_methods]
 
     positions = [1, 2, 3]
+    # The category count goes in the tick label, and every method is drawn as a
+    # point on top of its box. "Pattern Recognition" holds one method, and a
+    # box plot of one value is a bare horizontal line that reads as missing
+    # data rather than as a category with a single member.
     bp = ax7.boxplot(
         cat_rmses.values(),
         positions=positions,
-        tick_labels=cat_rmses.keys(),
+        tick_labels=[f"{cat}\n(n={len(vals)})" for cat, vals in cat_rmses.items()],
         patch_artist=True,
     )
     for patch in bp["boxes"]:
         patch.set_facecolor("lightyellow")
+    for position, values in zip(positions, cat_rmses.values(), strict=True):
+        ax7.scatter(
+            np.full(len(values), position),
+            values,
+            s=40,
+            color="black",
+            zorder=3,
+            label="one method" if position == 1 else None,
+        )
+    # Not "upper left": that is where label_panel puts the panel letter, and the
+    # legend covered it.
+    ax7.legend(fontsize=7, loc="center left")
     ax7.set_ylabel("RMSE (m)")
     ax7.set_title("Performance by Category")
     plt.setp(ax7.xaxis.get_majorticklabels(), rotation=15, ha="right")
@@ -1000,8 +1142,17 @@ def main():
             method_result["p90"] / 15,
         ]
         values += values[:1]
-        ax9.plot(angles, values, "o-", linewidth=2, label=method_name)
-        ax9.fill(angles, values, alpha=0.15)
+        (line,) = ax9.plot(angles, values, "o-", linewidth=2, label=method_name)
+        # NN and MAP trace the same triangle here -- all three metrics are the
+        # same number -- so without the shared stroke table this panel shows two
+        # polygons for three legend entries. The fill is left off the pair for
+        # the same reason: two identical translucent triangles read as one
+        # darker one.
+        dash = METHOD_DASHES[method_name]
+        if dash is not None:
+            line.set_dashes(dash)
+        else:
+            ax9.fill(angles, values, alpha=0.15)
 
     ax9.set_xticks(angles[:-1])
     ax9.set_xticklabels(metrics)
@@ -1027,22 +1178,30 @@ def main():
     print("  4. Smoothness: Posterior Mean > k-NN > Linear Reg > MAP ~= NN")
     print("  5. Training: Linear Reg requires training, others just use database")
 
-    # The CDF panel shows five lines for six methods, and the reader has no way
-    # to tell a coincidence from a plotting bug. It is a coincidence, and the
-    # chapter's own claim: Section 5.1.2 says the top-k calculation is
-    # typically sufficient, and here the two posterior means are the same
-    # estimator to five significant figures. Computed, not asserted, so it
-    # cannot go stale if the database or the noise changes.
+    # Two pairs of these six series coincide, so the CDF panel draws four
+    # curves for six legend entries and a reader has no way to tell a
+    # coincidence from a plotting bug. Both are real and both are findings, so
+    # they are named here and given distinct strokes in the figure rather than
+    # left to overlap. Computed, not asserted, so neither can go stale if the
+    # database or the noise changes.
     by_name = {r["method"]: r for r in all_results["Baseline"]}
     full, topk = by_name["Posterior Mean"], by_name["Post.Mean (k=10)"]
+    nn, map_ = by_name["NN (Euclidean)"], by_name["MAP"]
     gap = abs(full["rmse"] - topk["rmse"])
+    map_gap = abs(nn["rmse"] - map_["rmse"])
     print(
-        f"  6. Truncation is free here: the full posterior mean scores "
-        f"{full['rmse']:.4f} m and the top-10 {topk['rmse']:.4f} m, a "
-        f"difference of {gap * 1000:.2f} mm, so their CDFs coincide and only "
-        f"five curves are visible. The posterior concentrates on a handful of "
-        f"RPs, so dropping the rest costs nothing in accuracy -- but it saves "
-        f"little either, only "
+        f"  6. Two of the six curves are drawn twice, for two different "
+        f"reasons, so panels B, E, F and I dash them apart rather than let one "
+        f"hide the other:\n"
+        f"     (a) MAP scores {map_['rmse']:.4f} m and NN {nn['rmse']:.4f} m, a "
+        f"difference of {map_gap * 1000:.2f} mm. That is the theorem, not a "
+        f"tie: one visit per RP gives one constant sigma, and a constant sigma "
+        f"makes Eq. (5.4) the argmin of Eq. (5.1). Survey each point twice and "
+        f"they part company -- see 'What a repeat survey buys' above.\n"
+        f"     (b) The full posterior mean scores {full['rmse']:.4f} m and the "
+        f"top-10 {topk['rmse']:.4f} m, a difference of {gap * 1000:.2f} mm. The "
+        f"posterior concentrates on a handful of RPs, so dropping the rest "
+        f"costs nothing in accuracy -- but it saves little either, only "
         f"{full['ops_per_query'] / topk['ops_per_query']:.2f}x, because "
         f"posterior_mean_localize evaluates the likelihood at every RP before "
         f"it truncates. Truncating the weighted sum trims O(M*d) while the "
