@@ -43,9 +43,9 @@ def recovered():
     _, gyro, accel = generate_imu_stationary_data(
         duration=DURATION_S, fs=FS_HZ, imu_grade=GRADE
     )
-    # The RRW and accel-BI regions are absent from a 1-hour record, and
-    # characterize_imu_noise says so through warnings. That is asserted below
-    # rather than ignored; here it would only be noise.
+    # The RRW region is absent from a 1-hour record, and the gyro's ARW read
+    # sits on its bias-instability shoulder; characterize_imu_noise says so
+    # through warnings. Asserted below rather than ignored; here it is noise.
     with pytest.warns(UserWarning):
         return characterize_imu_noise(gyro, accel, fs=FS_HZ)
 
@@ -59,26 +59,56 @@ def _long_tau_slope(result):
 
 
 class TestShortTauParametersComeBack:
-    """ARW and VRW are read where the record actually has data."""
+    """ARW and VRW are read at short tau -- but only where the slope is -1/2.
 
-    def test_angle_random_walk_within_20_percent(self, recovered):
-        """The one the missing sqrt(3600) hid."""
+    "Short tau" is not the same as "readable". `identify_random_walk` reads at
+    tau = 1 s by convention, and that lands in the white-noise region only
+    while the bias-instability floor is still below the curve there. The
+    crossover is at tau = (RW / 0.664 B)^2, and for the shared consumer spec
+    that is 0.8 s for the gyro and 6.3 s for the accelerometer -- so the two
+    sensors are in different situations at the same tau, from the same table.
+    """
+
+    def test_angle_random_walk_is_readable_but_biased_by_the_early_shoulder(
+        self, recovered
+    ):
+        """The gyro's white-noise region ends before tau = 1 s.
+
+        With ARW 0.1 deg/sqrt(hr) and B 10 deg/hr, sigma_ARW(tau) drops below
+        0.664 B at tau = 0.8 s, so the conventional read at 1 s is already on
+        the shoulder and comes back high -- measured, 2.7x. That is a property
+        of this spec, not an estimator error, and lengthening the record does
+        not help: a longer run moves the far end of the curve, not the near
+        one. Bounded rather than pinned so that a genuine regression (an order
+        of magnitude, a unit slip) still fails.
+
+        This used to assert 0.8-1.2x, and passed because the example injected
+        an ARW five times larger than `IMUNoiseParams.consumer_grade()` -- a
+        second "consumer" spec whose shoulder sat at tau = 20 s.
+        """
         ratio = recovered["gyro"]["angle_random_walk"] / injected_si(GRADE)["gyro_arw"]
 
-        assert 0.8 < ratio < 1.2, (
-            f"gyro ARW recovered {ratio:.2f}x the injected value. White noise "
-            f"is read at short tau, where an hour of data at {FS_HZ:.0f} Hz is "
-            f"plentiful, so this should be close."
+        assert 1.5 < ratio < 4.0, (
+            f"gyro ARW recovered {ratio:.2f}x the injected value. Expected "
+            f"about 2.7x: the read at tau = 1 s sits past the shoulder. A "
+            f"ratio near 1 would mean the shoulder has moved (check the "
+            f"IMUNoiseParams consumer spec); a ratio near 60 or 1/60 is a "
+            f"sqrt(3600) unit slip."
         )
 
-    def test_velocity_random_walk_within_20_percent(self, recovered):
-        """Same argument, accelerometer side."""
+    def test_velocity_random_walk_within_50_percent(self, recovered):
+        """Same argument, accelerometer side, where tau = 1 s is still clean.
+
+        Its shoulder is at 6.3 s, so the read at 1 s is inside the -1/2 region
+        and the recovery is good: measured 1.3x, the residual being that the
+        floor is already within a factor of two of the curve by then.
+        """
         ratio = (
             recovered["accel"]["velocity_random_walk"] / injected_si(GRADE)["accel_vrw"]
         )
 
         assert (
-            0.8 < ratio < 1.2
+            0.8 < ratio < 1.5
         ), f"accel VRW recovered {ratio:.2f}x the injected value."
 
     def test_gyro_bias_instability_within_a_factor_of_two(self, recovered):
@@ -150,17 +180,26 @@ class TestTheSpecTableIsInternallyConsistent:
 
 
 class TestTheUnidentifiableParametersAreStillUnidentifiable:
-    """Two parameters this record cannot measure, asserted as such.
+    """What this record can and cannot see, asserted rather than assumed.
 
-    Not a complaint about the estimator. Rate random walk shows at a tau this
-    record does not reach, and the accelerometer's white noise does not fall to
-    its bias-instability floor until tau = 22681 s -- which, since tau_max is
-    duration/10, needs a 63-hour record.
+    Rate random walk shows at a tau a one-hour record does not reach, and that
+    is still true.
 
-    These assert the limitation *persists*, on the same reasoning as
-    KNOWN_FROZEN and FRONTEND_IS_KNOWN_NO_OP: if a change makes these regions
-    appear, the example's text about them is now wrong and should be rewritten
-    deliberately rather than silently left behind.
+    The accelerometer's bias instability used to be in the same category --
+    "does not fall to its floor until tau = 22681 s, which needs a 63-hour
+    record". It is readable now, and the reason is worth recording because the
+    old sentence was arithmetically correct and diagnosed the wrong thing: the
+    injected VRW was 60x too large (0.01 read as m/s/sqrt(s) where
+    `IMUNoiseParams` means m/s/sqrt(hr)), so the white noise started 60x higher
+    and had 3600x further to fall. With the two specs unified the floor arrives
+    at tau = 6.3 s. Nothing about the estimator or the record length changed.
+
+    The remaining assertion holds the limitation that is real, on the same
+    reasoning as KNOWN_FROZEN and FRONTEND_IS_KNOWN_NO_OP: if a change makes
+    the region appear, the example's text about it is now wrong and should be
+    rewritten deliberately rather than silently left behind. This test did
+    exactly that job for the accelerometer -- it went red on the fix, and its
+    own message said "Update the example's text if so."
     """
 
     def test_the_gyro_curve_has_not_reached_the_rate_random_walk_region(
@@ -174,13 +213,31 @@ class TestTheUnidentifiableParametersAreStillUnidentifiable:
             f"intended, the example's 'NOT REACHED' text needs updating."
         )
 
-    def test_the_accel_curve_is_still_falling_as_white_noise(self, recovered):
+    def test_the_accel_curve_now_reaches_its_bias_instability_floor(self, recovered):
+        """The half of this class that flipped, and it flipped the right way.
+
+        A flat long-tau slope means the bias-instability plateau is present,
+        which is what makes the accelerometer's BI recoverable at all: it comes
+        back within 20% now, against 5.9x before the VRW unit slip was fixed.
+        """
         slope = _long_tau_slope(recovered["accel"])
 
-        assert slope < -0.3, (
-            f"the accel long-tau slope is {slope:+.2f} rather than about "
-            f"-0.5, so the curve may now be flattening onto its bias "
-            f"instability. Update the example's text if so."
+        assert abs(slope) < 0.2, (
+            f"the accel long-tau slope is {slope:+.2f} rather than about 0, so "
+            f"the curve is no longer flattening onto its bias instability. If "
+            f"the injected VRW grew again, the floor has moved out of reach."
+        )
+
+    def test_the_accel_bias_instability_comes_back(self, recovered):
+        """The consequence, stated as a number rather than as a slope."""
+        ratio = (
+            recovered["accel"]["bias_instability"]
+            / injected_si(GRADE)["accel_bias_instability"]
+        )
+
+        assert 0.8 < ratio < 1.5, (
+            f"accel bias instability recovered {ratio:.2f}x the injected "
+            f"value; it was 5.9x when the curve never reached the floor."
         )
 
 

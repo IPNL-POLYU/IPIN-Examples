@@ -35,6 +35,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.eval import resolve_figs_dir, save_figure, show_figures_if_requested
 from core.sensors import (
+    earth_field_body,
+    earth_field_map,
     mag_heading,
     pressure_to_altitude,
     smooth_measurement_simple,
@@ -132,6 +134,9 @@ def generate_building_walk(duration=180.0, dt=0.1, rng=None):
     # specifically demonstrating magnetometer performance with magnetic disturbances.
     heading_rate = np.deg2rad(20.0)  # 20 deg/s continuous rotation
 
+    # One fixed Earth field for the whole walk, in the map frame.
+    field_map = earth_field_map()
+
     for k in range(N):
         # Determine current floor
         current_floor = 0
@@ -152,26 +157,19 @@ def generate_building_walk(duration=180.0, dt=0.1, rng=None):
         att_true[k, 1] = 0.05 * np.sin(2 * np.pi * t[k] / 15)  # Pitch oscillation
         att_true[k, 2] = heading_rate * t[k]  # Continuous rotation
 
-        # Magnetometer, in the convention core.sensors.mag_heading inverts:
-        # the horizontal field in the *level* frame points along the current
-        # heading, so atan2(m_y, m_x) recovers yaw directly. This is the same
-        # fix generate_ch6_env_sensors_dataset.py carries.
+        # Magnetometer: the FIXED Earth field of `earth_field_map`, resolved
+        # into whatever attitude the device happens to hold. That is the only
+        # honest forward model, and it is one call now
+        # (core.sensors.earth_field_body) rather than a hand-rolled rotation
+        # per file.
         #
-        # Building it as R_body_to_map.T @ [1, 0, 0] instead returns exactly
-        # minus the heading: the plotted error then sawtoothed between 0 and
-        # 180 deg across the whole run, swamping the disturbance zones the
-        # figure exists to show and leaving a 10 deg threshold line the trace
-        # crossed on the way past.
+        # This used to build `mag_level = [cos(yaw), sin(yaw), 0]`: a field
+        # that turned with the device, invented so that the old
+        # `atan2(m_y, m_x)` readout would return yaw. It made a compass
+        # bearing look like an ENU heading, and the error cancelled inside
+        # this file so nothing downstream could see it.
         roll, pitch, yaw = att_true[k]
-        mag_level = np.array([np.cos(yaw), np.sin(yaw), 0.0])
-
-        # Tilt the level-frame field into the body frame -- the forward
-        # rotation that mag_tilt_compensate (Eq. 6.52) undoes.
-        c_r, s_r = np.cos(-roll), np.sin(-roll)
-        c_p, s_p = np.cos(-pitch), np.sin(-pitch)
-        R_x = np.array([[1, 0, 0], [0, c_r, -s_r], [0, s_r, c_r]])
-        R_y = np.array([[c_p, 0, s_p], [0, 1, 0], [-s_p, 0, c_p]])
-        mag_true[k] = R_y @ R_x @ mag_level
+        mag_true[k] = earth_field_body(roll, pitch, yaw, field_map=field_map)
 
         # Barometric pressure from altitude
         h = pos_true[k, 2]
@@ -213,8 +211,16 @@ def add_env_sensor_noise(mag_true, pressure_true, t, dt, rng=None):
     N = len(mag_true)
     duration = t[-1]
 
+    # Every magnetic perturbation below is quoted as a FRACTION of the
+    # horizontal field and scaled here. The field used to be a unit vector,
+    # so the bare numbers were already fractions; keeping them fractions
+    # means the heading errors this figure exists to show are unchanged by
+    # the switch to a physical 45 uT field, and the constants stay readable
+    # (0.5 is a *severe* disturbance, half the field, whatever the units).
+    horizontal_ut = float(np.hypot(*earth_field_map()[:2]))
+
     # Magnetometer noise
-    mag_noise = rng.standard_normal((N, 3)) * 0.05  # Gaussian noise
+    mag_noise = rng.standard_normal((N, 3)) * 0.05 * horizontal_ut
 
     # Magnetic disturbances (steel structures)
     mag_disturbance = np.zeros((N, 3))
@@ -222,10 +228,12 @@ def add_env_sensor_noise(mag_true, pressure_true, t, dt, rng=None):
     for start, end in disturbance_times:
         mask = (t >= start) & (t < end)
         # Strong disturbance: shifts mag field direction
-        mag_disturbance[mask] = rng.standard_normal((np.sum(mask), 3)) * 0.5
+        mag_disturbance[mask] = (
+            rng.standard_normal((np.sum(mask), 3)) * 0.5 * horizontal_ut
+        )
 
     # Hard-iron offset (constant bias from device)
-    hard_iron = np.array([0.1, -0.15, 0.05])
+    hard_iron = np.array([0.1, -0.15, 0.05]) * horizontal_ut
 
     mag_meas = mag_true + mag_noise + mag_disturbance + hard_iron
 

@@ -18,6 +18,8 @@ import numpy as np
 import pytest
 
 from core.sensors.environment import (
+    earth_field_body,
+    earth_field_map,
     mag_tilt_compensate,
     mag_heading,
     pressure_to_altitude,
@@ -84,16 +86,49 @@ class TestMagTiltCompensate(unittest.TestCase):
         assert np.isclose(mag_original, mag_compensated, atol=0.01)
 
     def test_mag_tilt_compensate_matches_book_eq_6_52(self) -> None:
-        """Tilt compensation must equal the closed form of book Eq. (6.52)."""
+        """Tilt compensation must equal the closed form of book Eq. (6.52).
+
+        Written out componentwise here so the code and the book can be read
+        side by side. The composition is R_y(pitch) R_x(roll), which inverts
+        the roll/pitch part of C_B^M = R_z R_y R_x; the other order agrees
+        with it whenever roll or pitch is zero, so the two-angle case below is
+        the one that discriminates.
+        """
         mag = np.array([20.0, 10.0, -40.0])
         roll, pitch = 0.2, 0.3
         mx, my, mz = mag
         ct, st = np.cos(pitch), np.sin(pitch)
         cr, sr = np.cos(roll), np.sin(roll)
-        Mx = mx * ct + mz * st
-        My = my * cr + mx * st * sr - mz * ct * sr
+        Mx = mx * ct + my * sr * st + mz * cr * st
+        My = my * cr - mz * sr
         out = mag_tilt_compensate(mag, roll, pitch)
         np.testing.assert_allclose(out[:2], [Mx, My], atol=1e-12)
+
+    def test_the_two_tilt_orders_are_not_the_same_function(self) -> None:
+        """Guard the guard: the closed form above must be discriminating.
+
+        `Rx(roll) Ry(pitch)` -- the composition this module used to carry --
+        agrees with the implemented one to machine precision whenever roll or
+        pitch is zero. Every level test therefore passes under both, which is
+        how the wrong order survived. Measured here at 0.2/0.3 rad so the test
+        above cannot silently become a tautology.
+        """
+        mag = np.array([20.0, 10.0, -40.0])
+        roll, pitch = 0.2, 0.3
+        mx, my, mz = mag
+        ct, st = np.cos(pitch), np.sin(pitch)
+        cr, sr = np.cos(roll), np.sin(roll)
+        other_order = np.array(
+            [mx * ct + mz * st, my * cr + mx * st * sr - mz * ct * sr]
+        )
+        implemented = mag_tilt_compensate(mag, roll, pitch)[:2]
+        # Measured gap at this attitude: 0.82 uT on Mx, 0.82 on My, against a
+        # field of 20/10/-40. The bound is half that -- low enough not to be
+        # brittle, high enough that it cannot be met by rounding.
+        assert np.abs(implemented - other_order).max() > 0.4, (
+            "the two rotation orders agree here, so the Eq. (6.52) test above "
+            "no longer distinguishes them"
+        )
 
     def test_mag_tilt_compensate_invalid_shape(self) -> None:
         """Test that invalid mag shape raises error."""
@@ -106,106 +141,104 @@ class TestMagTiltCompensate(unittest.TestCase):
 class TestMagHeading(unittest.TestCase):
     """Test suite for magnetometer heading (Eqs. 6.51-6.53)."""
 
-    # The default frame is ENU, so mag_b is ordered [East, North, Up] and
-    # heading is measured from East toward North. These four cases used to be
-    # named for NED (calling [20, 0, -40] "north"), which is the reading the
-    # first component would have under the *other* convention. The assertions
-    # were right throughout; only the labels described the wrong frame.
+    # The default frame is ENU, so mag_b is ordered [East, North, Up] and the
+    # returned heading is measured from East toward North.
+    #
+    # These four cases name what the PLATFORM is doing, not where the field
+    # points, and the distinction is the whole of the compass-vs-ENU defect.
+    # mag_b is a field reading in the body frame; the field itself is fixed
+    # and points at magnetic north. So a reading that lands on the body +x
+    # (forward) axis means the platform is facing north -- heading pi/2 in ENU
+    # -- and a reading on the body +y (left) axis means it faces east. They
+    # used to be labelled the other way round, which is exactly the reflection.
 
-    def test_mag_heading_level_field_along_east(self) -> None:
-        """Field on the +x axis, which is East in ENU: heading 0."""
-        mag = np.array([20.0, 0.0, -40.0])  # [East, North, Up]
-        roll = 0.0
-        pitch = 0.0
+    def test_mag_heading_field_on_the_forward_axis_means_facing_north(self) -> None:
+        """Reading along body +x: the platform is looking at magnetic north."""
+        mag = np.array([20.0, 0.0, -40.0])
 
-        heading = mag_heading(mag, roll, pitch)
+        heading = mag_heading(mag, 0.0, 0.0)
 
-        # atan2(0, 20) = 0, and ENU measures heading from East
-        assert np.isclose(heading, 0.0, atol=0.01)
-
-    def test_mag_heading_level_field_along_north(self) -> None:
-        """Field on the +y axis, which is North in ENU: a quarter turn."""
-        mag = np.array([0.0, 20.0, -40.0])  # [East, North, Up]
-        roll = 0.0
-        pitch = 0.0
-
-        heading = mag_heading(mag, roll, pitch)
-
-        # atan2(20, 0) = π/2
         assert np.isclose(heading, np.pi / 2, atol=0.01)
 
-    def test_mag_heading_level_field_along_south(self) -> None:
-        """Field on -y, i.e. South in ENU."""
-        mag = np.array([0.0, -20.0, -40.0])  # [East, North, Up]
-        roll = 0.0
-        pitch = 0.0
+    def test_mag_heading_field_on_the_left_axis_means_facing_east(self) -> None:
+        """Reading along body +y (left): north is to the left, so face east."""
+        mag = np.array([0.0, 20.0, -40.0])
 
-        heading = mag_heading(mag, roll, pitch)
+        heading = mag_heading(mag, 0.0, 0.0)
 
-        # atan2(-20, 0) = -π/2
-        assert np.isclose(heading, -np.pi / 2, atol=0.01)
+        assert np.isclose(heading, 0.0, atol=0.01)
 
-    def test_mag_heading_level_field_along_west(self) -> None:
-        """Field on -x, i.e. West in ENU."""
-        mag = np.array([-20.0, 0.0, -40.0])  # [East, North, Up]
-        roll = 0.0
-        pitch = 0.0
+    def test_mag_heading_field_on_the_right_axis_means_facing_west(self) -> None:
+        """Reading along body -y (right): north is to the right, face west."""
+        mag = np.array([0.0, -20.0, -40.0])
 
-        heading = mag_heading(mag, roll, pitch)
+        heading = mag_heading(mag, 0.0, 0.0)
 
-        # atan2(0, -20) = ±π
         assert np.isclose(abs(heading), np.pi, atol=0.01)
 
-    def test_mag_heading_is_the_same_expression_in_ned(self) -> None:
-        """`frame` selects no formula, so equal inputs give equal headings.
+    def test_mag_heading_field_on_the_back_axis_means_facing_south(self) -> None:
+        """Reading along body -x: north is behind, so the platform faces south."""
+        mag = np.array([-20.0, 0.0, -40.0])
 
-        The difference between the conventions lives in how the caller orders
-        mag_b, not in what this function computes. Pinned because the
-        parameter reads as though it transforms the input, and a caller who
-        believes that gets an answer wrong by a reflection with no error.
+        heading = mag_heading(mag, 0.0, 0.0)
+
+        assert np.isclose(heading, -np.pi / 2, atol=0.01)
+
+    def test_the_frame_argument_changes_the_answer(self) -> None:
+        """`frame` is load-bearing, and this is where it shows.
+
+        It used to accept `create_ned()` and return the identical number,
+        because the only thing it selected was an atan2 that reads the same in
+        both conventions. It now also selects where magnetic north *sits* --
+        heading pi/2 in ENU, heading 0 in NED -- so the same three numbers,
+        read under the two frames, describe platforms a quarter turn apart.
+        Neither answer is wrong: the numbers mean different things.
         """
         mag = np.array([3.0, 4.0, -40.0])
 
         enu = mag_heading(mag, 0.0, 0.0, frame=FrameConvention.create_enu())
         ned = mag_heading(mag, 0.0, 0.0, frame=FrameConvention.create_ned())
 
-        assert np.isclose(enu, ned)
+        gap = np.arctan2(np.sin(enu - ned), np.cos(enu - ned))
+        assert np.isclose(abs(gap), np.pi / 2)
 
-    def test_mag_heading_inverts_the_frames_own_forward_convention(self) -> None:
-        """Eq. (6.53) must undo exactly what PDR's step update applies.
+    def test_mag_heading_inverts_the_field_the_platform_is_sitting_in(self) -> None:
+        """The round trip that matters: attitude -> reading -> attitude.
 
-        `pdr_step_update` walks along `frame.heading_to_unit_vector(psi)`; this
-        function recovers psi from a direction. They are the two halves of one
-        convention, and a heading that does not round-trip through them would
-        put the estimated track at an angle to the true one while every
-        individual component still looked reasonable.
-
-        Pinned as a round trip rather than against hard-coded numbers so that
-        adding a third convention has to satisfy both directions at once.
+        The previous version round-tripped a *direction* through
+        `heading_to_unit_vector` and `mag_heading`, which passed under the
+        compass readout and the ENU one alike -- it pinned that the two halves
+        were mutual inverses without ever asking whether the pair was the right
+        convention. Starting from a fixed Earth field and a platform attitude
+        cannot be satisfied that way.
         """
         for frame in (FrameConvention.create_enu(), FrameConvention.create_ned()):
+            field_map = earth_field_map(frame=frame)
             for psi in np.linspace(-np.pi, np.pi, 17)[:-1]:  # -pi and pi alias
-                direction = frame.heading_to_unit_vector(psi)
-                mag = np.array([direction[0], direction[1], -40.0])
+                mag = earth_field_body(0.0, 0.0, psi, field_map=field_map)
 
                 recovered = mag_heading(mag, 0.0, 0.0, frame=frame)
 
+                # +pi and -pi are the same heading; compare the wrapped gap.
+                gap = np.arctan2(np.sin(recovered - psi), np.cos(recovered - psi))
                 assert np.isclose(
-                    recovered, psi, atol=1e-9
-                ), f"{frame.map_frame}: {psi} -> {direction} -> {recovered}"
+                    gap, 0.0, atol=1e-9
+                ), f"{frame.map_frame}: {psi} -> {mag} -> {recovered}"
 
     def test_mag_heading_with_declination(self) -> None:
-        """Test heading with magnetic declination correction."""
-        mag = np.array([20.0, 0.0, -40.0])  # pointing north
-        roll = 0.0
-        pitch = 0.0
-        declination = np.deg2rad(10)  # 10° east declination
+        """East declination SUBTRACTS in ENU, because ENU runs the other way.
 
-        heading = mag_heading(mag, roll, pitch, declination)
+        "True = magnetic + east declination" is the compass rule, for bearings
+        measured clockwise from north. ENU heading is counter-clockwise from
+        east, so the same physical correction reverses sign. The frame owns it
+        (`FrameConvention.magnetic_north_heading`) and this pins the result.
+        """
+        mag = np.array([20.0, 0.0, -40.0])  # north is dead ahead
+        declination = np.deg2rad(10)  # 10 deg east declination
 
-        # Should add declination
-        expected = 0.0 + np.deg2rad(10)
-        assert np.isclose(heading, expected, atol=0.01)
+        heading = mag_heading(mag, 0.0, 0.0, declination)
+
+        assert np.isclose(heading, np.pi / 2 - np.deg2rad(10), atol=0.01)
 
     def test_mag_heading_tilted_device(self) -> None:
         """Test heading computation with tilted device."""
@@ -221,23 +254,13 @@ class TestMagHeading(unittest.TestCase):
     def test_mag_heading_tilt_invariant(self) -> None:
         """Heading must be invariant to roll/pitch (the point of Eq. 6.52).
 
-        Generates the body-frame field for a fixed level field via the forward
-        tilt body = Ry(pitch) @ Rx(roll) @ level, then checks the recovered
-        heading is the same for any tilt.
+        The platform holds one heading and is tilted six ways; the recovered
+        heading must not move. The forward model is `earth_field_body`, the
+        transpose of C_B^M = Rz Ry Rx, so this is a statement about the
+        chapter's attitude convention rather than about a rotation invented
+        here to match the implementation.
         """
-
-        def Rx(a):
-            return np.array(
-                [[1, 0, 0], [0, np.cos(a), np.sin(a)], [0, -np.sin(a), np.cos(a)]]
-            )
-
-        def Ry(a):
-            return np.array(
-                [[np.cos(a), 0, -np.sin(a)], [0, 1, 0], [np.sin(a), 0, np.cos(a)]]
-            )
-
-        m_level = np.array([18.0, 7.0, 35.0])
-        target = np.arctan2(m_level[1], m_level[0])
+        target = np.deg2rad(37.0)
         for roll, pitch in [
             (0.0, 0.0),
             (0.3, 0.0),
@@ -246,7 +269,7 @@ class TestMagHeading(unittest.TestCase):
             (-0.5, 0.6),
             (0.7, 0.7),
         ]:
-            mag_b = Ry(pitch) @ Rx(roll) @ m_level
+            mag_b = earth_field_body(roll, pitch, target)
             heading = mag_heading(mag_b, roll, pitch)
             assert np.isclose(
                 heading, target, atol=1e-9
@@ -507,29 +530,22 @@ class TestEdgeCases(unittest.TestCase):
         assert h < 400
 
     def test_mag_heading_all_four_quadrants(self) -> None:
-        """Test heading computation in all four quadrants."""
-        roll = 0.0
-        pitch = 0.0
+        """Every quadrant of heading is reachable, and lands where it should.
 
-        # Quadrant 1: NE (both positive)
-        mag_ne = np.array([10.0, 10.0, -40.0])
-        h_ne = mag_heading(mag_ne, roll, pitch)
-        assert 0 < h_ne < np.pi / 2
-
-        # Quadrant 2: NW (x+, y-)
-        mag_nw = np.array([10.0, -10.0, -40.0])
-        h_nw = mag_heading(mag_nw, roll, pitch)
-        assert -np.pi / 2 < h_nw < 0
-
-        # Quadrant 3: SW (both negative)
-        mag_sw = np.array([-10.0, -10.0, -40.0])
-        h_sw = mag_heading(mag_sw, roll, pitch)
-        assert -np.pi < h_sw < -np.pi / 2
-
-        # Quadrant 4: SE (x-, y+)
-        mag_se = np.array([-10.0, 10.0, -40.0])
-        h_se = mag_heading(mag_se, roll, pitch)
-        assert np.pi / 2 < h_se < np.pi
+        Driven from the platform side: a walker facing into each quadrant must
+        get a heading back in that quadrant. Driving it from the *reading*
+        side, as this used to, describes the field rather than the platform
+        and reads as though the two were the same thing.
+        """
+        for psi_deg, low, high in [
+            (45.0, 0.0, np.pi / 2),
+            (135.0, np.pi / 2, np.pi),
+            (-45.0, -np.pi / 2, 0.0),
+            (-135.0, -np.pi, -np.pi / 2),
+        ]:
+            mag = earth_field_body(0.0, 0.0, np.deg2rad(psi_deg))
+            heading = mag_heading(mag, 0.0, 0.0)
+            assert low < heading < high, f"facing {psi_deg} deg gave {heading} rad"
 
     def test_altitude_conversion_roundtrip(self) -> None:
         """Test pressure→altitude→pressure roundtrip (approximately)."""

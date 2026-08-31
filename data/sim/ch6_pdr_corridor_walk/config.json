@@ -26,14 +26,14 @@
     "gyro_heading": {
       "steps_detected": 170,
       "final_error_m": 8.72014939283506,
-      "mean_error_m": 4.269751639670893
+      "mean_error_m": 4.269751639670894
     },
     "mag_heading": {
       "steps_detected": 170,
-      "final_error_m": 0.46411301103697394,
-      "mean_error_m": 0.42356877276053767
+      "final_error_m": 0.39641720482192355,
+      "mean_error_m": 0.3694316871438093
     },
-    "improvement_factor": 18.788849235989986
+    "improvement_factor": 21.997403964220673
   },
   "equations": [
     "6.46",

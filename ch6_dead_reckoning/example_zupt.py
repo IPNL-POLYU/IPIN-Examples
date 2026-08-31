@@ -242,6 +242,35 @@ def run_imu_only(t, accel_meas, gyro_meas, initial_state, frame):
     return pos_est, vel_est
 
 
+#: ZUPT detection threshold for Eq. (6.44), chosen by measurement on this
+#: example's own data rather than by taste.
+#:
+#: The test statistic separates cleanly here: over the 6000 samples, the
+#: stance median is 13.2 and the swing 1st percentile is 20.9, so any
+#: threshold between them classifies almost perfectly. Sweeping it:
+#:
+#:     gamma      TPR%    FPR%    accuracy%
+#:      12.0      0.00    0.00    73.29     (never fires; scores "always swing")
+#:      13.5     81.88    0.16    95.04
+#:      17.0     94.50    0.18    98.40     <- this value
+#:      21.0     94.50    1.98    97.08
+#:      21.5     94.62   26.61    79.07     (the cliff)
+#:      25.0+    95.00   98.18    26.71     (always fires; the stance base rate)
+#:
+#: 17.0 sits in the flat middle: 3.5 above the lower cliff and 4.5 below the
+#: upper one, so it is not tuned to an edge.
+#:
+#: It used to be 1000.0, commented "much higher threshold for noisy consumer
+#: IMU", which is in the always-fires region. The detector reported ZUPT on
+#: 98.2% of *swing* samples and scored 26.7% accuracy -- exactly the 26.67%
+#: stance base rate, which is the arithmetic signature of a constant
+#: predictor and the same shape CLAUDE.md records for the ch5 floor
+#: classifier and the ch7 SLAM front-end. The detection panel of
+#: zupt_detector_timeline.png was a solid slab, which is what a detector that
+#: has stopped detecting looks like.
+ZUPT_GAMMA = 17.0
+
+
 def run_imu_with_zupt(
     t,
     accel_meas,
@@ -250,7 +279,7 @@ def run_imu_with_zupt(
     frame,
     imu_params,
     window_size=10,
-    gamma=1e6,
+    gamma=ZUPT_GAMMA,
 ):
     """
     Run IMU with ZUPT corrections using windowed detector (Eq. 6.44).
@@ -263,7 +292,7 @@ def run_imu_with_zupt(
         frame: FrameConvention.
         imu_params: IMUNoiseParams with noise specifications.
         window_size: ZUPT detector window size (samples). Default: 10.
-        gamma: ZUPT detection threshold. Default: 1e6.
+        gamma: ZUPT detection threshold. Default: ZUPT_GAMMA (17.0).
 
     Returns:
         Tuple of (pos_est, vel_est, zupt_detections).
@@ -341,7 +370,7 @@ def run_imu_with_zupt_ekf(
     frame,
     imu_params,
     window_size=10,
-    gamma=10.0,
+    gamma=ZUPT_GAMMA,
 ):
     """
     Run IMU with ZUPT corrections using EKF (Eqs. 6.40-6.43 + 6.45).
@@ -357,7 +386,7 @@ def run_imu_with_zupt_ekf(
         frame: FrameConvention.
         imu_params: IMUNoiseParams with noise specifications.
         window_size: ZUPT detector window size (samples). Default: 10.
-        gamma: ZUPT detection threshold. Default: 10.0.
+        gamma: ZUPT detection threshold. Default: ZUPT_GAMMA (17.0).
 
     Returns:
         Tuple of (pos_est, vel_est, zupt_detections).
@@ -825,7 +854,7 @@ def main(animate: bool = False):
         frame,
         imu_params,
         window_size=10,
-        gamma=1000.0,  # Much higher threshold for noisy consumer IMU
+        gamma=ZUPT_GAMMA,
     )
     elapsed_zupt = time.time() - start
     detection_rate = np.sum(zupt_detections) / len(zupt_detections) * 100

@@ -202,10 +202,64 @@ heading = mag_heading(mag_b, roll, pitch, declination=0.0, frame=frame_enu)
 # Returns: 0 = East, π/2 = North
 
 # NED frame
-frame_ned = FrameConvention.create_ned()  
+frame_ned = FrameConvention.create_ned()
 heading = mag_heading(mag_b, roll, pitch, declination=0.0, frame=frame_ned)
 # Returns: 0 = North, π/2 = East
 ```
+
+**`mag_b` is a field reading, and the heading is not where the field points.**
+The magnetic field is fixed in the map frame; what moves is the platform. So a
+reading that lands on the platform's own +x (forward) axis means the platform is
+*facing* magnetic north, which in ENU is heading π/2, not 0. The function
+computes the gap between two directions:
+
+```
+heading = (heading of magnetic north in the MAP frame)
+        - (heading of magnetic north in the LEVEL frame, i.e. the measurement)
+```
+
+The first term is `FrameConvention.magnetic_north_heading(declination)`, and it
+is the only place declination enters.
+
+**Declination subtracts in ENU.** The familiar rule "true = magnetic + east
+declination" is for *compass* bearings, measured clockwise from north. ENU
+heading runs counter-clockwise from east, so the same physical correction
+reverses sign. The frame owns it — `magnetic_north_heading` returns π/2 − D for
+ENU and 0 + D for NED — so `mag_heading`'s `declination` argument means the same
+thing in both.
+
+**Tilt compensation is `R_y(pitch) R_x(roll)`, in that order** (Eq. 6.52). It is
+the inverse of the roll/pitch part of `C_B^M = R_z R_y R_x` above, so the order
+is fixed by the attitude convention and is not a free choice. The other
+composition, `R_x(roll) R_y(pitch)`, appears in several sensor application notes
+and is correct for a differently-ordered attitude; here it costs up to 32.8° of
+heading. The two agree exactly whenever roll or pitch is zero, which is why
+every level test passed under both.
+
+Settled by measurement rather than algebra: over 500 random attitudes with a
+physical Earth field, the implemented order recovers the true yaw to 3.7e-14°
+and the three alternatives miss by 32.8°, 177.9° and 178.4°. See
+`tests/core/sensors/test_mag_chain_recovers_enu_heading.py`.
+
+**Synthesising a reading: use `earth_field_body`, never a hand-rolled rotation.**
+
+```python
+from core.sensors import earth_field_body, earth_field_map, mag_heading
+
+field_map = earth_field_map()                      # fixed: 45 µT, dip 32°
+mag_b = earth_field_body(roll, pitch, yaw, field_map=field_map)
+assert abs(mag_heading(mag_b, roll, pitch) - yaw) < 1e-12
+```
+
+All six Chapter 6 sites that synthesise a magnetometer -- two generators,
+three examples and a notebook cell -- used to build the reading as
+`[cos(ψ), sin(ψ), 0]`: a
+field that *co-rotates with the platform*, which no magnetic field does. It was
+invented so that a compass-style `atan2(m_y, m_x)` readout would return the ENU
+heading, and it worked: each file was self-consistent, so no test comparing a
+file against itself could see either error. What could see it is a field
+defined by physics and an attitude defined by the strapdown convention, which is
+what the guard above does.
 
 ## Usage Examples
 
@@ -275,26 +329,31 @@ print(f"Position after step North: {p_next2}")  # [0.7, 0.7]
 ### Example 3: Magnetometer Heading
 
 ```python
-from core.sensors import FrameConvention, mag_heading
+from core.sensors import FrameConvention, earth_field_body, mag_heading
 import numpy as np
 
-# Define frame convention
 frame = FrameConvention.create_enu()
 
-# Magnetometer measurement (simplified: pointing north)
-# In reality, includes inclination and declination
-mag_b = np.array([20.0, 0.0, -40.0])  # μT (north + down components)
+# A level platform facing 30° (east-north-east in ENU terms). The field is
+# fixed; `earth_field_body` resolves it into this attitude.
+yaw = np.deg2rad(30.0)
+mag_b = earth_field_body(0.0, 0.0, yaw)
 
-# Device attitude (level)
-roll = 0.0
-pitch = 0.0
+heading = mag_heading(mag_b, 0.0, 0.0, declination=0.0, frame=frame)
+print(f"Heading: {np.rad2deg(heading):.1f}°")   # 30.0°
 
-# Compute heading
-heading = mag_heading(mag_b, roll, pitch, declination=0.0, frame=frame)
-
-print(f"Heading: {np.rad2deg(heading):.1f}°")  
-# Should be ~90° (North) in ENU where 0°=East, 90°=North
+# Read the other way round: the reading [20, 0, -40] µT puts the field on the
+# body's own +x axis, i.e. the platform is looking straight at magnetic north.
+print(f"{np.rad2deg(mag_heading(np.array([20.0, 0.0, -40.0]), 0.0, 0.0)):.1f}°")
+# 90.0° -- North in ENU, where 0° = East.
 ```
+
+This example used to hand `[20, 0, -40]` to `mag_heading` under the comment
+"simplified: pointing north" and expect ~90°, while the code returned 0°. Both
+halves were wrong at once: the vector is not a north-pointing field in ENU
+component order (its first component is East), and the chain returned a compass
+bearing. Fixing the chain makes the printed 90° correct — but for the opposite
+reason to the one the comment gave, which is why the comment is gone.
 
 ## Validation: Stationary IMU Test
 
@@ -325,7 +384,7 @@ All tests pass, confirming:
 | Eq. (6.8) | Gravity vector | ENU: [0,0,-g], NED: [0,0,+g] |
 | Eq. (6.10) | Position update | Frame-agnostic (uses velocity) |
 | Eq. (6.50) | PDR step update | **Heading convention depends on frame** |
-| Eq. (6.51)-(6.53) | Magnetometer heading | **Heading output depends on frame** |
+| Eq. (6.51)-(6.53) | Magnetometer heading | **Heading output depends on frame**, and so does the declination sign |
 
 ## Migration Guide for Existing Code
 
@@ -391,6 +450,22 @@ p_next = pdr_step_update(p, L, heading_mag)
 frame = FrameConvention.create_enu()
 heading_mag = mag_heading(mag, roll, pitch, frame=frame)  # 0=East
 p_next = pdr_step_update(p, L, heading_mag, frame=frame)  # 0=East
+```
+
+### ❌ Wrong: a synthetic magnetic field that turns with the platform
+
+```python
+# WRONG! This is not a magnetic field; it is the heading, wearing a field's
+# name. atan2(m_y, m_x) returns yaw from it, which makes a compass readout
+# look like an ENU heading.
+mag_b = np.array([np.cos(yaw), np.sin(yaw), 0.0])
+```
+
+### ✅ Correct: a fixed field, resolved into the body
+
+```python
+from core.sensors import earth_field_body
+mag_b = earth_field_body(roll, pitch, yaw)   # the field stays put; the body turns
 ```
 
 ## References

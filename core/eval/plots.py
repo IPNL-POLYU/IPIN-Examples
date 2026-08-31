@@ -521,6 +521,7 @@ def plot_error_cdf(
     title: str = "Error CDF",
     ax: Optional[plt.Axes] = None,
     title_fontweight: str = "bold",
+    xscale: str = "linear",
 ) -> plt.Figure:
     """
     Plot Cumulative Distribution Function (CDF) of position errors.
@@ -528,6 +529,11 @@ def plot_error_cdf(
     Args:
         errors_dict: Dictionary of error arrays {name: errors}
         title: Plot title
+        xscale: "linear" (default) or "log" for the error axis. Use "log" when
+                the methods being compared span more than about one decade --
+                on a linear axis every accurate method collapses into the
+                leftmost pixel column and becomes indistinguishable from the
+                others. Default keeps existing figures byte-identical.
         ax: Draw into this existing axes instead of creating a figure, for use
             as one panel of a composite. ``ax=None`` creates its own figure.
         title_fontweight: Weight for the panel title. Defaults to bold, which
@@ -574,7 +580,28 @@ def plot_error_cdf(
     ax.set_title(title, fontsize=14, fontweight=title_fontweight)
     ax.legend(fontsize=10)
     ax.grid(True, alpha=0.3)
-    ax.set_xlim(left=0)
+    if xscale == "log":
+        # A linear axis spanning three decades of error puts every accurate
+        # method in the leftmost pixel column: Chapter 6's comparison has
+        # methods at 0.4 m and at 100 m, and the two sub-metre CDFs were
+        # drawn on top of each other against the y axis. Log x separates
+        # them. Left as "linear" by default so existing figures do not move.
+        ax.set_xscale("log")
+        # np.asarray, because an entry may be a list of arrays -- `for e in
+        # errors` then yields arrays and `e > 0` raises. Flatten explicitly.
+        finite = np.concatenate(
+            [np.asarray(errors, dtype=float).ravel() for errors in errors_dict.values()]
+        )
+        positive = finite[np.isfinite(finite) & (finite > 0)]
+        if positive.size:
+            # Not the minimum: every one of these series starts at zero error,
+            # so the smallest positive value is whatever the first sample after
+            # t=0 happened to be, and anchoring there spent five decades of a
+            # log axis on a flat line. The 1st percentile is where the curves
+            # start to say something.
+            ax.set_xlim(left=float(np.percentile(positive, 1.0)))
+    else:
+        ax.set_xlim(left=0)
     # matplotlib unpacks any 2-element iterable given as `bottom`; its stub
     # admits only a tuple. The cast records that without touching the call.
     ax.set_ylim(cast(tuple[float, float], [0, 1.05]))

@@ -122,7 +122,7 @@ small: they are committed binaries and git retains every version forever.
 
 | Example Script | Dataset | Description |
 |----------------|---------|-------------|
-| `example_pdr.py` | `data/sim/ch6_pdr_corridor_walk/` | 40m x 20m corridor walk with IMU data |
+| `example_pdr.py` | `data/sim/ch6_pdr_corridor_walk/` | Four 30 m legs, a ~31 m x 31 m square loop, with IMU data |
 | *(manual loading)* | `data/sim/ch6_strapdown_basic/` | Basic IMU strapdown integration |
 | *(manual loading)* | `data/sim/ch6_wheel_odom_square/` | Vehicle wheel odometry square path |
 | *(manual loading)* | `data/sim/ch6_foot_zupt_walk/` | Foot-mounted IMU with ZUPT |
@@ -259,19 +259,46 @@ RESULTS (IMU-only, no corrections)
   Max Attitude Error:
     Roll:   0.1°
     Pitch:  0.1°
-    Yaw:    359.6°
+    Yaw:    1.2°
   Drift Rate:            6.456 m/s (UNBOUNDED!)
+...
+Where the error comes from:
+  Vertical:   639.1 m of the 645.6 m total (99.0%). This is the
+              accelerometer's own z bias, double-integrated: 0.5 * 0.1277 m/s^2 * (100 s)^2
+              = 638.5 m, against 639.1 m measured. The log-log slope of the
+              vertical error is 2.000 -- t^2, not the t^1.5 of a
+              random walk and not the t^3 of a rotating tilt.
+  Horizontal: 91.2 m, the smaller part, and the part gyro bias drives.
 ```
+
+**The yaw line used to read 359.6°, and that was a wrap, not a drift.** The
+example subtracted two angles that both live on (-π, π] without wrapping the
+difference, so an estimate 1.2° across the branch cut from the truth was
+reported as being 359.6° away. It is `wrap_angle_diff` now, and the honest
+number is 1.2° of yaw error over 100 seconds — which is the realised gyro bias
+integrated, and nothing else.
 
 #### IMU Strapdown Figures
 
 | Figure | Description |
 |--------|-------------|
 | ![IMU Strapdown Trajectory](figs/imu_strapdown_trajectory.svg) | **Trajectory comparison** showing ground truth (blue) vs. IMU-integrated path (red). Demonstrates how quickly position drifts without corrections. |
-| ![IMU Strapdown Attitude](figs/imu_strapdown_attitude.svg) | **Attitude (Euler angles) over time** showing roll, pitch, and yaw. Yaw drifts unboundedly due to gyroscope bias. |
+| ![IMU Strapdown Attitude](figs/imu_strapdown_attitude.svg) | **Attitude (Euler angles) over time** showing roll, pitch, and yaw. Yaw follows the figure-8's own turning; the *error* against truth reaches 1.2° over 100 s, which is the realised gyro bias integrated. |
 | ![IMU Strapdown Error](figs/imu_strapdown_error_time.svg) | **Position error vs. time** showing error growth. Note the quadratic growth pattern typical of double-integrated bias. |
 
-**Key Insight:** IMU-only integration is **unusable** for navigation beyond a few seconds. Gyroscope bias causes yaw drift, which then corrupts velocity and position.
+**Key Insight:** IMU-only integration is **unusable** for navigation beyond a few
+seconds — but read *which* sensor does it. Measured on this run: **639 m of the
+645 m final error is vertical**, and no gyro error reaches the vertical axis to
+first order (a small tilt leans gravity into the *horizontal* plane). It is the
+accelerometer's z bias, double-integrated: ½ × 0.1277 m/s² × (100 s)² = 638.5 m
+against 639.1 m measured, and the log-log slope of the vertical error is 2.000,
+i.e. exactly t². The gyro's contribution is the 91 m of horizontal error, where
+a tilt growing at 13.2 °/hr gives g·|b_g|·t³/6 ≈ 104 m.
+
+This section used to attribute the whole 645 m to gyro bias, on the strength of
+the 359.6° "yaw error" that was really an unwrapped angle difference. Two
+defects reinforcing each other: a wrong number, and a story built to explain
+it.
 
 ---
 
@@ -293,7 +320,7 @@ Generating walking trajectory with stance phases...
   Total distance:  61.6 m
   Stance time:     26.7% of trajectory
 ...
-  ZUPT detections:  97.0% of samples
+  ZUPT detections:  25.2% of samples
   Method:           EKF measurement update (not hard-coded v=0)
 ...
 RESULTS
@@ -302,10 +329,33 @@ IMU-only (no ZUPT):
   Final error:  237.28 m (385.3% of distance)
   RMSE:         110.49 m
 IMU + ZUPT:
-  Final error:  12.46 m (20.2% of distance)
-  RMSE:         9.22 m
-Improvement:    91.7% reduction in RMSE
+  Final error:  68.88 m (111.8% of distance)
+  RMSE:         37.56 m
+Improvement:    66.0% reduction in RMSE
 ```
+
+**These numbers got worse, and that is the fix.** The detector ran at
+`gamma=1000.0`, which puts it in the always-fires region: it reported zero
+velocity on **98.2% of swing samples** and scored 26.7% accuracy — exactly the
+26.7% stance base rate, which is what a constant "always stationary" predictor
+scores. The line `ZUPT detections: 97.0% of samples` sat in this very transcript
+next to `Stance time: 26.7%`, and nobody read the two together.
+
+Clamping velocity to zero at every sample is a very effective way to stop a
+61.6 m walk from running away — which is why it *looked* like a 91.7%
+improvement. It is not achievable: an **oracle** detector, handed the true
+stance mask, scores 35.08 m RMSE, and 9.22 m is better than the oracle. A result
+that beats the physical ceiling is measuring something other than what it
+claims.
+
+The threshold is 17.0 now, chosen from a measured plateau (accuracy 98.4% for
+γ between 16 and 20, against 26.7% at γ ≥ 25 and 73.3% at γ ≤ 12), and
+`tests/ch6_dead_reckoning/test_zupt_detector_beats_the_stance_base_rate.py`
+holds it. What remains — 66% rather than the >90% quoted for foot-mounted ZUPT
+— is not the detector: the oracle lands in the same place. It is the filter and
+the gait. Stance here is a 2 s standstill every 7 s, not a stance phase every
+step, so the 10 mg accelerometer bias integrates freely for five seconds at a
+time between corrections.
 
 **Implementation Notes:**
 - Uses proper EKF measurement update (not hard-coded v=0)
@@ -321,7 +371,11 @@ Improvement:    91.7% reduction in RMSE
 | ![ZUPT Detector Timeline](figs/zupt_detector_timeline.svg) | **ZUPT detector output over time.** Shows the windowed test statistic (Eq. 6.44) and threshold crossings that trigger ZUPT updates. |
 | ![ZUPT Error Time](figs/zupt_error_time.svg) | **Position error vs. time** comparing IMU-only (growing unboundedly) vs. ZUPT-corrected (bounded). Each ZUPT update "resets" velocity error. |
 
-**Key Insight:** ZUPT provides **>90% error reduction** by exploiting the fact that the foot is stationary during stance phases. Essential for foot-mounted INS.
+**Key Insight:** ZUPT exploits the fact that the foot is stationary during
+stance phases, and is essential for foot-mounted INS. On *this* walk it is worth
+a 66% RMSE reduction — see above for why the >90% this line used to claim was an
+artefact of a detector that never stopped firing, and why an oracle detector
+does no better here.
 
 ---
 
@@ -415,9 +469,17 @@ PDR (Gyro Heading - drifts unbounded):
   RMSE:         1.8 m
 ...
 PDR (Magnetometer Heading - absolute but noisy):
-  Final error:  1.2 m (1.0% of distance)
-  RMSE:         1.6 m
+  Final error:  5.2 m (4.5% of distance)
+  RMSE:         3.7 m
 ```
+
+The magnetometer row moved (RMSE 1.6 m → 3.7 m) when the synthetic magnetic
+field became a physical one — see *Magnetometer heading* below. It is a
+different draw of the same distribution, not a degradation: over 24 seeds the
+heading-error RMS is 8.02° under the old chain and 8.05° under the new one, and
+the largest per-seed difference is 0.41°. PDR integrates heading into position,
+so a disturbance landing on a different part of the walk moves the track by
+metres without changing the heading statistics at all.
 
 **Step length is essentially the whole residual.** PDR believes it walked
 124.1 m against a true 116.6 m, +6%. Detection is sound — 166 steps found
@@ -483,8 +545,8 @@ Running `python -m ch6_dead_reckoning.example_environment` demonstrates magnetom
 RESULTS
 ======================================================================
 Magnetometer Heading:
-  RMSE:             20.6°
-  Max error:        179.1°
+  RMSE:             20.5°
+  Max error:        173.7°
   (Note: Large errors during disturbances at 30-50s, 100-120s)
 Barometric Altitude:
   RMSE:             3.03 m
@@ -519,18 +581,56 @@ production floor detector.
 
 Running `python -m ch6_dead_reckoning.example_allan_variance` characterizes IMU noise.
 
+<!-- example-output: ch6_dead_reckoning.example_allan_variance -->
 ```
-=== Allan Variance Analysis ===
+RESULTS - IMU Noise Characterization
+======================================================================
 
-Gyroscope Noise Parameters:
-  Angle Random Walk:   0.0088 deg/sqrt(hr)
-  Bias Instability:    8.85 deg/hr
-  Rate Random Walk:    1.697 deg/s/sqrt(hr)
+Gyroscope (consumer):
+  Angle Random Walk (ARW):     0.2707 deg/sqrt(hr)
+  Bias Instability (BI):       13.68 deg/hr
+  Rate Random Walk (RRW):      0.04366 deg/s/sqrt(hr)
 
-Accelerometer Noise Parameters:
-  Velocity Random Walk: 0.00999 m/s/sqrt(s)
-  Bias Instability:     0.000542 m/s²
+Accelerometer (consumer):
+  Velocity Random Walk (VRW):  0.00021 m/s/sqrt(s)
+  Bias Instability:            0.000118 m/s^2
+...
+  quantity                        injected   recovered   ratio
+  gyro ARW  [rad/sqrt(s)]        2.909e-05   7.875e-05    2.7x
+  gyro BI   [rad/s]              4.848e-05   6.633e-05    1.4x
+  gyro RRW  [rad/s^1.5]          2.909e-06   1.270e-05    4.4x
+  accel VRW [m/s^1.5]            1.667e-04   2.132e-04    1.3x
+  accel BI  [m/s^2]              1.000e-04   1.182e-04    1.2x
+
+  gyro ARW   region slope -0.23 (needs -0.50) -- NOT REACHED
+  gyro RRW   region slope +0.04 (needs +0.50) -- NOT REACHED
+  accel VRW  region slope -0.47 (needs -0.50) -- as expected
+  accel BI   region slope +0.03 (needs +0.00) -- as expected
 ```
+
+**This block was the one transcript in the chapter with no
+`example-output` marker, so nothing checked it, and it had drifted into
+describing a run that no longer existed** — a header (`=== Allan Variance
+Analysis ===`) the example does not print, and an ARW of 0.0088 deg/√hr, which
+is navigation grade. It is marked now, and re-pasted from a real run.
+
+**The example also used to characterise a different IMU from the rest of the
+chapter.** Its noise table wrote out a second "consumer grade" spec by hand,
+and two of the three shared quantities disagreed with
+`IMUNoiseParams.consumer_grade()`: gyro ARW 0.5 deg/√hr against 0.1 (a factor
+of 5), and accel VRW `0.01` labelled *m/s/√s* against the same digits meaning
+*m/s/√hr* (a factor of √3600 = 60). The table is derived from
+`IMUNoiseParams` now.
+
+Fixing the VRW is what made the accelerometer's bias instability recoverable:
+its Allan floor now arrives at τ ≈ 6.3 s, inside a one-hour record, and the
+recovered value is within 20% of the injected one where it used to be out by
+5.9×. The gyro's ARW is the one that got *harder* to read, honestly so: with
+ARW 0.1 deg/√hr and BI 10 deg/hr, the white-noise region ends at
+τ = (ARW/0.664B)² = 0.8 s, so the conventional read at τ = 1 s is already past
+the shoulder. The example prints a per-region slope verdict for all four
+parameters rather than letting the reader assume a number is readable because
+it was printed.
 
 **Implementation Note (January 2026 Fix):**  
 The bias instability simulation now correctly uses **1/f pink noise** (not random walk) to produce the characteristic flat region in Allan deviation. This ensures the three expected slopes appear:
@@ -583,15 +683,32 @@ The Allan deviation curve reveals three distinct noise processes, each dominatin
 The minimum occurs where pink noise (BI) dominates. At shorter τ, white noise increases as 1/√τ. At longer τ, random walk increases as √τ. The optimal averaging time is near the minimum (~30-100s for consumer IMUs).
 
 **Converting ARW/VRW to sample noise:**
+These helpers take the random walk in **rad/√s**, and Allan analysis reports it
+in **deg/√hr**. Convert first — the two differ by a factor of 206265/60 ≈ 3437:
+
 ```python
+import numpy as np
+
 from core.sensors.calibration import (
     random_walk_to_increment_sample_std,
     random_walk_to_rate_sample_std,
 )
+from core.sensors.units import deg_per_sqrt_hour_to_rad_per_sqrt_sec
 
-sigma_rate = random_walk_to_rate_sample_std(0.0088, dt=0.01)      # rad/s samples
-sigma_angle = random_walk_to_increment_sample_std(0.0088, dt=0.01)  # rad increments
+arw_deg_sqrt_hr = 0.2707                                       # what the example reports
+arw = deg_per_sqrt_hour_to_rad_per_sqrt_sec(arw_deg_sqrt_hr)   # 7.874e-05 rad/√s
+
+sigma_rate = random_walk_to_rate_sample_std(arw, dt=0.01)      # 7.874e-04 rad/s
+sigma_angle = random_walk_to_increment_sample_std(arw, dt=0.01)  # 7.874e-06 rad
+
+print(f"{np.rad2deg(sigma_rate):.4f} deg/s per sample")        # 0.0451 deg/s
 ```
+
+**Skipping the conversion is not a small error.** Passing the deg/√hr number
+straight in — which this snippet used to do, with `0.0088` under a `# rad/s
+samples` comment — returns 0.0880 rad/s, i.e. **5.04 °/s** of per-sample gyro
+noise. That is a sensor tumbling on the bench, not one sitting still, and it is
+two orders of magnitude past anything the chapter models.
 
 ---
 
@@ -612,7 +729,7 @@ Method                 RMSE [m]  Final [m] Median [m]    90% [m]   Path [m]
 IMU Only                  53.78      99.73      40.28      89.75      169.5
 IMU + ZUPT                 8.82       9.48       9.48      10.64       85.1
 Wheel Odom                 0.42       0.12       0.32       0.66      104.3
-PDR (Mag)                  0.51       0.49       0.49       0.66      102.3
+PDR (Mag)                  0.56       0.59       0.59       0.72      102.3
 
 ...
 KEY INSIGHTS:
@@ -621,7 +738,7 @@ KEY INSIGHTS:
   2. IMU+ZUPT: 84% RMSE reduction on this seed (54 m -> 8.8 m), detector active on 25% of samples.
      The reduction is seed-dependent too: 74-84% over the same 12-seed sweep, median 82%.
   3. Wheel Odom: BOUNDED. Error follows distance, not time: RMSE 0.42 m over 100 m, set by the 2% encoder scale error -- a systematic term, so this stays 0.39-0.48 m across the same sweep.
-  4. PDR: BOUNDED, heading-limited. 149 detected steps cover 102.3 m against 100.0 m (+2.3%), RMSE 0.51 m (0.43-0.61 m across the sweep; the step count itself does not move).
+  4. PDR: BOUNDED, heading-limited. 149 detected steps cover 102.3 m against 100.0 m (+2.3%), RMSE 0.56 m (0.41-0.73 m across the sweep; the step count itself does not move).
 ```
 
 **Read the `Path` column first.** Every method here is scored against a ground
@@ -811,7 +928,7 @@ data/sim/
 │   ├── wheel_speed.txt               # Wheel speed (_clean.txt is noise-free)
 │   ├── gyro.txt                      # Yaw rate (_clean.txt is noise-free)
 │   └── config.json
-├── ch6_pdr_corridor_walk/            # 40m x 20m corridor walk
+├── ch6_pdr_corridor_walk/            # four 30 m legs, ~31 m x 31 m square loop
 │   ├── time.txt
 │   ├── ground_truth_position.txt
 │   ├── ground_truth_heading.txt

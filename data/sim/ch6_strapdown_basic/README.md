@@ -127,19 +127,53 @@ From `config.json`:
 | `accel_bias` | [0,0] | [0.05, 0.05] | Drift grows as t²: Δp(t) ≈ ½ b_a × t² | Systematic unbounded divergence |
 | `gyro_bias` | 0.0 | 0.001-0.01 | Linear heading drift: Δθ(t) = b_ω × t | Understand bias vs. noise effects |
 
-**Key Insight**: Without external corrections, IMU drift is **unbounded**. Noise causes stochastic growth (~t^(3/2)), bias causes systematic growth (t²). After 60s at 1 m/s:
-- Consumer IMU: ~30-50m position error (5-8× distance traveled)
-- MEMS IMU: ~150-250m error (25-40× distance traveled)
-- Tactical IMU: ~5-10m error (~1× distance traveled)
+**Key Insight**: Without external corrections, IMU drift is **unbounded**. Noise
+causes stochastic growth (~t^(3/2)), bias causes systematic growth (t²).
+
+For the noise-only case these datasets ship (`accel_bias_m_s2: [0, 0]`), after
+60 s, as a 2-D radial RMS from σ_p = √2 × VRW × t^(3/2)/√3:
+
+- Tactical (σ_a = 0.01): 0.38 m
+- Consumer (σ_a = 0.1):  3.8 m
+- MEMS (σ_a = 0.5):      19 m
+
+These are an order of magnitude below the "30-50 m / 150-250 m" this table
+used to carry, for the reason in the prediction block above: those figures
+read `accel_noise_std` as a noise density. Errors of tens of metres in a
+minute are real -- they come from **bias**, which these presets set to zero.
+`example_imu_strapdown` runs with a consumer-grade bias and drifts 646 m in
+100 s, 99% of it vertical and 638 m of that predicted by ½ b_a t² alone.
 
 **Theoretical Predictions** (Ch6, Section 6.1):
 
-Velocity error from accel noise: σ_v(t) = σ_a × √t  
-Position error from accel noise: σ_p(t) = (σ_a / √2) × t^(3/2)
+**`accel_noise_std` is a per-sample standard deviation, not a noise density,
+and the two differ by √dt.** These formulas take a density (the VRW, in
+m/s/√s); feeding them the per-sample σ directly is a factor of 1/√dt = 10 at
+100 Hz, and that is where this section's old "σ_p(60) ≈ 36 m" came from.
 
-For σ_a = 0.1 m/s², t = 60s:  
-σ_v(60) ≈ 0.77 m/s  
-σ_p(60) ≈ 36 m
+Convert first:
+
+    VRW = σ_a √dt = 0.1 × √0.01 = 0.01 m/s/√s
+
+Then, per axis:
+
+    σ_v(t) = VRW × √t
+    σ_p(t) = VRW × t^(3/2) / √3
+
+The constant is 1/√3, not 1/√2: integrating a Wiener velocity gives
+Var[p(t)] = q t³/3. For VRW = 0.01 m/s/√s and t = 60 s:
+
+    σ_v(60) = 0.0775 m/s
+    σ_p(60) = 2.68 m per axis  (3.79 m as a 2-D radial RMS)
+
+Checked rather than asserted: 2000 Monte-Carlo double-integrations of
+per-sample N(0, 0.1) noise at 100 Hz give σ_p(60) = 2.71 m per axis, within
+1% of the closed form. The 1/√2 version predicts 3.29 m, which is 21% high.
+
+And integrating the **shipped** `imu.npz` against `truth.npz` -- one
+realisation, both axes, gyro included -- ends **4.40 m** from truth at 60 s,
+with an RMSE of 2.09 m over the run. That is the number to compare your own
+integration against.
 
 ---
 
@@ -174,7 +208,7 @@ ax.legend()
 ax.grid(True, alpha=0.3)
 ax.axis('equal')
 plt.tight_layout()
-plt.savefig('strapdown_trajectory.svg')
+plt.show()
 
 # Plot IMU measurements
 fig, axes = plt.subplots(3, 1, figsize=(12, 10), sharex=True)
@@ -194,7 +228,7 @@ axes[2].set_xlabel('Time (s)')
 axes[2].grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('strapdown_imu_measurements.svg')
+plt.show()
 ```
 
 ---
@@ -285,9 +319,14 @@ done
 
 | IMU Grade | σ_a | σ_ω | Position RMSE @ 60s | Drift Rate |
 |-----------|-----|-----|---------------------|------------|
-| Tactical | 0.01 | 0.001 | ~5-8 m | ~1% of distance |
-| Consumer | 0.1 | 0.01 | ~30-50 m | ~5-8% |
-| MEMS | 0.5 | 0.05 | ~150-250 m | ~25-40% |
+| Tactical | 0.01 | 0.001 | 0.38 m | ~0.6% of distance |
+| Consumer | 0.1 | 0.01 | 3.8 m | ~6% |
+| MEMS | 0.5 | 0.05 | 19 m | ~32% |
+
+(2-D radial RMS at 60 s from accelerometer white noise alone, σ_p = √2 · σ_a√dt ·
+t^(3/2)/√3 at dt = 0.01 s; distance is 60 m at 1 m/s. Gyro noise adds a smaller
+term through the attitude, which is why the shipped consumer realisation ends at
+4.40 m rather than exactly 3.8 m.)
 
 **Analysis**:
 - Plot position error vs. time (should show t^(3/2) growth)
@@ -295,7 +334,12 @@ done
 - Verify slope ≈ 1.5 for noise-dominated case
 - Compare with theoretical prediction
 
-**Key Insight**: 5× increase in noise → 25× increase in position error after 60s (because t^(3/2) dependence). Better IMU dramatically reduces drift but doesn't eliminate it.
+**Key Insight**: 5× increase in noise → **5×** increase in position error after
+60 s. σ_p = VRW · t^(3/2)/√3 is **linear in the noise** and super-linear only in
+*time*; the t^(3/2) says what happens when you integrate for longer, not when you
+buy a worse sensor. (This line used to say 25×, squaring the noise ratio by
+borrowing the time exponent.) Better IMU reduces drift proportionally but does
+not eliminate it.
 
 ---
 
@@ -376,17 +420,25 @@ done
 
 | Duration | Position RMSE (consumer) | Growth Factor |
 |----------|--------------------------|---------------|
-| 30 s | ~15 m | baseline |
-| 60 s | ~36 m | 2.4× (≈ 2^1.5) |
-| 120 s | ~86 m | 5.7× (≈ 4^1.5) |
-| 180 s | ~140 m | 9.3× (≈ 6^1.5) |
+| 30 s | 1.3 m | baseline |
+| 60 s | 3.8 m | 2.8× (= 2^1.5) |
+| 120 s | 10.7 m | 8.0× (= 4^1.5) |
+| 180 s | 19.7 m | 14.7× (= 6^1.5) |
+
+(2-D radial RMS from accelerometer noise, consumer σ_a = 0.1 at 100 Hz. The
+growth factors are exactly t^(3/2) because that is what the closed form says;
+the magnitudes this table used to carry were the same 10× density/per-sample
+confusion as above, and their growth factors were wrong too -- 2.4× where
+2^1.5 = 2.83.)
 
 **Analysis**:
 - Plot RMSE vs. time on log-log scale
 - Verify slope ≈ 1.5 (t^(3/2) relationship)
 - Extrapolate: after 5 minutes → ~200m error!
 
-**Key Insight**: Drift grows super-linearly. Doubling time → 2.8× more drift. After a few minutes, IMU-only positioning becomes useless.
+**Key Insight**: Drift grows super-linearly. Doubling the time gives 2^1.5 = 2.8×
+more drift from noise alone, and 4× from a bias. After a few minutes, IMU-only
+positioning becomes useless -- and it is the bias term that gets you there.
 
 ---
 

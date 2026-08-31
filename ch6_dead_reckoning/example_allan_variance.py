@@ -49,37 +49,76 @@ from core.sim import (
 #: noisy by nature at long tau, which is exactly why the draw has to be pinned.
 DEFAULT_SEED = 42
 
-#: Noise the synthetic record is built from, in SI: gyro ARW rad/sqrt(s) after
-#: the sqrt(3600) below, bias instability rad/s, RRW rad/s^(3/2), accel VRW
-#: m/s^(3/2), accel bias instability m/s^2.
+#: Noise the synthetic record is built from. The two "per sqrt(hour)"
+#: quantities are stored in that form and divided by sqrt(3600) in
+#: `injected_si`; bias instabilities are already rates and are stored in SI.
 #:
 #: Module-level rather than buried in the generator so that the example -- and
 #: its test -- can compare what the Allan analysis recovers against what went
 #: in. That comparison is the whole point of running this on synthetic data,
 #: and its absence is why three unit errors survived here: nothing ever put the
 #: answer next to the question.
+#:
+#: Derived from `IMUNoiseParams`, not written out again -- see
+#: `_spec_from_noise_params` for the two disagreements that caused.
+#: Rate random walk, per grade, in deg/s/sqrt(hr) before the sqrt(3600).
+#:
+#: Kept here rather than taken from `IMUNoiseParams` because that class
+#: deliberately records `gyro_rrw_rad_s_sqrt_s=0.0` for every grade, commented
+#: "Not specified" -- data sheets rarely quote one. This example needs a
+#: nonzero RRW or its +1/2 slope has nothing to draw, so it declares its own
+#: and says so, rather than editing a shared type to suit one figure.
+RRW_DEG_PER_S_PER_SQRT_HOUR = {"consumer": 0.01, "tactical": 0.001}
+
+#: Accelerometer bias instability, per grade, in m/s^2.
+#:
+#: NOT `IMUNoiseParams.accel_bias_mps2`, and the difference is physical rather
+#: than a units question. That field is 10 mg for consumer grade, which is a
+#: turn-on / repeatability bias -- the offset a device wakes up with, and the
+#: right thing for `example_imu_strapdown` to integrate. An *Allan* bias
+#: instability is the floor of the sigma(tau) curve, and 10 mg there would put
+#: the flat region below tau = 1e-5 s and flatten the whole curve, leaving the
+#: VRW slope this figure exists to show with nowhere to appear. Two different
+#: quantities that a spec sheet prints in the same unit.
+ACCEL_BIAS_INSTABILITY_MPS2 = {"consumer": 0.0001, "tactical": 0.00001}
+
+
+def _spec_from_noise_params(grade):
+    """Build one IMU_SPECS entry from the shared `IMUNoiseParams` grade.
+
+    The three quantities `IMUNoiseParams` carries are read from it rather than
+    written out again here. They used to be written out again here, and two of
+    the three disagreed with it:
+
+      * gyro ARW 0.5 deg/sqrt(hr) against its 0.1 -- a factor of 5;
+      * accel VRW "0.01 m/s/sqrt(s)" against its 0.01 **m/s/sqrt(hr)** -- the
+        same digits under two different units, a factor of sqrt(3600) = 60.
+
+    So the chapter shipped two "consumer-grade" IMUs, and the Allan figure
+    characterised a sensor no other example in Chapter 6 ever used. The unit
+    slip is the kind `IMUNoiseParams` exists to make impossible -- its field
+    names carry their units -- and it reappeared the moment a second table
+    wrote the numbers down in prose.
+    """
+    from core.sensors import IMUNoiseParams
+
+    params = getattr(IMUNoiseParams, f"{grade}_grade")()
+    return {
+        # gyro_arw and gyro_rrw are stored in per-sqrt-hour form because
+        # `injected_si` divides those two by sqrt(3600); multiply back so the
+        # single source stays the source. accel_vrw is NOT one of them --
+        # `injected_si` passes it straight through, and the generator reads it
+        # as m/s/sqrt(s). That asymmetry is exactly where the 60x slip lived.
+        "gyro_arw": params.gyro_arw_rad_sqrt_s * np.sqrt(3600.0),
+        "gyro_bias_instability": params.gyro_bias_rad_s,
+        "gyro_rrw": np.deg2rad(RRW_DEG_PER_S_PER_SQRT_HOUR[grade]),
+        "accel_vrw": params.accel_vrw_mps_sqrt_s,
+        "accel_bias_instability": ACCEL_BIAS_INSTABILITY_MPS2[grade],
+    }
+
+
 IMU_SPECS = {
-    "consumer": {
-        "gyro_arw": np.deg2rad(0.5),  # deg/sqrt(hr) → rad/sqrt(s)
-        "gyro_bias_instability": np.deg2rad(10.0) / 3600.0,  # deg/hr → rad/s
-        "gyro_rrw": np.deg2rad(0.01),  # deg/s/sqrt(hr)
-        "accel_vrw": 0.01,  # m/s/sqrt(s)
-        # The "/ 3600.0" that used to be here was spurious -- a bias
-        # instability in m/s^2 is already a rate, so there is nothing to
-        # convert from per-hour. It made the consumer accelerometer
-        # 2.8e-8 m/s^2, which is 360x *better* than the tactical entry below,
-        # and small enough that the Allan curve had no flat region at all: the
-        # estimator returned the white-noise floor, 5.4e-4, and the example
-        # printed that as a bias instability. The tactical spec had it right.
-        "accel_bias_instability": 0.0001,  # m/s²
-    },
-    "tactical": {
-        "gyro_arw": np.deg2rad(0.05),
-        "gyro_bias_instability": np.deg2rad(1.0) / 3600.0,  # deg/hr → rad/s
-        "gyro_rrw": np.deg2rad(0.001),
-        "accel_vrw": 0.001,
-        "accel_bias_instability": 0.00001,  # m/s²
-    },
+    grade: _spec_from_noise_params(grade) for grade in ("consumer", "tactical")
 }
 
 
@@ -308,6 +347,25 @@ def plot_allan_deviation(taus, adev, noise_params, sensor_type, grade, figs_dir)
     # Plot Allan deviation
     ax.loglog(taus, adev, "b-", linewidth=2, label=f"{sensor_type} Allan Deviation")
 
+    def region_slope(tau_low, tau_high):
+        """Slope of log10(adev) vs log10(tau) over one band, NaN if too narrow."""
+        band = (taus >= tau_low) & (taus <= tau_high)
+        if band.sum() < 3:
+            return float("nan")
+        return float(np.polyfit(np.log10(taus[band]), np.log10(adev[band]), 1)[0])
+
+    def readable(slope, wanted, tolerance=0.2):
+        """Is the curve doing what this parameter's reading assumes?"""
+        return bool(abs(slope - wanted) < tolerance)
+
+    #: Every marker below is a claim that a parameter was read off a region of
+    #: this curve. Where the region is not there, the number is still printed
+    #: -- the estimator returns something whatever the data does -- and a
+    #: marker drawn without comment turns that into a picture of a measurement
+    #: that was never made. The accelerometer legend used to report an RRW that
+    #: is not injected into the accelerometer at all. Each marker now carries
+    #: its region's slope when the region is absent, and is drawn hollow.
+
     # This function is called for both sensors, and used to label both with the
     # gyroscope's units: the accelerometer figure reported its bias instability
     # as "122.26 °/hr", degrees per hour, for a quantity in m/s^2. It also drew
@@ -334,12 +392,19 @@ def plot_allan_deviation(taus, adev, noise_params, sensor_type, grade, figs_dir)
     if white_key in noise_params:
         # White noise: read at tau=1s on the -1/2 slope.
         white_value = noise_params[white_key]
+        white_ok = readable(region_slope(taus[0], 1.0), -0.5)
+        white_label = f"{white_name} = {fmt_white(white_value)}"
+        if not white_ok:
+            white_label += (
+                f"  (no -1/2 region: slope {region_slope(taus[0], 1.0):+.2f})"
+            )
         ax.loglog(
             1.0,
             white_value,
             "ro",
             markersize=10,
-            label=f"{white_name} = {fmt_white(white_value)}",
+            markerfacecolor="red" if white_ok else "none",
+            label=white_label,
         )
 
         # Draw reference line
@@ -364,12 +429,18 @@ def plot_allan_deviation(taus, adev, noise_params, sensor_type, grade, figs_dir)
         # minimum and a height the curve never reaches.
         bi_index = int(np.argmin(adev))
         bi_value = noise_params["bias_instability"]
+        bi_slope = region_slope(taus[-1] / 10.0, taus[-1])
+        bi_ok = readable(bi_slope, 0.0)
+        bi_label = f"BI = {fmt_bi(bi_value)}"
+        if not bi_ok:
+            bi_label += f"  (no flat region: slope {bi_slope:+.2f})"
         ax.loglog(
             taus[bi_index],
             adev[bi_index],
             "gs",
             markersize=10,
-            label=f"BI = {fmt_bi(bi_value)}",
+            markerfacecolor="green" if bi_ok else "none",
+            label=bi_label,
         )
         # The minimum can fall on the last tau -- with few clusters left the
         # tail is noisy and often dips, and on a curve that never flattens it
@@ -407,8 +478,21 @@ def plot_allan_deviation(taus, adev, noise_params, sensor_type, grade, figs_dir)
         rrw_value = noise_params["rate_random_walk"]
         rrw_tau = taus[-10] if len(taus) > 10 else taus[-1]
         rrw_adev = rrw_value * np.sqrt(rrw_tau / 3.0)
+        rrw_slope = region_slope(taus[-1] / 10.0, taus[-1])
+        rrw_ok = readable(rrw_slope, +0.5)
+        rrw_label = f"RRW = {fmt_rrw(rrw_value)}"
+        if not rrw_ok:
+            # The accelerometer case is the strongest form of this: no rate
+            # random walk is injected into the accelerometer at all, so the
+            # legend was naming a component that is not in the data.
+            rrw_label += f"  (no +1/2 region: slope {rrw_slope:+.2f})"
         ax.loglog(
-            rrw_tau, rrw_adev, "md", markersize=10, label=f"RRW = {fmt_rrw(rrw_value)}"
+            rrw_tau,
+            rrw_adev,
+            "md",
+            markersize=10,
+            markerfacecolor="magenta" if rrw_ok else "none",
+            label=rrw_label,
         )
 
     ax.set_xlabel("Averaging Time τ [s]", fontsize=12)
@@ -582,30 +666,62 @@ def main():
     # is there. characterize_imu_noise already warns about this; putting the
     # evidence in the output means the reader does not have to catch a warning.
     print()
-    for sensor, key, wanted, what in (
-        ("gyro", "gyro", +0.5, "rate random walk"),
-        ("accel", "accel", 0.0, "bias instability"),
-    ):
+
+    def region_slope(key, tau_low, tau_high):
+        """Slope of log10(adev) against log10(tau) over one tau band."""
         taus_s = np.asarray(noise_char[key]["taus"])
         adev_s = np.asarray(noise_char[key]["adev"])
-        long_tau = taus_s >= taus_s[-1] / 10.0
-        slope = np.polyfit(np.log10(taus_s[long_tau]), np.log10(adev_s[long_tau]), 1)[0]
-        verdict = "as expected" if abs(slope - wanted) < 0.2 else "NOT REACHED"
-        print(
-            f"  {sensor:<5} long-tau slope {slope:+.2f} "
-            f"(needs {wanted:+.2f} for {what}) -- {verdict}"
-        )
+        band = (taus_s >= tau_low) & (taus_s <= tau_high)
+        if band.sum() < 3:
+            return float("nan")
+        return float(np.polyfit(np.log10(taus_s[band]), np.log10(adev_s[band]), 1)[0])
+
+    #: Where each parameter is read, and the slope that has to be there for the
+    #: reading to mean anything. The random-walk terms come from tau = 1 s (the
+    #: library's convention), so their region is the short-tau end; RRW comes
+    #: from tau = 100 s and bias instability from the curve's minimum, so
+    #: theirs is the long-tau end.
+    verdicts = {}
+    for sensor, key, short_name, long_name, long_wanted in (
+        ("gyro", "gyro", "ARW", "RRW", +0.5),
+        ("accel", "accel", "VRW", "BI", 0.0),
+    ):
+        taus_s = np.asarray(noise_char[key]["taus"])
+        short = region_slope(key, taus_s[0], min(1.0, taus_s[-1]))
+        long = region_slope(key, taus_s[-1] / 10.0, taus_s[-1])
+        for label, slope, wanted in (
+            (f"{sensor} {short_name}", short, -0.5),
+            (f"{sensor} {long_name}", long, long_wanted),
+        ):
+            ok = abs(slope - wanted) < 0.2
+            verdicts[label] = ok
+            print(
+                f"  {label:<10} region slope {slope:+.2f} "
+                f"(needs {wanted:+.2f}) -- {'as expected' if ok else 'NOT REACHED'}"
+            )
 
     print()
-    print("  The gyro curve is still on its bias-instability shoulder and the")
-    print("  accelerometer's is still falling as white noise, so the RRW and")
-    print("  accel-BI figures above are read off regions that do not exist in a")
-    print("  1-hour record. Lengthening it barely helps: at 4 hours the gyro")
-    print("  slope is 0.02 and the RRW still 2.5x high, for 20x the runtime,")
-    print("  and the accelerometer's white noise does not fall to its BI floor")
-    print("  until tau = 22681 s, which needs a 63-hour record. That is the")
-    print("  real lesson of the 1-24 hour guidance above, and it is why ARW and")
-    print("  VRW -- both read at short tau -- come back within 10%.")
+    print("  A parameter is only readable where the curve shows its slope, so")
+    print("  the ratios above should be read against these four verdicts and")
+    print("  not as estimator error. What this record can and cannot see:")
+    unreadable = [name for name, ok in verdicts.items() if not ok]
+    if unreadable:
+        print(f"    NOT identifiable here: {', '.join(unreadable)}.")
+    else:
+        print("    All four regions are present in this record.")
+    print("    The gyro's white-noise region ends where the bias-instability")
+    print("    floor takes over, at tau = (ARW / (0.664 B))^2. For the shared")
+    print("    consumer spec -- ARW 0.1 deg/sqrt(hr), B 10 deg/hr -- that is")
+    print("    0.8 s, so reading ARW at the conventional tau = 1 s is already")
+    print("    past the shoulder and comes back high. Not an error to fix by")
+    print("    lengthening the record: a longer run moves the far end of the")
+    print("    curve, not the near one.")
+    print("    The accelerometer's floor sits at tau = 6.3 s for the same")
+    print("    spec, which a 1-hour record clears comfortably -- which is why")
+    print("    its bias instability now comes back within 20% where it used")
+    print("    to be out by 5.9x. It was not the estimator: the injected VRW")
+    print("    was 60x too large, so the white noise never fell far enough to")
+    print("    meet the floor inside any record anyone would run.")
 
     print("\n" + "-" * 70)
     print("Reference IMU Grades:")

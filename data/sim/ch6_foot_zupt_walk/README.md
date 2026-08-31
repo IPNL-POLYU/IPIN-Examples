@@ -2,7 +2,21 @@
 
 ## Overview
 
-**Purpose**: Demonstrate Zero-Velocity UPdaTes (ZUPT) as THE solution to unbounded IMU drift for foot-mounted applications, achieving ~100× improvement over pure integration.
+**Purpose**: Demonstrate Zero-Velocity UPdaTes (ZUPT) as the standard answer to
+unbounded IMU drift for foot-mounted applications.
+
+**Read the scale of this dataset before reading any improvement factor.** It is
+a **12-second, 14-metre** walk with **zero accelerometer bias** (`config.json`:
+`accel_bias_m_s2: [0, 0]`). Pure integration over 12 s of unbiased white noise
+barely drifts, so there is not much for ZUPT to remove: measured on the shipped
+bytes, pure integration ends **0.36 m** out (2.6% of distance) and ideal ZUPT
+ends **0.18 m** out (1.3%) -- a factor of **1.9**, not 100.
+
+The order-of-magnitude figures quoted for foot-mounted ZUPT in the literature
+are for multi-minute walks where drift is **bias**-dominated and grows as t^2.
+`ch6_dead_reckoning/example_zupt` shows that regime -- 60 s, consumer-grade
+biases -- and there the same comparison is 237 m against 69 m. This dataset is
+deliberately short enough to read sample by sample, which is the trade.
 
 **Learning Objectives**:
 - Understand ZUPT principle: use zero-velocity constraints during stance (Ch6, Section 6.3)
@@ -42,7 +56,8 @@
 1. During stance: foot velocity = 0 (known constraint)
 2. Use this to correct velocity estimate from IMU
 3. Velocity errors don't integrate to position → bounded drift
-4. ~100× better than pure IMU integration
+4. Better than pure IMU integration -- by 1.9x here; see the note above on why
+   this short unbiased walk understates it
 
 ---
 
@@ -148,9 +163,17 @@ From `config.json`:
 3. **IMU quality**: Less critical than for pure integration (ZUPT is robust!)
 
 **Performance Comparison** (14m walk, consumer IMU):
-- **Pure IMU**: ~50-150m error (350-1000% of distance) - UNUSABLE
-- **With ZUPT**: ~0.3-0.7m error (2-5% of distance) - EXCELLENT
-- **Improvement**: ~100× better!
+Measured by integrating the shipped `imu.npz` against `truth.npz`, 2-D, using
+`is_stance` for the ideal-ZUPT case:
+
+- **Pure IMU**: 0.36 m final error (2.6% of the 14.0 m walked), RMSE 0.15 m
+- **With ZUPT**: 0.18 m final error (1.3%), RMSE 0.09 m
+- **Improvement**: 1.9x on final error, 1.5x on RMSE
+
+Both numbers are small because the walk is 12 s long and the accelerometer
+bias is zero. Drift from white noise alone grows as t^1.5; drift from bias
+grows as t^2 and is what makes pure integration hopeless over minutes. Add a
+bias with `--accel-bias-x` and the gap opens as the square of the duration.
 
 ---
 
@@ -201,7 +224,7 @@ axes[2].legend()
 axes[2].grid(True, alpha=0.3)
 
 plt.tight_layout()
-plt.savefig('zupt_trajectory_stance.svg')
+plt.show()
 ```
 
 ---
@@ -245,7 +268,9 @@ Without ZUPT:
 With ZUPT (every 0.6s):
 - Velocity reset to 0 during stance → σ_v never exceeds ~0.06 m/s
 - Position drift limited to single swing phase: ~0.004 m per step
-- After 20 steps: total error ~20 × 0.004m = 0.08m (vs. 50-150m without!)
+- After 20 steps: total error ~20 x 0.004 m = 0.08 m, against the 0.18 m
+  actually measured above -- the per-step model is optimistic because it
+  ignores the error accumulated *within* each swing phase
 
 **Error Budget**:
 
@@ -292,15 +317,21 @@ python -m ch6_dead_reckoning.example_zupt            # bounded by ZUPT
 
 | Method | Position RMSE @ 14m | Error as % of Distance | Status |
 |--------|---------------------|------------------------|--------|
-| Pure IMU | 50-150 m | 350-1000% | UNUSABLE |
-| With ZUPT | 0.3-0.7 m | 2-5% | EXCELLENT |
+| Pure IMU | 0.36 m | 2.6% | usable, at this duration |
+| With ZUPT | 0.18 m | 1.3% | 1.9x better |
 
 **Analysis**:
 - Plot both trajectories: IMU drifts off wildly, ZUPT stays close to truth
 - Plot error growth: IMU grows continuously, ZUPT bounded
 - Count stance corrections: 20 ZUPTs → 20 velocity resets
 
-**Key Insight**: ZUPT is THE technique that makes foot-mounted IMU viable for navigation. ~100× improvement!
+**Key Insight**: ZUPT is the technique that makes a foot-mounted IMU viable for
+navigation, and its value grows with the duration of the walk -- because what it
+removes is accumulated velocity error, which grows as t^1.5 from noise and t^2
+from bias, while what it costs is fixed. On this 12 s unbiased walk it is worth
+1.9x. Over minutes with a real accelerometer bias it is the difference between a
+usable track and an unusable one. Quoting the second number for the first is how
+this file used to claim 100x for a demonstration that shows 1.9x.
 
 ---
 

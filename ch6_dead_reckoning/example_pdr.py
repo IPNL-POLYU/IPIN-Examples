@@ -43,6 +43,8 @@ from core.sensors import (
     FrameConvention,
     IMUNoiseParams,
     detect_steps_peak_detector,
+    earth_field_body,
+    earth_field_map,
     integrate_gyro_heading,
     mag_heading,
     pdr_step_update,
@@ -418,10 +420,21 @@ def run_with_dataset(
 
     # Heading comparison
     ax = axes[1, 0]
+
+    # Both estimates come out of atan2 on (-180, 180] while `heading_true`
+    # accumulates past it, so this panel used to draw the magnetometer trace
+    # exactly 360 deg below the truth for the last leg -- an estimate that
+    # looks catastrophically wrong and is exactly right -- while the error
+    # panel beside it wrapped correctly and showed nothing of the sort. Adding
+    # the WRAPPED difference back to the truth puts every series on one branch
+    # without inventing anything.
+    def on_the_truths_branch(estimate):
+        return heading_true + wrap_heading(estimate - heading_true)
+
     ax.plot(t, np.rad2deg(heading_true), "k-", linewidth=2, label="True")
     ax.plot(
         t,
-        np.rad2deg(results["heading_gyro"]),
+        np.rad2deg(on_the_truths_branch(results["heading_gyro"])),
         "r--",
         linewidth=2,
         alpha=0.7,
@@ -429,7 +442,7 @@ def run_with_dataset(
     )
     ax.plot(
         t,
-        np.rad2deg(results["heading_mag"]),
+        np.rad2deg(on_the_truths_branch(results["heading_mag"])),
         "b-",
         linewidth=1.5,
         alpha=0.7,
@@ -437,7 +450,7 @@ def run_with_dataset(
     )
     ax.set_xlabel("Time [s]")
     ax.set_ylabel("Heading [deg]")
-    ax.set_title("Heading Comparison")
+    ax.set_title("Heading Comparison (estimates drawn on the truth's branch)")
     ax.legend()
     ax.grid(True, alpha=0.3)
 
@@ -619,20 +632,17 @@ def generate_corridor_walk(duration=120.0, dt=0.01, step_freq=2.0, frame=None):
         g=9.81,
     )
 
-    # Generate magnetometer measurements (points to magnetic north in body frame)
-    mag_body = np.zeros((N, 3))
-    mag_north_map = np.array(
-        [1.0, 0.0, 0.0]
-    )  # North = x-axis in ENU map frame (conventionally)
-
-    for k in range(N):
-        # Rotate north vector from map to body frame
-        # C_M^B = (C_B^M)^T
-        yaw = heading_true[k]
-        C_yaw = np.array(
-            [[np.cos(yaw), np.sin(yaw), 0], [-np.sin(yaw), np.cos(yaw), 0], [0, 0, 1]]
-        )
-        mag_body[k] = C_yaw.T @ mag_north_map
+    # Magnetometer: the fixed Earth field of `earth_field_map` (magnetic
+    # north, dipping into the ground) resolved into each body attitude.
+    #
+    # This used to place the "north" reference on the map +x axis, which in
+    # ENU is East, and then apply C_B^M where C_M^B was wanted -- two errors
+    # whose product is `[cos(yaw), sin(yaw), 0]`, a field co-rotating with the
+    # walker. It matched the old compass readout and nothing else.
+    field_map = earth_field_map()
+    mag_body = np.array(
+        [earth_field_body(0.0, 0.0, yaw, field_map=field_map) for yaw in heading_true]
+    )
 
     # Steps actually taken: the walker is only moving until the lap closes at
     # total_length / v_walk, and stands still afterwards.
@@ -687,14 +697,24 @@ def add_sensor_noise(
     )
     accel_noise = rng.standard_normal((N, 3)) * accel_noise_std
 
+    # The magnetic perturbations below are quoted as FRACTIONS of the
+    # horizontal Earth field and scaled here. They were bare numbers on a
+    # unit-magnitude field before; keeping them fractions is what makes the
+    # switch to a physical 45 uT field leave the demonstrated heading errors
+    # alone -- an absolute 0.05 uT on a 38 uT field would be no disturbance
+    # at all, and the comparison this example draws would collapse.
+    horizontal_ut = float(np.hypot(*earth_field_map()[:2]))
+
     # Magnetometer noise + disturbances
-    mag_noise = rng.standard_normal((N, 3)) * 0.05
+    mag_noise = rng.standard_normal((N, 3)) * 0.05 * horizontal_ut
     mag_disturbance = np.zeros((N, 3))
     # Add disturbances at specific times (simulating steel structures)
     disturb_intervals = [(20, 30), (70, 80)]  # seconds
     for start, end in disturb_intervals:
         mask = (np.arange(N) * dt >= start) & (np.arange(N) * dt < end)
-        mag_disturbance[mask] = rng.standard_normal((np.sum(mask), 3)) * 0.3
+        mag_disturbance[mask] = (
+            rng.standard_normal((np.sum(mask), 3)) * 0.3 * horizontal_ut
+        )
 
     gyro_meas = gyro_body + gyro_bias + gyro_noise
     accel_meas = accel_body + accel_noise
@@ -876,17 +896,33 @@ def plot_results(
     # Figure 2: Heading comparison
     fig2, (ax1, ax2) = plt.subplots(2, 1, figsize=(12, 8), sharex=True)
 
+    # Re-express each estimate on the same 2*pi branch as the truth before
+    # plotting. `heading_true` accumulates past 180 deg -- this walk turns a
+    # full circle -- while both estimates come out of atan2 on (-180, 180],
+    # so the panel used to show the magnetometer trace 360 deg below the
+    # truth for a whole leg, and a solid blue slab wherever the noise
+    # straddled the branch cut. Adding the WRAPPED difference back to the
+    # truth invents nothing (it is the same angle, in the branch the reader
+    # is looking at) and is what the error panel below has always done.
+    def on_the_truths_branch(estimate):
+        return heading_true + wrap_heading(estimate - heading_true)
+
     ax1.plot(t, np.rad2deg(heading_true), "k-", linewidth=2, label="True Heading")
     ax1.plot(
         t,
-        np.rad2deg(heading_gyro),
+        np.rad2deg(on_the_truths_branch(heading_gyro)),
         "r--",
         linewidth=2,
         alpha=0.7,
         label="Gyro Integrated",
     )
     ax1.plot(
-        t, np.rad2deg(heading_mag), "b-", linewidth=1.5, alpha=0.7, label="Magnetometer"
+        t,
+        np.rad2deg(on_the_truths_branch(heading_mag)),
+        "b-",
+        linewidth=1.5,
+        alpha=0.7,
+        label="Magnetometer",
     )
     ax1.set_ylabel("Heading [deg]", fontsize=12)
     ax1.set_title("PDR Example: Heading Comparison", fontsize=14, fontweight="bold")
@@ -957,7 +993,7 @@ def run_with_inline_data(lat_deg: float = 45.0, step_model: str = "book"):
     print("Configuration:")
     print(f"  Duration:        {duration} s")
     print(f"  User Height:     {height} m")
-    print("  Trajectory:      40m x 20m rectangular corridor")
+    print("  Trajectory:      40 m x 20 m rectangular corridor (inline)")
     print(f"  Frame:           {frame.map_frame}\n")
 
     # Print IMU specifications
