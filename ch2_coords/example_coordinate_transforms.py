@@ -93,7 +93,10 @@ def run_with_dataset(data_dir: str) -> None:
     config = data["config"]
 
     print("\nDataset Info:")
-    print(f"  Location: {config.get('location', 'Unknown')}")
+    # The name lives under `reference_point`, not at the top level; a
+    # `.get('location', 'Unknown')` on the outer dict printed "Unknown" for a
+    # dataset that has always recorded where it is.
+    print(f"  Location: {config['reference_point']['location']}")
     print(f"  Points: {len(data['llh'])}")
 
     # Example 1: LLH to ECEF (verify dataset)
@@ -117,7 +120,20 @@ def run_with_dataset(data_dir: str) -> None:
     print(
         f"Computed ECEF: [{ecef_computed[0]:,.2f}, {ecef_computed[1]:,.2f}, {ecef_computed[2]:,.2f}] m"
     )
-    print(f"Difference: {diff:.6e} m (should be ~0)")
+    # "(should be ~0)" sat here and argued with the "sub-nanometer accuracy"
+    # line at the end of the run. Both were about different things and neither
+    # said so. This residual is the *file's* storage quantum: ecef_coordinates
+    # .txt is written at "%.3f", so each axis carries up to 0.5 mm of rounding
+    # and the norm over three axes is bounded by sqrt(3) * 0.5 mm. Measured
+    # over all 20 shipped points the worst is 0.835 mm, inside that bound --
+    # so the transform is exact and the file is rounded.
+    quantisation_bound_m = np.sqrt(3.0) * 0.5e-3
+    print(f"Difference: {diff:.6e} m = {diff * 1e3:.3f} mm")
+    print(
+        "  The file stores ECEF at 1 mm resolution, so anything under "
+        f"{quantisation_bound_m * 1e3:.2f} mm is that rounding rather than"
+    )
+    print("  transform error. The transform itself round-trips below (step 2).")
 
     # Example 2: Round-trip LLH -> ECEF -> LLH
     print("\n2. Round-Trip Accuracy Test")
@@ -211,7 +227,8 @@ def run_with_dataset(data_dir: str) -> None:
     print("Dataset verification complete!")
     print("=" * 70)
     print("\nKey Learning Points:")
-    print("  - LLH<->ECEF transforms have sub-nanometer accuracy")
+    print("  - LLH<->ECEF round-trips in memory close to ~1e-9 m (step 2);")
+    print("    the sub-millimetre gap in step 1 is the file's 1 mm storage")
     print("  - ENU provides intuitive local coordinates for indoor positioning")
     print("  - Quaternions avoid gimbal lock (use for computation)")
     print("  - Euler angles are human-readable (use for display)")

@@ -18,10 +18,10 @@
     "rotation_roundtrip_deg": 0.0
   },
   "equations": [
-    "2.1 (LLH->ECEF)",
-    "2.2 (ECEF->LLH)",
-    "2.3 (ECEF->ENU)",
-    "2.5-2.10 (Rotations)"
+    "2.9 (LLH->ECEF)",
+    "2.9 inverse, iterative (ECEF->LLH)",
+    "2.10 (ECEF->ENU)",
+    "2.14-2.17 (Euler->C), 2.21 (quat->C), 2.23 (Euler->quat)"
   ],
   "seed": 42
 }

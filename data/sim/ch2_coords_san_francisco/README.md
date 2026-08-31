@@ -16,10 +16,13 @@ This dataset demonstrates **practical coordinate transformations** for indoor po
 5. **Practical Application**: GPS → local building coordinates
 
 ### Implemented Equations
-- **Eq. (2.1)**: LLH → ECEF (closed-form)
-- **Eq. (2.2)**: ECEF → LLH (iterative, ~10 iterations)
-- **Eq. (2.3)**: ECEF → ENU (rotation + translation)
-- **Eqs. (2.5-2.10)**: Rotation representations
+- **Eq. (2.9)**: LLH → ECEF (closed-form)
+- **Eq. (2.9) inverse**: ECEF → LLH (iterative, ~10 iterations; the book
+  gives no closed form and refers to Kaplan & Hegarty)
+- **Eq. (2.10)**: ECEF → ENU (rotation + translation)
+- **Eqs. (2.14)-(2.17)**: Euler angles → rotation matrix, and its inverse
+- **Eq. (2.21)**: quaternion → rotation matrix
+- **Eq. (2.23)**: Euler angles → quaternion
 
 ## Files and Data Structure
 
@@ -148,9 +151,9 @@ print("figure built")
 
 ```
 GPS Receiver Output (LLH)
-    ↓ Eq. (2.1): llh_to_ecef()
+    ↓ Eq. (2.9): llh_to_ecef()
 Global Cartesian (ECEF)
-    ↓ Eq. (2.3): ecef_to_enu()
+    ↓ Eq. (2.10): ecef_to_enu()
 Local Building Frame (ENU)
     ↓ Indoor positioning algorithms
 Position estimate (ENU)
@@ -371,10 +374,12 @@ for e in euler[:3]:
 
 ### Chapter 2: Coordinate Systems
 
-- **Eq. (2.1)**: LLH → ECEF (closed-form, WGS84 ellipsoid)
-- **Eq. (2.2)**: ECEF → LLH (iterative solution)
-- **Eq. (2.3)**: ECEF → ENU (rotation matrix depends on reference lat/lon)
-- **Eqs. (2.5-2.10)**: Rotation conversions
+- **Eq. (2.9)**: LLH → ECEF (closed-form, WGS84 ellipsoid)
+- **Eq. (2.9) inverse**: ECEF → LLH (iterative solution)
+- **Eq. (2.10)**: ECEF → ENU (rotation matrix depends on reference lat/lon)
+- **Eqs. (2.14)-(2.17)**, **(2.21)**, **(2.23)**: rotation conversions.
+  Note 2.1/2.2 are the local body/map *vector definitions* and 2.3 is
+  map ↔ body -- this list used to cite them for the geodetic chain.
 
 **Key Insight**: Indoor positioning uses **local (ENU) frames** - much simpler than global (ECEF)!
 
