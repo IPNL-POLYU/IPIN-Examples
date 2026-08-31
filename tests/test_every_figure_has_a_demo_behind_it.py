@@ -65,6 +65,16 @@ EXTRA_RUNS = {
         # depending on some other test in the suite happening to run it.
         ("example_comparison", ("--compare-geometry",)),
     ),
+    "ch3_estimators": (
+        # The EKF's dataset panel exists only on the --data path, and now has a
+        # basename of its own: it used to write `ch3_ekf_range_bearing`, the
+        # same name as the inline run, so whichever ran last owned the file the
+        # chapter README displays.
+        (
+            "example_ekf_range_bearing",
+            ("--data", "ch3_estimator_nonlinear"),
+        ),
+    ),
     "ch6_dead_reckoning": (
         # Allan variance draws the per-component breakdown only in debug mode.
         ("example_allan_variance", ("--debug",)),
