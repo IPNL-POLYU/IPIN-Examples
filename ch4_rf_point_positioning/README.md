@@ -141,6 +141,30 @@ config = json.load(open(path / "config.json"))
 
 ### TOA Positioning
 
+**One-way TOA assumes the clocks are already synchronised**, and this is the
+assumption to state before any number below it. Turning a measured time of
+flight into a range means treating the transmit epoch as known, so at c every
+nanosecond of unmodelled offset is 0.30 m of range error — and a free-running
+consumer oscillator at a few ppm reaches tens of nanoseconds in well under a
+second. A demonstration that reports 0.1 m of *measurement* noise has said
+nothing about the clock, which is the larger term in practice.
+
+The table below sets one-way TOA beside the three answers Chapter 4 gives to
+it. They are different kinds of answer — one buys infrastructure, one spends a
+degree of freedom, one changes the protocol — and the clock column is the one
+to read first:
+
+| Approach | Clock requirement | Cost | Where |
+|----------|-------------------|------|-------|
+| One-way TOA | transmitter and receiver **synchronised** | a synchronisation protocol in the infrastructure | Eq. (4.1)-(4.3) |
+| One-way TOA + clock bias | none, but needs one extra measurement | one degree of freedom (position DOP rises) | Eq. (4.24)-(4.26) |
+| **Two-way TOA (RTT)** | **none** — both timestamps are on one clock | the responder's turnaround time must be calibrated | Eq. (4.6)-(4.9) |
+| TDOA | transmitters synchronised with each other, not with the receiver | no accuracy gain over TOA-with-an-estimated-clock — the same information | Eq. (4.27)-(4.42) |
+
+`example_toa_positioning`'s Example 7 runs the first three on one anchor array
+with one timing budget, so the comparison is between protocols rather than
+between one protocol's assumptions and another's physics.
+
 ```python
 import numpy as np
 from core.rf import TOAPositioner
@@ -149,6 +173,9 @@ from core.rf import TOAPositioner
 anchors = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
 
 # True position and compute ranges
+# These are ranges, not pseudoranges: writing them this way is itself the
+# synchronisation assumption. With an unknown receiver clock they would each
+# carry a common c*dt, and the solver below could not see it.
 true_pos = np.array([5.0, 5.0])
 ranges = np.linalg.norm(anchors - true_pos, axis=1)
 
@@ -285,6 +312,12 @@ Example 1: TOA Positioning with Perfect Measurements
 ======================================================================
 ...
 True position: [5. 5.]
+
+Assumption: one-way TOA as solved here needs the beacon and agent
+  clocks already synchronised -- that is what turns a measured time
+  of flight into a range. At c, 1 ns of unmodelled offset is 0.300 m
+  of range error. Example 3 estimates the offset; Example 7 prices
+  the assumption against two-way TOA, which does not need it.
 ...
 Estimated position: [5.00000012 5.00000012]
 Position error: 0.000000 m
@@ -294,7 +327,7 @@ Iterations: 3
 Example 2: TOA Positioning with Measurement Noise
 ======================================================================
 True position: [3. 7.]
-Range noise std: 0.1 m
+Range noise std: 0.1 m  (0.33 ns; clocks still assumed synchronised)
 ...
 Position error: 0.055 m   <- ONE noise draw, not an accuracy
 ...
@@ -303,6 +336,34 @@ Over 2000 noise draws, against Eq. (4.107):
   predicted HDOP x sigma : 0.1010 m
   measured RMS error     : 0.1012 m  (1.00x predicted)
   a single draw lands anywhere in [0.032, 0.154] m (10th-90th percentile)
+...
+Example 7: One-Way vs Two-Way TOA Under One Timing Budget
+======================================================================
+
+Anchors: 20 m square, agent at [ 8. 12.], all solves seeded at [10. 10.]
+
+One timing budget, three protocols:
+  per-timestamp jitter sigma_t     : 1.000 ns
+  receiver clock offset b (case B) : 20.0 ns = 5.996 m
+  turnaround residual (case C)     : 1.000 ns
+
+Range noise, derived from sigma_t rather than chosen per case:
+  one-way : sigma_range = c*sigma_t                  = 0.2998 m
+  two-way : sigma_RTT = sqrt(2*st^2 + sp^2)          = 1.7321 ns
+            sigma_range = c*sigma_RTT/2              = 0.2596 m   (0.866x one-way)
+...
+Zero-noise sanity (sigma_t = 0, b = 0, turnaround residual = 0):
+  A and B(i) 0.000000 m   B(ii) 0.000000 m (bias 0.000000 m)   C 0.000000 m
+
+Case B(i): what 20 ns of unmodelled offset does:
+  linearised prediction b*||(H'H)^-1 sum(u_i)|| : 1.1323 m
+  measured, noiseless                           : 1.6976 m
+...
+  case                                     median     RMSE  failed  predicted
+  A     one-way, clocks synchronised       0.2518   0.3018       0     0.3000
+  B(i)  one-way, offset, position only     1.7978   1.8416       1     1.7239
+  B(ii) one-way, offset, clock solved      0.2545   0.3039       0     0.3014
+  C     two-way RTT, no sync needed        0.2148   0.2613       0     0.2598
 ```
 
 Note what the example does with that single draw: it prints it, labels it as
@@ -310,6 +371,18 @@ one draw rather than an accuracy, and then reports the Monte-Carlo RMS beside
 the DOP prediction it should match. 0.1012 m measured against 0.1010 m
 predicted is the actual claim; the 0.055 m above it is a sample that happens to
 land low, and the percentile range says how little that means.
+
+**Example 7 is the one to read against Example 2.** Examples 1 and 2 solve
+one-way ranges at 0.1 m of measurement noise with the clocks assumed already
+synchronised; drop that assumption and keep everything else, and the same
+protocol on the same array lands 1.80 m out. Two-way TOA, on the same
+per-timestamp jitter, lands at 0.21 m without needing the assumption at all.
+One-way can recover by estimating the offset instead (Eqs. 4.24-4.26), which
+costs one degree of freedom — 1.0053 of position DOP against 1.0007, and the
+0.2545 m column above. That is the whole case for two-way TOA, and it is a
+case about clocks rather than about accuracy: the sqrt(2) by which C also
+out-ranges A is bookkeeping the example derives and prices, not a claim that a
+round trip measures distance better.
 
 **Visual Output:**
 
@@ -570,11 +643,35 @@ print(f"Estimated bias: {bias_s*1e9:.2f} ns")
 
 **Two-Way TOA / RTT Model (Eqs. 4.6-4.9):**
 
+**Why two-way exists:** both timestamps are taken on the *agent's own clock*,
+so the departure and arrival epochs are read against the same time base and no
+synchronisation with the beacon is required at all. That is the requirement
+one-way TOA quietly assumes, and it is what two-way removes. What it costs
+instead is a calibrated responder turnaround time, `Δt_proc` — which is why
+Eq. (4.7) exists and why leaving it uncorrected below moves the range by 7.49 m.
+
 The book's RTT model includes processing time and clock drift:
 - Eq. 4.6: Basic RTT: `d = c * (Δt_to + Δt_back) / 2`
 - Eq. 4.7: With processing: `d = c * (t_arrive - t_depart - Δt_proc) / 2`
 - Eq. 4.8: With drift: `d = c * (t_arrive - t_depart - Δt_proc - Δt_drift) / 2`
 - Eq. 4.9: With noise: `d̃ = ... + ω_proc + ω_drift`
+
+**Timing-noise bookkeeping, and the factor of sqrt(2) in it.** With one
+per-timestamp jitter `σ_t` describing the agent's clock, a one-way measurement
+is a single receive timestamp against a scheduled transmit epoch, so
+`σ_range = c·σ_t`. A round trip carries two timestamps on that one clock plus
+the turnaround calibration residual `σ_proc`, so
+`σ_RTT = sqrt(2·σ_t² + σ_proc²)`, and the range is *half* the round trip:
+`σ_range = c·σ_RTT/2`. With `σ_proc = 0` that is `c·σ_t/sqrt(2)` — better than
+one-way, because the round trip puts twice the distance into the interval being
+timed while the jitter grows only as sqrt(2). The turnaround term buys it back,
+and the two protocols range equally well at `σ_proc = sqrt(2)·σ_t`. Example 7
+of `example_toa_positioning` prints this crossover rather than arguing it.
+
+**Two-way does not thereby beat TDOA**, and nothing in this chapter claims it
+does — see the DOP result further up, where TDOA and TOA-with-an-estimated-clock
+carry the same information to machine precision. The axis two-way TOA wins on is
+which clock somebody has to build.
 
 ```python
 from core.rf import rtt_to_range, simulate_rtt_measurement, range_to_rtt
