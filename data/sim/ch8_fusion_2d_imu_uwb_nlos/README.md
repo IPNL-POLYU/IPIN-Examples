@@ -289,11 +289,35 @@ python -m ch8_sensor_fusion.example_tc_fusion \
 
 **Expected Observations**:
 
-| Configuration | Position RMSE | Anchors 1,2 Rejection Rate | Anchors 0,3 Rejection Rate |
-|---------------|---------------|----------------------------|----------------------------|
-| No gating | 0.50-0.70 m | 0% (all accepted) | 0% |
-| α = 0.05 (95%) | 0.10-0.15 m | 60-80% | ~5% (false alarms) |
-| α = 0.01 (99%) | 0.08-0.12 m | 75-90% | ~1% |
+**Measured**, by running exactly the three commands above:
+
+| Configuration | Position RMSE | Overall acceptance |
+|---------------|---------------|--------------------|
+| No gating | 0.690 m | 100% |
+| α = 0.05 (95%) | 1.469 m | 63.5% |
+| α = 0.01 (99%) | 1.754 m | 70.3% |
+
+**Gating as `example_tc_fusion` runs it makes this dataset worse, and that is
+not what a chi-square gate does on its own.** The demo enables
+`AdaptiveGatingManager`, which watches the NIS and inflates R when the filter
+looks over-confident. Under a *persistent* bias the filter is genuinely
+inconsistent for the whole run, so the manager inflates R on 97.5% of updates
+and reaches its 5x ceiling — which widens the gate until the biased ranges pass
+it again — and its consecutive-reject rule then forces acceptance on top of
+that. An adaptation designed for a temporarily mis-tuned filter reads a
+permanent bias as its own mis-tuning.
+
+A plain 95% gate with no adaptation, which is what
+`ch8_sensor_fusion/example_robust_tuning.py` runs under the name "Chi-square
+gating", reaches **0.033 m** on this dataset and accepts 48% of measurements —
+close to the half of the ranges that carry no bias. That is the number this
+table used to predict (0.10-0.15 m), and it is achievable; it is just not what
+the adaptive path does.
+
+> The earlier version of this table was measured against the map-frame
+> accelerometer this repository shipped until recently, and reported gating at
+> 25.664 m. Correcting the frame moved every row. The rows above were measured
+> after that correction.
 
 **Analysis**:
 1. Plot position error over time (all 3 cases)
@@ -301,7 +325,10 @@ python -m ch8_sensor_fusion.example_tc_fusion \
 3. Compute per-anchor rejection statistics
 4. Plot NIS values with χ² threshold lines
 
-**Key Insight**: Without gating, NLOS bias causes systematic position error (~0.4-0.6m toward biased anchors). With gating, performance recovers to near-baseline levels by automatically rejecting outliers.
+**Key Insight**: Without gating, NLOS bias causes systematic position error
+toward the biased anchors. A hard gate can remove it almost entirely — but an
+*adaptive* gate that treats persistent inconsistency as a tuning error will
+open itself up and let the bias back in. Match the adaptation to the fault.
 
 ---
 
@@ -357,10 +384,19 @@ Modify fusion to support different loss functions:
 - **Chi-square gating**: Hard rejection if d² > threshold
 
 **Expected Observations**:
-- Squared loss: Poor performance (NLOS dominates)
-- Huber loss: Moderate improvement (downweights but doesn't reject)
-- Cauchy loss: Good improvement (aggressive downweighting)
-- Chi-square gating: Best for this scenario (complete rejection)
+Measured by `ch8_sensor_fusion/example_robust_tuning.py` on this dataset
+(baseline 0.680 m):
+
+- Squared loss (no robustness): 0.680 m -- NLOS dominates
+- Huber loss: 0.678 m -- no material change
+- Cauchy loss: 0.683 m -- no material change
+- Chi-square gating: 0.033 m -- best for this scenario, by a wide margin
+
+The two M-estimators do essentially nothing here, and that is the expected
+result rather than a disappointing one: half the anchors are biased, so there
+is no inlier majority for a reweighting to side with. Rejection works because
+it does not need one -- it only needs the biased ranges to disagree with the
+filter's prediction, which they do.
 
 **Analysis**:
 - Plot effective weight vs. innovation magnitude for each loss

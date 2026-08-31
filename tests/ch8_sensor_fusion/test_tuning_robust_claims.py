@@ -11,14 +11,21 @@ largest inflation was 1.020. The results table read "Huber 0.722" beside
 help. Nothing had happened at all -- the arithmetic signature CLAUDE.md calls
 out, a stage whose output exactly equals its input.
 
-**Chi-square gating was blamed on the wrong thing.** The old explanation was
-that R is set from line-of-sight noise while half the NLOS ranges carry a
-bias, so the filter is over-confident and the gate rejects good data. The
-first half is true and the causal claim is not: gating collapses to 24 m on
-the *clean* dataset too, where the ungated NIS median is 0.74 against 0.45 for
-a consistent filter. The driver is the feedback -- a Gaussian gate over
-heavy-tailed innovations rejects several times too many, the starved state
-drifts, and the drift inflates the next innovation.
+**Chi-square gating was blamed twice, and both times wrongly.** The first
+explanation was that R is set from line-of-sight noise while half the NLOS
+ranges carry a bias, so the gate rejects good data. That was replaced by a
+second: gating "collapses" to 24 m on the *clean* dataset too, through a
+starvation feedback loop over heavy-tailed innovations. The 24 m was real and
+the second explanation was wrong in the same way as the first -- it looked for
+the cause inside the gate.
+
+The innovations were heavy-tailed because the shipped accelerometer was
+map-frame where every filter here integrates it as body-frame, so the filter
+was fighting a double rotation. The gate is the only strategy in this demo
+that checks its input against a distributional assumption, which made it the
+first thing to break and therefore the thing that looked broken. Corrected, it
+accepts 95% of a clean run -- exactly its nominal confidence -- and is the
+best-performing method in the table.
 
 What is asserted here:
 
@@ -26,11 +33,12 @@ What is asserted here:
   2. Sporadic outliers -- an inlier majority, which is what an M-estimator
      assumes -- are repaired by a clear margin, and by the *median*, which is
      the statistic that survives a change of outlier draw.
-  3. Robustness is close to free on clean data, which is what pins the choice
-     of threshold: the textbook 1.345 sigma is not, by an order of magnitude.
-  4. Persistent NLOS is not repaired, and the per-anchor bias says why.
-  5. Gating collapses in every scenario including the clean one, so the
-     published explanation cannot be "NLOS causes it".
+  3. Robustness is close to free on clean data. What pins the threshold from
+     above is the persistent-NLOS run, where an aggressive delta actively
+     costs; the textbook 1.345 is ruled out by that, not by the clean case.
+  4. Persistent NLOS is not repaired by reweighting, and the per-anchor bias
+     says why -- but it *is* repaired by rejection.
+  5. Gating does what it is specified to do in all three scenarios.
 
 Author: Li-Ta Hsu
 References: Chapter 8, Section 8.3; Eqs. (8.6), (8.7), (8.9)
@@ -197,33 +205,56 @@ class TestRobustnessIsCheapWhenItIsNotNeeded(unittest.TestCase):
             1.0,
         )
 
-    def test_cauchy_costs_a_few_percent_and_cannot_cost_nothing(self):
-        """w_R = 1 + (r/c)^2 has no dead zone, so this is structural."""
+    def test_cauchy_always_fires_and_still_costs_nothing_measurable(self):
+        """w_R = 1 + (r/c)^2 has no dead zone, so firing is structural.
+
+        Firing is not the same as costing. At c = 20 the inflation on clean
+        data is at most a couple of percent, and the run comes out at 0.998x
+        baseline -- fractionally *better*, because mildly down-weighting the
+        largest clean residuals is a small real improvement. The old form of
+        this test asserted Cauchy must be strictly worse than baseline, which
+        confused "always active" with "always a cost".
+        """
         baseline = compute_rmse(_errors("los", "baseline"))
         cauchy = compute_rmse(_errors("los", "cauchy"))
+        scales = np.asarray(_run("los", "cauchy")["robust_scales"])
 
-        self.assertGreater(cauchy, baseline)
-        self.assertLess(cauchy, 1.05 * baseline)
-        self.assertGreater(float(np.min(_run("los", "cauchy")["robust_scales"])), 1.0)
+        self.assertLess(abs(cauchy - baseline), 0.05 * baseline)
+        self.assertTrue(np.all(scales >= 1.0))
+        self.assertGreater(float(np.mean(scales > 1.0)), 0.99)
 
-    def test_the_textbook_threshold_would_destroy_the_clean_case(self):
-        """Why delta is 20 sigma and not 1.345, pinned so it cannot drift back.
+    def test_the_textbook_threshold_costs_where_the_loss_cannot_help(self):
+        """Why delta is 10 sigma and not 1.345, pinned so it cannot drift back.
 
-        1.345 is the 95%-efficiency value for *Gaussian* residuals. These are
-        not Gaussian: on the clean dataset almost a third of the normalized
-        residuals already exceed 1.345, so a textbook threshold fires on a
-        third of a clean run.
+        The reason has moved, and the old reason is worth recording. It used
+        to be that 1.345 *destroyed* the clean case -- five times baseline --
+        because the clean tail ran to 17 sigma. That tail was the map-frame
+        accelerometer, not the sensor: corrected, the clean maximum is 3.76
+        sigma and the textbook threshold is fractionally **better** than
+        baseline on clean data (0.963x).
+
+        What rules it out now is the third scenario. At 1.345 the persistent
+        NLOS run costs 16% (1.162x), because with no inlier majority the loss
+        down-weights honest and biased links alike -- so the more aggressive
+        the threshold the more good information it discards.
         """
         r = np.asarray(_run("los", "baseline")["normalized_residuals"])
-        self.assertGreater(float(np.mean(r > 1.345)), 0.2)
+        self.assertGreater(float(np.mean(r > 1.345)), 0.15)
+        # The dead zone must still cover every clean residual.
         self.assertLess(float(np.max(r)), HUBER_DELTA_SIGMA)
 
-        baseline = compute_rmse(_errors("los", "baseline"))
-        textbook = compute_rmse(_errors("los", "huber", threshold=1.345))
-        self.assertGreater(textbook, 5 * baseline)
+        # Clean data no longer punishes the textbook value ...
+        clean_base = compute_rmse(_errors("los", "baseline"))
+        clean_textbook = compute_rmse(_errors("los", "huber", threshold=1.345))
+        self.assertLess(clean_textbook, 1.05 * clean_base)
+
+        # ... but the NLOS run does, which is what fixes the ceiling.
+        nlos_base = compute_rmse(_errors("nlos", "baseline"))
+        nlos_textbook = compute_rmse(_errors("nlos", "huber", threshold=1.345))
+        self.assertGreater(nlos_textbook, 1.10 * nlos_base)
 
     def test_cauchy_scale_is_chosen_against_the_measured_clean_tail(self):
-        """c = 50 keeps the inflation at the clean 99th percentile under 10%."""
+        """c = 20 keeps the inflation at the clean 99th percentile under 10%."""
         r = np.asarray(_run("los", "baseline")["normalized_residuals"])
         p99 = float(np.percentile(r, 99))
 
@@ -259,42 +290,56 @@ class TestPersistentNlosIsNotAnOutlierProblem(unittest.TestCase):
         self.assertLess(compute_rmse(_errors("nlos", "baseline")), 2.0)
 
 
-class TestGatingCollapsesEverywhereNotJustUnderNlos(unittest.TestCase):
-    """Link 5: the correction to the published explanation."""
+class TestGatingDoesWhatItIsSpecifiedToDo(unittest.TestCase):
+    """Link 5: the correction to a correction.
 
-    def test_the_gate_rejects_most_measurements_in_every_scenario(self):
-        for scenario in ("los", "sporadic", "nlos"):
-            with self.subTest(scenario=scenario):
-                history = _run(scenario, "gating")
-                total = history["n_uwb_accepted"] + history["n_uwb_rejected"]
-                self.assertLess(history["n_uwb_accepted"] / total, 0.5)
+    This class used to be called ``TestGatingCollapsesEverywhereNotJustUnderNlos``
+    and pinned the claim that a chi-square gate scores 24-26 m in every
+    scenario, accepting under half of a *clean* run through a starvation
+    feedback loop. The numbers were real and the attribution was wrong: the
+    innovations were heavy-tailed because the shipped accelerometer was
+    map-frame where every filter here integrates it as body-frame.
 
-    def test_it_diverges_on_clean_data_too(self):
-        """The assertion that falsifies "the NLOS bias causes this".
+    The gate was the only strategy in the demo that tests its input against a
+    distributional assumption, so it was the one that failed loudly -- and the
+    conclusion drawn was that the gate was fragile. With the frame corrected
+    it is the best-performing method in the table. **The component that breaks
+    first under a bad input is not usually the broken one.**
+    """
 
-        Nothing in the LOS dataset carries a bias, and gating still scores two
-        orders of magnitude worse than doing nothing.
-        """
-        self.assertGreater(
-            compute_rmse(_errors("los", "gating")),
-            50 * compute_rmse(_errors("los", "baseline")),
-        )
+    def test_it_accepts_its_nominal_confidence_on_clean_data(self):
+        """A 95% gate on consistent innovations accepts about 95%."""
+        history = _run("los", "gating")
+        total = history["n_uwb_accepted"] + history["n_uwb_rejected"]
+        accepted = history["n_uwb_accepted"] / total
 
-    def test_the_clean_filter_is_only_mildly_inconsistent(self):
-        """So the collapse cannot be explained by the covariance alone.
+        self.assertGreater(accepted, 0.90)
+        self.assertLess(accepted, 0.99)
 
-        On clean data most samples already pass the gate. It is the rejection
-        feedback, not a wildly wrong R, that takes acceptance down to a third.
+    def test_it_costs_almost_nothing_on_clean_data(self):
+        """Measured 1.074x baseline -- a gate is not free, but it is cheap."""
+        baseline = compute_rmse(_errors("los", "baseline"))
+        self.assertLess(compute_rmse(_errors("los", "gating")), 1.3 * baseline)
+
+    def test_the_clean_filter_is_consistent(self):
+        """Which is why the gate behaves: its assumption now holds.
+
+        NIS median 0.467 against 0.455 for a consistent 1-DOF filter, and 95%
+        of samples inside the 3.84 gate.
         """
         nis = np.asarray(_run("los", "baseline")["nis"])
-        gating = _run("los", "gating")
-        accepted = gating["n_uwb_accepted"] / (
-            gating["n_uwb_accepted"] + gating["n_uwb_rejected"]
-        )
 
-        would_pass = float(np.mean(nis < CHI2_1DOF_95))
-        self.assertGreater(would_pass, 0.7)
-        self.assertLess(accepted, would_pass / 2)
+        self.assertLess(abs(float(np.median(nis)) - CHI2_1DOF_MEDIAN), 0.15)
+        self.assertGreater(float(np.mean(nis < CHI2_1DOF_95)), 0.90)
+
+    def test_it_rejects_the_biased_half_under_persistent_nlos(self):
+        """Two of four anchors are biased, and it accepts about half."""
+        history = _run("nlos", "gating")
+        total = history["n_uwb_accepted"] + history["n_uwb_rejected"]
+        accepted = history["n_uwb_accepted"] / total
+
+        self.assertGreater(accepted, 0.35)
+        self.assertLess(accepted, 0.65)
 
     def test_the_nlos_filter_really_is_overconfident(self):
         """Still true, and still worth keeping: NLOS makes it much worse."""
@@ -303,12 +348,22 @@ class TestGatingCollapsesEverywhereNotJustUnderNlos(unittest.TestCase):
         self.assertGreater(np.median(nis), 20 * CHI2_1DOF_MEDIAN)
         self.assertLess(float(np.mean(nis < CHI2_1DOF_95)), 0.5)
 
-    def test_a_robust_loss_survives_the_same_mis_specified_R(self):
-        """The contrast the figure exists to draw."""
+    def test_rejecting_a_persistent_bias_beats_reweighting_it(self):
+        """The contrast the figure exists to draw, with the sign it really has.
+
+        On persistent NLOS the gate removes the biased anchors outright and
+        reaches 0.048x baseline. Neither M-estimator moves the number at all
+        (0.997x and 1.004x), because a reweighting cannot separate honest from
+        biased links when there is no inlier majority.
+        """
         baseline = compute_rmse(_errors("nlos", "baseline"))
 
-        self.assertGreater(compute_rmse(_errors("nlos", "gating")), 10 * baseline)
-        self.assertLess(compute_rmse(_errors("nlos", "huber")), 2 * baseline)
+        self.assertLess(compute_rmse(_errors("nlos", "gating")), 0.2 * baseline)
+        for method in ("huber", "cauchy"):
+            with self.subTest(method=method):
+                self.assertGreater(
+                    compute_rmse(_errors("nlos", method)), 0.9 * baseline
+                )
 
 
 class TestTheDatasetsAreWhatTheClaimsAssume(unittest.TestCase):

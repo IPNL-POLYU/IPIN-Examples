@@ -177,7 +177,12 @@ This is the **baseline** configuration. Related variants demonstrate specific ch
    - UWB 50ms behind IMU (time_offset = -0.05s)
    - Clock drift: 100 ppm
    - Use for: Testing time synchronization and calibration (Ch8, Section 8.4)
-   - Expected observation: Without correction, RMSE increases 50-100% due to systematic residuals
+   - Measured: without correction 0.053 m, with `TimeSyncModel` 0.020 m --
+     the correction recovers 0.033 m, or 63%. The bound is kinematic, not
+     tuned: 50 ms at 1 m/s displaces the platform 0.050 m, so no correction
+     for this offset can be worth more than that. (This line used to claim
+     "RMSE increases 50-100%", which was measured against a map-frame
+     accelerometer and is not what the demo prints.)
 
 ---
 
@@ -263,7 +268,11 @@ This dataset is designed to demonstrate:
 **LC vs. TC Comparison** (Ch8, Eqs. 8.13-8.18)
 - LC: Two-stage (UWB→position, then fuse positions)
 - TC: Direct fusion of raw UWB ranges
-- Observable: TC should show ~10-20% better accuracy due to proper uncertainty propagation
+- Measured on this dataset: LC 0.027 m, TC 0.025 m 2-D RMSE -- TC is about
+  8% better, not the "10-20%" this line used to promise. The two architectures
+  are close here because the geometry is good and all four anchors are visible
+  almost all the time. Where TC's advantage is large is when anchors drop out:
+  see `ch8_sensor_fusion/example_anchor_outage.py`.
 
 ---
 
@@ -283,10 +292,19 @@ python -m ch8_sensor_fusion.example_tc_fusion --data data/sim/ch8_fusion_2d_imu_
 ```
 
 **Expected Observations**:
-- LC RMSE: ~0.12-0.15 m (accumulated from two filters)
-- TC RMSE: ~0.08-0.12 m (10-20% improvement)
+Measured, by running exactly the two commands above:
+
+- LC RMSE: 0.027 m (2-D), max error 0.115 m, 13 position fixes failed
+- TC RMSE: 0.025 m (2-D), max error 0.122 m, no solver stage to fail
+- TC's mean error is the smaller (0.023 m against 0.024 m) while its *worst*
+  case is the larger: it fuses each range directly, so a bad range reaches the
+  filter undiluted, where LC's least-squares stage absorbs part of it.
 - TC has larger state dimension but better uncertainty handling
 - LC is simpler to implement and debug
+
+The margin between them on this dataset is a few millimetres. Any experiment
+that needs to *see* the architectural difference should use an anchor outage
+rather than this clean run.
 
 **Analysis**:
 - Plot position errors over time
@@ -379,7 +397,7 @@ A: Common causes:
 
 **Q: LC vs. TC: which should I use in practice?**
 A: LC is simpler to implement and debug, "good enough" for many applications. Use TC when:
-- Need maximum accuracy (10-20% improvement)
+- Need maximum accuracy (about 8% on this dataset; far more during anchor outages)
 - Have computational resources for larger state
 - Sensor correlations are significant
 - System is safety-critical

@@ -20,9 +20,11 @@ This guide documents the **direct comparison tool** for Loosely Coupled (LC) and
 > treat the analysis here as a historical illustration of the comparison
 > *methodology*, not as current numbers. For the current, tested transcript,
 > see the "LC vs TC Comparison" section of `ch8_sensor_fusion/README.md`: on
-> the current dataset LC and TC report close RMSE (0.143 m and 0.167 m),
+> the current dataset LC and TC report close RMSE (0.027 m and 0.025 m),
 > matching the theory that with all anchors visible and good geometry the WLS
-> position fix is a sufficient statistic.
+> position fix is a sufficient statistic. (Those were 0.143 m and 0.167 m until
+> the shipped accelerometer was corrected from map frame to body frame, which
+> is the larger of the two defects this note describes.)
 
 ---
 

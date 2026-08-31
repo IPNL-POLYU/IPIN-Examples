@@ -18,7 +18,7 @@ from core.fusion.tc_models import (
     create_tc_fusion_ekf,
     create_uwb_range_measurement_model,
 )
-from core.fusion.tuning import innovation, innovation_covariance
+from core.fusion.tuning import innovation, innovation_covariance, kalman_update
 from core.fusion.types import (
     SENSOR_IMU,
     SENSOR_UWB_RANGE,
@@ -267,10 +267,12 @@ def run_tc_fusion(
                 # 'scale_R' action is handled automatically via get_R_scale()
 
             if accept:
-                # Manually perform EKF update
-                K = ekf.covariance @ H.T @ np.linalg.inv(S)
-                ekf.state = ekf.state + (K @ y).flatten()
-                ekf.covariance = (np.eye(5) - K @ H) @ ekf.covariance
+                # S above belongs to the gate, and P may have been inflated
+                # since. kalman_update recomputes S from the covariance it is
+                # handed, so the gain always matches it.
+                ekf.state, ekf.covariance = kalman_update(
+                    ekf.state, ekf.covariance, y, H, R
+                )
                 n_uwb_accepted += 1
             else:
                 n_uwb_rejected += 1
@@ -340,10 +342,12 @@ def run_tc_fusion(
                         ekf.covariance = adaptive_mgr.inflate_covariance(ekf.covariance)
 
             if accept:
-                # Manually perform batch EKF update
-                K_batch = ekf.covariance @ H_batch.T @ np.linalg.inv(S_batch)
-                ekf.state = ekf.state + (K_batch @ y_batch).flatten()
-                ekf.covariance = (np.eye(5) - K_batch @ H_batch) @ ekf.covariance
+                # Joseph form, with S recomputed from the current covariance
+                # -- see the sequential branch above and kalman_update's
+                # docstring.
+                ekf.state, ekf.covariance = kalman_update(
+                    ekf.state, ekf.covariance, y_batch, H_batch, R_batch
+                )
                 n_uwb_accepted += 1
             else:
                 n_uwb_rejected += 1

@@ -236,20 +236,34 @@ def print_comparison_table(metrics: dict) -> None:
     # when there are too few for a fix, and a bad range also reaches the filter
     # undiluted. LC solves for a position first, which needs three anchors but
     # absorbs some of the damage on the way.
-    if tc["max_error"] > lc["max_error"]:
+    # The condition has to be the whole claim. This used to test only
+    # `tc["max_error"] > lc["max_error"]` while the sentence also asserted
+    # that TC's *mean* was the smaller -- and on the data shipped at the time
+    # it was not (TC 0.0826 m against LC 0.0761 m), so the demo printed a
+    # comparison that its own table contradicted two lines above. Guard every
+    # inequality you state, or state only the one you guard.
+    if tc["max_error"] > lc["max_error"] and tc["mean_error"] < lc["mean_error"]:
+        # Three decimals, not two: these errors are a few centimetres, and at
+        # 2 dp the sentence read "0.12 m against 0.12 m".
         print(
-            f"  - ...but TC's worst case is larger: {tc['max_error']:.2f} m "
-            f"against {lc['max_error']:.2f} m, while its mean error is the"
+            f"  - ...but TC's worst case is larger: {tc['max_error']:.3f} m "
+            f"against {lc['max_error']:.3f} m, while its mean error is the"
         )
         print(
-            f"    smaller of the two ({tc['mean_error']:.2f} m against "
-            f"{lc['mean_error']:.2f} m). Fusing raw ranges gives TC more "
+            f"    smaller of the two ({tc['mean_error']:.3f} m against "
+            f"{lc['mean_error']:.3f} m). Fusing raw ranges gives TC more "
             f"updates and no"
         )
         print(
             "    solver failures, and exposes it directly to a bad range; "
             "LC's least-squares step needs three anchors but absorbs part "
             "of the outlier."
+        )
+    else:
+        print(
+            f"  - Worst case: TC {tc['max_error']:.3f} m against LC "
+            f"{lc['max_error']:.3f} m. Mean: TC {tc['mean_error']:.3f} m "
+            f"against LC {lc['mean_error']:.3f} m."
         )
     print()
 

@@ -15,7 +15,7 @@ References: Chapter 8, Section 8.3 (Tuning and Robustness), Equation 8.7
 """
 
 import warnings
-from typing import cast
+from typing import NamedTuple, cast
 
 import numpy as np
 
@@ -127,6 +127,108 @@ def innovation_covariance(
     S = 0.5 * (S + S.T)
 
     return cast(np.ndarray, S)
+
+
+class KalmanUpdateResult(NamedTuple):
+    """Joseph-form measurement update output; unpacks as ``(state, covariance)``."""
+
+    updated_state_estimate: np.ndarray
+    updated_state_covariance: np.ndarray
+
+
+def kalman_update(
+    state_estimate: np.ndarray,
+    state_covariance: np.ndarray,
+    innovation: np.ndarray,
+    measurement_matrix: np.ndarray,
+    measurement_covariance: np.ndarray,
+) -> KalmanUpdateResult:
+    """Apply one measurement update in Joseph form, deriving S from ``P``.
+
+    Returns new arrays; ``x`` and ``P`` are not modified.
+
+        K = P H^T S^-1,  S = H P H^T + R
+        x <- x + K y
+        P <- (I - K H) P (I - K H)^T + K R K^T
+
+    Two properties are the point of this function, and Chapter 8's fusion
+    runners lost both by hand-rolling the update three times over:
+
+    **S is computed here rather than accepted as an argument.** A caller that
+    computes S for the chi-square gate, then inflates P, then reuses that S
+    for the gain is applying a gain matched to a covariance the filter no
+    longer has. `core.fusion.adaptive.AdaptiveGatingManager` inflates P by
+    lambda after S is formed, which is exactly that sequence.
+
+    **The Joseph form, not the short form (I - K H) P.** The short form is
+    algebraically equal to this one *only at the optimal gain*. Off it, the
+    variance along H scales by 1 - lambda*HPH'/(HPH' + R), which is negative
+    whenever lambda*HPH' > HPH' + R. The loosely coupled run measured
+    min trace(P) = -0.0814 with 88 of 6587 samples negative, worst at
+    t = 57.6 s, and drew it in the covariance panel of
+    `ch8_sensor_fusion/figs/lc_uwb_imu_results.png`. Joseph is a sum of two
+    congruence transforms, so it is positive semidefinite for *any* K --
+    which is the reason `core/estimators/extended_kalman_filter.py:196` uses
+    it, and why the runners now share this one implementation instead of
+    three copies of the short form.
+
+    Args:
+        x: Current state estimate (n,).
+        P: Current state covariance (n, n).
+        y: Innovation z - h(x), shape (m,).
+        H: Measurement Jacobian (m, n).
+        R: Measurement noise covariance (m, m).
+
+    Returns:
+        Tuple of (x_updated, P_updated).
+
+    Example:
+        >>> x = np.array([0.0, 0.0])
+        >>> P = np.diag([1.0, 1.0])
+        >>> H = np.array([[1.0, 0.0]])
+        >>> R = np.array([[1.0]])
+        >>> x_new, P_new = kalman_update(x, P, np.array([2.0]), H, R)
+        >>> np.allclose(x_new, [1.0, 0.0])
+        True
+        >>> np.allclose(P_new, np.diag([0.5, 1.0]))
+        True
+
+        Joseph stays positive semidefinite even at a badly mismatched gain,
+        where the short form does not:
+
+        >>> P_inflated = 100.0 * P
+        >>> _, P_out = kalman_update(x, P_inflated, np.array([2.0]), H, R)
+        >>> float(np.linalg.eigvalsh(P_out).min()) >= 0.0
+        True
+
+    References:
+        Chapter 8, Section 8.2; Joseph form correcting Eq. (3.19) (see docs/book_errata.md E-01)
+    """
+    # Book notation (docs/api_naming_conventions.md): x = state estimate,
+    # P = state covariance, y = innovation, H = measurement matrix,
+    # R = measurement covariance.
+    x = state_estimate
+    P = state_covariance
+    y = innovation
+    H = measurement_matrix
+    R = measurement_covariance
+    x = np.asarray(x, dtype=float)
+    P = np.asarray(P, dtype=float)
+    H = np.asarray(H, dtype=float)
+    R = np.asarray(R, dtype=float)
+    y = np.asarray(y, dtype=float)
+
+    S = innovation_covariance(H, P, R)
+    K = P @ H.T @ np.linalg.inv(S)
+
+    x_updated = x + (K @ y).flatten()
+
+    I_KH = np.eye(P.shape[0]) - K @ H
+    P_updated = I_KH @ P @ I_KH.T + K @ R @ K.T
+
+    return KalmanUpdateResult(
+        x_updated, cast(np.ndarray, 0.5 * (P_updated + P_updated.T))
+    )
 
 
 def scale_measurement_covariance(R: np.ndarray, scale_factor: float) -> np.ndarray:

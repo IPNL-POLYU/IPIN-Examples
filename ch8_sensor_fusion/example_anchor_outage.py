@@ -43,36 +43,41 @@ overall RMSE, now that LC's baseline tracking is honest.
 Two caveats keep this honest, because tight coupling is a trade, not a free
 win:
 
-- **Two collinear anchors leave a mirror ambiguity, and TC can latch onto the
-  wrong branch.** The outage keeps anchors 0 and 1, at (0, 0) and (20, 0), both
-  on the line y = 0, while the platform travels the x = 20 leg. Two ranges to
-  two anchors are satisfied equally well by the true position and by its
-  reflection across the anchor baseline, and for 0.2 s around t = 25.8 s this
-  filter takes the wrong one: the estimate jumps to (30.1, -35.5) against a
-  truth of (20.0, 7.2), a 43.9 m peak, before the returning anchors snap it
-  back. LC never does this because its front end solves a position from all
-  available ranges and simply fails when it cannot.
+- **Two collinear anchors leave a mirror ambiguity, and the ambiguity is
+  real even though this filter no longer falls into it.** The outage keeps
+  anchors 0 and 1, at (0, 0) and (20, 0), both on the line y = 0, while the
+  platform travels the x = 20 leg. Two ranges to two anchors are satisfied
+  equally well by the true position and by its reflection across the anchor
+  baseline. Nothing in the range measurements distinguishes them; what does is
+  the IMU prediction, and it is now accurate enough to keep the filter on the
+  right branch throughout. TC's peak error over outage-plus-recovery is 0.06 m.
 
-  That excursion is brief but it is what puts TC's whole-run RMSE (2.338 m)
-  above LC's (0.707 m) *at this particular window*, which is worth stating
-  because it is the one number in this demo where LC wins. It is a knife edge,
-  not the general case -- and now a weaker one than this page used to claim:
-  moving the outage to (18, 26), (22, 30), (24, 32) or (40, 48) gives TC peak
-  errors of 0.36, 0.12, 0.79 and 0.05 m against LC's 8.29, 0.61, 0.71 and
-  0.09 m. TC's peak stays small everywhere it was checked; LC's does not, but
-  it is no longer reliably the larger of the two -- at three of these four
-  windows LC's *whole-run* RMSE (1.640, 0.191, 0.155, 0.145 m) is now close to
-  or below TC's (0.173, 0.171, 0.170, 0.155 m), where before the fix LC was
-  worse at every one of them. The window has deliberately not been moved to a
-  flattering one.
+  **This caveat used to be the headline of the demo**, and its removal is the
+  most instructive thing on this page. The estimate was reported jumping to
+  (30.1, -35.5) against a truth of (20.0, 7.2) -- a 43.9 m excursion that put
+  TC's whole-run RMSE (2.338 m) above LC's (0.707 m) and was written up as the
+  one number where LC wins. It was not a geometry result. The shipped
+  accelerometer was map-frame where this filter integrates it as body-frame,
+  so the prediction that should have broken the tie was itself wrong, and the
+  filter went to the mirror because it had nothing better. Corrected, TC beats
+  LC at every window checked -- (20, 28), (18, 26), (22, 30), (24, 32) and
+  (40, 48) give TC whole-run RMSE 0.029, 0.028, 0.028, 0.026 and 0.025 m
+  against LC's 0.127, 0.231, 0.095, 0.060 and 0.036 m, and TC peaks of 0.06,
+  0.06, 0.06, 0.05 and 0.04 m against LC's 0.59, 1.18, 0.46, 0.28 and 0.13 m.
+  The window has deliberately not been moved to a flattering one.
+
+  The general lesson is that **a degenerate geometry is a statement about the
+  measurements alone**; whether an estimator is actually harmed by it depends
+  on what else it knows. Reporting the ambiguity as though it were a property
+  of tight coupling confused the two.
 - **TC needs usable geometry.** Repeating the (40 s, 48 s) outage with a
   *single* visible anchor instead of two leaves TC updating from a more
-  degenerate configuration and pushes its RMSE to 0.172 m against LC's
-  0.145 m -- a real effect, but a modest one now, not the 1.8-versus-1.3
-  contrast this page once claimed. LC's own RMSE is unchanged by the drop from
-  two anchors to one, because both are already below the three it needs for a
-  fix; only TC's is sensitive to which of the two it loses. One range
-  constrains a circle, not a point.
+  degenerate configuration, and it costs almost nothing here: 0.026 m against
+  0.025 m with two anchors, versus LC's 0.036 m either way. LC's own RMSE is
+  unchanged by the drop from two anchors to one, because both are already
+  below the three it needs for a fix; only TC's is sensitive at all. One range
+  constrains a circle, not a point -- so this is a caveat about what happens
+  when the IMU is also poor, and on this dataset it is not one.
 
 Run:
     python -m ch8_sensor_fusion.example_anchor_outage
@@ -376,11 +381,10 @@ def plot_outage_summary(scenario) -> plt.Figure:
         fontsize=11,
     )
 
-    # Log axis. The mirror-branch flip reaches 43.9 m while the claim this
-    # panel exists to make -- LC's dead-reckoning ramp -- tops out at 3.25 m, so
-    # a linear axis renders the ramp as a low squiggle beneath one narrow
-    # spike. The error is positive and spans two decades, which is what a log
-    # axis is for.
+    # Log axis. LC's dead-reckoning ramp peaks at 0.59 m against TC's 0.06 m
+    # and a tracking floor of a couple of centimetres, so the structure this
+    # panel exists to show spans well over a decade and a linear axis would
+    # flatten most of it. The error is positive, which is what a log axis needs.
     floor = 1e-3  # a log axis cannot show an exact zero
     axes[1].semilogy(
         scenario["t_lc"],
@@ -401,11 +405,21 @@ def plot_outage_summary(scenario) -> plt.Figure:
     axes[1].set_ylabel("horizontal position error [m], log")
     axes[1].legend(fontsize=9, loc="upper left")
     axes[1].grid(alpha=0.3)
+    # The second line used to assert a mirror-branch flip unconditionally.
+    # That excursion was real on the map-frame accelerometer and does not
+    # happen now, so the caption is derived from the data rather than written
+    # once: a figure that states a finding must be able to stop stating it.
+    flipped = float(np.max(scenario["error_tc"])) > 5.0
     axes[1].set_title(
         "In the outage LC dead-reckons (linear ramp) while TC keeps fusing "
         "the surviving ranges.\n"
-        "TC's one spike is a mirror-branch flip: the two surviving anchors "
-        "are collinear with the leg being walked.",
+        + (
+            "TC's one spike is a mirror-branch flip: the two surviving "
+            "anchors are collinear with the leg being walked."
+            if flipped
+            else "Two collinear anchors leave a mirror ambiguity, but the "
+            "IMU prediction is sharp enough to stay on the right branch."
+        ),
         fontsize=11,
     )
 

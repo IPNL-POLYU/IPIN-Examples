@@ -191,7 +191,12 @@ def run_fusion_with_time_sync(
     uwb_measurements.sort(key=lambda m: m.t)
 
     # Run fusion with asynchronous measurement handling (Section 8.5.2)
-    from core.fusion import chi_square_gate, innovation, innovation_covariance
+    from core.fusion import (
+        chi_square_gate,
+        innovation,
+        innovation_covariance,
+        kalman_update,
+    )
 
     accepted_history = []
     history = {
@@ -269,10 +274,11 @@ def run_fusion_with_time_sync(
             accept = chi_square_gate(y, S, confidence=gate_confidence)
 
         if accept:
-            # Perform update
-            K = ekf.covariance @ H_single.T @ np.linalg.inv(S)
-            ekf.state = ekf.state + (K @ y).flatten()
-            ekf.covariance = (np.eye(5) - K @ H_single) @ ekf.covariance
+            # Joseph form, via the one helper the fusion runners share --
+            # see core.fusion.tuning.kalman_update.
+            ekf.state, ekf.covariance = kalman_update(
+                ekf.state, ekf.covariance, y, H_single, R
+            )
             n_uwb_accepted += 1
         else:
             n_uwb_rejected += 1
