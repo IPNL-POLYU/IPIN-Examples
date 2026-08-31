@@ -1,22 +1,33 @@
-"""
-Test script to demonstrate multi-sample fingerprinting with proper mu and sigma estimation.
+"""A repeat survey must reach Eq. (5.6): sigma estimated per RP, not assumed.
 
-This script validates that:
-1. Multi-sample databases can be created and loaded
-2. fit_gaussian_naive_bayes() computes actual mu and sigma from samples
-3. Probabilistic localization behavior changes with varying sigma
-4. Backward compatibility with single-sample databases is maintained
+Like its neighbour ``test_topk_posterior_mean.py``, this file used to be a
+script -- three ``test_``-named functions holding **zero** assertions, printing
+``[OK]`` lines and ending in ``return True``. pytest called all three and
+reported three passes, so nothing here could ever have gone red. The printed
+lines say what the author meant to check, and those are the assertions now.
+
+Three properties separate a multi-sample database from a single-sample one, and
+only the third is about localisation:
+
+- A single-sample database has no variance to estimate, so
+  :func:`fit_gaussian_naive_bayes` fills sigma with ``min_std`` everywhere.
+  That collapses the Gaussian log-likelihood to a monotone function of
+  Euclidean distance, which is why MAP is exactly 1-NN there -- a theorem, not
+  a coincidence, and the reason this database format exists.
+- A multi-sample database estimates mu and sigma from the samples, so sigma
+  varies by (RP, AP) and ``min_std`` becomes a floor rather than the whole
+  model.
+- Varying sigma changes the answer: an RP whose fingerprint is unreliable must
+  lose weight in the posterior.
 
 Author: Li-Ta Hsu
-Date: December 2024
+References: Chapter 5, Section 5.1.3; Eq. (5.6).
 """
 
-import numpy as np
-from pathlib import Path
-import sys
+import dataclasses
 
-# Add project root to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+import numpy as np
+import pytest
 
 from core.fingerprinting import (
     FingerprintDatabase,
@@ -24,261 +35,218 @@ from core.fingerprinting import (
     map_localize,
     posterior_mean_localize,
 )
+from core.fingerprinting.probabilistic import log_posterior
+
+SINGLE_SAMPLE_MIN_STD = 2.0
 
 
-def test_single_sample_db():
-    """Test backward compatibility with single-sample DB."""
-    print("\n" + "=" * 70)
-    print("TEST 1: Single-Sample Database (Backward Compatibility)")
-    print("=" * 70)
-
-    # Create simple single-sample DB
-    locations = np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float)
-    features = np.array(
-        [
-            [-50, -60, -70],
-            [-60, -50, -80],
-            [-70, -80, -50],
-            [-80, -70, -60],
-        ],
-        dtype=float,
-    )
-    floor_ids = np.array([0, 0, 0, 0])
-
-    db = FingerprintDatabase(
-        locations=locations,
-        features=features,
-        floor_ids=floor_ids,
+def _single_sample_db():
+    """Four reference points, one visit each, three APs."""
+    return FingerprintDatabase(
+        locations=np.array([[0, 0], [10, 0], [10, 10], [0, 10]], dtype=float),
+        features=np.array(
+            [
+                [-50.0, -60.0, -70.0],
+                [-60.0, -50.0, -80.0],
+                [-70.0, -80.0, -50.0],
+                [-80.0, -70.0, -60.0],
+            ]
+        ),
+        floor_ids=np.zeros(4, dtype=int),
         meta={"ap_ids": ["AP1", "AP2", "AP3"], "unit": "dBm"},
     )
 
-    print(f"[OK] Created single-sample DB: {db}")
-    print(f"  Features shape: {db.features.shape}")
-    print(f"  has_multiple_samples: {db.has_multiple_samples}")
-    print(f"  n_samples_per_rp: {db.n_samples_per_rp}")
 
-    # Fit model
-    model = fit_gaussian_naive_bayes(db, min_std=2.0)
+#: Visits per reference point, matching ``ch5_wifi_fingerprint_multisamples``.
+#:
+#: The deleted file used five, and five is not enough to assert on: the sample
+#: standard deviation of n draws has a relative spread of about
+#: ``1 / sqrt(2 (n - 1))``, so 35% at n=5. Measured over 64 seeds, the ordering
+#: below survives 59 of them at five visits and **64 of 64** at ten, where every
+#: estimate also lands within a factor of two of its truth. A test that passes
+#: on 92% of seeds is a test whose green means "seed 42", so the survey depth is
+#: the shipped one.
+SAMPLES_PER_RP = 10
 
-    print("\n[OK] Fitted Gaussian Naive Bayes model")
-    print(f"  Model means shape: {model.means.shape}")
-    print(f"  Model stds shape: {model.stds.shape}")
-    print(f"  All stds = min_std? {np.all(model.stds == 2.0)}")
-
-    # Test localization
-    query = np.array([-55, -65, -75])
-    pos_map = map_localize(query, model, floor_id=0)
-    pos_mean = posterior_mean_localize(query, model, floor_id=0)
-
-    print("\n[OK] Localization works")
-    print(f"  Query: {query}")
-    print(f"  MAP estimate: {pos_map}")
-    print(f"  Posterior mean: {pos_mean}")
-
-    return True
+#: The per-RP spreads ``_multi_sample_db`` draws with, in dB.
+TRUE_SIGMA_PER_RP = np.array([1.0, 3.0, 6.0])
 
 
-def test_multi_sample_db():
-    """Test multi-sample DB with proper mu and sigma estimation."""
-    print("\n" + "=" * 70)
-    print("TEST 2: Multi-Sample Database (mu and sigma Estimation)")
-    print("=" * 70)
+def _multi_sample_db(seed=42):
+    """Three reference points surveyed ten times, with sigma set per RP.
 
-    # Create multi-sample DB
-    # 3 RPs, 5 samples each, 2 APs
-    locations = np.array([[0, 0], [10, 0], [10, 10]], dtype=float)
+    RP 0 is quiet (1 dB), RP 1 middling (3 dB), RP 2 noisy (6 dB), so the
+    estimated sigma has something to recover and an ordering to preserve.
+    """
+    rng = np.random.default_rng(seed)
+    features = np.zeros((3, SAMPLES_PER_RP, 2))
+    for rp, (mu, sigma) in enumerate(
+        [((-50.0, -60.0), 1.0), ((-60.0, -50.0), 3.0), ((-70.0, -80.0), 6.0)]
+    ):
+        features[rp] = np.asarray(mu) + rng.standard_normal((SAMPLES_PER_RP, 2)) * sigma
+    return FingerprintDatabase(
+        locations=np.array([[0, 0], [10, 0], [10, 10]], dtype=float),
+        features=features,
+        floor_ids=np.zeros(3, dtype=int),
+        meta={
+            "ap_ids": ["AP1", "AP2"],
+            "unit": "dBm",
+            "n_samples_per_rp": SAMPLES_PER_RP,
+        },
+    )
 
-    # Generate samples with known statistics
-    np.random.seed(42)
-    features = np.zeros((3, 5, 2))  # (M=3, S=5, N=2)
 
-    # RP 0: Low variance (sigma ~= 1.0 dBm)
-    features[0, :, 0] = -50 + np.random.randn(5) * 1.0
-    features[0, :, 1] = -60 + np.random.randn(5) * 1.0
+def test_one_visit_per_point_leaves_nothing_to_estimate():
+    """A single-sample database must report exactly ``min_std``, everywhere.
 
-    # RP 1: Medium variance (sigma ~= 3.0 dBm)
-    features[1, :, 0] = -60 + np.random.randn(5) * 3.0
-    features[1, :, 1] = -50 + np.random.randn(5) * 3.0
+    The old TEST 1 printed ``All stds = min_std? True`` and asserted nothing.
+    The value matters beyond bookkeeping: a constant sigma is what makes
+    Eq. (5.4) identical to Eq. (5.1), which is the chapter's headline finding
+    about this database.
+    """
+    db = _single_sample_db()
+    assert not db.has_multiple_samples
+    assert db.n_samples_per_rp is None  # not 1: there is no sample axis at all
 
-    # RP 2: High variance (sigma ~= 6.0 dBm)
-    features[2, :, 0] = -70 + np.random.randn(5) * 6.0
-    features[2, :, 1] = -80 + np.random.randn(5) * 6.0
+    model = fit_gaussian_naive_bayes(db, min_std=SINGLE_SAMPLE_MIN_STD)
 
-    floor_ids = np.array([0, 0, 0])
+    assert model.means.shape == db.features.shape
+    assert model.stds.shape == db.features.shape
+    assert np.all(model.stds == SINGLE_SAMPLE_MIN_STD)
+    assert model.sigma_is_constant
 
+
+def test_a_single_sample_model_still_localises():
+    """Backward compatibility, as a result rather than as a print.
+
+    Both estimators must return a finite position inside the surveyed area --
+    the old TEST 1 printed the two estimates and checked neither.
+    """
+    db = _single_sample_db()
+    model = fit_gaussian_naive_bayes(db, min_std=SINGLE_SAMPLE_MIN_STD)
+    query = np.array([-55.0, -65.0, -75.0])
+
+    for estimate in (
+        map_localize(query, model, floor_id=0),
+        posterior_mean_localize(query, model, floor_id=0),
+    ):
+        assert np.all(np.isfinite(estimate))
+        assert np.all(estimate >= db.locations.min(axis=0))
+        assert np.all(estimate <= db.locations.max(axis=0))
+
+    # MAP picks a reference point; the posterior mean is free not to.
+    assert np.min(
+        np.linalg.norm(db.locations - map_localize(query, model, 0), axis=1)
+    ) == (pytest.approx(0.0, abs=1e-9))
+
+
+def test_repeat_visits_estimate_sigma_and_preserve_its_ordering():
+    """Eq. (5.6) on a real survey: sigma comes from the samples, in order.
+
+    The old TEST 2 printed the three per-RP averages next to the three sigmas
+    they were drawn with and let the reader compare them. What can be asserted
+    from ten visits is the *ordering*, plus each estimate landing within a
+    factor of two of its truth; both hold for all 64 seeds measured, and the
+    observed ratios span 0.57 to 1.44, so the factor of two is a gate the noise
+    clears rather than one it grazes.
+    """
+    db = _multi_sample_db()
+    assert db.has_multiple_samples
+    assert db.n_samples_per_rp == SAMPLES_PER_RP
+
+    model = fit_gaussian_naive_bayes(db, min_std=0.5)
+
+    assert not model.sigma_is_constant
+    assert model.means.shape == (3, 2)
+    assert model.stds.shape == (3, 2)
+
+    per_rp = model.stds.mean(axis=1)
+    assert per_rp[0] < per_rp[1] < per_rp[2], (
+        f"estimated sigma per RP is {per_rp}, which does not preserve the "
+        f"{TRUE_SIGMA_PER_RP} ordering the samples were drawn with"
+    )
+    assert np.all(per_rp > TRUE_SIGMA_PER_RP / 2) and np.all(
+        per_rp < TRUE_SIGMA_PER_RP * 2
+    ), f"estimated sigma {per_rp} is not within a factor of two of {TRUE_SIGMA_PER_RP}"
+
+
+def test_min_std_is_a_floor_on_a_repeat_survey_and_the_whole_model_without_one():
+    """The same argument means two different things to the two database shapes.
+
+    This is the distinction the old file's TEST 1 and TEST 2 straddled without
+    ever checking: raising ``min_std`` past every estimated sigma must erase the
+    variation and put a multi-sample model back into the single-sample regime.
+    """
+    db = _multi_sample_db()
+
+    estimated = fit_gaussian_naive_bayes(db, min_std=0.5)
+    assert estimated.stds.min() > 0.5  # nothing was floored
+    assert not estimated.sigma_is_constant
+
+    floored = fit_gaussian_naive_bayes(db, min_std=50.0)
+    assert np.all(floored.stds == 50.0)
+    assert floored.sigma_is_constant
+
+
+def test_widening_a_reference_points_sigma_widens_its_basin():
+    """Varying sigma changes the answer -- in the direction opposite the old note.
+
+    The deleted TEST 3 printed ``OK Model 2 shifts toward RP0`` behind an
+    ``if``, over a comment reading "high sigma at RP1 reduces its influence".
+    Asserted, that is false, and the ``if`` is why nobody found out: it printed
+    nothing at all when the shift did not happen, which is what happens.
+
+    Two things were wrong with it. Its "identical but for the variance"
+    databases were not identical -- redrawing RP 1's ten samples at eight times
+    the spread moves its *mean* as well, by up to 3.6 dB here, so the
+    comparison confounded mu with sigma. And the intuition is backwards.
+    Eq. (5.6) divides each residual by sigma before squaring it, and the
+    ``-log sigma`` normalisation that penalises a wide Gaussian is only additive
+    while the quadratic term grows with the square of the residual. So a noisy
+    reference point explains a *distant* query better than a quiet one does: it
+    claims more of the fingerprint space, not less.
+
+    That is not a curiosity. It is the mechanism behind the chapter's finding
+    that MAP loses to 1-NN on the repeat survey -- weighting by the noise a
+    survey can measure hands territory to the points whose fingerprints are
+    least trustworthy.
+
+    Sigma is varied here by editing the fitted model, so mu is bit-identical on
+    both sides and only sigma moves.
+    """
+    locations = np.array([[0, 0], [10, 0]], dtype=float)
+    rng = np.random.default_rng(100)
+    features = np.zeros((2, 10, 2))
+    features[0] = -50.0 + rng.standard_normal((10, 2)) * 1.0
+    features[1] = -60.0 + rng.standard_normal((10, 2)) * 1.0
     db = FingerprintDatabase(
         locations=locations,
         features=features,
-        floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm", "n_samples_per_rp": 5},
-    )
-
-    print(f"[OK] Created multi-sample DB: {db}")
-    print(f"  Features shape: {db.features.shape}")
-    print(f"  has_multiple_samples: {db.has_multiple_samples}")
-    print(f"  n_samples_per_rp: {db.n_samples_per_rp}")
-
-    # Check mean and std computation
-    mean_features = db.get_mean_features()
-    std_features = db.get_std_features(min_std=0.5)
-
-    print("\n[OK] Computed statistics from samples")
-    print(f"  Mean features shape: {mean_features.shape}")
-    print(f"  Std features shape: {std_features.shape}")
-    print("\n  Per-RP statistics:")
-    for i in range(3):
-        print(f"    RP{i}: mu = {mean_features[i]}, sigma = {std_features[i]}")
-
-    # Fit model
-    model = fit_gaussian_naive_bayes(db, min_std=0.5)
-
-    print("\n[OK] Fitted Gaussian Naive Bayes model")
-    print(f"  Model uses actual variance from samples: {not np.all(model.stds == 0.5)}")
-    print(f"  Std range: [{model.stds.min():.2f}, {model.stds.max():.2f}] dBm")
-
-    # Verify that stds vary by RP
-    rp0_std = model.stds[0].mean()
-    rp1_std = model.stds[1].mean()
-    rp2_std = model.stds[2].mean()
-
-    print("\n  Average std per RP:")
-    print(f"    RP0 (low var):    {rp0_std:.2f} dBm")
-    print(f"    RP1 (medium var): {rp1_std:.2f} dBm")
-    print(f"    RP2 (high var):   {rp2_std:.2f} dBm")
-
-    # Test localization
-    query = np.array([-55, -65])
-    pos_map = map_localize(query, model, floor_id=0)
-    pos_mean = posterior_mean_localize(query, model, floor_id=0)
-
-    print("\n[OK] Localization works with varying sigma")
-    print(f"  Query: {query}")
-    print(f"  MAP estimate: {pos_map}")
-    print(f"  Posterior mean: {pos_mean}")
-
-    return True
-
-
-def test_behavior_with_varying_sigma():
-    """Demonstrate that localization behavior changes with varying sigma."""
-    print("\n" + "=" * 70)
-    print("TEST 3: Localization Behavior with Varying sigma")
-    print("=" * 70)
-
-    # Create two identical DBs but with different variances
-    locations = np.array([[0, 0], [10, 0]], dtype=float)
-
-    # DB 1: Uniform low variance (sigma = 1.0)
-    np.random.seed(100)
-    features1 = np.zeros((2, 10, 2))
-    features1[0, :, :] = -50 + np.random.randn(10, 2) * 1.0
-    features1[1, :, :] = -60 + np.random.randn(10, 2) * 1.0
-
-    # DB 2: Non-uniform variance (RP0: sigma=1.0, RP1: sigma=8.0)
-    np.random.seed(100)
-    features2 = np.zeros((2, 10, 2))
-    features2[0, :, :] = -50 + np.random.randn(10, 2) * 1.0
-    features2[1, :, :] = -60 + np.random.randn(10, 2) * 8.0  # High variance!
-
-    floor_ids = np.array([0, 0])
-
-    db1 = FingerprintDatabase(
-        locations=locations,
-        features=features1,
-        floor_ids=floor_ids,
+        floor_ids=np.zeros(2, dtype=int),
         meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
     )
 
-    db2 = FingerprintDatabase(
-        locations=locations,
-        features=features2,
-        floor_ids=floor_ids,
-        meta={"ap_ids": ["AP1", "AP2"], "unit": "dBm"},
+    quiet = fit_gaussian_naive_bayes(db, min_std=0.5)
+    noisy_rp1 = dataclasses.replace(
+        quiet, stds=quiet.stds * np.array([[1.0, 1.0], [8.0, 8.0]])
     )
+    assert np.array_equal(noisy_rp1.means, quiet.means)  # only sigma moved
+    assert np.array_equal(noisy_rp1.stds[0], quiet.stds[0])
 
-    model1 = fit_gaussian_naive_bayes(db1, min_std=0.5)
-    model2 = fit_gaussian_naive_bayes(db2, min_std=0.5)
+    def weight_of_rp1(model, query):
+        return float(np.exp(log_posterior(query, model, floor_id=0))[1])
 
-    print("[OK] Created two models with different variance patterns")
-    print("\n  Model 1 (uniform variance):")
-    print(f"    RP0 std: {model1.stds[0].mean():.2f} dBm")
-    print(f"    RP1 std: {model1.stds[1].mean():.2f} dBm")
-    print("\n  Model 2 (non-uniform variance):")
-    print(f"    RP0 std: {model2.stds[0].mean():.2f} dBm")
-    print(f"    RP1 std: {model2.stds[1].mean():.2f} dBm (high!)")
+    # Standing on RP 0's own fingerprint, the noisy RP 1 still gains ground.
+    at_rp0 = quiet.means[0]
+    assert weight_of_rp1(quiet, at_rp0) < 1e-9
+    assert weight_of_rp1(noisy_rp1, at_rp0) > 1e-3
 
-    # Test with query closer to RP1
-    query = np.array([-58, -62])  # Closer to RP1's mean [-60, -60]
-
-    pos1_map = map_localize(query, model1, floor_id=0)
-    pos2_map = map_localize(query, model2, floor_id=0)
-
-    pos1_mean = posterior_mean_localize(query, model1, floor_id=0)
-    pos2_mean = posterior_mean_localize(query, model2, floor_id=0)
-
-    print("\n[OK] Localization results differ due to variance")
-    print(f"  Query: {query} (closer to RP1)")
-    print("\n  Model 1 (uniform sigma):")
-    print(f"    MAP: {pos1_map}")
-    print(f"    Posterior mean: {pos1_mean}")
-    print("\n  Model 2 (RP1 has high sigma):")
-    print(f"    MAP: {pos2_map}")
-    print(f"    Posterior mean: {pos2_mean}")
-
-    # The high variance at RP1 should reduce its posterior probability,
-    # potentially shifting estimates toward RP0
-    dist_to_rp0_model1 = np.linalg.norm(pos1_mean - locations[0])
-    dist_to_rp0_model2 = np.linalg.norm(pos2_mean - locations[0])
-
-    print("\n  Analysis:")
-    print(f"    Model 1 distance to RP0: {dist_to_rp0_model1:.2f} m")
-    print(f"    Model 2 distance to RP0: {dist_to_rp0_model2:.2f} m")
-
-    if dist_to_rp0_model2 < dist_to_rp0_model1:
-        print("    OK Model 2 shifts toward RP0 (lower variance)")
-        print("      This demonstrates that high sigma at RP1 reduces its influence!")
-
-    return True
-
-
-def main():
-    """Run all tests."""
-    print("\n" + "=" * 70)
-    print("MULTI-SAMPLE FINGERPRINTING VALIDATION")
-    print("=" * 70)
-    print("\nThis script validates the implementation of Option A:")
-    print("  - Extended database format to support multiple samples per RP")
-    print("  - Proper mu and sigma estimation from survey samples (Eq. 5.6)")
-    print("  - Probabilistic localization behavior changes with varying sigma")
-
-    try:
-        test_single_sample_db()
-        test_multi_sample_db()
-        test_behavior_with_varying_sigma()
-
-        print("\n" + "=" * 70)
-        print("ALL TESTS PASSED OK")
-        print("=" * 70)
-        print("\nKey Findings:")
-        print("  1. Single-sample DBs work as before (backward compatible)")
-        print("  2. Multi-sample DBs compute actual mu and sigma from samples")
-        print("  3. Model stds vary by RP and feature when samples available")
-        print("  4. Localization behavior changes with varying sigma (as expected)")
-        print("\nAcceptance Criteria Met:")
-        print("  OK For DB with repeated samples, model.stds varies by RP/feature")
-        print("  OK Probabilistic localization behavior changes when sigma differs")
-        print("  OK Existing single-sample datasets continue to work")
-
-    except Exception as e:
-        print(f"\nX TEST FAILED: {e}")
-        import traceback
-
-        traceback.print_exc()
-        return False
-
-    return True
-
-
-if __name__ == "__main__":
-    success = main()
-    sys.exit(0 if success else 1)
+    # Halfway between the two fingerprints the basin flips outright: the
+    # posterior mean moves from RP 0 to RP 1 on sigma alone.
+    midway = (quiet.means[0] + quiet.means[1]) / 2
+    assert np.linalg.norm(
+        posterior_mean_localize(midway, quiet, floor_id=0) - locations[0]
+    ) == pytest.approx(0.0, abs=1e-6)
+    assert np.linalg.norm(
+        posterior_mean_localize(midway, noisy_rp1, floor_id=0) - locations[1]
+    ) == pytest.approx(0.0, abs=1e-6)

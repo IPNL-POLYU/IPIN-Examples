@@ -13,9 +13,18 @@ What was wrong: the generator drew shadow fading independently for every
 scrambling the map instead. Measured on the shipped grid database, 200 queries
 on floor 0:
 
-    clean map (no shadowing) + noiseless query   2.27 m   <- 5 m grid floor
+    5 m grid's quantisation floor (rms)          2.04 m
+    clean map (no shadowing) + noiseless query   2.18 m
     shipped map              + noiseless query   6.93 m   before
-                                                 3.39 m   after
+                                                 3.01 m   after
+
+The floor and the clean-map row used to be one number, 2.27 m, which is neither
+of them. ``sqrt(2 s^2 / 12)`` is 2.0412 for ``s = 5`` and sampling agrees
+(2.043 m over 200k uniform positions); nearest neighbour on a noiseless map
+achieves 2.18, 7% above the geometric bound. The *mean* nearest-node distance,
+1.91 m, is a third statistic under the same name -- it is the one the dense
+dataset's survey-effort table reports, and it is not what an RMSE should be read
+against.
 
 **A warning about the helper this file replaced**, because the shape recurs:
 its ``_nn_rmse(db, shadow_dbm)`` varied shadowing by overwriting
@@ -54,7 +63,11 @@ GRID_SPACING_M = 5.0
 
 #: RMS distance from a uniformly placed query to the nearest node of a square
 #: grid of this spacing, which is the best any nearest-neighbour method can do.
-#: sqrt(2 * s^2 / 12) for a cell of side s -- measured at 2.27 m for s = 5 m.
+#: ``sqrt(2 * s^2 / 12)`` for a cell of side ``s``: **2.041 m** at s = 5 m, and
+#: 2.043 m when sampled over 200k uniform positions. The comment here used to
+#: claim 2.27 m, which is neither this statistic nor the 1.91 m *mean* of the
+#: same distance. RMS is the one to keep, because everything compared against it
+#: in this file is an RMSE.
 QUANTISATION_FLOOR_M = np.sqrt(2 * GRID_SPACING_M**2 / 12)
 
 
@@ -139,11 +152,11 @@ def test_a_query_consistent_with_the_map_approaches_the_grid_floor(db):
     A noiseless query at position p carries ``S_ap(p)``, the same shadowing the
     map was built with, so the only things between nearest neighbour and the
     quantisation floor are the map's own 1.5 dB of fast fading and the field
-    changing between reference points 5 m apart. Measured: 3.39 m against a
-    2.27 m floor, where the old model gave 6.93 m -- three times the floor.
+    changing between reference points 5 m apart. Measured: 3.01 m against a
+    2.04 m floor, where the old model gave 6.93 m -- 3.4 times the floor.
 
     The bound is 2x the floor. Both sides of it were measured: the old model
-    sits at 3.05x and the new one at 1.49x, so the gate falls between the defect
+    sits at 3.4x and the new one at 1.48x, so the gate falls between the defect
     it must catch and the value it has to tolerate rather than beside either.
     """
     queries, truth, _ = _queries(db, include_shadowing=True, fast_std=0.0)

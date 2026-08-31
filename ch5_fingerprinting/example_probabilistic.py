@@ -40,6 +40,19 @@ from core.fingerprinting import (
 
 DEFAULT_DATA = "data/sim/ch5_wifi_fingerprint_grid"
 
+#: A stroke per MAP series in the CDF panel.
+#:
+#: On a single-sample database every MAP curve here is the *same* curve: sigma
+#: is the constant ``min_std``, and a constant sigma cancels out of the argmax,
+#: so Eq. (5.4) is the argmin of Eq. (5.1) at every value on this list. Drawn
+#: solid the three stack and only the last one survives, which reads as a
+#: plotting bug rather than as the theorem this example exists to show.
+MAP_CURVE_DASHES = {
+    "MAP (std=1.0dBm)": (None, None),
+    "MAP (std=2.0dBm)": (7, 3),
+    "MAP (std=5.0dBm)": (2, 2),
+}
+
 
 def generate_test_queries(db, n_queries=100, floor_id=None, noise_std=0.0, seed=42):
     """Generate test query fingerprints."""
@@ -240,6 +253,12 @@ def main():
         models[std_val] = model
         print(f"   Training time: {(t_end - t_start) * 1000:.2f}ms")
         print(f"   Model: {model.n_reference_points} RPs, {model.n_features} features")
+        # Print what the model actually is, not just its shape. On a
+        # single-sample database sigma is constant, and a constant sigma
+        # makes MAP (Eq. 5.4) the argmin of Eq. (5.1) whatever value it
+        # takes -- which is why the MAP rows below are identical at every
+        # std. The machinery to say so already existed and went unused.
+        print(f"   {model.sigma_summary()}")
 
     # Generate test queries
     print("\n3. Generating test queries...")
@@ -326,6 +345,15 @@ def main():
         ax=ax4,
         title_fontweight="normal",
     )
+    # The three MAP curves are the *same* curve -- one sample per RP means one
+    # constant sigma, and a constant sigma cancels out of the argmax -- so drawn
+    # solid they stack and only the last one is visible: six legend entries,
+    # four lines. That coincidence is this example's finding, so it must not be
+    # what erases a curve from the panel demonstrating it. Only the stroke
+    # changes; no value is nudged.
+    for line, result in zip(ax4.get_lines(), results, strict=True):
+        if result["method"].startswith("MAP"):
+            line.set_dashes(MAP_CURVE_DASHES[result["method"]])
     ax4.legend(fontsize=7)
     ax4.set_xlim(0, 20)
 
@@ -367,6 +395,25 @@ def main():
     ax6.set_xlabel("Model Std (dBm)")
     ax6.set_ylabel("RMSE (m)")
     ax6.set_title("Effect of Model Uncertainty (std)")
+    # The MAP line is flat, and flat is the finding rather than a bug. This
+    # database holds one sample per RP, so `fit_gaussian_naive_bayes` fills
+    # sigma with `min_std` everywhere; a constant sigma cancels out of the
+    # argmax, leaving Eq. (5.4) equal to Eq. (5.1) at every std on this axis.
+    # An uncommented horizontal line in a panel titled "Effect of ..." reads as
+    # a knob that does nothing.
+    if len({round(r["rmse"], 6) for r in map_results}) == 1:
+        ax6.annotate(
+            "MAP is flat: constant sigma\nmakes Eq. (5.4) = Eq. (5.1)",
+            xy=(std_values[len(std_values) // 2], map_results[0]["rmse"]),
+            # Below the line, not above it: above runs into the panel title,
+            # because the flat MAP series is the top of this axes by definition.
+            xytext=(0, -6),
+            textcoords="offset points",
+            ha="center",
+            va="top",
+            fontsize=7,
+            color="tab:blue",
+        )
     ax6.legend()
     ax6.grid(True, alpha=0.3)
 
@@ -382,12 +429,19 @@ def main():
             xytext=(5, 5),
             textcoords="offset points",
         )
+    # The x=y reference has to span both axes, not just the MAP one. Every MAP
+    # RMSE here is the same number -- the constant-sigma theorem again -- so
+    # `[min(map_rmse), max(map_rmse)]` was a zero-length segment: a line the
+    # legend advertised and the panel did not contain.
+    lo = min(min(map_rmse), min(pm_rmse))
+    hi = max(max(map_rmse), max(pm_rmse))
+    pad = 0.05 * (hi - lo) if hi > lo else 0.5
     ax7.plot(
-        [min(map_rmse), max(map_rmse)],
-        [min(map_rmse), max(map_rmse)],
+        [lo - pad, hi + pad],
+        [lo - pad, hi + pad],
         "k--",
         alpha=0.5,
-        label="x=y",
+        label="x=y (below it: posterior mean wins)",
     )
     ax7.set_xlabel("MAP RMSE (m)")
     ax7.set_ylabel("Posterior Mean RMSE (m)")
@@ -473,6 +527,30 @@ def main():
     print("  - Model std parameter controls uncertainty/smoothness trade-off")
     print("  - Larger std = more smooth but potentially less accurate")
     print("  - Smaller std = sharper posterior but sensitive to noise")
+    # Computed rather than written down, so it cannot survive a change to the
+    # database that would make it false. The MAP rows above are identical at
+    # every std, and an unremarked repetition reads as a copy-paste slip
+    # instead of as the property the whole chapter turns on.
+    map_rmses = {round(r["rmse"], 6) for r in results if r["method"].startswith("MAP")}
+    if len(map_rmses) == 1:
+        print(
+            f"  - MAP scored {map_rmses.pop():.2f} m at EVERY std above, and that is "
+            f"the theorem\n"
+            f"    rather than a coincidence: this database holds one sample per "
+            f"reference\n"
+            f"    point, so sigma is the constant min_std everywhere, and a constant "
+            f"sigma\n"
+            f"    cancels out of the argmax. Eq. (5.4) becomes the argmin of "
+            f"Eq. (5.1), which\n"
+            f"    is 1-NN. Only the posterior mean can feel this axis at all here. "
+            f"Survey each\n"
+            # Not the literal dataset directory name: tools/chapter_dependencies
+            # scans these files for one and would list this example as *reading*
+            # the multi-sample survey, which it does not. example_comparison is
+            # the demo that loads it.
+            f"    point more than once -- see the repeat-survey section of "
+            f"example_comparison."
+        )
     print("\nReferences:")
     print("  - Equation 5.3: Bayes posterior P(x_i|z) = P(z|x_i)P(x_i)/P(z)")
     print("  - Equation 5.4: MAP estimate i* = argmax_i P(x_i|z)")

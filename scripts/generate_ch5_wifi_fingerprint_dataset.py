@@ -23,7 +23,9 @@ This used to be one term. The whole 4 dB was redrawn for every (RP, AP, sample),
 which made the radio map a table of random numbers rather than a smooth function
 of position -- and smoothness is the only property fingerprinting exploits.
 Measured on the baseline grid before the split: nearest neighbour scored 6.93 m
-against noiseless queries where the 5 m grid's own quantisation floor is 2.27 m.
+against noiseless queries where the 5 m grid's own quantisation floor is 2.04 m
+-- ``sqrt(2 s^2 / 12)``, the rms distance from a uniform position to the nearest
+node. It scores 3.01 m now.
 
 Saves to: data/sim/ch5_wifi_fingerprint_grid/
 

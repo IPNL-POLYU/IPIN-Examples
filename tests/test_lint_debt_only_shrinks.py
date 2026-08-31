@@ -95,7 +95,11 @@ BASELINE = {
     "UP006": 283,
     "UP045": 133,
     "UP035": 87,
-    "I001": 58,
+    # 58 -> 56: `test_topk_posterior_mean.py` and `test_multisamples.py` were
+    # rewritten from print-and-return scripts into real assertions, and their
+    # script-shaped import blocks (numpy, time, pathlib, sys, then a
+    # `sys.path.insert`) went with them.
+    "I001": 56,
     "UP007": 34,
     "B007": 17,
     "B028": 9,

@@ -56,7 +56,8 @@ def test_the_marginal_std_is_the_sigma_it_was_asked_for(samples):
     Across 32 seeds the per-realisation spread has mean 3.994 dB (so the
     ensemble value is sigma, to a tenth of a percent) and standard deviation
     0.144 dB, with a range of 3.68 to 4.40; the per-realisation domain *mean*
-    has standard deviation 0.280 dB and never exceeded 0.63. A true
+    has standard deviation 0.280 dB and never exceeded 0.66 (seed 30; the gate
+    below is 1.0, so the worst seed measured uses two thirds of it). A true
     Gaussian-process realisation on a domain only six correlation lengths wide
     behaves the same way: a real building can simply have a systematically
     strong AP.

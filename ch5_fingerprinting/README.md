@@ -18,7 +18,7 @@ The module provides four main categories of methods:
 **Key Features:**
 - ✅ Multi-floor support with floor constraints
 - ✅ Multi-sample database format for variance estimation
-- ✅ Top-k posterior mean optimization (2.86x speedup)
+- ✅ Top-k posterior mean optimization (1.09x fewer operations — see below)
 - ✅ **Missing AP support** - handles signal dropout gracefully (NaN-based)
 
 ## Quick Start
@@ -269,21 +269,30 @@ times per point instead of once. There the σ is estimated rather than assumed
 and MAP does diverge from 1-NN, on 22% of queries.
 
 **Whether diverging makes it better is a separate question, and on this grid the
-answer is no.** That is a measurement, not a shortcoming of the model: making
-the fast fading genuinely vary with signal strength — the physically standard
-choice, RSS variance growing as SNR falls — makes MAP monotonically *worse*, and
-so does substituting the true σ instead of the estimated one. The error that
-decides the match is the radio map changing between the query and the nearest
-reference point (1.43 dB rms here, comparable to the whole 1.5 dB fast-fading
-budget), and it is **anti-correlated** with the noise a repeat survey can
-measure, because the path-loss gradient is steepest exactly where the signal is
-strongest. Weighting by the noise you can measure up-weights the APs whose
-unmodelled error is worst.
+answer is no — for one reason, which the example now runs rather than argues.**
+Its sweep ends in an `oracle` row that keeps the database, the queries and the
+estimator fixed and replaces the estimated σ with the true constant the samples
+were drawn from, 1.5 dB. MAP then differs from 1-NN on **0 of 200** queries and
+scores 3.16 m against NN's 3.16 m — identical, because a constant σ of *any*
+value collapses Eq. (5.4) onto Eq. (5.1). So the whole of MAP's penalty on the
+shipped survey is the ten-visit σ estimate wobbling around a flat truth.
 
-Measured across the three shipped surveys, the penalty tracks that term
-exactly — +0.04 m on the 2 m grid, +0.38 m at 5 m, +1.46 m at 10 m. So
-Eq. (5.6) pays when the variability it models dominates the variability it does
-not; on a 5 m grid with 8 APs it does not. The derivation is in the section's
+The ceiling on what a better σ could buy is set elsewhere, by a term the
+likelihood cannot see: a query stands *between* reference points, so it
+disagrees with the nearest one by the radio map's change over that gap. Measured
+on the shipped surveys that is 0.54 dB at 2 m spacing, 1.43 dB at 5 m and
+2.98 dB at 10 m — at 5 m already comparable to the whole 1.5 dB fast-fading
+budget. So Eq. (5.6) pays when the variability it models dominates the
+variability it does not; on a 5 m grid with 8 APs it does not.
+
+This paragraph used to say something stronger and narrower: that the per-visit σ
+is **anti-correlated** with that spatial term (`corr = -0.34`), so Naive Bayes
+up-weights the APs whose unmodelled error is worst. That is a real effect of a
+model in which σ_fast grows as the signal weakens — and **none of the shipped
+datasets is that model.** Their fast fading is one constant for the whole
+building, and the same correlation measured on the shipped multisample survey is
+`+0.0156`: zero, as a constant must be. Read the anti-correlation as a
+conditional about a variant nobody ships. The derivation is in the section's
 docstring.
 
 **Visual Output:**
@@ -293,7 +302,7 @@ docstring.
 *This comprehensive figure shows nine subplots comparing all fingerprinting methods:*
 - **Top-Left:** RMSE across noise scenarios (baseline, moderate, high)
 - **Top-Center:** Error CDF showing accuracy distribution
-- **Top-Right:** Speed comparison (Linear Regression 30x faster)
+- **Top-Right:** Per-query cost, counted (Linear Regression needs 18 operations against nearest neighbour's 1089 — 60.5x fewer)
 - **Middle-Left:** Error distribution box plots
 - **Middle-Center:** RMSE vs noise level (robustness analysis)
 - **Middle-Right:** Speed vs accuracy trade-off
@@ -308,19 +317,40 @@ docstring.
 This is the single-method view behind the Bayesian rows above. Read it as
 three questions: where does MAP snap to a discrete reference point, how much
 does posterior mean smooth that decision, and how quickly does the error change
-as the assumed RSS standard deviation changes? On the default single-sample
-database, MAP is expected to look like 1-NN because all reference points share
-the same fallback sigma.
+as the assumed RSS standard deviation changes?
+
+The answer to the third is **not at all**, and that is the panel worth pausing
+on. MAP scores 3.80 m at every std, the line in "Effect of Model Uncertainty" is
+flat, and the three MAP curves in the CDF panel are one curve drawn three times
+— dashed apart so you can see them stack. On a single-sample database sigma is
+the constant `min_std` everywhere, and a constant sigma cancels out of the
+argmax: Eq. (5.4) *is* the argmin of Eq. (5.1) whatever value you set. Only the
+posterior mean can feel this axis. The example prints `sigma_summary()` for each
+model so the reason is on the page and not only in the figure.
 
 #### Pattern Recognition Figure
 
 ![Pattern Recognition Positioning](figs/pattern_recognition_positioning.png)
 
 This is the regression-based alternative: train a mapping from RSS space to x-y
-position, then test it on held-out queries. The key thing to look for is the
-train/test separation: low training error with much larger test error means the
-model memorized the radio map rather than learning a useful spatial
-relationship.
+position, then test it on held-out queries.
+
+Read the bottom row left to right. **Train vs Test RMSE** shows what the ridge
+parameter buys on the shipped 70/30 split: nothing until λ reaches about 100,
+because `(Z'Z + λI)` has a diagonal of 3.6e5–4.3e5 and anything smaller is a
+rounding error against it. Then it trades — train RMSE 6.09 → 12.58 m as λ goes
+0 → 1e4, ‖W‖_F 2.30 → 0.92 — and test error dips near λ=1e3 before collapsing.
+The sweep used to run 0, 0.1, 1, 10, every one of which was under 3e-5 of the
+data term, and printed the same 6.09 m four times under the heading
+"Regularization prevents overfitting".
+
+**Where λ earns its keep** is the panel that shows the overfitting, because the
+shipped split does not have any: 85 training points for 9 parameters, and train
+error below test error at every λ. Shrink the training set toward the 8 features
+and the picture appears — at 9 reference points the unregularised fit is exact
+(train RMSE 0.00 m) and scores 167 m on held-out points, where λ=100 gives up
+4.46 m of training fit and returns 10.5 m. Same knob, same data, two regimes:
+"λ prevents overfitting" is a claim about the ratio of samples to parameters.
 
 ### Classification and Hierarchical Methods Example
 

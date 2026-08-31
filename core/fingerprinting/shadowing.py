@@ -12,7 +12,9 @@ and a table of random numbers, and it is not a cosmetic one:
 - The radio map stops being a smooth function of position, and smoothness is the
   only property fingerprinting exploits. On the Chapter 5 grid database, nearest
   neighbour scored 6.93 m against noiseless queries where the 5 m grid's own
-  quantisation floor is 2.18 m; almost all of that gap was the map arguing with
+  quantisation floor is 2.04 m -- ``sqrt(2 s^2 / 12)``, the rms distance from a
+  uniform position to the nearest node -- and 2.18 m is what it achieves on a
+  map with no shadowing at all. Almost all of that gap was the map arguing with
   itself.
 - A query drawn at a point becomes inconsistent with the map at that same point,
   which is the correlation the method is built on.

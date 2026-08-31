@@ -177,6 +177,13 @@ def evaluate_noisy_queries(
     print("=" * 70)
 
     # Add noise to database features
+    #
+    # The sigma = 0 column is exactly 0.00 m for all three methods, and it is
+    # not missing data: a zero-noise query *is* the stored fingerprint of the RP
+    # it was drawn from, so every method returns that RP's own location. The row
+    # is the anchor the rest of the sweep is read against rather than a result,
+    # and an uncommented 0.00 in a robustness table invites the opposite
+    # reading.
     noise_levels = [0, 2, 4, 6, 8]  # dBm
     n_queries = 50
 
@@ -232,6 +239,19 @@ def evaluate_noisy_queries(
     ax.set_xlabel("Noise Standard Deviation (dBm)", fontsize=12)
     ax.set_ylabel("Positioning Error RMSE (m)", fontsize=12)
     ax.set_title("Classification vs k-NN: Robustness to Noise", fontsize=14)
+    # Say why all three curves start at zero, on the figure. Three lines meeting
+    # at 0.00 m looks like a plotting artefact; it is the definition of the
+    # left-hand column.
+    ax.annotate(
+        "all three are exact at σ=0:\nthe query IS the stored fingerprint",
+        xy=(0, 0),
+        # Low and close: a leader from the origin to mid-panel crosses the
+        # curves it is trying to explain.
+        xytext=(0.30, 0.05),
+        textcoords="axes fraction",
+        fontsize=9,
+        arrowprops={"arrowstyle": "->", "alpha": 0.6},
+    )
     ax.legend(fontsize=11)
     ax.grid(True, alpha=0.3)
 

@@ -240,21 +240,32 @@ does.
    sweep.
 
 3. **Then ask whether MAP is actually better, and be ready for the answer to be
-   no.** It is not, on this grid, and the reason is worth more than the result.
-   Weight the match by the noise this survey can measure and you systematically
-   up-weight the wrong access points: the error that decides the match is the
-   radio map changing over the gap between the query and the nearest RP
-   (1.43 dB rms, comparable to the whole fast-fading budget), and it is
-   **anti-correlated** with fast fading -- `corr = -0.34` over all (query, AP)
-   pairs -- because the path-loss gradient `d(pathloss)/dd = -10 n / (d ln 10)`
-   is steepest exactly where the signal is strongest and the fast fading is
-   quietest. Measure that correlation yourself before believing it.
+   no.** It is not, on this grid, and on *this* dataset the reason is a single
+   one: estimation noise. The example's sweep ends in an `oracle` row that keeps
+   everything fixed and swaps the estimated sigma for the true constant these
+   samples were drawn from, 1.5 dB. MAP then differs from 1-NN on **0 of 200**
+   queries and ties it at 3.16 m -- a constant sigma of any value *is* 1-NN. So
+   the entire penalty in the rows above is ten visits' worth of sigma estimate
+   wobbling around a flat truth, and experiment 5 below is how you watch it
+   shrink.
 
-   The prediction that follows is testable and holds: the penalty tracks the
-   spatial term across the three survey grids -- +0.04 m on the 2 m grid where
-   it is 0.52 dB, +0.38 m at 5 m and 1.48 dB, +1.46 m at 10 m and 2.74 dB. So
+   What caps the upside is a different term, and it is the one to carry away:
+   a query stands *between* reference points, so it disagrees with the nearest
+   one by the radio map's change over that gap. Measured on the shipped
+   surveys that is 0.54 dB at 2 m spacing, 1.43 dB at 5 m and 2.98 dB at 10 m
+   -- at 5 m already comparable to the whole 1.5 dB fast-fading budget. So
    **Eq. (5.6) pays only when the variability it models dominates the
    variability it does not.**
+
+   A stronger claim used to stand here: that the per-visit sigma is
+   **anti-correlated** with that spatial term, `corr = -0.34`, so Naive Bayes
+   up-weights the APs whose unmodelled error is worst. That describes a model
+   in which `sigma_fast` grows as the signal weakens -- the path-loss gradient
+   `d(pathloss)/dd = -10 n / (d ln 10)` is steepest where the signal is
+   strongest -- and **this dataset is not that model.** Its fast fading is one
+   constant for the whole building, and measured here the same correlation is
+   `+0.0156`. Measure it yourself; a constant has nothing to anti-correlate
+   with.
 
 4. **Price the repeat survey against a denser one.** Ten visits per point costs
    10x the survey effort and takes nearest neighbour from 3.07 m to 2.57 m
