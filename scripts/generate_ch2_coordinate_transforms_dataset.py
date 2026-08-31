@@ -11,11 +11,16 @@ Key Learning Objectives:
     - Study rotation representations (Euler, Quaternion, Matrix)
     - Explore numerical precision in transformations
 
-Implements Equations:
-    - Eq. (2.1): LLH → ECEF transformation
-    - Eq. (2.2): ECEF → LLH transformation (iterative)
-    - Eq. (2.3): ECEF → ENU transformation
-    - Eqs. (2.5-2.10): Rotation representations
+Implements Equations (numbering follows the final book, per
+docs/equation_index.yml; this block used to carry the pre-correction numbers,
+where 2.1/2.2 are in fact the local body/map vector definitions and 2.3 is
+map <-> body):
+    - Eq. (2.9): LLH → ECEF transformation
+    - Eq. (2.9) inverse: ECEF → LLH, iterative (the book gives no closed form)
+    - Eq. (2.10): ECEF → ENU transformation
+    - Eqs. (2.14)-(2.17): Euler angles → rotation matrix, and its inverse
+    - Eq. (2.21): quaternion → rotation matrix
+    - Eq. (2.23): Euler angles → quaternion
 
 Author: Li-Ta Hsu
 Date: December 2024
@@ -361,11 +366,16 @@ def generate_dataset(
             "llh_roundtrip_height_m": float(height_errors.max()),
             "rotation_roundtrip_deg": float(np.rad2deg(euler_errors.max())),
         },
+        # Final-book numbering, per docs/equation_index.yml. These four strings
+        # go straight into the shipped config.json, so PR #66's correction had
+        # to reach the generator to reach the dataset -- it had not, and the
+        # data kept advertising 2.1/2.2/2.3, which are the vector definitions
+        # and map <-> body rather than the geodetic chain.
         "equations": [
-            "2.1 (LLH->ECEF)",
-            "2.2 (ECEF->LLH)",
-            "2.3 (ECEF->ENU)",
-            "2.5-2.10 (Rotations)",
+            "2.9 (LLH->ECEF)",
+            "2.9 inverse, iterative (ECEF->LLH)",
+            "2.10 (ECEF->ENU)",
+            "2.14-2.17 (Euler->C), 2.21 (quat->C), 2.23 (Euler->quat)",
         ],
         "seed": seed,
     }

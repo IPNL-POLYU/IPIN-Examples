@@ -85,7 +85,17 @@ def ecef_to_llh(
         x: ECEF x-coordinate in meters.
         y: ECEF y-coordinate in meters.
         z: ECEF z-coordinate in meters.
-        tol: Convergence tolerance for iterative solution (meters).
+        tol: Convergence tolerance on the **latitude** step, in **radians** --
+            not metres, whatever a value like 1e-3 suggests. It is compared
+            against ``abs(lat_new - lat)``. Multiply by the local radius of
+            curvature for the surface arc it corresponds to: the 1e-12
+            default is about 6 um at the equator, and 1e-3 would be 6.4 km.
+            Measured, the parameter barely bites at the surface -- the
+            iteration reaches machine precision in a step or two there, and
+            tol=1e-3 costs no measurable height at any latitude. It bites at
+            altitude, where the height=0 initial guess is poorest: at
+            20 200 km (a GNSS satellite) tol=1e-3 leaves 18 mm of height error
+            at 38 deg latitude and 218 m at 89 deg.
         max_iter: Maximum number of iterations.
 
     Returns:
@@ -413,8 +423,15 @@ def body_to_map(
 
 
 # Rotation matrix C^NED_ENU that swaps E<->N and flips U->D (Eq. (2.5)).
+# Superscript is the target frame and subscript the source, as everywhere else
+# here (C^BODY_ENU, C^ENU_BODY below) and in docs/equation_index.yml -- so this
+# maps ENU into NED, and the name reads target-first to match. It used to read
+# `_C_ENU_NED`, source-first, which is the one place in the module that
+# disagreed with its own comment about which way the matrix goes.
 # It is symmetric and its own inverse, so ENU->NED and NED->ENU share it.
-_C_ENU_NED = np.array(
+# Despite "swap and flip" it is a proper rotation: det = +1, a half-turn about
+# the NE bisector, which is why handedness survives.
+_C_NED_ENU = np.array(
     [[0.0, 1.0, 0.0], [1.0, 0.0, 0.0], [0.0, 0.0, -1.0]], dtype=np.float64
 )
 
@@ -433,7 +450,7 @@ def enu_to_ned(x_enu: NDArray[np.float64]) -> NDArray[np.float64]:
     Reference:
         Chapter 2, Eq. (2.5) - ENU to NED transformation.
     """
-    return _C_ENU_NED @ np.asarray(x_enu, dtype=np.float64)
+    return _C_NED_ENU @ np.asarray(x_enu, dtype=np.float64)
 
 
 def ned_to_enu(x_ned: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -450,7 +467,7 @@ def ned_to_enu(x_ned: NDArray[np.float64]) -> NDArray[np.float64]:
     Reference:
         Chapter 2, Eq. (2.5) - NED to ENU (self-inverse of ENU to NED).
     """
-    return _C_ENU_NED @ np.asarray(x_ned, dtype=np.float64)
+    return _C_NED_ENU @ np.asarray(x_ned, dtype=np.float64)
 
 
 def enu_to_body(

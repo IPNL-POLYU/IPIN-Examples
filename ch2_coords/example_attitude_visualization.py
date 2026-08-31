@@ -14,8 +14,9 @@ figures:
                                  and their composition (2.17), each axis of
                                  rotation marked so the Y/X pairing is visible.
 2. ``ch2_passive_vs_active``  -- the transpose trap: Chapter 2's passive C
-                                 (2.21) beside the active body-to-map rotation
-                                 used in Chapter 6 (6.13).
+                                 (the relation is 2.11, the matrix 2.17)
+                                 beside the active body-to-map rotation used
+                                 in Chapter 6 (6.13).
 3. ``ch2_gimbal_lock``        -- the singularity, which in this convention
                                  occurs at **roll** = +/-90 degrees, not pitch.
 4. ``ch2_frame_chain``        -- ENU -> NED -> body, the local-frame chain of
@@ -28,7 +29,7 @@ Run:
 
 Author: Li-Ta Hsu
 References: Chapter 2, Sections 2.1 (frames) and 2.2 (attitude),
-            Eqs. (2.5)-(2.7), (2.14)-(2.17), (2.21)
+            Eqs. (2.5)-(2.7), (2.11), (2.14)-(2.17)
 """
 
 import argparse
@@ -67,11 +68,25 @@ PITCH_AXIS = "x"
 YAW_AXIS = "z"
 
 
-# One viewing angle for every panel: at the default azimuth the Y axis points
-# up-and-right and visually collides with Z, which makes "roll about Y" look
-# like the Y axis moved when it has not.
-VIEW_ELEV = 20.0
-VIEW_AZIM = 35.0
+# One viewing angle for every panel that does not override it. Two things had
+# to be avoided and only one of them was:
+#
+# - at matplotlib's default azimuth the Y axis points up-and-right and
+#   visually collides with Z, which makes "roll about Y" look like the Y axis
+#   moved when it has not;
+# - an axis pointing along the line of sight collapses to a stub. The old
+#   35 deg azimuth was *the yaw panel's own rotation angle*, so the rotated
+#   x' in the figure that exists to show yaw pointed straight at the camera
+#   and vanished -- the one axis whose movement that panel demonstrates.
+#
+# So the angle is chosen rather than picked: over every triad drawn under this
+# view (three figures, nine panels, plus the dashed reference in each), the
+# shortest on-screen axis length was 0.342 of full at (20, 35) and is 0.578
+# here. The maximiser is (36, 45) at 0.587; 35 is within 1.5% of it and reads
+# as a round number. Note that elevation is the robust half -- a horizontal
+# axis can never project shorter than sin(elev) whatever its azimuth.
+VIEW_ELEV = 35.0
+VIEW_AZIM = 45.0
 
 
 def _style_3d(ax, elev: float = VIEW_ELEV, azim: float = VIEW_AZIM) -> None:
@@ -216,7 +231,11 @@ def plot_passive_vs_active(
     fig = plt.figure(figsize=(11, 4.6))
     for index, (title, matrix) in enumerate(
         [
-            ("Passive: C, Eq. (2.21)\n'x_new = C x_old' -- rotates coordinates", C),
+            (
+                "Passive: C, Eqs. (2.11)/(2.17)\n"
+                "'x_new = C x_old' -- rotates coordinates",
+                C,
+            ),
             ("Active: C^T, Ch. 6 Eq. (6.13)\nbody-to-map -- rotates the vector", C.T),
         ],
         start=1,
@@ -258,14 +277,27 @@ def plot_gimbal_lock() -> plt.Figure:
     gimbal_view = {"elev": 8.0, "azim": 88.0}
 
     approach = [0.0, 45.0, 80.0, 90.0]
+    approach_yaw_deg, approach_pitch_deg = 30.0, 0.0
     for index, roll_deg in enumerate(approach, start=1):
         ax = fig.add_subplot(2, 4, index, projection="3d")
-        C = euler_to_rotation_matrix(np.deg2rad(roll_deg), 0.0, np.deg2rad(30.0))
+        C = euler_to_rotation_matrix(
+            np.deg2rad(roll_deg),
+            np.deg2rad(approach_pitch_deg),
+            np.deg2rad(approach_yaw_deg),
+        )
         _draw_reference(ax)
         plot_frame_3d(ax, C, label="'", linewidth=2.6)
         _draw_rotation_axis(ax, ROLL_AXIS)
         _style_3d(ax, **gimbal_view)
-        ax.set_title(f"roll = {roll_deg:g} deg", fontsize=9)
+        # Naming all three matters here: the bottom row's whole argument is
+        # that (yaw 30, pitch 0) and (yaw 0, pitch -30) are one attitude, and
+        # a top row labelled by roll alone hides that its yaw is the 30 the
+        # comparison is about.
+        ax.set_title(
+            f"roll = {roll_deg:g} deg\n"
+            f"(yaw = {approach_yaw_deg:g}, pitch = {approach_pitch_deg:g})",
+            fontsize=9,
+        )
 
     # Two distinct (yaw, pitch) pairs collapsing to one attitude at roll = 90.
     locked = [(30.0, 0.0), (0.0, -30.0)]
@@ -316,10 +348,13 @@ def plot_gimbal_lock() -> plt.Figure:
 
 
 def plot_frame_chain() -> plt.Figure:
-    """Figure 4: the ECEF -> ENU -> NED -> body chain of (2.5)-(2.7).
+    """Figure 4: the ENU -> NED -> body chain of (2.5)-(2.7).
 
-    ENU and NED differ by the swap-and-flip of (2.5); the body frame then sits
-    at the vehicle attitude via (2.6)/(2.7).
+    ENU and NED differ by the swap-and-flip of (2.5), which is a proper
+    rotation -- a half-turn about the NE bisector -- and the caption measures
+    that rather than claiming it. The body frame then sits at the vehicle
+    attitude via (2.6)/(2.7). ECEF is omitted deliberately, as the module
+    docstring says: an earth-sized frame shares no scale with a unit triad.
 
     Returns:
         The matplotlib figure.
@@ -350,9 +385,27 @@ def plot_frame_chain() -> plt.Figure:
         _style_3d(ax)
         ax.set_title(title, fontsize=9)
 
+    # Measured from the matrix rather than asserted, because the sentence this
+    # replaces said the opposite and no test could have caught it: the
+    # suptitle used to call the ENU->NED swap "not a rotation". It is one.
+    # det = +1 and the turn is a half-turn about the NE bisector, which is
+    # *why* handedness survives -- a swap-and-flip that were not a rotation
+    # would have det = -1 and would take a right-handed triad to a left-handed
+    # one. Deriving the three numbers here keeps the caption and the matrix
+    # from ever disagreeing again.
+    determinant = float(np.linalg.det(C_enu_to_ned))
+    turn_deg = float(
+        np.rad2deg(np.arccos(np.clip((np.trace(C_enu_to_ned) - 1.0) / 2.0, -1.0, 1.0)))
+    )
+    eigenvalues, eigenvectors = np.linalg.eig(C_enu_to_ned)
+    axis = np.real(eigenvectors[:, int(np.argmin(np.abs(eigenvalues - 1.0)))])
+    axis = np.abs(axis / np.linalg.norm(axis))
+
     fig.suptitle(
-        "Frame chain: dashed ENU reference behind each frame. "
-        "NED is a handedness-preserving swap-and-flip of ENU, not a rotation.",
+        "Frame chain: dashed ENU reference behind each frame. ENU -> NED is a "
+        f"{turn_deg:.0f} deg rotation about the NE bisector "
+        f"[{axis[0]:.3f}, {axis[1]:.3f}, {axis[2]:.3f}], det = {determinant:+.0f} -- "
+        "handedness survives because it is a rotation.",
         fontsize=11,
     )
     fig.subplots_adjust(top=0.80, bottom=0.03, left=0.02, right=0.98, wspace=0.05)

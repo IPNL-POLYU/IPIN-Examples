@@ -130,13 +130,27 @@ def euler_to_quat(
 ) -> NDArray[np.float64]:
     """Convert Euler angles to a unit quaternion.
 
+    **Does not canonicalise the hemisphere, and its inverse does.** ``q`` and
+    ``-q`` name the same rotation -- the quaternion double cover -- so a
+    library is free to pick either. This function returns Eq. (2.23) as the
+    book writes it, sign and all, while :func:`rotation_matrix_to_quat` folds
+    its answer into q0 >= 0. A round trip through the matrix therefore
+    sign-flips whenever Eq. (2.23) lands in the lower hemisphere: 10 of the 20
+    attitudes in ``data/sim/ch2_coords_san_francisco`` do exactly that.
+
+    This is deliberate and is not fixed here, because the shipped dataset's
+    ``quaternions.txt`` records these signs; canonicalising would rewrite half
+    of it for no gain. Compare quaternions with ``abs(dot(a, b))`` near 1, or
+    compare the matrices, rather than element by element.
+
     Args:
         roll: Roll angle phi in radians (rotation about the Y-axis).
         pitch: Pitch angle theta in radians (rotation about the X-axis).
         yaw: Yaw angle psi in radians (rotation about the Z-axis).
 
     Returns:
-        Unit quaternion as numpy array [q0, q1, q2, q3] (scalar first).
+        Unit quaternion as numpy array [q0, q1, q2, q3] (scalar first), in
+        whichever hemisphere Eq. (2.23) produces.
 
     Example:
         >>> import numpy as np
@@ -163,8 +177,20 @@ def euler_to_quat(
 def quat_to_euler(q: NDArray[np.float64]) -> NDArray[np.float64]:
     """Convert a unit quaternion to Euler angles.
 
-    The roll (about Y) extraction uses ``arcsin`` and is clamped to [-1, 1] for
-    numerical safety; it degrades near the roll = +/-90 deg gimbal lock.
+    Handles gimbal lock exactly as :func:`rotation_matrix_to_euler` does, and
+    for the same reason: both invert Eq. (2.17)'s composition, so both lose a
+    degree of freedom when the roll angle phi reaches +/-90 deg and the yaw
+    and pitch axes coincide. There, yaw is fixed at 0 by convention and the
+    remainder is folded into pitch, so the recovered triple still reconstructs
+    the attitude it came from.
+
+    Away from the lock the roll extraction is an ``arcsin``, clamped to
+    [-1, 1] for numerical safety, and the recovered triple is the input one to
+    about 1e-15. The lock is a *boundary*, not a neighbourhood: 89.999 deg
+    goes down the ordinary branch and is exact. Before the branch existed, the
+    exact-90 case returned a different attitude rather than a slightly wrong
+    one -- at the singularity both ``arctan2`` calls receive a zero numerator
+    beside a negative-epsilon denominator, so each returned +pi instead of 0.
 
     Args:
         q: Unit quaternion as numpy array [q0, q1, q2, q3] (scalar first).
@@ -183,9 +209,22 @@ def quat_to_euler(q: NDArray[np.float64]) -> NDArray[np.float64]:
 
     q0, q1, q2, q3 = q
 
-    pitch = np.arctan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2))
-    roll = np.arcsin(np.clip(2.0 * (q0 * q2 - q3 * q1), -1.0, 1.0))
-    yaw = np.arctan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3))
+    # These three are the entries of Eq. (2.21)'s matrix that
+    # rotation_matrix_to_euler reads: sin_roll = -C[0, 2], and C[1, 0], C[1, 1]
+    # for the locked pitch. Written out here so the two paths share one
+    # convention rather than two that happen to agree.
+    sin_roll = 2.0 * (q0 * q2 - q3 * q1)
+    c10 = 2.0 * (q1 * q2 - q0 * q3)
+    c11 = 1.0 - 2.0 * (q1 * q1 + q3 * q3)
+
+    if abs(sin_roll) >= 1.0 - 1e-12:
+        roll = np.copysign(np.pi / 2.0, sin_roll)
+        yaw = 0.0
+        pitch = np.arctan2(np.copysign(1.0, sin_roll) * c10, c11)
+    else:
+        roll = np.arcsin(np.clip(sin_roll, -1.0, 1.0))
+        pitch = np.arctan2(2.0 * (q0 * q1 + q2 * q3), 1.0 - 2.0 * (q1 * q1 + q2 * q2))
+        yaw = np.arctan2(2.0 * (q0 * q3 + q1 * q2), 1.0 - 2.0 * (q2 * q2 + q3 * q3))
 
     return np.array([roll, pitch, yaw], dtype=np.float64)
 
@@ -245,6 +284,12 @@ def rotation_matrix_to_quat(C: NDArray[np.float64]) -> NDArray[np.float64]:
     matrix-to-quaternion equation, so this is the inverse of Eq. (2.21). The
     result is returned in the canonical hemisphere (q0 >= 0) to remove the
     quaternion double-cover sign ambiguity.
+
+    **:func:`euler_to_quat` does not do this**, so the two disagree in sign on
+    any attitude Eq. (2.23) places in the lower hemisphere -- half of the
+    Chapter 2 dataset. Both answers are correct: q and -q are one rotation.
+    See that function's docstring for why the asymmetry is left in place and
+    how to compare two quaternions without tripping over it.
 
     Args:
         C: 3x3 rotation matrix (orthogonal, SO(3)) with ``x_new = C @ x_old``.

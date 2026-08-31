@@ -49,7 +49,8 @@ axis of rotation. Eqs. (2.14)–(2.17).
 
 ![Passive rotation beside active rotation](figs/ch2_passive_vs_active.svg)
 
-Chapter 2's `C` rotates *coordinates* (passive, 2.21); Chapter 6's body-to-map
+Chapter 2's `C` rotates *coordinates* (passive: the relation is 2.11, the
+matrix drawn is 2.17 -- 2.21 is quaternion-to-matrix); Chapter 6's body-to-map
 rotates the *vector* (active, 6.13). They differ by a transpose, so at yaw = 50°
 the two answers sit **100° apart**. This is the single easiest mistake to make
 in the whole chapter.
@@ -344,12 +345,14 @@ core/coords/
 └── rotations.py                       # Rotation representations
 
 data/sim/ch2_coords_san_francisco/     # Optional pre-generated dataset
+├── README.md
 ├── llh_coordinates.txt
 ├── ecef_coordinates.txt
 ├── enu_coordinates.txt
 ├── reference_llh.txt
 ├── euler_angles.txt
 ├── quaternions.txt
+├── rotation_matrices.txt
 └── config.json
 ```
 
