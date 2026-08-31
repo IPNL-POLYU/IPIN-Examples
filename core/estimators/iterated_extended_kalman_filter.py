@@ -285,6 +285,26 @@ class IteratedExtendedKalmanFilter(StateEstimator):
         """
         Compute innovation (measurement residual) and its covariance.
 
+        A **pre-update diagnostic**, evaluated at the predicted state, for a
+        chi-square gate or a NIS consistency check between `predict()` and
+        `update()`. Note what that means here specifically: this update
+        *iterates its linearisation point*, so what comes back is the **first
+        iteration's** innovation, not the one the converged update finally
+        acts on. Pinned both ways in the test named below -- exact at
+        `max_iterations=1`, and 5.3e-04 away from the realised step after four
+        iterations, against 5.7 for an unwrapped residual.
+
+        Honours `innovation_func` exactly as the update loop does. It used to
+        subtract raw; see the note on
+        `ExtendedKalmanFilter.get_innovation` for what that cost on a bearing
+        straddling pi/-pi.
+
+        This is a sibling of that method rather than an override of it: this
+        class extends `StateEstimator`, not `ExtendedKalmanFilter`, so the two
+        copies have to be kept in step by hand. Both are pinned by
+        `tests/core/estimators/test_get_innovation_honours_the_wrapper.py`,
+        which parametrises over both classes for exactly that reason.
+
         Args:
             z: Measurement vector (m,).
 
@@ -299,7 +319,12 @@ class IteratedExtendedKalmanFilter(StateEstimator):
         H = self.measurement_jacobian(self.state)
         R = self.R()
 
-        innovation = z - z_pred
+        # Same branch as the iteration loop in update().
+        if self.innovation_func is not None:
+            innovation = self.innovation_func(z, z_pred)
+        else:
+            innovation = z - z_pred
+
         innovation_cov = H @ self.covariance @ H.T + R
 
         return innovation, innovation_cov

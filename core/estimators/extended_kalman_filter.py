@@ -201,6 +201,22 @@ class ExtendedKalmanFilter(StateEstimator):
         """
         Compute innovation (measurement residual) and its covariance.
 
+        A **pre-update diagnostic**: both quantities are evaluated at the
+        predicted state, so this is what to call between `predict()` and
+        `update()` for a chi-square gate or a NIS consistency check. For this
+        class the innovation it returns is exactly the one `update()` then
+        consumes; `IteratedExtendedKalmanFilter` relinearises, so there it is
+        the first iteration's.
+
+        Honours `innovation_func` exactly as `update()` does, so the residual
+        this returns is the one the filter would act on. It used to subtract
+        raw, which made it unusable on the measurements this class takes an
+        `innovation_func` for in the first place: on a bearing straddling
+        pi/-pi it returned +6.2578 rad where the wrapped residual is -0.0254 --
+        the long way round and with the opposite sign. Callers computing a
+        normalised innovation squared, a chi-square gate or a NIS consistency
+        check would have read that as a wild outlier.
+
         Args:
             z: Measurement vector (m,).
 
@@ -215,7 +231,12 @@ class ExtendedKalmanFilter(StateEstimator):
         H = self.measurement_jacobian(self.state)
         R = self.R()
 
-        innovation = z - z_pred
+        # Same branch as update(); the two must not disagree about the residual.
+        if self.innovation_func is not None:
+            innovation = self.innovation_func(z, z_pred)
+        else:
+            innovation = z - z_pred
+
         innovation_cov = H @ self.covariance @ H.T + R
 
         return innovation, innovation_cov

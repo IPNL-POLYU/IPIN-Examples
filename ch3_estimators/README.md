@@ -159,7 +159,7 @@ Demonstrates Extended Kalman Filter for 2D trajectory estimation with nonlinear 
 python -m ch3_estimators.example_iekf_range_bearing
 ```
 
-Demonstrates the Iterated Extended Kalman Filter and compares it with standard EKF in high-nonlinearity scenarios. Shows IEKF's improved stability when measurements are highly nonlinear.
+Demonstrates the Iterated Extended Kalman Filter and compares it with a standard EKF on the same range-bearing problem. It does **not** show IEKF winning, and the example says so: over 200 seeds of this scenario the median improvement is +3.7% on the first update and +0.16% from step 5 on, with IEKF *worse* on 42% and 46% of seeds respectively, for 4.6x the update cost. Iterating pays only while linearisation error dominates measurement noise, and at this scenario's 0.30 m / 0.08 rad it does not. The example prints the sweep that shows where it does: tightening the noise to 0.05 m / 0.01 rad lifts the first-update median to +39.5%, and doing that from 8.49 m out gives +90.4%, where IEKF never loses.
 
 ### Example 5: Estimator Comparison (Section 3.5)
 
@@ -237,6 +237,14 @@ jitter.
 **Generated figure:** `figs/ch3_ekf_range_bearing.png`
 
 ![EKF Range-Bearing Tracking](figs/ch3_ekf_range_bearing.png)
+
+Running it with `--data` writes a second figure,
+`figs/ch3_ekf_range_bearing_dataset.png`, showing the same four panels for
+whichever shipped dataset you point it at. Both used to share this basename, so
+the `--data` run overwrote the one above with a picture of a different
+trajectory.
+
+![EKF Range-Bearing on the shipped nonlinear dataset](figs/ch3_ekf_range_bearing_dataset.png)
 
 Read the 2×2 grid as trajectory, position-error magnitude, x/y position traces,
 and velocity-error magnitude. The trajectory panel explains the geometry; the
@@ -518,11 +526,14 @@ ch3_estimators/
 ├── example_iekf_range_bearing.py    # Section 3.2.3: IEKF vs EKF comparison
 ├── example_particle_bimodal.py      # Section 3.3: Bimodal posterior a PF can carry
 ├── example_comparison.py            # Section 3.5: Compare all estimators
-└── figs/                            # Generated figures
+└── figs/                            # Generated figures (each as .svg, .pdf, .png)
     ├── ch3_least_squares_examples.png
     ├── ch3_kalman_1d_tracking.png
-    ├── ch3_ekf_range_bearing.png
+    ├── ch3_ekf_range_bearing.png         # inline run
+    ├── ch3_ekf_range_bearing_dataset.png # --data run
     ├── ch3_iekf_vs_ekf_comparison.png
+    ├── ch3_particle_bimodal.png
+    ├── ch3_particle_bimodal.gif          # --animate only
     └── ch3_estimator_comparison.png
 
 core/estimators/
@@ -578,7 +589,7 @@ With only the theoretical minimum (4 anchors for 2D), there is insufficient over
 - Robust loss functions cannot distinguish the outlier
 - Result: Robust LS performs identically to standard LS
 
-**Solution with 8 anchors:** The majority of measurements constrain the solution accurately, the outlier produces a clearly distinguishable large residual, and robust loss functions successfully downweight it (93-97% error reduction).
+**Solution with 8 anchors:** The majority of measurements constrain the solution accurately, the outlier produces a clearly distinguishable large residual, and robust loss functions successfully downweight it. Against L2's 1.2858 m in Example 5, the reduction runs from **90.8% (Huber) to 99.1% (Geman-McClure)**, with Cauchy at 97.9% and Tukey at 97.8% — a wider spread than a single range suggests, and Huber is the outlier in it because its weight only decays as `c/|r|` where the other three decay quadratically or faster.
 
 ---
 

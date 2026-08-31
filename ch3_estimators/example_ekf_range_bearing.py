@@ -24,7 +24,6 @@ import argparse
 import json
 import sys
 from pathlib import Path
-from typing import Dict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -72,7 +71,51 @@ def create_range_bearing_innovation_func(n_landmarks: int):
     return innovation_func
 
 
-def load_estimator_dataset(data_dir: str) -> Dict:
+#: Keys a Chapter 3 dataset's `config.json` must carry before the `--data` path
+#: can build `R` from the noise its measurements were actually drawn with. Both
+#: name their unit in the key, and both are converted accordingly below.
+REQUIRED_MEASUREMENT_KEYS = ("range_noise_std_m", "bearing_noise_std_deg")
+
+
+def read_measurement_noise(config: dict, data_dir: str) -> tuple[float, float]:
+    """Read the measurement noise a dataset records, in SI units for the filter.
+
+    Args:
+        config: The dataset's parsed `config.json`.
+        data_dir: Where it came from, for the error message.
+
+    Returns:
+        `(range_std_m, bearing_std_rad)`.
+
+    Raises:
+        KeyError: if either required key is absent, naming both.
+
+    A default here is worse than a crash, and this example is why. It used to
+    ask for `range_noise_std` and `bearing_noise_std` -- names the generator
+    has never written -- so both `.get()` calls fell through to hardcoded
+    values and the filter ran `sigma_bearing = 0.05 rad` against a shipped
+    5.0 deg = 0.0873 rad, making `R` too small by 3.0x in variance (2.9x
+    against the 0.0848 rad the shipped bearings actually scatter by). The
+    console printed its own symptom two lines earlier as "Range noise: N/A m"
+    and "Bearing noise: 0.00 deg", and nothing failed.
+    """
+    measurements = config.get("measurements", {})
+    missing = [key for key in REQUIRED_MEASUREMENT_KEYS if key not in measurements]
+    if missing:
+        raise KeyError(
+            f"{data_dir}/config.json is missing {missing} under 'measurements'. "
+            f"This example builds R from {list(REQUIRED_MEASUREMENT_KEYS)} and "
+            f"will not substitute a default for a noise level it cannot read. "
+            f"Present under 'measurements': {sorted(measurements)}. Regenerate "
+            f"with scripts/generate_ch3_estimator_comparison_dataset.py."
+        )
+    return (
+        float(measurements["range_noise_std_m"]),
+        float(np.deg2rad(measurements["bearing_noise_std_deg"])),
+    )
+
+
+def load_estimator_dataset(data_dir: str) -> dict:
     """Load estimator dataset from directory.
 
     Args:
@@ -139,16 +182,16 @@ def run_with_dataset(data_dir: str) -> None:
     else:
         print(f"  WARNING: {obs_msg}")
 
+    # Read before printing, so a dataset this example cannot interpret stops
+    # here rather than being filtered with someone else's noise model.
+    range_std, bearing_std = read_measurement_noise(config, data_dir)
+
     print("\nDataset Info:")
     print(f"  Duration: {t[-1]:.1f} s ({n_steps} steps)")
     print(f"  Time step: {dt:.2f} s")
     print(f"  Landmarks: {len(landmarks)}")
-    print(
-        f"  Range noise: {config.get('measurements', {}).get('range_noise_std', 'N/A')} m"
-    )
-    print(
-        f"  Bearing noise: {np.rad2deg(config.get('measurements', {}).get('bearing_noise_std', 0)):.2f}°"
-    )
+    print(f"  Range noise: {range_std:.2f} m")
+    print(f"  Bearing noise: {np.rad2deg(bearing_std):.2f}° ({bearing_std:.4f} rad)")
 
     # Process model: constant velocity
     def process_model(x, u, dt_val):
@@ -190,10 +233,13 @@ def run_with_dataset(data_dir: str) -> None:
                 H.append([dy / r_sq, -dx / r_sq, 0, 0])
         return np.array(H)
 
-    # Noise covariances
-    q = config.get("process", {}).get("noise_std", 0.5)
-    range_std = config.get("measurements", {}).get("range_noise_std", 0.5)
-    bearing_std = config.get("measurements", {}).get("bearing_noise_std", 0.05)
+    # Process noise. This one is genuinely a filter tuning choice and not a
+    # dataset property: every trajectory the generator writes is a closed-form
+    # curve with no random component (see its `generate_trajectory` docstring),
+    # so no `process` block exists to read and asking for one with a default
+    # would be the same silent fallback that hid the measurement keys. `R` is
+    # read from the dataset above; `Q` is stated here.
+    q = 0.5
 
     def Q_func(dt_val):
         return q * np.array(
@@ -235,6 +281,7 @@ def run_with_dataset(data_dir: str) -> None:
 
     estimates = [x0_est.copy()]
     covariances = [P0.copy()]
+    nis_values = []
 
     for k in range(n_steps):
         # Form measurement from dataset
@@ -244,6 +291,13 @@ def run_with_dataset(data_dir: str) -> None:
         z = np.array(z)
 
         ekf.predict(dt=dt)
+
+        # Normalised innovation squared, taken before the update consumes it.
+        # `get_innovation` wraps the bearing components, because the filter was
+        # built with an `innovation_func` and the helper honours it.
+        nu, S = ekf.get_innovation(z)
+        nis_values.append(float(nu @ np.linalg.solve(S, nu)))
+
         ekf.update(z)
         x_est, P_est = ekf.get_state()
         estimates.append(x_est.copy())
@@ -261,11 +315,29 @@ def run_with_dataset(data_dir: str) -> None:
     print(f"  RMSE position: {np.sqrt(np.mean(position_errors**2)):.4f} m")
     print(f"  Final velocity error: {velocity_errors[-1]:.4f} m/s")
 
+    # Consistency, which is what reading R from the dataset actually buys.
+    # The mean NIS should sit near the measurement dimension; well above it
+    # means the filter believes its measurements more than the data supports.
+    # Building R from a hardcoded sigma_bearing = 0.05 rad instead of the
+    # 0.0873 rad this dataset records puts it at 15.6 against an ideal 8 here
+    # (16.6 on the high-nonlinearity set) -- two times overconfident -- while
+    # moving the position RMSE by only a few percent. Accuracy is the wrong
+    # place to look for a wrong R; this line is the right one.
+    n_meas = 2 * len(landmarks)
+    print(
+        f"  Mean NIS (steps 5+): {np.mean(nis_values[5:]):.2f} "
+        f"(measurement dimension {n_meas}; equal is consistent)"
+    )
+
     # Visualization
     print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
     fig.suptitle(
-        "EKF Range-Bearing Positioning (Dataset)", fontsize=14, fontweight="bold"
+        f"EKF Range-Bearing Positioning -- {Path(data_dir).name}\n"
+        f"R from the dataset: {range_std:.2f} m range, "
+        f"{np.rad2deg(bearing_std):.1f}° bearing",
+        fontsize=13,
+        fontweight="bold",
     )
 
     # Trajectory
@@ -340,7 +412,13 @@ def run_with_dataset(data_dir: str) -> None:
 
     plt.tight_layout()
 
-    paths = save_figure(fig, Path(__file__).parent / "figs", "ch3_ekf_range_bearing")
+    # A different basename from the inline run's. Both used to be
+    # `ch3_ekf_range_bearing`, so `--data` silently overwrote the committed
+    # figure the chapter README displays with a picture of a different
+    # trajectory. Same fix as Chapter 4's `ch4_rf_comparison_dataset`.
+    paths = save_figure(
+        fig, Path(__file__).parent / "figs", "ch3_ekf_range_bearing_dataset"
+    )
     print(f"Plot saved: {paths[0]}")
 
     show_figures_if_requested()

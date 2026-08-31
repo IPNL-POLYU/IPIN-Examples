@@ -394,9 +394,9 @@ def cauchy_R_scale(residual: float, c: float = 2.385) -> float:
         >>> cauchy_R_scale(0.0, c=2.385)
         1.0
 
-        >>> # Moderate outlier
+        >>> # Moderate outlier: r = c gives 1 + (r/c)^2 = 2 exactly
         >>> scale = cauchy_R_scale(2.385, c=2.385)
-        >>> np.isclose(scale, 2.0)
+        >>> bool(np.isclose(scale, 2.0))
         True
 
         >>> # Strong outlier: quadratic inflation
@@ -444,8 +444,8 @@ def huber_weight(residual: float, threshold: float) -> float:
     Example:
         >>> huber_weight(0.5, threshold=1.345)  # inlier
         1.0
-        >>> w = huber_weight(3.0, threshold=1.345)  # outlier
-        >>> np.isclose(w, 0.448, atol=0.01)
+        >>> w = huber_weight(3.0, threshold=1.345)  # outlier, w = c/|r|
+        >>> bool(np.isclose(w, 0.448, atol=0.01))
         True
         >>> # For Eq. 8.7: R_scale = 1/w ≈ 2.23 (inflate R)
 

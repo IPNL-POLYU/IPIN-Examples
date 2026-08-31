@@ -92,9 +92,9 @@ SOURCE_DIRS = (
 #: result, so four `Optional[...]` left the tree as a side effect. Every other
 #: rule is unchanged: the wave's new annotations are PEP 585/604 throughout.
 BASELINE = {
-    "UP006": 283,
+    "UP006": 282,
     "UP045": 133,
-    "UP035": 87,
+    "UP035": 86,
     # 58 -> 56: `test_topk_posterior_mean.py` and `test_multisamples.py` were
     # rewritten from print-and-return scripts into real assertions, and their
     # script-shaped import blocks (numpy, time, pathlib, sys, then a

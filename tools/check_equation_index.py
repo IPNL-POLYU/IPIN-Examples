@@ -7,9 +7,37 @@ This script verifies that:
 3. File paths in the index point to existing files
 
 Usage:
-    python tools/check_equation_index.py
-    python tools/check_equation_index.py --verbose
-    python tools/check_equation_index.py --fix  # Update index with missing entries
+    python -m tools.check_equation_index
+    python -m tools.check_equation_index --verbose
+    python -m tools.check_equation_index --strict
+
+Scan scope for check 1:
+    Only `core/` and the top-level `ch*_*/` chapter directories are searched
+    for equation citations in code. `tests/`, `tools/`, `scripts/`,
+    `notebooks/` and `docs/` are NOT searched, and that is deliberate.
+
+    Measured before deciding, so nobody has to repeat it. Widening the scan to
+    `scripts/`, `tools/` and `notebooks/` turns up exactly two numbers that
+    are not already in the index, and neither is a missing implementation:
+
+      - (4.5), from line 81 of *this file* -- the string in the docstring
+        example above. A scanner that reads its own documentation as evidence
+        is the harness-reporting-itself shape CLAUDE.md records four other
+        instances of.
+      - (6.19), from comments in two `scripts/generate_ch6_*` generators that
+        explain a past frame bug by naming the README equation it violated.
+        A comment about an equation is not a claim to implement it.
+
+    So the scope is where implementations live, and widening it would buy one
+    self-reference and one comment. If you widen it anyway, exclude this file
+    first. The other three checks -- file paths, object resolution and
+    `verified_by` -- read whatever paths the YAML lists and are not scoped.
+
+    Note that `verified_by` is checked for *resolution*, not for *running*: a
+    node that exists but is `@pytest.mark.skip` passes here. Two entries were
+    verified only by skipped tests when this note was written.
+
+    `--fix` was documented here for a long time and has never existed.
 
 Reference:
     Equation-level traceability. The design document planned a section for

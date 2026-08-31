@@ -1,7 +1,23 @@
 """Integration test: Bundle adjustment smoke tests.
 
-Validates that bundle adjustment (BA) reduces reprojection error
-and improves pose/landmark accuracy on synthetic scenarios.
+**Every test in this file is skipped, and nothing depends on them.** All five
+carry `@pytest.mark.skip`, so the file collects 5 and runs 0. It is kept
+because the scenario fixture below is a readable worked setup, not because it
+demonstrates anything: a skipped test proves exactly as much as no test.
+
+That matters because `docs/equation_index.yml` used to name two of these as
+the sole `verified_by` node for Eqs. (7.69) and (7.70) -- an equation whose
+only evidence is a test that has never run. The checker resolves such a node
+happily, because resolving is not running. The real, passing coverage for
+those two equations is twelve tests in:
+
+    tests/ch7_slam/test_bundle_adjustment_reports_pixels.py   (6, on the
+        reprojection residual of (7.70) and the units it is reported in)
+    tests/ch7_slam/test_bundle_adjustment_scale_gauge.py      (6, on the
+        joint pose/landmark solve of (7.69) and its scale gauge)
+
+Both index entries point there now. If you un-skip anything here, say what it
+demonstrates that those twelve do not.
 
 Note: BA is numerically challenging. These tests use lenient thresholds
 to ensure basic functionality without requiring perfect convergence.

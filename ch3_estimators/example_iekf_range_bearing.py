@@ -390,9 +390,17 @@ def example_iekf_vs_ekf_comparison():
     # Visualization
     print("\nCreating visualization...")
     fig, axes = plt.subplots(2, 2, figsize=(14, 10))
+    # Not "High Nonlinearity Comparison", which this geometry is not. The
+    # median distance to the nearest landmark over the run is 9.86 m and the
+    # closest approach is 2.83 m, at the start only; range and bearing are
+    # near-linear over the filter's uncertainty at that range. The console
+    # output below the figure has said so for a while -- the title had not,
+    # and a title asserting the opposite of the measurement is worse than none.
     fig.suptitle(
-        "IEKF vs EKF: High Nonlinearity Comparison (Section 3.2.3)",
-        fontsize=14,
+        "IEKF vs EKF on a mild geometry: iterating buys little here\n"
+        "(Section 3.2.3; nearest landmark 9.86 m median, "
+        "0.30 m / 0.08 rad noise)",
+        fontsize=13,
         fontweight="bold",
     )
 

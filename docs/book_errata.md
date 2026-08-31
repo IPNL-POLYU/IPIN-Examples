@@ -73,14 +73,22 @@ already consumed by the prediction step). With `F_k ≠ I` the printed formula
 returns a matrix that is **non-symmetric and can have negative diagonal
 entries**, i.e. not a valid covariance.
 
-**Verification.** For `F = [[1,1],[0,1]]`, `H = [[1,0]]`, `R = 0.25`, the
+**Verification.** For `F = [[1,1],[0,1]]`, `H = [[1,0]]`, `R = 0.25`, with
+`P_0 = I` and `Q = 0` — so that `P_{k|k-1} = F P_0 Fᵀ + Q = [[2,1],[1,1]]` — the
 Monte-Carlo empirical posterior covariance of `x_true − x̂` (N = 400,000) matches
 `(I − KH)P` to **1.5e-3**, while the printed `P − F K H P` differs by **0.89**.
-The printed result is
+The correct update gives
 
 ```
-[[-0.667, -0.332],
- [ 0.111,  0.568]]
+[[0.2222, 0.1111],
+ [0.1111, 0.5556]]
+```
+
+and the printed one gives
+
+```
+[[-0.6667, -0.3333],
+ [ 0.1111,  0.5556]]
 ```
 
 which is **not symmetric** and whose leading entry is a **negative variance**.

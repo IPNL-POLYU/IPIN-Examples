@@ -245,12 +245,17 @@ def compute_dop(
         >>> H = compute_geometry_matrix(anchors, pos, 'toa')
         >>> dop = compute_dop(H)
         >>> print(f"HDOP: {dop['HDOP']:.2f}")
-        HDOP: 1.41
+        HDOP: 1.00
         >>> # Position error = HDOP * measurement noise
         >>> sigma_range = 0.3  # meters
         >>> sigma_horizontal = dop['HDOP'] * sigma_range
         >>> print(f"σ_horizontal: {sigma_horizontal:.2f} m")
-        σ_horizontal: 0.42 m
+        σ_horizontal: 0.30 m
+
+        Both numbers used to be sqrt(2) larger, at 1.41 and 0.42 m. Four
+        anchors on a square seen from its centre give H^T H = 2I exactly, so
+        HDOP is exactly 1.00 here -- this is the optimal-geometry case, and
+        the printed value was the one it is furthest from.
 
     Notes:
         - For 2D positioning, HDOP = GDOP = PDOP (all equivalent)
@@ -351,6 +356,7 @@ def compute_dop_map(
         >>> grid_points = np.column_stack([xx.ravel(), yy.ravel()])
         >>> hdop_map = compute_dop_map(anchors, grid_points, 'toa', dop_type='HDOP')
         >>> print(f"Min HDOP: {hdop_map.min():.2f}, Max HDOP: {hdop_map.max():.2f}")
+        Min HDOP: 1.00, Max HDOP: 1.22
 
     Notes:
         - DOP varies across space depending on beacon geometry

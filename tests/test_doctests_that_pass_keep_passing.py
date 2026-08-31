@@ -56,12 +56,29 @@ from tests.example_runner import WORKSPACE_ROOT
 #: `TimeSyncModel.to_fusion_time` example claimed `10.51` where the value is
 #: 10.509999999999998 -- the code was right and the docstring had written the
 #: arithmetic answer as though it were the repr.
+#:
+#: Two more DRIFT files repaired and admitted since. Both are worth the
+#: sentence, because neither defect was the kind the category name suggests:
+#:
+#: - core/fusion/tuning.py: the arithmetic in all nine examples was correct.
+#:   `np.isclose` returns a `numpy.bool_`, whose repr became `np.True_` in
+#:   numpy 2, so two examples claiming `True` stopped matching without anything
+#:   about the code or the claim changing. `bool(...)` around the comparison
+#:   says what was meant. Same family as the matplotlib `labels=` removal: a
+#:   library changed a repr under a docstring that was right.
+#: - core/rf/dop.py: `compute_dop` claimed HDOP 1.41 and sigma_horizontal
+#:   0.42 m for four anchors on a square seen from its centre. H^T H is 2I
+#:   there, so HDOP is exactly 1.00 -- the optimal-geometry case, quoted at the
+#:   one value it cannot take. `compute_dop_map` alongside it was a
+#:   NO-EXPECTATION case (a `print` with no `want` line) and now has one.
 ALLOWLIST = {
     "core/eval/plots.py": 2,
     "core/fingerprinting/shadowing.py": 4,
     "core/fusion/lc_models.py": 5,
     "core/fusion/tc_models.py": 4,
+    "core/fusion/tuning.py": 50,
     "core/fusion/types.py": 13,
+    "core/rf/dop.py": 23,
     "core/sensors/__init__.py": 14,
     "core/slam/__init__.py": 7,
     "core/slam/camera.py": 13,
