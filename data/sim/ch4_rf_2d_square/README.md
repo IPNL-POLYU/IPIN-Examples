@@ -608,7 +608,12 @@ single solve that "converges" to somewhere absurd makes a mean a property of
 that outlier. AOA used to do exactly that on 36 of 100 positions.
 
 **Key Insights**:
-- TOA: 0.09m median, solves every position; requires clock sync.
+- TOA: 0.09m median, solves every position; requires clock sync. That
+  requirement is not free and this dataset does not price it — `toa_ranges.txt`
+  is written as ranges, so the clocks are assumed already synchronised. Drop
+  the assumption and 20 ns of offset costs metres; two-way TOA (Eqs. 4.6-4.9)
+  removes the requirement outright, and `example_toa_positioning` Example 7
+  measures both.
 - TDOA: 0.09m median, clock-free, and slightly *worse* than TOA on this array
   — its GDOP is 1.07 against TOA's 1.02, and both attain `GDOP x sigma_range`.
   That ordering is not a property of this array: differencing is a projection,
@@ -630,22 +635,33 @@ ambiguous; bearings do not. That contrast is the reason the variant exists.
 
 This dataset directly implements RF positioning from Chapter 4:
 
-1. **TOA (Section 4.1, Eqs. 4.1-4.3)**
+1. **One-way TOA (Section 4.1, Eqs. 4.1-4.3)**
    - Measures propagation time → range
-   - Requires clock synchronization
+   - Requires clock synchronization — this dataset's `toa_ranges.txt` are
+     ranges, not pseudoranges, which *is* that assumption written down. At c,
+     1 ns of unmodelled offset is 0.30 m of range error.
    - Position from range intersection (trilateration)
+   - Two ways out if the clocks are not synchronised: estimate the offset as a
+     third unknown (Eqs. 4.24-4.26, one degree of freedom), or use two-way TOA
 
-2. **TDOA (Section 4.2, Eqs. 4.27-4.33)**
+2. **Two-way TOA / RTT (Section 4.2.1.2, Eqs. 4.6-4.9)**
+   - Both timestamps are on the *agent's own* clock, so no synchronization
+     with the beacon is needed anywhere — this is the reason the method exists
+   - Pays instead for a calibrated responder turnaround time (Eq. 4.7)
+   - Not in this dataset; `ch4_rf_point_positioning/example_toa_positioning`
+     Example 7 compares it with one-way under one shared timing budget
+
+3. **TDOA (Section 4.2, Eqs. 4.27-4.33)**
    - Measures time difference → range difference
    - Eliminates clock bias (huge advantage!)
    - Position from hyperbola intersection
 
-3. **AOA (Section 4.4, Eqs. 4.63-4.67)**
+4. **AOA (Section 4.4, Eqs. 4.63-4.67)**
    - Measures angle of arrival
    - No clock required
    - Position from bearing intersection (triangulation)
 
-4. **DOP (Section 4.5)**
+5. **DOP (Section 4.5)**
    - Quantifies geometry quality
    - GDOP = sqrt(trace((H^T H)^{-1}))
    - Lower GDOP = better geometry
