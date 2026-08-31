@@ -219,19 +219,25 @@ def generate_imu_measurements(
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
     """Generate synthetic IMU measurements from ground truth.
 
+    The accelerometer is a **body-frame** specific force: the map-frame
+    acceleration rotated by -yaw, then given bias and noise. That is the
+    quantity the chapter's filters consume, since their process model rotates
+    it back with the state yaw.
+
     Args:
         t: timestamps (N,)
-        v_xy: velocities (N, 2) in m/s
-        yaw: heading angles (N,) in radians
+        v_xy: map-frame velocities (N, 2) in m/s
+        yaw: body-to-map heading angles (N,) in radians
         accel_noise_std: Accelerometer noise std (m/s²)
         gyro_noise_std: Gyroscope noise std (rad/s)
-        accel_bias: Accelerometer bias (2,) in m/s² (default [0, 0])
+        accel_bias: Accelerometer bias (2,) in m/s², along the body axes
+            (default [0, 0])
         gyro_bias: Gyroscope bias in rad/s
 
     Returns:
         Tuple of (t_imu, accel_xy, gyro_z):
             t_imu: IMU timestamps (N,)
-            accel_xy: 2D accelerations (N, 2) in m/s²
+            accel_xy: body-frame specific force (N, 2) in m/s²
             gyro_z: Yaw rate (N,) in rad/s
     """
     N = len(t)
@@ -240,8 +246,29 @@ def generate_imu_measurements(
     if accel_bias is None:
         accel_bias = np.zeros(2)
 
-    # Compute true accelerations (derivative of velocity)
-    accel_xy_true = np.gradient(v_xy, axis=0) / dt[:, None]
+    # Compute true accelerations (derivative of velocity) in the MAP frame,
+    # then rotate into the BODY frame. An accelerometer measures specific
+    # force along its own axes, and every Chapter 8 filter integrates it that
+    # way: `core/fusion/tc_models.py`'s process model rotates u = [ax, ay, .]
+    # by the state yaw before adding it to the map-frame velocity. Handing it
+    # a map-frame vector rotates it a second time.
+    #
+    # Omitting this shipped an accelerometer with no centripetal term at all,
+    # exactly as Chapter 6's strapdown generator once did. The residual
+    # against map-frame accel was [0.1002, 0.1001] m/s^2 -- indistinguishable
+    # from the declared 0.1 noise -- while against the body frame it carried a
+    # systematic [-0.017, -0.096]. A wrong frame hides as clean noise in
+    # whichever frame you happen to compare against, so compare against both.
+    # See tests/ch6_dead_reckoning/test_imu_is_body_frame.py, whose DATASETS
+    # tuple now covers the Chapter 8 datasets too.
+    accel_map_true = np.gradient(v_xy, axis=0) / dt[:, None]
+    cos_y, sin_y = np.cos(yaw), np.sin(yaw)
+    accel_xy_true = np.column_stack(
+        [
+            cos_y * accel_map_true[:, 0] + sin_y * accel_map_true[:, 1],
+            -sin_y * accel_map_true[:, 0] + cos_y * accel_map_true[:, 1],
+        ]
+    )
 
     # Compute true yaw rate (derivative of yaw)
     yaw_unwrapped = np.unwrap(yaw)  # handle 2π wraps

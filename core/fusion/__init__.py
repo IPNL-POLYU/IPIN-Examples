@@ -38,6 +38,7 @@ from core.fusion.tuning import (
     huber_weight,
     innovation,
     innovation_covariance,
+    kalman_update,
     scale_measurement_covariance,
 )
 from core.fusion.types import (
@@ -67,6 +68,7 @@ __all__ = [
     # Tuning (Eqs. 8.5-8.7)
     "innovation",
     "innovation_covariance",
+    "kalman_update",
     "scale_measurement_covariance",
     "huber_R_scale",
     "cauchy_R_scale",

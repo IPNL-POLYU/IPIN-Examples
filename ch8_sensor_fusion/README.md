@@ -50,7 +50,7 @@ python -m ch8_sensor_fusion.example_calibration  # Section 8.4: Intrinsic & extr
 | Figure | Built by | Shows |
 |--------|----------|-------|
 | `ch8_anchor_outage.{svg,pdf,png}` | `example_anchor_outage.py` | Anchor visibility and both error curves over the whole run |
-| `ch8_anchor_outage.gif` (0.69 MB) | `example_anchor_outage.py --animate` | The same, unfolding: anchors going hollow, LC's error ramping, TC's branch flip |
+| `ch8_anchor_outage.gif` (0.69 MB) | `example_anchor_outage.py --animate` | The same, unfolding: anchors going hollow, LC's error ramping, TC holding through the outage |
 
 ![Anchor visibility and both error curves across the 8 s outage](figs/ch8_anchor_outage.svg)
 
@@ -65,35 +65,36 @@ two of four anchors visible.
 Constructed outage: at most 2 of 4 anchors between t = 20 s and 28 s
 (the shipped dataset's own dropouts are single isolated epochs and do not stress the difference)
   LC position fixes that failed outright: 93
-  RMSE over the run:      LC 0.707 m   TC 2.338 m
-  Peak error in outage + 3 s recovery: LC 3.25 m   TC 43.92 m (TC peak is 13.5x LC)
+  RMSE over the run:      LC 0.127 m   TC 0.029 m
+  Peak error in outage + 3 s recovery: LC 0.59 m   TC 0.06 m (LC peak is 9.7x TC)
 ```
 
-**Read that table before assuming tight coupling wins.** Two ranges do not
-determine a 2-D position, so LC's front end returns nothing at all — 93 fixes
-fail outright and LC dead-reckons, its error ramping and snapping back the
-instant a third anchor returns. TC keeps updating on the two ranges it still
-has, which is the advantage it is usually sold on. LC's ramp is smaller than it
-once looked here (3.25 m, not the 5.86 m an earlier version of this page
-reported) because LC now enters the outage from much better tracking -- see the
-"LC vs TC Comparison" section below for why -- so it drifts less before anchors
-return; the structural point is unchanged, only its magnitude is more modest.
+**This is the advantage tight coupling is sold on, and here it is clean.** Two
+ranges do not determine a 2-D position, so LC's front end returns nothing at
+all — 93 fixes fail outright and LC dead-reckons, its error ramping to 0.59 m
+and snapping back the instant a third anchor returns. TC keeps updating on the
+two ranges it still has and peaks at 0.06 m, an order of magnitude better.
 
-But two ranges leave a **two-fold ambiguity**: the true position and its
-reflection across the baseline joining the surviving anchors. TC takes the
-wrong branch at t = 25.8 s, estimating (30.1, -35.5) against a truth of
-(20.0, 7.2) — a 43.92 m peak, 13.5x LC's peak over the same
-outage-plus-recovery window. It lasts under a second, and it is enough to put
-TC's whole-run RMSE (2.338 m) *above* LC's (0.707 m) *at this particular
-window* -- by a wider margin than before, again because LC's own baseline
-tracking improved.
+Two ranges do still leave a **two-fold ambiguity**: the true position and its
+reflection across the baseline joining the surviving anchors. Nothing in the
+ranges distinguishes them. What does is the IMU prediction, and it is sharp
+enough to hold the right branch for the whole outage.
 
-So the honest summary is that tight coupling degrades more gracefully right up
-until the geometry becomes ambiguous, at which point it can fail in a way loose
-coupling structurally cannot: LC's front end refuses to answer, while TC
-answers confidently and wrongly. Which you prefer is an engineering judgement,
-not a ranking. Other outage windows do not trigger the flip, and away from it
-the two are no longer reliably far apart -- see the module docstring.
+> **This page used to say the opposite, and the reason is worth keeping.** It
+> reported TC taking the wrong branch at t = 25.8 s — estimating (30.1, −35.5)
+> against a truth of (20.0, 7.2), a 43.92 m peak, 13.5x LC's — and concluded
+> that tight coupling "answers confidently and wrongly" where loose coupling
+> refuses to answer. The excursion was real. Its cause was not the geometry:
+> the shipped accelerometer was map-frame where every filter in this chapter
+> integrates it as body-frame, so the prediction that should have broken the
+> tie was wrong too. A degenerate geometry is a statement about the
+> measurements alone; whether an estimator is harmed by one depends on what
+> else it knows.
+
+TC now wins at every window checked — (20, 28), (18, 26), (22, 30), (24, 32)
+and (40, 48) — on both whole-run RMSE and peak error. The window has
+deliberately not been moved to a flattering one. See the module docstring for
+the table.
 
 ## Usage Examples
 
@@ -124,13 +125,26 @@ python -m ch8_sensor_fusion.example_tc_fusion --no-gating
 python -m ch8_sensor_fusion.example_tc_fusion --confidence 0.99  # More conservative (99%)
 ```
 
-**Performance Comparison (on nominal dataset):**
+**Performance Comparison (on the nominal dataset, measured):**
 | Mode | Gating | RMSE | Acceptance | Notes |
 |------|--------|------|------------|-------|
-| Sequential | No | ~0.37m | 100% | Baseline (no gating) |
-| Batch | No | ~0.38m | 100% | Similar to sequential |
-| Sequential | Adaptive | ~0.52m | ~89% | Per-anchor gating |
-| Batch | Adaptive | **0.281m** | 89.2% | **Best** - proper multi-measurement gating |
+| Sequential | No | 0.021 m | 100% | Every range used |
+| Batch | No | 0.021 m | 100% | Indistinguishable from sequential here |
+| Sequential | Adaptive | 0.025 m | 93.7% | Per-anchor gating |
+| Batch | Adaptive | 0.024 m | 93.2% | Gates the epoch as one 4-DOF vector |
+
+**No row is marked "Best", because on this dataset the best row is the one
+that does nothing.** The nominal dataset is clean, so every measurement the
+gate rejects is a good one and gating can only cost — about 3 mm here.
+A gate is insurance, and its premium is visible exactly where there is nothing
+to insure against. The scenario that pays for it is
+[`example_robust_tuning`](#tuning-and-robust-loss-functions), where the same
+gate takes the persistent-NLOS run from 0.680 m to 0.033 m.
+
+This table previously claimed 0.37/0.38/0.52/0.281 m and bolded the last as
+"Best". All four were measured against the map-frame accelerometer described
+below, and the ordering they implied — that adaptive batch gating *improves*
+accuracy on clean data — was an artifact of it.
 
 ### Loosely Coupled Fusion
 
@@ -188,22 +202,22 @@ Measurements:
   Update mode: Sequential (per-anchor)
 ...
 Fusion complete:
-  UWB accepted: 2023
-  UWB rejected: 248
-  Acceptance rate: 89.1%
+  UWB accepted: 2129
+  UWB rejected: 142
+  Acceptance rate: 93.7%
 Adaptive Gating Stats:
-  Mean NIS: 1.93 (expected: 1)
+  Mean NIS: 1.14 (expected: 1)
   Final R scale: 1.00x
-  Covariance inflations: 21
+  Covariance inflations: 0
 ...
 Evaluation Metrics
 ======================================================================
-  RMSE (2D)    : 0.167 m
-  RMSE (X)     : 0.096 m
-  RMSE (Y)     : 0.136 m
-  Max Error    : 1.021 m
-  Final Error  : 0.064 m
-  Median Error : 0.030 m  <- typical tracking
+  RMSE (2D)    : 0.025 m
+  RMSE (X)     : 0.017 m
+  RMSE (Y)     : 0.019 m
+  Max Error    : 0.122 m
+  Final Error  : 0.016 m
+  Median Error : 0.022 m  <- typical tracking
 ```
 
 </details>
@@ -248,22 +262,22 @@ Measurements:
 ...
 Fusion complete:
   UWB position fixes solved: 587
-  UWB fixes accepted: 519
-  UWB fixes rejected: 68
+  UWB fixes accepted: 541
+  UWB fixes rejected: 46
   UWB solver failures: 13
-  Acceptance rate: 88.4%
+  Acceptance rate: 92.2%
 Adaptive Gating Stats:
-  Mean NIS: 1.49 (expected: 2)
-  Final R scale: 2.22x
-  Covariance inflations: 19
+  Mean NIS: 3.15 (expected: 2)
+  Final R scale: 1.00x
+  Covariance inflations: 0
 ...
 Evaluation Metrics
 ======================================================================
-  RMSE (2D)    : 0.143 m
-  RMSE (X)     : 0.099 m
-  RMSE (Y)     : 0.104 m
-  Max Error    : 0.781 m
-  Final Error  : 0.023 m
+  RMSE (2D)    : 0.027 m
+  RMSE (X)     : 0.020 m
+  RMSE (Y)     : 0.019 m
+  Max Error    : 0.115 m
+  Final Error  : 0.018 m
 ```
 
 </details>
@@ -283,36 +297,51 @@ LC vs TC Performance Comparison
 ======================================================================
 Metric                          LC Fusion       TC Fusion   Difference
 ----------------------------------------------------------------------
-RMSE 2D (m)                         0.143           0.167      -0.023
-RMSE X (m)                          0.099           0.096      +0.003
-RMSE Y (m)                          0.104           0.136      -0.032
-Max Error (m)                       0.781           1.021      -0.240
-Mean Error (m)                      0.076           0.083      -0.007
-Final Error (m)                     0.023           0.064      -0.041
+RMSE 2D (m)                         0.027           0.025      +0.002
+RMSE X (m)                          0.020           0.017      +0.003
+RMSE Y (m)                          0.019           0.019      -0.000
+Max Error (m)                       0.115           0.122      -0.007
+Mean Error (m)                      0.024           0.023      +0.001
+Final Error (m)                     0.018           0.016      +0.003
 ----------------------------------------------------------------------
-UWB Updates Accepted                  519            2023       -1504
-UWB Updates Rejected                   68             248        -180
+UWB Updates Accepted                  541            2129       -1588
+UWB Updates Rejected                   46             142         -96
 LC Solver Failures                     13             N/A
-Acceptance Rate (%)                  88.4            89.1        -0.7
+Acceptance Rate (%)                  92.2            93.7        -1.6
 ```
 
-LC and TC are close on this dataset -- LC's RMSE is fractionally *lower*,
-0.143 m against TC's 0.167 m. That is what theory predicts here: all four
-anchors are visible with good geometry, so the WLS position fix LC pre-solves
-is a sufficient statistic, and pre-solving costs it nothing. The 6x gap this
-section used to report was a tuning bug, not an architectural one:
-`run_lc_fusion` hardcoded `range_noise_std=0.1` and floored the WLS covariance
-at `cov_floor_std=0.5` regardless of the dataset's real 0.05 m noise -- a ~25x
-variance inflation that made the EKF distrust good UWB fixes and lean on IMU
-dead-reckoning between them instead. Both are fixed now: LC reads the
-dataset's noise exactly as TC does, and passes no floor.
+LC and TC are close on this dataset -- 0.027 m against 0.025 m. That is what
+theory predicts here: all four anchors are visible with good geometry, so the
+WLS position fix LC pre-solves is a sufficient statistic, and pre-solving costs
+it nothing.
 
-TC still takes far more updates (2023 range updates against 519 position
+Two separate defects used to distort this comparison, and both are fixed:
+
+- **A tuning bug in LC.** `run_lc_fusion` hardcoded `range_noise_std=0.1` and
+  floored the WLS covariance at `cov_floor_std=0.5` regardless of the dataset's
+  real 0.05 m noise -- a ~25x variance inflation that made the EKF distrust
+  good UWB fixes and lean on IMU dead-reckoning instead. LC now reads the
+  dataset's noise exactly as TC does, and passes no floor.
+- **A map-frame accelerometer.** The shipped `imu.npz/accel_xy` was map-frame
+  where both filters integrate it as body-frame, so both were fighting a double
+  rotation. This is the larger of the two: it took LC from 0.143 m to 0.027 m
+  and TC from 0.167 m to 0.025 m.
+
+**The NIS excess was re-attributed by that second fix, and the earlier
+diagnosis is worth recording.** TC's mean NIS was 1.93 against an expected 1.0,
+and this was written down as an open Q-tuning item -- the process noise was
+assumed too small. It is now **1.14**, so roughly four-fifths of the excess was
+the accelerometer frame rather than Q. An inconsistent filter tells you the
+model and the data disagree; it does not tell you which one is wrong, and the
+process noise is the easiest thing to blame because it is the easiest thing to
+change.
+
+TC still takes far more updates (2129 range updates against 541 position
 fixes) and has no equivalent to LC's 13 solver failures, but neither shows up
 as an accuracy difference here. TC's real advantage is when there are too few
-anchors for LC to solve a fix at all, or when per-range gating matters -- see
-the anchor-outage demonstration near the top of this README, which is where
-the architectural difference actually shows up.
+anchors for LC to solve a fix at all -- see the anchor-outage demonstration
+near the top of this README, which is where the architectural difference
+actually shows up.
 
 **Visual Output:**
 
@@ -330,51 +359,54 @@ python -m ch8_sensor_fusion.example_robust_tuning
 ```
 Scenario   Method               RMSE [m]  Median [m]  Accepted  Rejected
 ------------------------------------------------------------------------------
-LOS        Baseline                0.190       0.021      2271         0
-LOS        Chi-square gating      24.227       6.575       750      1521
-LOS        Huber loss              0.190       0.021      2271         0
-LOS        Cauchy loss             0.196       0.021      2271         0
+LOS        Baseline                0.020       0.017      2271         0
+LOS        Chi-square gating       0.022       0.019      2153       118
+LOS        Huber loss              0.020       0.017      2271         0
+LOS        Cauchy loss             0.020       0.017      2271         0
 ------------------------------------------------------------------------------
-Sporadic   Baseline                0.362       0.252      2271         0
-Sporadic   Chi-square gating      24.644       7.160       725      1546
-Sporadic   Huber loss              0.225       0.098      2271         0
-Sporadic   Cauchy loss             0.244       0.118      2271         0
+Sporadic   Baseline                0.317       0.230      2271         0
+Sporadic   Chi-square gating       0.022       0.019      2051       220
+Sporadic   Huber loss              0.060       0.043      2271         0
+Sporadic   Cauchy loss             0.041       0.030      2271         0
 ------------------------------------------------------------------------------
-NLOS       Baseline                0.722       0.684      2271         0
-NLOS       Chi-square gating      25.664       8.422       422      1849
-NLOS       Huber loss              0.707       0.683      2271         0
-NLOS       Cauchy loss             0.714       0.686      2271         0
+NLOS       Baseline                0.680       0.676      2271         0
+NLOS       Chi-square gating       0.033       0.025      1095      1176
+NLOS       Huber loss              0.678       0.682      2271         0
+NLOS       Cauchy loss             0.683       0.694      2271         0
 ------------------------------------------------------------------------------
 
 Key Findings:
-  * Sporadic outliers are what an M-estimator is for. Best method: Huber loss, median
-    error 0.252 m -> 0.098 m, 61% better; RMSE 38% better.
+  * Sporadic outliers are what an M-estimator is for. Best of the two losses: Cauchy loss, median
+    error 0.230 m -> 0.030 m, 87% better; RMSE 87% better.
 ...
-  * Persistent NLOS is not an outlier problem. Huber recovers 2.0% and Cauchy 1.1%,
+  * Persistent NLOS is not an outlier problem. Huber changes it by -0.3% and Cauchy +0.4% (negative is better),
 ```
 
 **A robust loss can only be judged against the outlier distribution it was
-designed for**, which is why there are three scenarios rather than one. Huber
-repairs the sporadic case by 61% on the median and costs nothing at all on
-clean data; it recovers 2.0% of the persistent-NLOS case, and that is the
-correct answer rather than a disappointing one. An M-estimator down-weights the
-minority that disagrees with the majority, and this dataset biases *half* the
-anchors for the whole run -- measured per anchor, +0.001, +0.798, +0.799,
-+0.001 m. With four anchors in 2D, two consistently biased ranges fix a
-position as firmly as two honest ones, so there is no majority to side with.
-Persistent bias needs a method that can represent it: state augmentation with a
-per-anchor bias term, or NLOS identification, not a reweighting of the residual.
+designed for**, which is why there are three scenarios rather than one. Cauchy
+repairs the sporadic case by 87% on the median and Huber by 81%, and both cost
+nothing measurable on clean data. Neither moves the persistent-NLOS case at all
+(-0.3% and +0.4%), and that is the correct answer rather than a disappointing
+one. An M-estimator down-weights the minority that disagrees with the majority,
+and this dataset biases *half* the anchors for the whole run -- measured per
+anchor, +0.001, +0.798, +0.799, +0.001 m. With four anchors in 2D, two
+consistently biased ranges fix a position as firmly as two honest ones, so
+there is no majority to side with. Persistent bias needs a method that can
+represent it: state augmentation with a per-anchor bias term, or NLOS
+identification, not a reweighting of the residual.
 
 Two details worth reading before copying a threshold out of this demo:
 
 - **The losses take a residual normalized by `sqrt(R)`, not an innovation in
-  metres, and the thresholds are therefore in units of sigma_R.** They are 20
-  and 50, not the textbook 1.345 and 2.385, because these innovations are not
-  Gaussian: on the *clean* dataset `|y|/sigma_R` has a 99th percentile of 14.5
-  and a maximum of 17.2, so a threshold of 1.345 fires on a third of a clean
-  run and scores 2.591 m against a 0.190 m baseline. Run
+  metres, and the thresholds are therefore in units of sigma_R.** They are 10
+  and 20, not the textbook 1.345 and 2.385. The floor is the clean-data tail:
+  on the *clean* dataset `|y|/sigma_R` has a 99th percentile of 2.73 and a
+  maximum of 3.76, so anything below about 4 reaches into data with no outlier
+  in it. The ceiling is the NLOS run, where an aggressive threshold actively
+  costs -- 1.345 makes it 16% worse, because with no inlier majority the loss
+  down-weights honest and biased links alike. Run
   `python -m ch8_sensor_fusion.example_robust_tuning --help` for the full
-  measurement.
+  measurement, including why these numbers used to be 20 and 50.
 - **RMSE and median disagree on purpose.** The worst samples are the transient
   after the 57 deg/s turn at t = 52-54 s, where a manoeuvre the process model
   does not predict looks exactly like an outlier and the robust losses inflate
@@ -382,14 +414,26 @@ Two details worth reading before copying a threshold out of this demo:
   every time while the RMSE gain ranges from +38% to -44%, so the median is the
   statistic that describes the method.
 
-Chi-square gating scores 24-26 m in **every** scenario, the clean one included,
-where nothing carries a bias at all and 81% of ungated samples already sit
-inside the 3.84 gate. So the NLOS bias is not what breaks it: a Gaussian gate
-over heavy-tailed innovations rejects several times too many, the starved state
-drifts, the drift inflates the next innovation, and the rejection rate runs away
-to 67-81%. A hard gate inherits every error in the covariance it tests against;
-the robust losses survive the same mis-specified R because they scale an outlier
-down instead of removing it.
+Chi-square gating is the **strongest** method in the table: 0.022 m on clean
+data, 0.022 m on sporadic and 0.033 m on persistent NLOS, against a 0.680 m
+baseline in the last case. On the clean run it accepts 95% of measurements,
+which is exactly the confidence it is set to, and on NLOS it accepts 48% --
+close to the half of the ranges that carry no bias.
+
+> **This paragraph used to say gating "scores 24-26 m in every scenario"** and
+> blamed a Gaussian gate over heavy-tailed innovations for a rejection rate
+> that ran away to 67-81%. The numbers were real; the attribution was not. The
+> innovations were heavy-tailed because the shipped accelerometer was
+> map-frame, and the gate was the only strategy here that tests its input
+> against a distributional assumption -- so it failed loudest and looked like
+> the culprit. **The component that breaks first under a bad input is not
+> usually the broken one.**
+
+What remains true is the structural difference: a hard gate inherits every
+error in the covariance it tests against, while a robust loss scales an
+outlier's influence down instead of removing it and so degrades more gently
+under a mis-specified R. That is an argument about robustness to model error,
+not about which scores better here.
 
 ### Temporal Calibration Demo
 
@@ -401,13 +445,13 @@ python -m ch8_sensor_fusion.example_temporal_calibration
 ```
 Method                             RMSE [m]     Improvement
 ----------------------------------------------------------------------
-Without Time Correction               0.211      (baseline)
-With TimeSyncModel                    0.185           12.5%
+Without Time Correction               0.053      (baseline)
+With TimeSyncModel                    0.020           62.7%
 ======================================================================
 
 Key Findings:
-  * Uncorrected: 0.211 m RMSE; corrected: 0.185 m
-  * So a -50.0 ms offset costs 0.026 m, and TimeSyncModel recovers it: 12.5% better
+  * Uncorrected: 0.053 m RMSE; corrected: 0.020 m
+  * So a -50.0 ms offset costs 0.033 m, and TimeSyncModel recovers it: 62.7% better
   * That is the order the kinematics predict: 1.00 m/s for 50 ms displaces the platform 0.050 m
 ```
 
@@ -912,7 +956,11 @@ height of an acceptance-rate bar.
 **Interpretation:** Extrinsic calibration estimates the rigid transformation (R, t) between two sensors:
 - `p_sensor2 = R @ p_sensor1 + t`
 - Uses SVD-based least-squares (Procrustes problem)
-- Residual RMSE should approach measurement noise (~0.05m for synthetic data)
+- Residual RMSE should approach 0.10 m, not the 0.05 m per-axis sensor noise:
+  two sensors are differenced (sqrt(2)) and the residual is a 2-D magnitude
+  (sqrt(2) again), so 2 x 0.05 = 0.10 m. The demo measures 0.1021 m against
+  that prediction -- see the worked derivation under "Extrinsic Calibration"
+  above, which this line used to contradict by a factor of two.
 
 ---
 
@@ -927,11 +975,19 @@ UWB timestamps offset by 50 ms and drifting at 100 ppm, fused with and without
 `TimeSyncModel` mapping sensor time to fusion time as
 `t_fusion = (1 + drift) * t_sensor + offset`.
 
-The measured gain is 0.211 m to 0.185 m, 12.5%, and it is bounded by kinematics
+The measured gain is 0.053 m to 0.020 m, 62.7%, and it is bounded by kinematics
 rather than tuned: 50 ms at 1 m/s displaces the platform 0.050 m, so the
-correction cannot be worth more than that. The effect scales with speed, which
-is the reason temporal alignment matters -- not any large number this demo
-prints.
+correction cannot be worth more than that. The 0.033 m it actually recovers
+sits inside that bound. The effect scales with speed, which is the reason
+temporal alignment matters -- not any large number this demo prints.
+
+Note the *percentage* moved a great deal (it was 12.5%) while the bound did
+not. Both the corrected and uncorrected runs improved when the accelerometer
+frame was fixed, and the uncorrected one had more room to improve, so the ratio
+grew even though the absolute recovery is still the same few centimetres of
+platform displacement. **A ratio can move without the physics moving**, which
+is why the kinematic bound rather than the percentage is the durable claim
+here.
 
 ---
 
@@ -966,11 +1022,13 @@ Three panels carry the argument, and none of them is the trajectory row:
   post-corner transient, and it is the RMSE rather than the method that it
   describes.
 
-Chi-square gating towers over every scenario at 24-26 m, the clean one
-included. That is the same lesson it always was, with the cause corrected: it
-is not the NLOS bias, since gating collapses identically on data that has none.
-A hard gate inherits every error in the covariance it tests against, and the
-rejection feeds itself. The robust losses survive the same mis-specified R.
+Chi-square gating is the lowest bar in every scenario — 0.022, 0.022 and
+0.033 m — and this panel used to show it towering over all three at 24-26 m.
+The bars moved because the accelerometer frame was corrected, not because the
+gate changed: its assumption is that the normalized innovation is standard
+normal, and that is now true (std 1.037). A hard gate still inherits every
+error in the covariance it tests against, which is the real caveat; on this
+data there is no longer such an error for it to inherit.
 
 ---
 

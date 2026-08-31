@@ -28,7 +28,7 @@
     "n_anchors": 4,
     "range_noise_std_m": 0.05,
     "nlos_anchors": [],
-    "nlos_bias_m": 0.5,
+    "nlos_bias_m": 0.0,
     "dropout_rate": 0.05
   },
   "temporal_calibration": {

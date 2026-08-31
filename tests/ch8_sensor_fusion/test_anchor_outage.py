@@ -116,62 +116,72 @@ class TestOutageClaims(unittest.TestCase):
             peaks_tc.append(e_tc[(t_tc >= window[0]) & (t_tc <= end)].max())
 
         # TC always gets some correction (2 surviving ranges), so its worst
-        # case across placements stays small. Measured max is 0.79 m.
-        self.assertLess(max(peaks_tc), 1.0)
+        # case across placements stays small. Measured max is 0.06 m.
+        self.assertLess(max(peaks_tc), 0.5)
 
         # LC gets none (it needs 3+ ranges and has at most 2), so its peak
         # depends on trajectory dynamics during the blackout and has no such
-        # guarantee. Measured max is 8.29 m, at window (18, 26).
-        self.assertGreater(max(peaks_lc), 5.0)
+        # guarantee. Measured max is 1.18 m, at window (18, 26) -- roughly
+        # 20x TC's worst. The bound is on the *ratio* rather than on LC's
+        # metres, because LC's absolute peak has now moved twice (once when
+        # its WLS noise bug was fixed, once when the accelerometer frame was)
+        # while the asymmetry survived both.
+        self.assertGreater(max(peaks_lc), 5.0 * max(peaks_tc))
 
-    def test_the_default_window_hits_a_mirror_ambiguity(self):
-        """The caveat the demo now leads with, pinned as a measurement.
+    def test_the_default_window_does_not_flip_branches(self):
+        """The mirror ambiguity is real; falling into it was a symptom.
 
         The outage keeps the anchors at (0, 0) and (20, 0) while the platform
         walks x = 20, so two ranges fit the truth and its reflection across
-        y = 0 equally well. TC briefly takes the wrong branch. This replaces a
-        claim about "two outlier events" at t = 37 s and t = 57 s, which were
-        the old trajectory's instantaneous-corner transients -- nothing in this
-        example ever injected an outlier.
+        y = 0 equally well. Nothing in the ranges breaks the tie -- the IMU
+        prediction does.
+
+        This demo used to take the wrong branch here, jumping to (30.1, -35.5)
+        against a truth of (20.0, 7.2) for about 0.2 s, and two tests in this
+        file pinned that excursion as a property of tight coupling. It was a
+        property of the *dataset*: the shipped accelerometer was map-frame
+        where every Chapter 8 filter integrates it as body-frame, so the
+        prediction that should have broken the tie was wrong too.
+
+        Written the other way round now, so it fails if the flip returns.
         """
-        error_tc = self.scenario["error_tc"]
-        worst = int(np.argmax(error_tc))
+        window = self.scenario["window"]
+        t_tc = np.asarray(self.scenario["t_tc"])
+        error_tc = np.asarray(self.scenario["error_tc"])
         truth = self.scenario["dataset"]["truth"]
-        t_worst = self.scenario["t_tc"][worst]
-        y_true = np.interp(t_worst, truth["t"], truth["p_xy"][:, 1])
-        y_est = np.asarray(self.scenario["tc"]["x_est"])[worst, 1]
+        est_y = np.asarray(self.scenario["tc"]["x_est"])[:, 1]
 
-        self.assertGreater(error_tc[worst], 10.0)
-        # The tell: the estimate is on the far side of the anchor baseline.
-        self.assertGreater(y_true, 0.0)
-        self.assertLess(y_est, 0.0)
+        # Scoped to the outage plus recovery: the ambiguity only exists while
+        # two anchors are missing. (TC's largest error over the whole run is
+        # the initialisation transient at t = 0, where the platform is on the
+        # y = 0 leg and "which side of the baseline" is not yet a question.)
+        inside = (t_tc >= window[0]) & (t_tc <= window[1] + 3.0)
+        true_y = np.interp(t_tc[inside], truth["t"], truth["p_xy"][:, 1])
 
-    def test_the_mirror_flip_is_brief(self):
-        """It is a transient, not a loss of lock; the filter recovers itself."""
-        t_tc, error_tc = self.scenario["t_tc"], self.scenario["error_tc"]
-        excursion = t_tc[error_tc > 5.0]
+        # Measured peak is 0.06 m over outage-plus-recovery.
+        self.assertLess(float(error_tc[inside].max()), 1.0)
 
-        self.assertLess(excursion.max() - excursion.min(), 1.0)
+        # The platform is well clear of the anchor baseline throughout, and
+        # the estimate stays on the same side of it. A branch flip is exactly
+        # a sign disagreement between these two.
+        self.assertGreater(float(true_y.min()), 1.0)
+        self.assertGreater(float(est_y[inside].min()), 0.0)
 
-    def test_that_flip_is_what_costs_tc_the_run_at_this_window(self):
-        """Honest about the one number where LC wins, and about why.
+    def test_tc_beats_lc_over_the_whole_run(self):
+        """The one number where LC used to win, and no longer does.
 
-        Excluding the sub-second excursion, TC is still ahead over the same
-        run, though by a smaller margin than before ``run_lc_fusion``'s WLS
-        noise/covariance-floor bug was fixed (CLAUDE.md): TC-without-flip
-        measures 0.387 m against LC's whole-run 0.707 m, about 0.55x, where
-        it used to be about 0.35x against LC's larger (buggy) 1.566 m.
-        Reporting only the whole-run RMSE would make a 0.2 s geometry event
-        look like a verdict on tight coupling.
+        With the mirror flip gone there is no sub-second excursion to exclude
+        or apologise for: TC measures 0.029 m whole-run against LC's 0.127 m,
+        about 0.23x. The previous version of this test asserted the opposite
+        inequality (``rmse_tc > rmse_lc``) and carried a paragraph explaining
+        why the one adverse number was honest to report. It was honest; it was
+        also an artifact.
         """
-        error_lc = self.scenario["error_lc"]
-        error_tc = self.scenario["error_tc"]
-        rmse_lc = np.sqrt(np.mean(error_lc**2))
-        rmse_tc = np.sqrt(np.mean(error_tc**2))
-        rmse_tc_without = np.sqrt(np.mean(error_tc[error_tc <= 5.0] ** 2))
+        rmse_lc = float(np.sqrt(np.mean(self.scenario["error_lc"] ** 2)))
+        rmse_tc = float(np.sqrt(np.mean(self.scenario["error_tc"] ** 2)))
 
-        self.assertGreater(rmse_tc, rmse_lc)
-        self.assertLess(rmse_tc_without, 0.6 * rmse_lc)
+        self.assertLess(rmse_tc, rmse_lc)
+        self.assertLess(rmse_tc, 0.5 * rmse_lc)
 
 
 class TestOutageAnimation(unittest.TestCase):

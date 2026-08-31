@@ -91,12 +91,22 @@ class TestTemporalCalibrationIsVisible(unittest.TestCase):
         self.assertGreater(measured, 0.1 * predicted)
         self.assertLess(measured, 10.0 * predicted)
 
-    def test_the_old_divergence_was_not_about_timing(self):
-        """Pins the diagnosis: gating starves the filter regardless of offset.
+    def test_gating_no_longer_starves_the_filter(self):
+        """The re-attribution, pinned so the old diagnosis cannot come back.
 
-        Without this the gating default could be restored on the theory that
-        the large error was a real temporal effect. It is not -- the
-        zero-offset dataset diverges just as far.
+        This test used to assert the opposite: that gating on the *clean*,
+        zero-offset dataset diverged past 10 m, proving the large error was a
+        starvation feedback loop rather than a temporal effect. The second
+        half of that reasoning was right -- it was never a timing problem --
+        and the first half named the wrong culprit.
+
+        The innovations were heavy-tailed because the shipped accelerometer
+        was map-frame where this filter integrates it as body-frame, so a
+        Gaussian gate rejected far too much. With the frame corrected the gate
+        costs 1.5 mm on this dataset: 0.0214 m gated against 0.0199 m ungated.
+
+        Gating stays off by default here because this demo is about temporal
+        alignment and a gate is a second variable, not because it is unsafe.
         """
         clean = load_fusion_dataset(CLEAN_DATASET)
         gated = run_fusion_with_time_sync(
@@ -106,8 +116,10 @@ class TestTemporalCalibrationIsVisible(unittest.TestCase):
             clean, apply_correction=False, use_gating=False
         )
 
-        self.assertGreater(_rmse(clean, gated), 10.0)
-        self.assertLess(_rmse(clean, ungated), 1.0)
+        self.assertLess(_rmse(clean, gated), 0.1)
+        self.assertLess(_rmse(clean, ungated), 0.1)
+        # A gate can cost a little; it must not cost an order of magnitude.
+        self.assertLess(_rmse(clean, gated), 2.0 * _rmse(clean, ungated))
 
 
 if __name__ == "__main__":

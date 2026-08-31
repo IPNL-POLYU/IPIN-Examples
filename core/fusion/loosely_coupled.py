@@ -19,7 +19,7 @@ from core.fusion.lc_models import (
     create_lc_position_measurement_model,
     solve_uwb_position_wls,
 )
-from core.fusion.tuning import innovation, innovation_covariance
+from core.fusion.tuning import innovation, innovation_covariance, kalman_update
 from core.fusion.types import (
     SENSOR_IMU,
     SENSOR_UWB_RANGES_EPOCH,
@@ -278,10 +278,14 @@ def run_lc_fusion(
                 # 'scale_R' action is handled automatically via get_R_scale()
 
             if accept:
-                # Perform EKF update with position fix
-                K = ekf.covariance @ H.T @ np.linalg.inv(S)
-                ekf.state = ekf.state + (K @ y).flatten()
-                ekf.covariance = (np.eye(5) - K @ H) @ ekf.covariance
+                # S above belongs to the gate, and P may have been inflated
+                # since. kalman_update recomputes S from the covariance it is
+                # handed, so the gain always matches it -- and its Joseph form
+                # stays positive semidefinite when it does not. The short form
+                # here drove trace(P) to -0.0814 on this dataset.
+                ekf.state, ekf.covariance = kalman_update(
+                    ekf.state, ekf.covariance, y, H, R
+                )
                 n_uwb_accepted += 1
             else:
                 n_uwb_rejected += 1

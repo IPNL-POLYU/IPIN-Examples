@@ -23,37 +23,65 @@ was 1.020: the results table reported "Huber 0.722" against "Baseline 0.722"
 and the reader was invited to conclude that robustness did not help, when in
 fact nothing had happened at all.
 
-The obvious repair -- divide by sqrt(S), the innovation std, which is what a
-normalized residual usually means -- makes every configuration worse than
-baseline, on clean data included (0.190 m becomes 1.043 m at delta = 5). S
-tracks the filter's own confidence, and this filter is over-confident: on the
-clean dataset sqrt(S) averages 0.0524 m against sqrt(R) = 0.0500, so H P H'
-contributes almost nothing and the normalized residual inherits the filter's
-collapsed P. Inflating R then weakens the correction, the state drifts, the
-next residual is larger, and the loop feeds itself.
+The other candidate is sqrt(S), the innovation std, which is what a normalized
+residual usually means. **On the corrected data both work**: sqrt(S)-normalized
+Huber scores 0.0195, 0.0201 and 0.0201 m at delta = 1.345, 4 and 5 against a
+0.0201 m baseline, so nothing here is measurably harmed by it.
 
-So the residual is normalized by **sqrt(R)**, a fixed scale. It cannot chase
-the filter's confidence, so it cannot form that loop, and a threshold is then
-in units of the measurement noise -- something a sensor datasheet can supply.
+That is worth stating plainly, because this file used to argue the opposite
+and had a number behind it -- sqrt(S) normalization "makes every configuration
+worse, 0.190 m becoming 1.043 m at delta = 5", explained by a feedback loop in
+which an over-confident filter shrinks its own scale, inflates R, drifts, and
+enlarges the next residual. That loop was real and it was **a symptom of the
+map-frame accelerometer**, not of the normalization: with the frame corrected
+the normalized innovation has std 1.037, which is a filter that is not
+over-confident at all, and the loop has nowhere to start.
 
-Why delta = 20 sigma and not the textbook 1.345
+sqrt(R) is still what this demo uses, now on design grounds rather than
+measured ones: it is a fixed scale, so it cannot chase the filter's confidence
+under conditions this dataset does not happen to contain, and a threshold
+expressed in it is in units of the measurement noise -- something a sensor
+datasheet can supply. On this data sqrt(S) averages 0.0524 m against
+sqrt(R) = 0.0500, so the two are nearly the same scale anyway.
+
+Why delta = 10 sigma and not the textbook 1.345
 -----------------------------------------------
-1.345 is the value for 95% efficiency on *Gaussian* residuals, and these are
-not Gaussian. Measured on the clean dataset, with no outlier anywhere in it,
-|innovation| / sigma_R has median 0.90, 90th percentile 3.53, 99th percentile
-14.51 and maximum 17.23; 32.4% of measurements already lie beyond 1.345. A
-standard threshold therefore fires on a third of a clean run and destroys it:
-delta = 1.345 scores 2.591 m against a 0.190 m baseline.
+A threshold needs a floor and a ceiling, and both were measured.
 
-delta = 20 sigma is chosen to sit just above that measured maximum, so the
-dead zone covers every clean-data residual and Huber is exactly neutral when
-there is nothing to reject. The choice is a plateau rather than a knife edge:
-15 / 20 / 25 / 30 give -40.6% / -37.9% / -34.1% / -29.7% on the sporadic
-scenario, and 15 is the only one that costs anything on clean data (+1.0%).
+**The floor is the clean-data tail.** With no outlier anywhere in the dataset,
+|innovation| / sigma_R has median 0.72, 90th percentile 1.72, 99th percentile
+2.73 and maximum 3.76; 19.7% of measurements still lie beyond 1.345, which is
+the value for 95% efficiency on *Gaussian* residuals. Anything below about 4
+therefore reaches into clean data.
+
+**The ceiling is what the loss costs where it cannot help.** Sweeping delta
+against all three scenarios -- clean must not degrade, sporadic must improve,
+persistent NLOS must at least be left alone:
+
+    delta      clean    sporadic     NLOS
+    1.345      -3.7%     -92.8%    +16.2%
+    4          +0.0%     -90.0%    +10.0%
+    8          +0.0%     -84.2%     +2.1%
+    10         +0.0%     -81.0%     -0.3%
+    15         +0.0%     -72.8%     -1.0%
+
+delta = 10 is the smallest value that satisfies all three. Pushing it down to
+the floor of 4 buys nine more points on the sporadic scenario and pays ten on
+the NLOS one, which the next section argues is the wrong trade.
+
+**This threshold used to be 20 sigma, and the reason is worth keeping.** The
+shipped accelerometer was map-frame where every filter here integrates it as
+body-frame, so the innovations were not the sensor's -- they carried the
+double rotation too. The clean-data tail then ran to 17.23 sigma and delta was
+set just above *that*. The rule was right and its input was wrong: a threshold
+calibrated against a broken filter's tail is calibrated against the bug. A
+measured constant is only ever as good as the run it was measured on, and
+nothing about the number 20 looked suspicious on its own.
 
 Cauchy has no dead zone -- w_R = 1 + (r/c)^2 exceeds 1 for every residual --
-so it cannot be made neutral, only cheap. c = 50 sigma holds the inflation at
-the clean 99th percentile to 1.084, and costs 2.9% on the clean case.
+so it cannot be made neutral, only cheap. c = 20 holds the inflation at the
+clean 99th percentile to 1 + (2.73 / 20)^2 = 1.019, and is likewise the
+smallest scale that leaves the NLOS run alone (+0.4%, against +8.8% at c = 10).
 
 What robust weighting cannot do
 -------------------------------
@@ -62,23 +90,57 @@ the NLOS dataset the "minority" is half the anchors, biased in a fixed
 direction for the entire run: measured per anchor, the mean range residual is
 +0.001, +0.798, +0.799, +0.001 m. With four anchors in 2D, two consistent
 biased ranges define a position as firmly as the two honest ones, so there is
-no majority to side with and no residual pattern to key on. Huber recovers
-2.0% here and Cauchy 1.1%, and that is the truthful result rather than a
-disappointing one. Persistent bias needs a method that can *represent* it:
-state augmentation with a per-anchor bias term, or NLOS identification from
-signal features, not a reweighting of the residual.
+no majority to side with.
 
-Chi-square gating collapses, and NLOS is not why
-------------------------------------------------
-Gating scores 24-26 m in all three scenarios, including the clean one, where
-the ungated NIS median is 0.74 against 0.45 for a consistent filter and 81% of
-samples already sit inside the 3.84 gate. So the collapse is not caused by the
-NLOS bias -- it is the feedback: a 95% gate keyed to a Gaussian assumption
-rejects roughly four times too many of these heavy-tailed innovations, the
-starved state drifts, drift inflates the next innovation, and the rejection
-rate runs away to 67-81%. A hard gate inherits every error in the covariance
-it tests against; a robust loss scales an outlier's influence down instead of
-removing it, and survives the same mis-specified R.
+At the thresholds above the losses are simply inert here -- Huber -0.3% and
+Cauchy +0.4%, which is no change at all. **Lower the threshold and they do not
+start helping, they start hurting**: at the clean-tail floor of delta = 4,
+Huber costs 10.0% and Cauchy at c = 10 costs 8.8%.
+
+The measurement says why. The filter is dragged to a compromise position that
+satisfies nobody, so *every* anchor's residual inflates -- at delta = 4 the
+honest anchors average +2.9 and +3.1 sigma against +4.9 and +5.1 for the
+biased pair -- and the loss then down-weights honest links at very nearly the
+rate it down-weights biased ones: 35.7% and 37.5% of updates against 39.0%
+and 28.3%. A reweighting that cannot tell the two apart is discarding good
+information to no purpose, and the more aggressive the threshold the more of
+it goes. That is the whole argument for the ceiling in the section above.
+
+Persistent bias needs a method that can *represent* it: state augmentation
+with a per-anchor bias term, or NLOS identification from signal features, not
+a reweighting of the residual.
+
+Chi-square gating is the strongest method here, and used to look like the worst
+--------------------------------------------------------------------------------
+Gating scores 0.022 m on clean data, 0.022 m on sporadic and 0.033 m on NLOS.
+On the clean run it accepts **95%** of measurements, which is exactly the
+confidence the gate is set to, and on NLOS it accepts 48% -- close to the half
+of the ranges that are not biased. The gate is doing precisely what it is
+specified to do in all three scenarios.
+
+**This file used to say the opposite**, at length: that gating "collapses",
+scoring 24-26 m everywhere including the clean run, its rejection rate running
+away to 67-81% through a starvation feedback loop, because a Gaussian gate
+cannot cope with heavy-tailed innovations. Every one of those numbers was
+real. None of them was the gate's fault: the innovations were heavy-tailed
+because the shipped accelerometer was in the wrong frame, and the chi-square
+gate is the one method here that tests its input against a distributional
+assumption and so fails loudly when the assumption is broken. It was the
+messenger. With the frame corrected the normalized innovation has std 1.037,
+the assumption holds, and the gate is the best-performing strategy in the
+table.
+
+The lesson generalises past this chapter: **the component that breaks first
+under a bad input is not usually the broken one.** A whole section of analysis
+was written to explain a defect in the data as a defect in the method, and it
+was convincing enough to survive review, because it correctly described what
+the output did.
+
+What remains true is the structural difference: a hard gate inherits every
+error in the covariance it tests against, while a robust loss scales an
+outlier's influence down instead of removing it and so degrades more gently
+under a mis-specified R. That is an argument about robustness to model error,
+not about which scores better on this dataset.
 
 Reading the results table
 -------------------------
@@ -133,6 +195,7 @@ from core.fusion import (
     huber_R_scale,
     innovation,
     innovation_covariance,
+    kalman_update,
     load_fusion_dataset,
     mahalanobis_distance_squared,
 )
@@ -148,15 +211,16 @@ from core.fusion.tc_models import (
 #: residual is normalized by. The datasets record 0.05 m.
 ASSUMED_RANGE_NOISE_STD = 0.05
 
-#: Huber threshold, in units of sigma_R. Twenty, not the textbook 1.345,
-#: because the clean-data residual reaches 17.23 sigma with no outlier in the
-#: data at all -- see the module docstring, which carries the measurement.
-HUBER_DELTA_SIGMA = 20.0
+#: Huber threshold, in units of sigma_R. Bounded below by the clean-data
+#: maximum of 3.76 sigma and set at 10, the smallest value that does no harm
+#: on the persistent-NLOS run. See the module docstring for both bounds.
+HUBER_DELTA_SIGMA = 10.0
 
-#: Cauchy scale, in units of sigma_R. Cauchy inflates every residual, so this
-#: is chosen to keep the inflation at the clean 99th percentile (14.51 sigma)
-#: down to 1 + (14.51 / 50)^2 = 1.084 rather than to sit above a maximum.
-CAUCHY_C_SIGMA = 50.0
+#: Cauchy scale, in units of sigma_R. Cauchy inflates every residual, so it
+#: cannot be made neutral, only cheap: c = 20 holds the inflation at the clean
+#: 99th percentile (2.73 sigma) to 1 + (2.73 / 20)^2 = 1.019, and is likewise
+#: the smallest value that does no harm on persistent NLOS.
+CAUCHY_C_SIGMA = 20.0
 
 #: The sporadic-outlier scenario: a fixed bias on a random fraction of ranges.
 #: Large enough to matter against 0.05 m of noise, rare enough that the
@@ -166,8 +230,9 @@ SPORADIC_OUTLIER_RATE = 0.05
 
 #: Strategy -> default robust threshold. One default cannot serve both losses:
 #: Huber's delta is a dead-zone edge and Cauchy's c is a curvature scale, so
-#: the same number means different things to them (Cauchy at 20 sigma scores
-#: 2.484 m on the clean data that Huber at 20 sigma leaves untouched).
+#: the same number means different things to them (at 10 sigma Cauchy moves
+#: the clean data to 0.0200 m and the sporadic run to -92.6%, where Huber
+#: leaves clean at 0.0201 m and reaches only -81.0%).
 DEFAULT_ROBUST_THRESHOLD = {"huber": HUBER_DELTA_SIGMA, "cauchy": CAUCHY_C_SIGMA}
 
 
@@ -382,10 +447,14 @@ def run_fusion_with_strategy(
                 accept = chi_square_gate(y, S, confidence=gate_confidence)
 
             if accept:
-                # Perform update
-                K = ekf.covariance @ H_single.T @ np.linalg.inv(S)
-                ekf.state = ekf.state + (K @ y).flatten()
-                ekf.covariance = (np.eye(5) - K @ H_single) @ ekf.covariance
+                # Joseph form, via the one helper the fusion runners share.
+                # There is no P inflation on this path, so S above already
+                # matches the covariance -- but a fourth hand-rolled copy of
+                # the short form is how the runners' defect survived, so this
+                # does not keep one. See core.fusion.tuning.kalman_update.
+                ekf.state, ekf.covariance = kalman_update(
+                    ekf.state, ekf.covariance, y, H_single, R_robust
+                )
                 n_uwb_accepted += 1
             else:
                 n_uwb_rejected += 1
@@ -616,7 +685,7 @@ def plot_robust_comparison(
         ax.axvline(value, color="0.35", linestyle=style, linewidth=1.2, label=text)
     ax.set_xlabel(r"$|r| = |y| / \sigma_R$")
     ax.set_ylabel(r"fraction of updates above $|r|$")
-    ax.set_title("Why 1.345 destroys this filter: the tail is not Gaussian")
+    ax.set_title("Clean tail ends at 3.8 sigma; the outlier tails run decades further")
     ax.legend(fontsize=7, loc="lower left")
     ax.grid(True, alpha=0.3, which="both")
 
@@ -674,7 +743,9 @@ def plot_robust_comparison(
     ax.set_yscale("log")
     ax.set_xlabel(r"$|r| = |y| / \sigma_R$")
     ax.set_ylabel(r"R inflation $w_R$ (log)")
-    ax.set_title("Eq. (8.7) scale factors: the textbook delta inflates a clean run")
+    ax.set_title(
+        "Eq. (8.7) scale factors: the textbook delta bites inside the clean tail"
+    )
     ax.legend(fontsize=7, loc="upper left")
     ax.grid(True, alpha=0.3)
 
@@ -731,7 +802,9 @@ def plot_robust_comparison(
     )
     ax.set_xlabel("UWB update index (subsampled)")
     ax.set_ylabel("NIS, 1 DOF (log)")
-    ax.set_title("Ungated NIS: even LOS sits above a consistent filter")
+    ax.set_title(
+        "Ungated NIS: LOS matches a consistent filter; the outlier cases do not"
+    )
     ax.legend(fontsize=7, loc="upper left")
     ax.grid(True, alpha=0.3)
 
@@ -926,8 +999,8 @@ def main():
 
     print("\nKey Findings:")
     print(
-        f"  * Sporadic outliers are what an M-estimator is for. Best method: "
-        f"{labels[best]}, median"
+        f"  * Sporadic outliers are what an M-estimator is for. Best of the "
+        f"two losses: {labels[best]}, median"
     )
     print(
         f"    error {np.median(errors['Sporadic']['baseline']):.3f} m -> "
@@ -949,9 +1022,9 @@ def main():
         f"has no dead zone and so cannot be exactly free."
     )
     print(
-        f"  * Persistent NLOS is not an outlier problem. Huber recovers "
-        f"{gain('NLOS', 'huber', compute_rmse):.1f}% and Cauchy "
-        f"{gain('NLOS', 'cauchy', compute_rmse):.1f}%,"
+        f"  * Persistent NLOS is not an outlier problem. Huber changes it by "
+        f"{-gain('NLOS', 'huber', compute_rmse):+.1f}% and Cauchy "
+        f"{-gain('NLOS', 'cauchy', compute_rmse):+.1f}% (negative is better),"
     )
     bias = per_anchor_range_bias(nlos)
     print(
@@ -983,22 +1056,39 @@ def main():
             f"   accepted {rate:.0f}%"
         )
     print(
-        f"    - It collapses on LOS data too, where the ungated NIS median is "
-        f"{np.median(nis_los):.2f} against 0.45 for a"
+        f"    - The gate is doing what it is specified to do: on LOS the "
+        f"ungated NIS median is {np.median(nis_los):.2f}"
     )
     print(
-        f"      consistent filter and {100*np.mean(nis_los < 3.841):.0f}% of "
-        f"samples already sit inside the 3.84 gate. So the"
+        f"      against 0.45 for a consistent filter, "
+        f"{100*np.mean(nis_los < 3.841):.0f}% of samples sit inside the 3.84 "
+        f"gate, and it"
     )
     print(
-        "      NLOS bias is not the cause: a Gaussian gate over heavy-tailed "
-        "innovations rejects several"
+        "      accepts almost exactly its nominal 95%. On NLOS it accepts "
+        "about half, which is"
+    )
+    print("      the half of the ranges that carry no bias.")
+    print(
+        "    - This demo used to report gating at 24-26 m in every scenario "
+        "and blamed a Gaussian"
     )
     print(
-        "      times too many, the starved state drifts, drift inflates the "
-        "next innovation, and the"
+        "      gate over heavy-tailed innovations. The innovations were "
+        "heavy-tailed because the"
     )
-    print("      rejection rate runs away.")
+    print(
+        "      shipped accelerometer was in the wrong frame; the gate was the "
+        "only method here that"
+    )
+    print(
+        "      checks its input against a distributional assumption, so it "
+        "failed loudest. The"
+    )
+    print(
+        "      component that breaks first under a bad input is not usually "
+        "the broken one."
+    )
     print(
         "    - A hard gate inherits every error in the covariance it tests "
         "against. A robust loss scales"

@@ -41,7 +41,6 @@ Detailed documentation for each chapter of the book:
 - **[ch7_slam.md](./ch7_slam.md)** - SLAM concepts and equations
 - **[ch8_fusion_api_reference.md](./ch8_fusion_api_reference.md)** - Sensor fusion API reference
 - **[ch8_lc_tc_comparison_guide.md](./ch8_lc_tc_comparison_guide.md)** - Loosely vs tightly coupled fusion comparison
-- **[ch8_comparison_tool_summary.md](./ch8_comparison_tool_summary.md)** - Ch8 comparison tool documentation
 
 ---
 
@@ -91,7 +90,6 @@ docs/
     ├── ch7_slam.md
     ├── ch8_fusion_api_reference.md
     ├── ch8_lc_tc_comparison_guide.md
-    ├── ch8_comparison_tool_summary.md
     ├── data_simulation_guide.md
     └── equation_index.yml
 ```
