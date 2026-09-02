@@ -1,8 +1,8 @@
 """
 Comparison of RF Positioning Methods.
 
-This script compares TOA, TDOA, AOA, and RSS positioning methods
-under various conditions using pre-generated datasets.
+This script compares TOA, RTT (two-way TOA), TDOA, AOA, and RSS positioning
+methods under various conditions using pre-generated datasets.
 
 Can run with:
     - Inline data (default):
@@ -13,7 +13,8 @@ Can run with:
         python -m ch4_rf_point_positioning.example_comparison --compare-geometry
 
 Implements:
-    - TOA positioning (Eqs. 4.14-4.23)
+    - TOA positioning (Eqs. 4.14-4.23), with the clock as a state (Eqs. 4.24-4.26)
+    - Two-way TOA / RTT ranging (Eqs. 4.6-4.9)
     - TDOA positioning (Eqs. 4.34-4.42)
     - AOA positioning (Eqs. 4.63-4.67)
     - DOP analysis (Section 4.5)
@@ -44,6 +45,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from core.eval import save_figure, show_figures_if_requested
 from core.rf import (
     DIVERGENCE_M,
+    STALL_M,
     AOAPositioner,
     SolveOutcome,
     TDOAPositioner,
@@ -53,6 +55,7 @@ from core.rf import (
     solve_batch,
     toa_range,
     toa_solve_with_clock_bias,
+    two_way_toa_range,
 )
 from core.utils import resolve_data_path
 
@@ -389,11 +392,33 @@ class _ClockBiasSolver:
 INLINE_SEED = np.array([5.0, 5.0])
 
 
+def draw_range_noise(n_points, n_anchors, range_noise_std_m):
+    """One ``(N, K)`` draw of per-range gaussian noise, or ``None`` at zero.
+
+    Hoisted out of :func:`toa_positioning_test` so that the one-way and
+    two-way range series can be handed the **same realisation**. The two
+    columns exist to price one difference -- the estimator's state vector --
+    and drawing separately would put a full realisation of noise on each side,
+    which is the defect `aoa_bearings` was written to remove one series over
+    (and which `.cursor/rules/030-figures-and-claims.mdc` names: a paired
+    comparison on unpaired draws is two experiments reported as a ratio).
+
+    Returning ``None`` rather than a zero array at ``range_noise_std_m == 0``
+    is not tidiness: it keeps the global RNG untouched on the noiseless level,
+    exactly as the in-line ``if range_noise_std_m > 0`` it replaces did, so
+    every draw downstream in the sweep lands where it did before.
+    """
+    if range_noise_std_m <= 0:
+        return None
+    return np.random.randn(n_points, n_anchors) * range_noise_std_m
+
+
 def toa_positioning_test(
     anchors,
     true_positions,
     range_noise_std_m=0.0,
     clock_bias_m=0.0,
+    range_noise=None,
 ):
     """Test TOA positioning (inline mode). Returns a `SolveOutcome`.
 
@@ -404,6 +429,10 @@ def toa_positioning_test(
         clock_bias_m: Shared receiver clock bias in metres, added to
             every pseudorange.  TDOA differencing cancels this term; TOA
             has to estimate it, which is what the state below is for.
+        range_noise: A pre-drawn ``(N, K)`` noise array to add instead of
+            drawing one. `run_inline_comparison` passes the same array to
+            :func:`rtt_positioning_test`, so the two range series differ in
+            their estimator and in nothing else. ``None`` draws as before.
 
     **The state is (x, y, c*dt), not (x, y), and that is the whole point.**
     A shared bias is unobservable to a position-only solver: no (x, y)
@@ -430,8 +459,10 @@ def toa_positioning_test(
         ]
     )
     ranges += clock_bias_m
-    if range_noise_std_m > 0:
-        ranges += np.random.randn(*ranges.shape) * range_noise_std_m
+    if range_noise is None:
+        range_noise = draw_range_noise(*ranges.shape, range_noise_std_m)
+    if range_noise is not None:
+        ranges += range_noise
 
     return solve_batch(
         _ClockBiasSolver(anchors),
@@ -439,6 +470,67 @@ def toa_positioning_test(
         INLINE_SEED,
         true_positions,
         progress=partial(tqdm, desc="  TOA", leave=False, unit="pt"),
+    )
+
+
+def rtt_positioning_test(
+    anchors,
+    true_positions,
+    range_noise_std_m=0.0,
+    range_noise=None,
+):
+    """Test RTT (two-way TOA) positioning (inline mode). Returns a `SolveOutcome`.
+
+    Args:
+        anchors: Anchor positions, shape (K, 2).
+        true_positions: Ground-truth agent positions, shape (N, 2).
+        range_noise_std_m: Gaussian noise std in metres, on the **converted**
+            range -- the quantity Eq. (4.7) hands back after halving the round
+            trip -- not on the raw round-trip time.
+        range_noise: A pre-drawn ``(N, K)`` noise array; see
+            :func:`toa_positioning_test`.
+
+    **Exactly one thing differs from the TOA row above: the state vector.**
+    Same anchors, same 50 test points, same seed, the same sigma ladder and --
+    because `run_inline_comparison` draws once and passes the array to both --
+    the same realisation of it. What changes is that a round trip is timed on
+    one clock, so Eq. (4.7)'s ``d = c(t_rtt - t_proc)/2`` carries no receiver
+    clock offset to estimate: **no bias is injected here, and the solve is the
+    two-state `(x, y)` `TOAPositioner`** rather than the three-state
+    `(x, y, c*dt)` of Eqs. (4.24)-(4.26). The difference between the two
+    medians is therefore the price of the third unknown, measured rather than
+    argued.
+
+    **The noise is deliberately *not* modelled through processing time and
+    clock drift here**, though `simulate_rtt_measurement` offers exactly that
+    and `example_toa_positioning`'s Example 5 uses it. Doing so would change
+    two things at once -- the state vector *and* the error budget -- and the
+    row would no longer answer the question it is in the table to answer. The
+    cost of the RTT hardware's own uncertainty is taught in that standalone
+    section, on its own geometry; this one prices the clock state alone.
+
+    Note this makes the comparison favourable to RTT by construction at equal
+    sigma, which is the honest framing: two-way ranging buys you the missing
+    unknown, and pays for it in the transponder and the processing-time
+    calibration that this row charges nothing for.
+    """
+    ranges = np.array(
+        [
+            [two_way_toa_range(anchor, true_pos) for anchor in anchors]
+            for true_pos in true_positions
+        ]
+    )
+    if range_noise is None:
+        range_noise = draw_range_noise(*ranges.shape, range_noise_std_m)
+    if range_noise is not None:
+        ranges = ranges + range_noise
+
+    return solve_batch(
+        TOAPositioner(anchors, method="iterative_ls"),
+        ranges,
+        INLINE_SEED,
+        true_positions,
+        progress=partial(tqdm, desc="  RTT", leave=False, unit="pt"),
     )
 
 
@@ -640,6 +732,16 @@ def run_inline_comparison():
     schedule so that the comparison is apples-to-apples.  A shared
     receiver clock bias is injected into TOA pseudo-ranges to demonstrate
     that TDOA differencing cancels it.
+
+    **TOA and RTT are a matched pair, and the match is the experiment.** They
+    share the anchors, the 50 test points, the seed, the sigma ladder and the
+    realisation drawn from it -- `draw_range_noise` is called once per level
+    and handed to both. The only difference is the estimator's state vector:
+    TOA carries `(x, y, c*dt)` because a one-way pseudorange has an unknown
+    receiver clock in it, RTT carries `(x, y)` because a round trip is timed
+    on one clock and cancels it by construction. So the gap between the two
+    columns is the price of the third unknown, measured instead of intuited.
+    See :func:`rtt_positioning_test` for what is deliberately *not* varied.
     """
     print("=" * 70)
     print("RF Positioning Methods Comparison")
@@ -655,6 +757,10 @@ def run_inline_comparison():
 
     # ---- Independent noise schedules per method ----
     toa_range_noise_levels_m = [0.0, 0.05, 0.1, 0.2, 0.5]
+    # RTT shares TOA's ladder by design, not by coincidence: the two rows are a
+    # matched pair and the schedule is one of the things held equal. Kept as
+    # its own list so the figure's legend can carry it per series.
+    rtt_range_noise_levels_m = list(toa_range_noise_levels_m)
     tdoa_range_noise_levels_m = [0.0, 0.05, 0.1, 0.2, 0.5]
     aoa_noise_levels_deg = [0.0, 1.0, 3.0, 5.0, 10.0]  # degrees
     rss_fading_noise_levels_db = [0.0, 2.0, 4.0, 6.0, 8.0]
@@ -666,12 +772,23 @@ def run_inline_comparison():
 
     # "AOA_unw" is the unweighted control, reported in the table but not
     # plotted -- the figure compares measurement types, not solver options.
-    results = {"TOA": [], "TDOA": [], "AOA": [], "RSS": [], "AOA_unw": []}
+    results = {
+        "TOA": [],
+        "RTT": [],
+        "TDOA": [],
+        "AOA": [],
+        "RSS": [],
+        "AOA_unw": [],
+    }
 
     print("\nNoise configuration (independent per method):")
     print(
         f"  TOA : range noise {toa_range_noise_levels_m} m  "
         f"(+ clock bias {clock_bias_m} m)"
+    )
+    print(
+        f"  RTT : range noise {rtt_range_noise_levels_m} m  "
+        "(no clock bias; the round trip cancels it)"
     )
     print(f"  TDOA: range noise {tdoa_range_noise_levels_m} m  (clock bias cancels)")
     print(f"  AOA : angle noise {aoa_noise_levels_deg} deg")
@@ -695,17 +812,35 @@ def run_inline_comparison():
         print(
             f"\n[{i+1}/{n_levels}] TOA: {toa_range_noise_m:.2f}m "
             f"(+bias {clock_bias_m}m), "
+            f"RTT: {toa_range_noise_m:.2f}m (no bias), "
             f"TDOA: {tdoa_range_noise_m:.2f}m, "
             f"AOA: {aoa_noise_levels_deg[i]:.1f}deg, "
             f"RSS: {rss_fading_db:.1f}dB"
         )
 
+        # Drawn once and solved twice, which is what makes the TOA/RTT pair a
+        # measurement of the clock state rather than of two noise draws. It
+        # also keeps the sweep's global RNG stream where it was: this draw is
+        # the one `toa_positioning_test` used to make at exactly this point,
+        # and `rtt_positioning_test` consumes nothing.
+        shared_range_noise = draw_range_noise(
+            len(true_positions), len(anchors), toa_range_noise_m
+        )
         results["TOA"].append(
             toa_positioning_test(
                 anchors,
                 true_positions,
                 toa_range_noise_m,
                 clock_bias_m=clock_bias_m,
+                range_noise=shared_range_noise,
+            )
+        )
+        results["RTT"].append(
+            rtt_positioning_test(
+                anchors,
+                true_positions,
+                toa_range_noise_m,
+                range_noise=shared_range_noise,
             )
         )
         results["TDOA"].append(
@@ -745,7 +880,7 @@ def run_inline_comparison():
     print("\n" + "=" * 70)
     print("Results Summary (median error in metres)")
     print("=" * 70)
-    print(f"  Clock bias: {clock_bias_m} m (TOA only; cancels in TDOA)")
+    print(f"  Clock bias: {clock_bias_m} m (TOA only; cancels in TDOA and RTT)")
     print(
         f"  RSS config: Rayleigh short-term (sigma={sigma_short_linear}), "
         f"{n_samples_avg} samples averaged"
@@ -754,11 +889,16 @@ def run_inline_comparison():
         f"  AOA anchor {DEGRADED_ANCHOR} is {DEGRADED_ANCHOR_SCALE:.0f}x noisier "
         f"than the others; 'AOA unw' solves the same bearings unweighted"
     )
+    print(
+        "  'RTT' is two-way TOA on the identical range-noise draw as 'TOA', "
+        "solved\n  for (x, y) alone: same anchors, points, seed and sigma, one "
+        "fewer state"
+    )
     header = (
         f"{'Level':<6} {'TOA(m)':<9} {'TDOA(m)':<9} "
         f"{'AOA(deg)':<9} {'RSS(dB)':<9} "
-        f"{'TOA':<9} {'TDOA':<9} {'AOA':<9} {'AOA unw':<9} "
-        f"{'RSS':<9} {'AOA fail':<9} {'RSS fail':<9}"
+        f"{'TOA':<9} {'RTT':<9} {'TDOA':<9} {'AOA':<9} {'AOA unw':<9} "
+        f"{'RSS':<9} {'RTT fail':<9} {'AOA fail':<9} {'RSS fail':<9}"
     )
     print(header)
     print("-" * len(header))
@@ -777,10 +917,12 @@ def run_inline_comparison():
             f"{aoa_noise_levels_deg[i]:<9.1f} "
             f"{rss_fading_noise_levels_db[i]:<9.1f} "
             f"{results['TOA'][i].median_m:<9.3f} "
+            f"{results['RTT'][i].median_m:<9.3f} "
             f"{results['TDOA'][i].median_m:<9.3f} "
             f"{results['AOA'][i].median_m:<9.3f} "
             f"{results['AOA_unw'][i].median_m:<9.3f} "
             f"{results['RSS'][i].median_m:<9.3f} "
+            f"{results['RTT'][i].n_failed:<9d} "
             f"{results['AOA'][i].n_failed:<9d} "
             f"{results['RSS'][i].n_failed:<9d}"
         )
@@ -790,8 +932,43 @@ def run_inline_comparison():
         for i in range(n_levels)
     ]
 
+    # What one fewer state is worth, printed rather than asserted. Both
+    # columns solve the SAME range errors, so the ratio is not a comparison of
+    # two noise realisations -- it is the cost of carrying the clock.
+    #
+    # Level 1 is exact on both sides and must not print a ratio. `rtt > 0` is
+    # not the guard that gets this right: the noiseless medians are 3.5e-10 m
+    # and 9.9e-10 m -- both zero as far as a positioning system is concerned,
+    # both nonzero as far as float division is concerned -- and the first draft
+    # of this loop duly printed "0.35x", a ratio of two roundoff residues,
+    # under a heading claiming to price the clock state. The floor is
+    # `STALL_M`, the solver's own 1e-6 m step tolerance: nothing below it is a
+    # distance, which is exactly why `solve_batch` uses it to decide a fix
+    # never left its seed.
     print()
-    print("  The two 'fail' columns count fixes that raised, reported")
+    print("  What the clock state costs, TOA / RTT on the identical draw:")
+    for i in range(n_levels):
+        toa_m = results["TOA"][i].median_m
+        rtt_m = results["RTT"][i].median_m
+        if max(toa_m, rtt_m) < STALL_M:
+            ratio = f"-- (both exact, under {STALL_M:g} m)"
+        else:
+            ratio = f"{toa_m / rtt_m:.2f}x"
+        print(
+            f"    level {i+1}  sigma {toa_range_noise_levels_m[i]:.2f} m   "
+            f"TOA {toa_m:.3f} m   RTT {rtt_m:.3f} m   {ratio}"
+        )
+    print("  Four ranges over three unknowns against four over two: one degree")
+    print("  of freedom instead of two, and the inflation is the price of not")
+    print("  having a beacon that answers back. RTT's noise is charged on the")
+    print("  post-conversion range (Eq. 4.7), NOT modelled through processing")
+    print("  time and clock drift -- that would change the error budget as well")
+    print("  as the state vector, and this row exists to change one thing.")
+    print("  example_toa_positioning's Example 5 prices the RTT hardware budget")
+    print("  on its own geometry; nothing here charges RTT for the transponder.")
+
+    print()
+    print("  The three 'fail' columns count fixes that raised, reported")
     print("  converged=False, never left the seed, or landed over 100 m away")
     print("  -- core.rf.solve_batch's four conditions. Every median above is")
     print("  over all 50 fixes including those, which is the point: the RSS")
@@ -836,9 +1013,10 @@ def run_inline_comparison():
     print("  Only the spread between anchors carries information.")
 
     # The schedules travel with the results, because the figure needs them:
-    # four series in three different units cannot share one x-axis in metres.
+    # five series in three different units cannot share one x-axis in metres.
     level_schedules = (
         ("TOA", toa_range_noise_levels_m, "m"),
+        ("RTT", rtt_range_noise_levels_m, "m"),
         ("TDOA", tdoa_range_noise_levels_m, "m"),
         ("AOA", aoa_noise_levels_deg, "deg"),
         ("RSS", rss_fading_noise_levels_db, "dB"),
@@ -1076,9 +1254,9 @@ def plot_geometry_comparison(all_results: dict):
 def _schedule_label(method, schedule, unit):
     """A legend entry that carries the series' own noise units.
 
-    Panels 1 and 4 plot four methods against a level *index*, because the four
-    schedules are in three different units: metres for TOA and TDOA, degrees
-    for AOA, dB for RSS. They used to be drawn at TOA's metre positions under
+    Panels 1 and 4 plot five methods against a level *index*, because the five
+    schedules are in three different units: metres for TOA, RTT and TDOA,
+    degrees for AOA, dB for RSS. They used to be drawn at TOA's metre positions under
     an x-axis reading "Measurement Noise (m)", which puts AOA's 10 deg at
     x = 0.5 m and invites exactly one reading, the wrong one. The units now
     travel with the line that owns them.
@@ -1100,14 +1278,35 @@ def plot_inline_comparison(level_schedules, results):
     fig.suptitle("RF Positioning Methods Comparison", fontsize=16, fontweight="bold")
 
     methods = [name for name, _, _ in level_schedules]
-    colors = ["blue", "red", "green", "orange"]
+    # Keyed by method, not positional, so that inserting a series cannot
+    # silently recolour the four that were here before it -- a reader who
+    # learned "RSS is orange" from the committed figure keeps that. RTT's
+    # purple is the fifth: dark enough to read against the white panel and
+    # distinguishable from the blue it will sit closest to.
+    colors = {
+        "TOA": "blue",
+        "RTT": "purple",
+        "TDOA": "red",
+        "AOA": "green",
+        "RSS": "orange",
+    }
     # One dash pattern per method, used by every line panel below. TOA and
-    # TDOA now trace each other almost exactly -- they carry the same
-    # information once TOA estimates its clock, which is the point of this
-    # figure -- so with four solid lines only the last one drawn is visible
-    # and the panel reads as "TOA is missing". The success-rate panel already
-    # had this problem for the same reason and solved it this way.
-    dashes = ["-", "--", "-.", ":"]
+    # TDOA trace each other almost exactly -- they carry the same information
+    # once TOA estimates its clock, which is the point of this figure -- so
+    # with solid lines only the last one drawn is visible and the panel reads
+    # as "TOA is missing". The success-rate panel already had this problem for
+    # the same reason and solved it this way. RTT joins the pile-up at level 1,
+    # where every range method is exact, and at 100 % in panel 4, so it needs
+    # a pattern of its own rather than a shade of one.
+    dashes = {
+        "TOA": "-",
+        "RTT": (0, (3, 1, 1, 1)),
+        "TDOA": "--",
+        "AOA": "-.",
+        "RSS": ":",
+    }
+    series_colors = [colors[name] for name in methods]
+    series_dashes = [dashes[name] for name in methods]
 
     n_levels = len(results[methods[0]])
     level_index = np.arange(1, n_levels + 1)
@@ -1128,15 +1327,30 @@ def plot_inline_comparison(level_schedules, results):
     # tolerance, so this panel was drawing the accuracy of a quarter of its
     # sample, selected by fit. The failures are in panel 4, where they can be
     # read as failures.
+    #
+    # **The axis stays linear, and a log axis was rendered before deciding
+    # that.** RSS at 8 m does crush TOA/RTT/TDOA into a band near zero, which
+    # is the shape `.cursor/rules/030` warns about, and the sibling
+    # `plot_geometry_comparison` fixes exactly that with `set_yscale("log")`.
+    # It does not work here: level 1 is noiseless, so the range and bearing
+    # medians there are roundoff -- 3.5e-10 to 1.6e-08 m -- and a log axis
+    # spends ten of its twelve decades on that, compressing levels 2-5 into
+    # the top fifth of the panel. The TOA/RTT gap is no more readable after
+    # the change than before it, and the panel acquires a meaningless cliff.
+    #
+    # So do not look for the cost of the clock state in this panel: it is
+    # 2.6% between two series that also share a noise schedule, and no scaling
+    # of a five-method overview will show it. The console table prints the
+    # TOA/RTT ratio per level, which is where that comparison lives.
     ax1 = axes[0, 0]
     for (method, schedule, unit), color, dash in zip(
-        level_schedules, colors, dashes, strict=True
+        level_schedules, series_colors, series_dashes, strict=True
     ):
         medians = [outcome.median_m for outcome in results[method]]
         ax1.plot(
             level_index,
             medians,
-            dash,
+            linestyle=dash,
             marker="o",
             label=_schedule_label(method, schedule, unit),
             color=color,
@@ -1153,14 +1367,21 @@ def plot_inline_comparison(level_schedules, results):
     ax2 = axes[0, 1]
     noise_idx = 2
     for (method, _, _), color, dash in zip(
-        level_schedules, colors, dashes, strict=True
+        level_schedules, series_colors, series_dashes, strict=True
     ):
         errors = results[method][noise_idx].errors
         errors = errors[np.isfinite(errors)]
         if len(errors) > 0:
             sorted_errors = np.sort(errors)
             cdf = np.arange(1, len(sorted_errors) + 1) / len(sorted_errors)
-            ax2.plot(sorted_errors, cdf, dash, label=method, color=color, linewidth=2)
+            ax2.plot(
+                sorted_errors,
+                cdf,
+                linestyle=dash,
+                label=method,
+                color=color,
+                linewidth=2,
+            )
     ax2.set_xlabel("Position Error (m)")
     ax2.set_ylabel("CDF")
     ax2.set_title(f"Error CDF at level {noise_idx + 1}\n({_level_caption(noise_idx)})")
@@ -1178,7 +1399,12 @@ def plot_inline_comparison(level_schedules, results):
             data.append(errors)
             labels.append(method)
     bp = ax3.boxplot(data, tick_labels=labels, patch_artist=True, showfliers=False)
-    for patch, color in zip(bp["boxes"], colors[: len(data)], strict=True):
+    # Keyed off the surviving labels, not sliced off the front of the colour
+    # list: a method dropped for having no finite errors would otherwise shift
+    # every box after it onto the wrong colour. `strict=True` is the guard that
+    # the two lists still line up.
+    box_colors = [colors[name] for name in labels]
+    for patch, color in zip(bp["boxes"], box_colors, strict=True):
         patch.set_facecolor(color)
         patch.set_alpha(0.6)
     ax3.set_ylabel("Position Error (m)")
@@ -1189,7 +1415,7 @@ def plot_inline_comparison(level_schedules, results):
 
     # 4. Success Rate
     #
-    # Three of the four methods now sit on 100 % for most of the sweep, so a
+    # Four of the five methods now sit on 100 % for most of the sweep, so a
     # solid line per method would hide all but the last one drawn -- the same
     # "reads as absent" failure this file warns about elsewhere, arrived at
     # from the opposite direction. Distinct dash patterns keep every method
@@ -1197,7 +1423,7 @@ def plot_inline_comparison(level_schedules, results):
     # position.
     ax4 = axes[1, 1]
     for (method, schedule, unit), color, dash in zip(
-        level_schedules, colors, dashes, strict=True
+        level_schedules, series_colors, series_dashes, strict=True
     ):
         rates = [
             100.0 * outcome.solved.sum() / outcome.n for outcome in results[method]
@@ -1205,7 +1431,7 @@ def plot_inline_comparison(level_schedules, results):
         ax4.plot(
             level_index,
             rates,
-            dash,
+            linestyle=dash,
             marker="o",
             label=_schedule_label(method, schedule, unit),
             color=color,

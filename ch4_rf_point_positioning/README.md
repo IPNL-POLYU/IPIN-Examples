@@ -395,7 +395,7 @@ round trip measures distance better.
 Running `python -m ch4_rf_point_positioning.example_comparison` generates a comprehensive comparison:
 
 The left four columns are the noise injected at each level; the middle columns
-are the resulting median position error over all 50 fixes; the right two count
+are the resulting median position error over all 50 fixes; the right three count
 the fixes that failed. One draw is not a measurement, so this table reports
 medians rather than the single realisation it used to — see
 `.cursor/rules/030-figures-and-claims.mdc`.
@@ -404,25 +404,78 @@ medians rather than the single realisation it used to — see
 ```
 Results Summary (median error in metres)
 ======================================================================
-  Clock bias: 1.5 m (TOA only; cancels in TDOA)
+  Clock bias: 1.5 m (TOA only; cancels in TDOA and RTT)
   RSS config: Rayleigh short-term (sigma=0.5), 5 samples averaged
   AOA anchor 3 is 10x noisier than the others; 'AOA unw' solves the same bearings unweighted
-Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       TDOA      AOA       AOA unw   RSS       AOA fail  RSS fail
---------------------------------------------------------------------------------------------------------------------
-1      0.00      0.00      0.0       0.0       0.000     0.000     0.000     0.000     1.652     0         ~
-2      0.05      0.05      1.0       2.0       0.044     0.047     0.121     0.355     2.219     0         ~
-3      0.10      0.10      3.0       4.0       0.088     0.091     0.384     1.430     3.246     0         ~
-4      0.20      0.20      5.0       6.0       0.162     0.175     0.519     2.433     4.029     0         ~
-5      0.50      0.50      10.0      8.0       0.507     0.567     1.129     7.026     8.045     ~         ~
+  'RTT' is two-way TOA on the identical range-noise draw as 'TOA', solved
+  for (x, y) alone: same anchors, points, seed and sigma, one fewer state
+Level  TOA(m)    TDOA(m)   AOA(deg)  RSS(dB)   TOA       RTT       TDOA      AOA       AOA unw   RSS       RTT fail  AOA fail  RSS fail
+----------------------------------------------------------------------------------------------------------------------------------------
+1      0.00      0.00      0.0       0.0       0.000     0.000     0.000     0.000     0.000     1.652     ~         0         ~
+2      0.05      0.05      1.0       2.0       0.044     0.044     0.047     0.121     0.355     2.219     ~         0         ~
+3      0.10      0.10      3.0       4.0       0.088     0.083     0.091     0.384     1.430     3.246     ~         0         ~
+4      0.20      0.20      5.0       6.0       0.162     0.152     0.175     0.519     2.433     4.029     ~         0         ~
+5      0.50      0.50      10.0      8.0       0.507     0.431     0.567     1.129     7.026     8.045     ~         ~         ~
 ```
 
-The two fail columns carry `~` because they are integer counts with no
+The three fail columns carry `~` because they are integer counts with no
 tolerance to give: a fix "fails" partly on whether an iterative solve reached a
 1e-6 m step inside its budget, and that is exactly the kind of thing a
 different LAPACK moves by one. The medians beside them are pinned. On this
-machine the RSS column reads 21, 19, 26, 34, 38 of 50 and AOA's level 5 reads
-4 — none of them the >100 m kind, which is `[0, 0, 0, 0, 0]` and printed under
-the table.
+machine the RSS column reads 21, 19, 26, 34, 38 of 50, AOA's level 5 reads
+4, and RTT reads 0, 0, 0, 0, 1 — none of them the >100 m kind, which is
+`[0, 0, 0, 0, 0]` and printed under the table.
+
+#### What estimating the clock costs (`TOA` against `RTT`)
+
+The two range columns are a **matched pair**, and the match is the experiment.
+`RTT` is two-way TOA — Eqs. (4.6)-(4.9) — and it shares everything with `TOA`
+except one thing: the state vector. Same anchors, same 50 test points, same
+seed, the same sigma ladder, and the *same realisation* drawn from it, because
+the example draws the range noise once per level and hands the array to both.
+What differs is that a one-way pseudorange contains an unknown receiver clock
+offset, so `TOA` solves for `(x, y, c*dt)` per Eqs. (4.24)-(4.26); a round trip
+is timed on one clock and cancels that offset by construction, so `RTT` solves
+for `(x, y)` and no bias is injected into it.
+
+So the gap between the two columns prices the third unknown, and it is
+measured rather than argued:
+
+| σ (m) | TOA (m) | RTT (m) | TOA / RTT |
+|---|---|---|---|
+| 0.00 | 0.000 | 0.000 | — both exact |
+| 0.05 | 0.044 | 0.044 | 1.00× |
+| 0.10 | 0.088 | 0.083 | 1.06× |
+| 0.20 | 0.162 | 0.152 | 1.07× |
+| 0.50 | 0.507 | 0.431 | 1.18× |
+
+**Read that column as one number and not as a trend.** Adding the clock column
+to `H` inflates the position covariance by a factor set by the *geometry alone*
+— it does not grow with σ — and for this square array the analytic value is
+**1.026** (median over per-point DOP ratios; 1.033 as a ratio of medians). The
+spread from 1.00 to 1.18 above is a 50-point median resolving a 2.6% effect
+through about ±7% of sampling noise. Over 40 repeats per level the ratio of
+medians ranges 0.87 to 1.27, so a single level cannot even establish the sign.
+`tests/ch4_rf_point_positioning/test_rtt_matched_comparison.py` therefore pins
+the claim twice: analytically, where the inequality is exact at every one of
+the 50 points, and over a 1200-point sample, where 1.026 is resolvable.
+
+Two things this row deliberately does **not** do. It does not model the RTT
+noise through processing time and clock drift, though `simulate_rtt_measurement`
+offers that and Example 5 of `example_toa_positioning` uses it — the σ here is
+charged on the *converted* range of Eq. (4.7). Varying the error budget as well
+as the state vector would leave the comparison unable to attribute the
+difference to either. And nothing here charges RTT for the transponder or for
+the processing-time calibration it needs, so the ~3% is the *best case* for
+two-way ranging, not a net verdict on it.
+
+The noiseless row is worth its own sentence: both range methods are exact
+there, at 3.5e-10 m and 9.9e-10 m, so the two-way series is in fact the larger
+of the two by 0.6 nanometres. Nothing is measured at σ = 0, which is why the
+example prints no ratio for level 1. An earlier draft guarded that print on
+`median > 0` and duly reported "0.35×" as the cost of the clock state — a
+ratio of two roundoff residues under a heading claiming to price a physical
+effect.
 
 **TOA reads 0.000 m at level 1 because it now estimates the clock.** The
 comparison injects a shared 1.5 m receiver bias into the TOA pseudoranges, and
@@ -470,18 +523,27 @@ read was a ratio between two different noise realisations.
 
 *This figure shows four subplots comparing RF positioning methods:*
 - **Top-Left:** median error over every fix, against the noise **level index**
-  1–5. The x-axis is an index and not a distance because the four methods have
-  four schedules in three different units; each series carries its own in the
+  1–5. The x-axis is an index and not a distance because the five methods have
+  five schedules in three different units; each series carries its own in the
   legend. They used to be drawn at TOA's metre positions under an axis labelled
   "Measurement Noise (m)", which put AOA's 10° at x = 0.5 m.
-- **Top-Right:** error CDF at level 3 — the panel title names all four methods'
-  noise there, rather than only TOA's. TOA/TDOA/AOA are sub-metre; RSS spreads
-  past 12 m.
+  **Do not look for the TOA/RTT gap here.** RSS at 8 m puts the three range
+  series in a band near zero, and a log axis — which is how the sibling
+  geometry figure solves exactly this — was rendered and rejected: level 1 is
+  noiseless, so those medians are roundoff at 1e-10 to 1e-8 m and a log axis
+  spends ten of twelve decades on them, compressing every informative level
+  into the top fifth of the panel. A 2.6% difference between two series that
+  also share a schedule is a table result, not a picture.
+- **Top-Right:** error CDF at level 3 — the panel title names all five methods'
+  noise there, rather than only TOA's. TOA/RTT/TDOA/AOA are sub-metre; RSS
+  spreads past 12 m.
 - **Bottom-Left:** error distribution at level 3 — RSS has far higher variance.
 - **Bottom-Right:** fixes solved, on the same four conditions as the table.
-  TOA and TDOA hold 100% across the sweep, AOA falls to 92% at level 5, and RSS
-  runs 58% down to 23%. This is where the failures live, so that the panel
-  above it can be an accuracy.
+  TOA, RTT and TDOA hold 100% across the sweep bar a single RTT fix at level 5,
+  AOA falls to 92% there, and RSS runs 58% down to 23%. This is where the
+  failures live, so that the panel above it can be an accuracy. Each method has
+  its own dash pattern, because four of the five coincide at 100% for most of
+  the sweep and solid lines would show only the last one drawn.
 
 ### Geometry is method-specific (`--compare-geometry`)
 
@@ -1118,7 +1180,7 @@ All figures are generated by the example scripts and stored in the `figs/` direc
 | Figure | Source Script | Description |
 |--------|--------------|-------------|
 | `toa_positioning_example.png` | `example_toa_positioning.py` | TOA positioning geometry showing anchors, range circles, true/estimated positions, and iterative solver convergence path |
-| `ch4_rf_comparison.png` | `example_comparison.py` | Comprehensive comparison of TOA, TDOA, AOA, and RSS methods: median error vs noise level, error CDF, box plots, and solved rates |
+| `ch4_rf_comparison.png` | `example_comparison.py` | Comprehensive comparison of TOA, RTT (two-way TOA), TDOA, AOA, and RSS methods: median error vs noise level, error CDF, box plots, and solved rates |
 | `ch4_aoa_geometry.png` | `example_aoa_positioning.py` | AOA positioning geometry demonstrating ENU coordinate convention with azimuth angles measured from North |
 | `ch4_dop_geometry.png` | `example_dop_geometry.py` | DOP field and walk-away curve showing how anchor geometry amplifies the same range noise into different position uncertainty |
 | `ch4_initial_guess_basin.png` | `example_initial_guess_basin.py` | Starting-point sweep showing where raw angle residuals and book sin/tan residuals converge or fail |
