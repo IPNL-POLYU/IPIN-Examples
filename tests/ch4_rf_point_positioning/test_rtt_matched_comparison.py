@@ -93,9 +93,7 @@ def _paired_medians(sigma_m, n_points, seed, rtt_gets_the_clock_state=False):
     anchors, _ = generate_scenario(seed=42)
     rng = np.random.default_rng(seed)
     points = rng.uniform(1, 9, size=(n_points, 2))
-    true_ranges = np.linalg.norm(
-        points[:, None, :] - anchors[None, :, :], axis=2
-    )
+    true_ranges = np.linalg.norm(points[:, None, :] - anchors[None, :, :], axis=2)
     noise = rng.standard_normal(true_ranges.shape) * sigma_m
 
     seed_3 = np.concatenate([INLINE_SEED, [0.0]])
@@ -134,9 +132,7 @@ def _analytic_inflation():
         # A one-way pseudorange is d + b, so the clock column is +1.
         h_3 = np.hstack([unit, np.ones((len(anchors), 1))])
         two_state.append(np.sqrt(np.trace(np.linalg.inv(h_2.T @ h_2))))
-        three_state.append(
-            np.sqrt(np.trace(np.linalg.inv(h_3.T @ h_3)[:2, :2]))
-        )
+        three_state.append(np.sqrt(np.trace(np.linalg.inv(h_3.T @ h_3)[:2, :2])))
     return np.array(three_state) / np.array(two_state)
 
 
@@ -295,9 +291,7 @@ class TheClockStateIsWhatCostsAccuracy(unittest.TestCase):
             worst_position = max(
                 worst_position, float(np.linalg.norm(with_bias - without))
             )
-            worst_bias = max(
-                worst_bias, abs((bias_hi - bias_lo) - CLOCK_BIAS_M)
-            )
+            worst_bias = max(worst_bias, abs((bias_hi - bias_lo) - CLOCK_BIAS_M))
 
         self.assertLess(worst_position, 1e-9)
         self.assertLess(worst_bias, 1e-9)
@@ -361,9 +355,7 @@ class WhatTheShippedSweepActuallyReports(unittest.TestCase):
                 self.assertEqual(outcome.n, 50)
                 self.assertEqual(len(outcome.errors), 50)
                 self.assertEqual(outcome.solved.shape, (50,))
-                self.assertEqual(
-                    outcome.n_failed, int((~outcome.solved).sum())
-                )
+                self.assertEqual(outcome.n_failed, int((~outcome.solved).sum()))
                 self.assertGreaterEqual(outcome.n - outcome.n_failed, 45)
 
         # The one failure in the sweep is a step-tolerance stop, not a
