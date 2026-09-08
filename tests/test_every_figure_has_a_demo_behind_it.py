@@ -64,6 +64,10 @@ EXTRA_RUNS = {
         # it drew was wrong; naming the invocation is what stops the figure
         # depending on some other test in the suite happening to run it.
         ("example_comparison", ("--compare-geometry",)),
+        # The by-measurement-type basin comparison exists only on --compare method;
+        # the plain run (--compare residual, the default) writes ch4_initial_guess_basin
+        # instead, which the plain run below already covers.
+        ("example_initial_guess_basin", ("--compare", "method")),
     ),
     "ch3_estimators": (
         # The EKF's dataset panel exists only on the --data path, and now has a

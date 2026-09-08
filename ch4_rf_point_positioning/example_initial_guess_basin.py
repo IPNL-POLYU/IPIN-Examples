@@ -59,7 +59,14 @@ from matplotlib.patches import Patch
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from core.eval import resolve_figs_dir, save_figure, show_figures_if_requested
-from core.rf import AOAPositioner, aoa_azimuth, solve_batch
+from core.rf import (
+    AOAPositioner,
+    TDOAPositioner,
+    aoa_azimuth,
+    solve_batch,
+    toa_range,
+    toa_solve_with_clock_bias,
+)
 from core.rf.positioning import STALL_M
 
 FIGS_DIR = Path(__file__).parent / "figs"
@@ -176,6 +183,101 @@ def sweep(residual, verbose=True):
     return result
 
 
+# --------------------------------------------------------------------------------------
+# Method comparison (`--compare method`, added).
+#
+# The sweep above answers "does the PARAMETERISATION matter?" for one estimator, AOA --
+# its contrast axis is `residual=`, a keyword that exists on `AOAPositioner` and nothing
+# else. It cannot answer "does the MEASUREMENT TYPE matter?". `sweep_arm` below is
+# `sweep` with the solver and the measurement vector lifted out of the body and into the
+# signature -- same seeds, same grid, same classification through `core.rf.solve_batch`
+# -- so `--compare method` can run TOA and TDOA from the same lattice beside AOA.
+# `tests/ch4_rf_point_positioning/test_initial_guess_basin.py` asserts that
+# `sweep_arm(AOAPositioner(ANCHORS), measurements(), ..., residual="angle")` reproduces
+# `sweep("angle")` bit for bit, so the two code paths cannot silently diverge.
+# --------------------------------------------------------------------------------------
+
+#: Shared clock bias baked into the TOA pseudoranges for `--compare method`, matching
+#: `example_comparison.py`'s own constant (`clock_bias_m = 1.5`, its line ~769) --
+#: duplicated rather than imported, because a chapter example is a leaf: nothing under
+#: `ch4_rf_point_positioning/` imports a sibling `example_*.py`
+#: (tests/test_repo_conventions.py::test_chapter_module_does_not_import_its_sibling).
+METHOD_CLOCK_BIAS_M = 1.5
+
+
+class ClockStateSolver:
+    """`toa_solve_with_clock_bias` behind the `solve(m, initial_guess=...)` interface
+    `core.rf.solve_batch` expects.
+
+    Mirrors `example_comparison.py`'s `_ClockBiasSolver` (not imported; see
+    `METHOD_CLOCK_BIAS_M` above). `toa_solve_with_clock_bias` takes a 3-vector
+    `[x, y, bias_m]` seed and returns a 3-tuple; `solve_batch` calls
+    `solver.solve(measurement, initial_guess=...)` expecting a 2-vector position back,
+    and compares the 2-D `initial_guess` it was given against that position for the
+    stall test. So this appends a zero initial bias and drops the bias from the return,
+    and does nothing else.
+    """
+
+    def __init__(self, anchors: np.ndarray) -> None:
+        self.anchors = np.asarray(anchors, dtype=float)
+
+    def solve(self, ranges, initial_guess, **kwargs):
+        state0 = np.concatenate([np.asarray(initial_guess, dtype=float), [0.0]])
+        position, _bias_m, info = toa_solve_with_clock_bias(
+            self.anchors, ranges, state0, **kwargs
+        )
+        return position, info
+
+
+def sweep_arm(solver, meas, name, title=None, **solve_kwargs):
+    """One basin sweep for an arbitrary estimator and measurement vector.
+
+    Same body as `sweep()` above with the solver and the measurement vector lifted out
+    into the signature: same seed lattice, same target, and the same five-way
+    classification (raised / stalled / converged-wrong-place / diverged / solved)
+    through `core.rf.solve_batch`. `title`, if given, is what `plot_basin` puts on the
+    panel instead of `residual="..."`; `name` is what console output prints.
+    """
+    axis, xx, yy, seeds = seed_grid()
+    truth = TRUTH[None, :]
+
+    codes = np.empty(len(seeds), dtype=int)
+    errors = np.empty(len(seeds))
+    claimed = np.zeros(len(seeds), dtype=bool)
+    for i, seed in enumerate(seeds):
+        out = solve_batch(
+            solver, np.asarray(meas)[None, :], seed, truth, **solve_kwargs
+        )
+        err = float(out.errors[0])
+        errors[i] = err
+        claimed[i] = bool(out.converged[0])
+        if np.isnan(err):
+            codes[i] = RAISED
+        elif bool(out.stalled[0]):
+            codes[i] = STALLED
+        elif err > out.divergence_m:
+            codes[i] = DIVERGED
+        elif err > SOLVED_M:
+            codes[i] = WRONG
+        else:
+            codes[i] = SOLVED
+
+    return {
+        "residual": name,  # plot_basin's fallback label; overridden by "title" below
+        "title": title or name,
+        "axis": axis,
+        "xx": xx,
+        "yy": yy,
+        "seeds": seeds,
+        "codes": codes.reshape(xx.shape),
+        "errors": errors.reshape(xx.shape),
+        "claimed": claimed.reshape(xx.shape),
+        "silent": int(np.sum((codes != SOLVED) & (codes != RAISED) & claimed)),
+        "counts": {c: int(np.sum(codes == c)) for c in LABELS},
+        "n": len(seeds),
+    }
+
+
 def trace_worst(result):
     """Re-solve the worst SILENT failure and return its iterate path.
 
@@ -214,9 +316,12 @@ def plot_basin(ax, result):
     ax.plot(ANCHORS[:, 0], ANCHORS[:, 1], "k^", ms=9, label="anchors")
     ax.plot(*TRUTH, "w*", ms=18, mec="k", mew=1.2, label="target")
     solved = result["counts"][SOLVED]
+    # `sweep()`'s dicts carry no "title" key, so `label` is byte-identical to the
+    # original `residual="..."` string on the default path; `sweep_arm()`'s dicts (added
+    # for `--compare method`) set "title" and take this branch instead.
+    label = result.get("title") or f'residual="{result["residual"]}"'
     ax.set_title(
-        f'residual="{result["residual"]}"   '
-        f'{result["n"] - solved}/{result["n"]} seeds fail',
+        f'{label}   {result["n"] - solved}/{result["n"]} seeds fail',
         fontsize=11,
     )
     ax.set_xlabel("initial guess x (m)")
@@ -314,15 +419,136 @@ def plot_summary(results, trace):
     return fig
 
 
+def legend_handles_method(results):
+    """Legend entries for `plot_method_comparison`: only the outcomes that occurred."""
+    seen = [c for c in LABELS if any(r["counts"][c] for r in results)]
+    handles = [
+        Patch(facecolor=COLOURS[c], edgecolor="black", label=LABELS[c]) for c in seen
+    ]
+    handles += [
+        plt.Line2D([], [], color="k", marker="^", ls="", label="anchor"),
+        plt.Line2D(
+            [], [], color="w", marker="*", mec="k", ls="", ms=12, label="target"
+        ),
+    ]
+    return handles
+
+
+def plot_method_comparison(results):
+    """Three basin maps, one per measurement type, sharing one legend below them.
+
+    Reuses `plot_basin` unchanged (each `sweep_arm` result carries its own "title").
+    """
+    fig, axes = plt.subplots(1, 3, figsize=(15.0, 6.2))
+    for ax, r in zip(axes, results, strict=True):
+        plot_basin(ax, r)
+    handles = legend_handles_method(results)
+    fig.legend(
+        handles=handles,
+        loc="lower center",
+        bbox_to_anchor=(0.5, 0.0),
+        ncol=len(handles),
+        frameon=False,
+        fontsize=9,
+    )
+    fig.suptitle(
+        "Same seeds, same target -- does the MEASUREMENT TYPE change the basin?\n"
+        "Square anchors, zero measurement noise",
+        fontsize=13,
+    )
+    fig.tight_layout(rect=(0, 0.12, 1, 0.92))
+    return fig
+
+
+def _run_method_comparison(out_dir: str) -> None:
+    """`--compare method`: TOA (with the clock state), TDOA and AOA from one lattice.
+
+    Same anchors, same target and the same 1681 seeds as the residual sweep above --
+    only the measurement type changes. Uses `sweep_arm` (see its docstring), not
+    `sweep`, which is hard-coded to `AOAPositioner` and `residual=`.
+    """
+    axis, *_ = seed_grid()
+    print("=" * 70)
+    print("Chapter 4: the initial-guess basin, by measurement type")
+    print("=" * 70)
+    print(
+        f"  {len(axis)}x{len(axis)} seeds over [{GRID_MIN:.0f}, {GRID_MAX:.0f}] m, "
+        f"target at ({TRUTH[0]:.1f}, {TRUTH[1]:.1f}), zero measurement noise"
+    )
+    print(f"  shared clock bias in the TOA pseudoranges: {METHOD_CLOCK_BIAS_M} m")
+
+    ranges = np.array([toa_range(a, TRUTH) for a in ANCHORS]) + METHOD_CLOCK_BIAS_M
+    tdoa = ranges[1:] - ranges[:1]
+
+    toa_r = sweep_arm(
+        ClockStateSolver(ANCHORS),
+        ranges,
+        "TOA + clock state",
+        title=r"TOA, state $(x,y,c\Delta t)$",
+    )
+    tdoa_r = sweep_arm(
+        TDOAPositioner(ANCHORS, reference_anchor_index=0),
+        tdoa,
+        "TDOA",
+        title="TDOA, ref. anchor 0",
+    )
+    aoa_r = sweep_arm(
+        AOAPositioner(ANCHORS),
+        measurements(),
+        'AOA, residual="angle"',
+        title=r"AOA, wrap($\psi-\hat{\psi}$)",
+        residual="angle",
+    )
+
+    results = [toa_r, tdoa_r, aoa_r]
+    print("\n  " + "-" * 60)
+    print(f"  {'arm':<26}{'fail/' + str(len(axis) ** 2):>12}")
+    for r in results:
+        n_fail = r["n"] - r["counts"][SOLVED]
+        print(f"  {r['title']:<26}{str(n_fail) + '/' + str(r['n']):>12}")
+
+    fig = plot_method_comparison(results)
+    paths = save_figure(fig, out_dir, "ch4_initial_guess_basin_by_method")
+    print(
+        f"\n  saved ch4_initial_guess_basin_by_method: "
+        f"{', '.join(p.suffix.lstrip('.') for p in paths)}"
+    )
+    plt.close("all")
+    print(f"Figures written to {resolve_figs_dir(out_dir)}")
+    show_figures_if_requested()
+
+
 def main() -> None:
-    """Sweep both parameterisations and write the figure."""
+    """Sweep both parameterisations and write the figure.
+
+    ``--compare method`` (added) runs a second, independent mode: the SAME lattice
+    compared across measurement TYPES rather than across AOA's own residual
+    parameterisations. The default (``--compare residual``, i.e. no flag at all) is the
+    original body below, unchanged.
+    """
     parser = argparse.ArgumentParser(
         description="Initial-guess basin for AOA positioning (Chapter 4)"
     )
     parser.add_argument(
         "--out-dir", default=str(FIGS_DIR), help="Output directory for figures"
     )
+    parser.add_argument(
+        "--compare",
+        choices=("residual", "method"),
+        default="residual",
+        help=(
+            "'residual' (default): AOA under two residual parameterisations, "
+            "tan(psi) vs wrap(angle) -- the original figure. "
+            "'method': TOA (with the clock state), TDOA and AOA (wrap(angle)) on the "
+            "same anchors, target and seed lattice -- does the MEASUREMENT TYPE "
+            "matter, rather than the parameterisation."
+        ),
+    )
     args = parser.parse_args()
+
+    if args.compare == "method":
+        _run_method_comparison(args.out_dir)
+        return
 
     axis, *_ = seed_grid()
     print("=" * 70)

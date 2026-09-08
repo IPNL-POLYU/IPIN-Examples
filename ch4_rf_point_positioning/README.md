@@ -23,6 +23,16 @@ python -m ch4_rf_point_positioning.example_dop_geometry
 # Sweep the initial guess over the floor, under two residual parameterisations
 python -m ch4_rf_point_positioning.example_initial_guess_basin
 
+# ...or under three MEASUREMENT TYPES instead, same lattice, same target
+python -m ch4_rf_point_positioning.example_initial_guess_basin --compare method
+
+# The same question on a collinear array: truth vs. its mirror image
+python -m ch4_rf_point_positioning.example_reflection_ambiguity
+
+# Closed-form solvers need no seed at all -- does chaining one into the
+# iterative refiner match the good-seed answer?
+python -m ch4_rf_point_positioning.example_closedform_chaining
+
 # Run with pre-generated datasets
 python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_square
 python -m ch4_rf_point_positioning.example_comparison --data ch4_rf_2d_nlos
@@ -111,6 +121,101 @@ answers — while a seed far outside the room still walks off under either param
 check either way, which is why `core.rf.solve_batch`'s four conditions are not optional. Two
 questions catch both defects, and they are worth asking of any residual: *is it bounded?* and
 *does the cost stay large when the estimate is far wrong?*
+
+### Same lattice, different measurement type (`--compare method`)
+
+| Figure | Built by | Size |
+|--------|----------|------|
+| `ch4_initial_guess_basin_by_method.{svg,pdf,png}` | `example_initial_guess_basin.py --compare method` | — |
+
+![Does the measurement type change the basin?](figs/ch4_initial_guess_basin_by_method.svg)
+
+The sweep above changes AOA's own residual parameterisation. `--compare method` changes the
+**measurement type** instead, on the same 1681 seeds and the same target: TOA (with the clock
+state, Eqs. (4.24)-(4.26)), TDOA, and AOA (`residual="angle"`, the default above). This is an
+added *option* on the same example — the default invocation (no flags) is untouched.
+
+| | TOA + clock state | TDOA | AOA |
+|---|---:|---:|---:|
+| seeds that fail | 905 / 1681 | 964 / 1681 | 341 / 1681 |
+
+Ranges fail far more often than bearings here, on a lattice that runs well outside the room —
+not because the geometry is degenerate (it is the same square array as the residual sweep,
+not the collinear array below), but because a one-way TOA seed carries a third unknown, the
+clock state, and TDOA drops an equation relative to TOA. The AOA arm is the exact same solve
+the residual sweep pins (341/1681); `tests/ch4_rf_point_positioning/test_initial_guess_basin.py`
+asserts the two never drift apart.
+
+## A collinear array's mirror twin (Sections 4.2-4.4)
+
+| Figure | Built by | Size |
+|--------|----------|------|
+| `ch4_reflection_ambiguity_basin.{svg,pdf,png}` | `example_reflection_ambiguity.py` | — |
+
+![Truth vs. its reflection about the beacon line](figs/ch4_reflection_ambiguity_basin.svg)
+
+The basin above holds the geometry fixed at the well-behaved square. This example asks the
+geometry question directly: put the four beacons on `data/sim/ch4_rf_2d_linear`'s collinear
+line instead, and sweep the same 1681-seed lattice again. A target at `(x, 10 + h)` and its
+reflection `(x, 10 − h)` about the beacon line are the same distance from every beacon
+(Eqs. (4.1)-(4.3) TOA, (4.27)-(4.33) TDOA), so an iterative solve that reaches either one has,
+by every distance-based test, solved the problem — and DOP cannot see the difference either
+(see `data/sim/ch4_rf_2d_linear/README.md`). So this sweep scores every seed
+**TRUTH / MIRROR / FAIL** rather than solved / failed:
+
+| | TOA + clock state | TDOA | AOA, `residual="angle"` |
+|---|---:|---:|---:|
+| TRUTH | 315 | 314 | 461 |
+| MIRROR | 315 | 314 | 0 |
+| FAIL | 1051 | 1053 | 1220 |
+
+**AOA is not exposed to the ambiguity at all** — bearings, unlike ranges, flip sign under
+reflection (Eqs. (4.63)-(4.66)). Every one of the 315 TOA seeds that converge to the mirror
+report `converged=True`: the solver's own flag cannot tell truth from mirror, only a
+symmetry-aware classification can. And the beacon centroid — the "obvious" seed — sits
+exactly on the line of symmetry, where the range Jacobian has no across-line column, so it is
+the one starting point shared by every method that cannot move at all for TOA or TDOA.
+
+## Closed-form breaks the chicken-and-egg (Sections 4.3.3-4.3.5)
+
+| Figure | Built by | Size |
+|--------|----------|------|
+| `ch4_closedform_chaining.{svg,pdf,png}` | `example_closedform_chaining.py` | — |
+
+![No seed anywhere: closed-form alone, then chained into the refiner](figs/ch4_closedform_chaining.svg)
+
+An iterative solve needs an initial guess; Fang's closed-form TOA algorithm
+(Eqs. (4.43)-(4.49), `core.rf.toa_fang_solver`) and Chan's closed-form TDOA algorithm
+(Eqs. (4.50)-(4.62), `core.rf.tdoa_chan_solver`) do not, because neither iterates. This
+example measures whether that closed-form output is worth anything, on the same two datasets
+`example_comparison.py --compare-geometry` already contrasts:
+
+**Square (control):** Fang's closed-form alone already lands within 0.011 m of the
+fully-refined answer, and *chaining* it into the iterative refiner — feeding its output in as
+that solver's own `initial_guess`, per row — reproduces the good-seed iterative result
+exactly. Nothing in the chained pipeline needed a seed from anywhere.
+
+| | Iterative, centroid seed | Fang, no seed | Fang → refine | Chan → refine |
+|---|---:|---:|---:|---:|
+| median error [m] | 0.088 | 0.099 | 0.088 | 0.092 |
+
+**Corridor (collinear):** the naive centroid seed fails all 100 rows (it sits on the line of
+symmetry). Worse than merely inaccurate, Fang's own linear system has an **exactly singular**
+y-column here — every beacon shares `y = 10`, so Eq. (4.47)'s `h_n^i` is exactly zero on every
+row, measured as `cond(H_a^T H_a) = inf`, and the closed-form y-estimate lands at exactly
+`0.0` on all 100 rows, never near the true y in `[2, 18]`. Chaining that degenerate `(x, 0.0)`
+seed into the iterative refiner still converges — but the reflection ambiguity above survives
+the chaining, split by which side of the beacon line the true point started on:
+
+| | truth-side | mirror-side | fail |
+|---|---:|---:|---:|
+| Fang → refine | 50 / 100 | 50 / 100 | 0 / 100 |
+| Chan → refine | 40 / 100 | 45 / 100 | 15 / 100 |
+
+A bare median over the chained estimates would hide this split completely —
+`data/sim/ch4_rf_2d_linear/README.md` calls that failure mode out by name ("a median can hide
+a bimodal result") — so the tri-state count is reported instead, same convention as
+`example_reflection_ambiguity.py`.
 
 ## 📂 Dataset Connection
 
@@ -1115,8 +1220,8 @@ drift from the code.
 
 ```mermaid
 flowchart TB
-    D["<b>optional input</b><br/>data/sim/ch4_rf_2d_linear<br/>data/sim/ch4_rf_2d_nlos<br/>data/sim/ch4_rf_2d_optimal<br/>data/sim/ch4_rf_2d_square<br/><i>only example_comparison reads it</i>"]
-    E["<b>ch4_rf_point_positioning/example_*.py</b><br/>6 runnable demos"]
+    D["<b>optional input</b><br/>data/sim/ch4_rf_2d_linear<br/>data/sim/ch4_rf_2d_nlos<br/>data/sim/ch4_rf_2d_optimal<br/>data/sim/ch4_rf_2d_square<br/><i>3 of 8 examples read one</i>"]
+    E["<b>ch4_rf_point_positioning/example_*.py</b><br/>8 runnable demos"]
     C["<b>the reusable library</b><br/>core/eval/ · core/rf/ · core/utils/"]
     F["<b>ch4_rf_point_positioning/figs/</b><br/>svg + pdf + png"]
     D -. "--data" .-> E
@@ -1127,9 +1232,11 @@ flowchart TB
 | Example | Core modules | Optional dataset |
 | --- | --- | --- |
 | `example_aoa_positioning` | `core.eval`, `core.rf` | — |
+| `example_closedform_chaining` | `core.eval`, `core.rf` | `ch4_rf_2d_linear`, `ch4_rf_2d_square` |
 | `example_comparison` | `core.eval`, `core.rf`, `core.utils` | `ch4_rf_2d_linear`, `ch4_rf_2d_nlos`, `ch4_rf_2d_optimal`, `ch4_rf_2d_square` |
 | `example_dop_geometry` | `core.eval`, `core.rf` | — |
 | `example_initial_guess_basin` | `core.eval`, `core.rf` | — |
+| `example_reflection_ambiguity` | `core.eval`, `core.rf` | `ch4_rf_2d_linear` |
 | `example_tdoa_positioning` | `core.eval`, `core.rf` | — |
 | `example_toa_positioning` | `core.eval`, `core.rf` | — |
 
@@ -1145,12 +1252,18 @@ ch4_rf_point_positioning/
 ├── example_aoa_positioning.py    # AOA positioning demo
 ├── example_dop_geometry.py       # Sec. 4.5: how anchor geometry amplifies noise
 ├── example_initial_guess_basin.py # Sec. 4.4: the basin is the residual's, not the seed's
+│                                  #  (--compare method: same lattice, by measurement type)
+├── example_reflection_ambiguity.py # Sec. 4.2-4.4: a collinear array's mirror twin
+├── example_closedform_chaining.py  # Sec. 4.3.3-4.3.5: closed-form needs no seed at all
 ├── example_comparison.py         # Compare all RF methods
 └── figs/                         # Generated figures
     ├── toa_positioning_example.png   # TOA positioning geometry and convergence
     ├── ch4_rf_comparison.png         # Comprehensive RF methods comparison
     ├── ch4_aoa_geometry.png          # AOA positioning geometry (ENU convention)
     ├── ch4_initial_guess_basin.png   # Seed sweep under two residual parameterisations
+    ├── ch4_initial_guess_basin_by_method.png  # Same lattice, by measurement type
+    ├── ch4_reflection_ambiguity_basin.png     # Truth vs. mirror on a collinear array
+    ├── ch4_closedform_chaining.png            # Closed-form alone, then chained into the refiner
     ├── tdoa_covariance_matrix.png    # TDOA covariance structure (Eq. 4.42)
     └── closed_form_comparison.png    # Fang/Chan vs iterative solvers
 
@@ -1184,6 +1297,9 @@ All figures are generated by the example scripts and stored in the `figs/` direc
 | `ch4_aoa_geometry.png` | `example_aoa_positioning.py` | AOA positioning geometry demonstrating ENU coordinate convention with azimuth angles measured from North |
 | `ch4_dop_geometry.png` | `example_dop_geometry.py` | DOP field and walk-away curve showing how anchor geometry amplifies the same range noise into different position uncertainty |
 | `ch4_initial_guess_basin.png` | `example_initial_guess_basin.py` | Starting-point sweep showing where raw angle residuals and book sin/tan residuals converge or fail |
+| `ch4_initial_guess_basin_by_method.png` | `example_initial_guess_basin.py --compare method` | The same 1681-seed lattice and target, compared across TOA (with the clock state), TDOA and AOA instead of across AOA's own residual parameterisations |
+| `ch4_reflection_ambiguity_basin.png` | `example_reflection_ambiguity.py` | Tri-state TRUTH/MIRROR/FAIL basin on the collinear array: where a converged fix lands on the true target versus its reflection about the beacon line |
+| `ch4_closedform_chaining.png` | `example_closedform_chaining.py` | Left: Fang closed-form TOA needs no seed and matches the good-seed iterative answer once chained in, on the square dataset. Right: on the collinear dataset, chaining still converges but the reflection ambiguity survives it |
 | `tdoa_covariance_matrix.png` | `example_tdoa_positioning.py` | Heatmap visualization of TDOA covariance matrix (Eq. 4.42) showing diagonal variances and off-diagonal correlations |
 | `closed_form_comparison.png` | `example_tdoa_positioning.py` | Box plot comparison of closed-form solvers (Fang TOA, Chan TDOA) against their iterative counterparts under measurement noise. The two iterative bars are not the same estimator: TOA is range-weighted (W_ii = 1/d_i^2) and TDOA is I-WLS with the Eq. (4.42) covariance |
 | `ch4_geometry_comparison.png` | `example_comparison.py --compare-geometry` | Median error and failure rate for TOA, TDOA and AOA on each of the three beacon layouts |
@@ -1197,6 +1313,9 @@ python -m ch4_rf_point_positioning.example_tdoa_positioning
 python -m ch4_rf_point_positioning.example_aoa_positioning
 python -m ch4_rf_point_positioning.example_dop_geometry
 python -m ch4_rf_point_positioning.example_initial_guess_basin
+python -m ch4_rf_point_positioning.example_initial_guess_basin --compare method
+python -m ch4_rf_point_positioning.example_reflection_ambiguity
+python -m ch4_rf_point_positioning.example_closedform_chaining
 python -m ch4_rf_point_positioning.example_comparison
 python -m ch4_rf_point_positioning.example_comparison --compare-geometry
 ```

@@ -36,13 +36,18 @@ import numpy as np
 from ch4_rf_point_positioning.example_initial_guess_basin import (
     ANCHORS,
     DIVERGED,
+    METHOD_CLOCK_BIAS_M,
     SOLVED,
     STALLED,
     TRUTH,
     WRONG,
+    ClockStateSolver,
+    measurements,
     sweep,
+    sweep_arm,
     trace_worst,
 )
+from core.rf import AOAPositioner, TDOAPositioner, toa_range
 
 _CACHE = {}
 
@@ -53,6 +58,27 @@ def sweeps():
         for residual in ("tan", "angle"):
             _CACHE[residual] = sweep(residual, verbose=False)
     return _CACHE["tan"], _CACHE["angle"]
+
+
+def method_results():
+    """The three `sweep_arm` method arms (`--compare method`), computed once per session.
+
+    Same lattice, same target as the residual sweep above; only the measurement type
+    (TOA with the clock state, TDOA, AOA) changes.
+    """
+    if "method" not in _CACHE:
+        ranges = np.array([toa_range(a, TRUTH) for a in ANCHORS]) + METHOD_CLOCK_BIAS_M
+        tdoa = ranges[1:] - ranges[:1]
+        _CACHE["method"] = {
+            "toa": sweep_arm(ClockStateSolver(ANCHORS), ranges, "TOA + clock state"),
+            "tdoa": sweep_arm(
+                TDOAPositioner(ANCHORS, reference_anchor_index=0), tdoa, "TDOA"
+            ),
+            "aoa": sweep_arm(
+                AOAPositioner(ANCHORS), measurements(), "AOA", residual="angle"
+            ),
+        }
+    return _CACHE["method"]
 
 
 def quiet(result):
@@ -151,6 +177,64 @@ class TestInitialGuessBasin(unittest.TestCase):
             )
             self.assertTrue(info["converged"], residual)
             self.assertLess(float(np.linalg.norm(est - TRUTH)), 1e-3, residual)
+
+
+class TestSweepArmMatchesSweep(unittest.TestCase):
+    """`sweep_arm` (added for `--compare method`) must not silently diverge from `sweep`.
+
+    `sweep("angle")` is `AOAPositioner(ANCHORS)` and `residual="angle"` hard-coded;
+    `sweep_arm` is the same body with both lifted into arguments. This proves the lift
+    changed nothing by running the AOA arm both ways and requiring bit-identical output.
+    """
+
+    def test_aoa_angle_arm_is_bit_identical_to_the_residual_sweep(self):
+        _, angle = sweeps()
+        ported = sweep_arm(
+            AOAPositioner(ANCHORS), measurements(), "AOA", residual="angle"
+        )
+
+        self.assertTrue(np.array_equal(ported["codes"], angle["codes"]))
+        self.assertTrue(np.allclose(ported["errors"], angle["errors"], equal_nan=True))
+        self.assertEqual(ported["counts"], angle["counts"])
+
+
+class TestMethodComparison(unittest.TestCase):
+    """`--compare method`: does the MEASUREMENT TYPE change the basin?
+
+    Same 1681 seeds and the same target as the residual sweep, zero measurement noise;
+    only TOA (with the clock state, Eqs. 4.24-4.26)/TDOA/AOA changes. Headline counts
+    measured fresh this session (`python -m ch4_rf_point_positioning.example_initial_guess_basin
+    --compare method`) and pinned here so a repo change that moves them fails loudly.
+    """
+
+    def test_headline_fail_counts_out_of_1681(self):
+        m = method_results()
+        fail = {k: v["n"] - v["counts"][SOLVED] for k, v in m.items()}
+
+        self.assertEqual(fail["toa"], 905)
+        self.assertEqual(fail["tdoa"], 964)
+        self.assertEqual(fail["aoa"], 341)
+
+    def test_the_aoa_arm_agrees_with_the_residual_sweeps_own_angle_count(self):
+        """The AOA arm inside method-mode is the same solve the residual sweep pins."""
+        m = method_results()
+        _, angle = sweeps()
+
+        self.assertEqual(
+            m["aoa"]["n"] - m["aoa"]["counts"][SOLVED],
+            angle["n"] - angle["counts"][SOLVED],
+        )
+
+    def test_toa_and_tdoa_fail_more_often_than_aoa_on_this_lattice(self):
+        """The story `--compare method` exists to tell: ranges fail far more than
+        bearings on a lattice that extends well outside the room, on this square
+        geometry -- unlike the collinear array, where TOA/TDOA fail from the beacon
+        centroid specifically (see example_comparison.py's geometry comparison)."""
+        m = method_results()
+        fail = {k: v["n"] - v["counts"][SOLVED] for k, v in m.items()}
+
+        self.assertGreater(fail["toa"], fail["aoa"])
+        self.assertGreater(fail["tdoa"], fail["aoa"])
 
 
 if __name__ == "__main__":
